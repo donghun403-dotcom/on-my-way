@@ -176,7 +176,6 @@ textarea {
   font-weight: 700;
 }
 
-.nav-cta,
 .goal-row button,
 .paid-box a,
 .dashboard-top button,
@@ -194,10 +193,6 @@ textarea {
   background: var(--blue);
   font-weight: 800;
   cursor: pointer;
-}
-
-.nav-login {
-  color: var(--blue);
 }
 
 .menu-button {
@@ -1432,14 +1427,8 @@ footer p {
   border-radius: 12px;
 }
 
-.home-page .nav-login,
 .home-page .main-nav a {
   color: rgba(255, 255, 255, 0.82);
-}
-
-.home-page .nav-cta {
-  color: #051111;
-  background: var(--app-mint);
 }
 
 .home-page .section-band {
@@ -1459,47 +1448,12 @@ footer p {
   max-width: none;
 }
 
-.home-page .app-tabs {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 4px;
-  width: min(100%, 356px);
-  min-height: 46px;
-  margin: 4px 0 14px;
-  padding: 4px;
-  overflow: visible;
-  scrollbar-width: none;
-}
-
-.home-page .app-tabs::-webkit-scrollbar,
 .home-page .problem-grid::-webkit-scrollbar,
 .home-page .steps::-webkit-scrollbar,
 .home-page .result-cards::-webkit-scrollbar,
 .home-page .use-grid::-webkit-scrollbar,
 .home-page .pricing-grid::-webkit-scrollbar {
   display: none;
-}
-
-.home-page .app-tabs a {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 0;
-  min-height: 36px;
-  padding: 0 12px;
-  color: rgba(255, 255, 255, 0.72);
-  background: #111515;
-  border: 1px solid var(--app-line);
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 850;
-  line-height: 1;
-  white-space: nowrap;
-}
-
-.home-page .app-tabs a.active {
-  color: #061110;
-  background: var(--app-mint);
 }
 
 .home-page .hero-poster {
@@ -2467,25 +2421,10 @@ footer p {
   box-shadow: 0 16px 44px rgba(31, 65, 176, 0.12);
 }
 
-.home-page .app-tabs {
-  background: rgba(255, 255, 255, 0.82);
-  border: 1px solid rgba(221, 225, 236, 0.98);
-  border-radius: 999px;
-  box-shadow: 0 14px 32px rgba(31, 65, 176, 0.1);
-  backdrop-filter: blur(14px);
-}
-
 .home-page .main-nav a,
-.home-page .nav-login,
 .bottom-tabbar a,
 .execution-tabbar a {
   color: var(--routine-muted);
-}
-
-.home-page .app-tabs a {
-  color: #646a7c;
-  background: transparent;
-  border: 0;
 }
 
 .bottom-tabbar a.active,
@@ -2494,13 +2433,13 @@ footer p {
   background: var(--routine-green);
 }
 
-.home-page .app-tabs a.active {
+.home-page .main-nav a.active,
+.home-page .main-nav a[aria-current="page"] {
   color: #ffffff;
   background: linear-gradient(135deg, var(--routine-green), #3b5fd1);
   box-shadow: 0 8px 18px rgba(31, 65, 176, 0.24);
 }
 
-.home-page .nav-cta,
 .home-page .goal-row button,
 .home-page .personality-form button,
 .home-page .schedule-card button,

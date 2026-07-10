@@ -4,7 +4,7 @@ const designGoal = document.querySelector("#designGoal");
 const menuButton = document.querySelector(".menu-button");
 const mainNav = document.querySelector(".main-nav");
 const navLinks = document.querySelectorAll(".main-nav a");
-const sectionNavLinks = document.querySelectorAll(".app-tabs a, .bottom-tabbar a");
+const sectionNavLinks = document.querySelectorAll(".main-nav a[href^='#'], .bottom-tabbar a");
 const themeButtons = document.querySelectorAll(".theme-button");
 const companionArt = document.querySelector("#companionArt");
 const themeTitle = document.querySelector("#themeTitle");
@@ -234,6 +234,8 @@ sectionNavLinks.forEach((link) => {
     if (hash) setActiveSectionLink(hash);
   });
 });
+
+setActiveSectionLink(window.location.hash || "#top");
 
 const sectionAnchors = ["#top", "#designFlow", "#companion", "#pricing"]
   .map((hash) => ({ hash, element: document.querySelector(hash) }))
