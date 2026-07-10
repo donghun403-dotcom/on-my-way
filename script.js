@@ -79,6 +79,7 @@ const companionStage = document.querySelector("#companionStage");
 const companionLevel = document.querySelector("#companionLevel");
 const companionXpBar = document.querySelector("#companionXpBar");
 const openCompanionChatButton = document.querySelector("#openCompanionChat");
+const openCompanionChatTriggers = document.querySelectorAll("[data-open-companion-chat]");
 const touchCompanionButton = document.querySelector("#touchCompanion");
 const companionActionButtons = document.querySelectorAll("[data-companion-action]");
 const focusTaskTitle = document.querySelector("#focusTaskTitle");
@@ -939,11 +940,10 @@ function appendRevisionRequest(text, response = "좋아요. 그 요청을 플랜
   planRevisionRequest.value = current ? `${current}\n${text}` : text;
   updateRevisionButtonState();
   if (planEditorMessage) {
-    planEditorMessage.textContent = "모리의 제안을 수정 요청에 담았습니다. 버튼을 누르면 새 스케줄 미리보기를 만들어요.";
+    planEditorMessage.textContent = "모리의 제안을 수정 요청에 담았습니다. 변경안 만들기를 누르면 적용 전 미리보기를 볼 수 있어요.";
   }
   if (companionChatResponse) companionChatResponse.textContent = response;
   if (companionMessage) companionMessage.textContent = response;
-  planRevisionRequest.focus();
 }
 
 function setSheetOpen(sheet, overlay, open) {
@@ -1017,7 +1017,7 @@ function renderFocusTask(dayPlan, selectedCompletion) {
   if (focusProgressText) focusProgressText.textContent = `${selectedCompletion.completed}/${selectedCompletion.total} 완료`;
   if (startFocusButton) {
     startFocusButton.dataset.taskIndex = String(taskIndex);
-    startFocusButton.textContent = selectedCompletion.percent === 100 ? "다시 보기" : "집중 시작";
+    startFocusButton.textContent = selectedCompletion.percent === 100 ? "다시 보기" : "모리와 시작하기";
   }
 }
 
@@ -1275,7 +1275,7 @@ function updateRevisionButtonState() {
   const hasRequest = planRevisionRequest.value.trim().length > 0;
   regeneratePlanButton.disabled = !hasRequest;
   if (planEditorMessage && !hasRequest) {
-    planEditorMessage.textContent = "바꾸고 싶은 내용을 한 가지 이상 적으면 수정한 플랜을 받을 수 있어요.";
+    planEditorMessage.textContent = "바꾸고 싶은 내용을 한 가지 이상 적으면 적용 전 변경안을 만들 수 있어요.";
   }
 }
 
@@ -1448,6 +1448,9 @@ companionActionButtons.forEach((button) => {
 });
 
 openCompanionChatButton?.addEventListener("click", openCompanionChat);
+openCompanionChatTriggers.forEach((button) => {
+  button.addEventListener("click", openCompanionChat);
+});
 closeCompanionChatButton?.addEventListener("click", closeCompanionChat);
 chatOverlay?.addEventListener("click", closeCompanionChat);
 
@@ -1530,7 +1533,7 @@ acceptPlanButton?.addEventListener("click", () => {
   const bundle = getPlanBundle({ customText: planEditor?.value || undefined, revisionRequest: planRevisionRequest?.value.trim() || "" });
   bundle.state.status = "적용 완료";
   savePlanBundleState(bundle.state);
-  if (planEditorMessage) planEditorMessage.textContent = "현재 플랜을 그대로 스케줄에 적용했습니다.";
+  if (planEditorMessage) planEditorMessage.textContent = "변경안을 적용했어요. 오늘 일정도 함께 업데이트했습니다.";
   renderExecutionPage(bundle);
 });
 
@@ -1547,8 +1550,8 @@ regeneratePlanButton?.addEventListener("click", () => {
   savePlanBundleState(bundle.state);
   if (planEditorMessage) {
     planEditorMessage.textContent = revisionRequest
-      ? "수정 요청사항을 참고해서 새 스케줄을 만들었습니다. 기존 체크 상태는 새 플랜 기준으로 초기화됩니다."
-      : "현재 플랜을 기준으로 새 스케줄을 만들었습니다. 원하는 조건을 적으면 더 구체적으로 다시 짤 수 있어요.";
+      ? "모리가 변경안을 만들었습니다. 내용을 확인한 뒤 적용하거나 다시 수정 요청할 수 있어요."
+      : "현재 플랜을 기준으로 변경안을 만들었습니다. 원하는 조건을 적으면 더 구체적으로 다시 짤 수 있어요.";
   }
   renderExecutionPage(bundle);
 });

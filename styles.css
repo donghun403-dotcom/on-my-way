@@ -3185,13 +3185,15 @@ footer p {
 
 .companion-primary-actions {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 8px;
 }
 
 .companion-primary-actions button,
 .focus-start-button,
+.focus-adjust-link,
 .chat-send-button,
+.mate-actions button,
 .focus-mode-actions button {
   min-height: 46px;
   padding: 10px 14px;
@@ -3204,7 +3206,6 @@ footer p {
   cursor: pointer;
 }
 
-.companion-primary-actions .primary,
 .focus-start-button,
 .chat-send-button,
 .focus-mode-actions .primary {
@@ -3212,6 +3213,25 @@ footer p {
   background: linear-gradient(135deg, var(--routine-green), #7bd642);
   border-color: transparent;
   box-shadow: 0 12px 22px rgba(53, 191, 166, 0.22);
+}
+
+.companion-primary-actions button,
+.focus-adjust-link,
+.mate-actions button {
+  color: var(--routine-green-dark);
+  background: var(--routine-soft);
+  border-color: rgba(53, 191, 166, 0.22);
+  box-shadow: none;
+}
+
+.focus-adjust-link {
+  min-height: 36px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: var(--routine-muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .companion-actions {
@@ -3283,6 +3303,13 @@ footer p {
 .focus-task-goal strong {
   color: var(--routine-text);
   font-size: 13px;
+}
+
+.mate-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 14px;
 }
 
 .companion-world img.is-celebrating {
@@ -3454,7 +3481,6 @@ body.sheet-open {
   gap: 8px;
 }
 
-.sheet-open .app-payment-cta,
 .sheet-open .execution-tabbar {
   pointer-events: none;
 }
@@ -3671,6 +3697,7 @@ body.sheet-open {
   }
 
   .companion-primary-actions,
+  .mate-actions,
   .energy-options,
   .quick-adjustments,
   .focus-mode-actions {

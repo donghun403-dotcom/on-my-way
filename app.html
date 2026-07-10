@@ -62,13 +62,7 @@
           <span id="companionXpBar" style="width: 0%"></span>
         </div>
         <div class="companion-primary-actions">
-          <button class="primary" id="openCompanionChat" type="button">이야기하기</button>
-          <button id="touchCompanion" type="button">쓰다듬기</button>
-        </div>
-        <div class="companion-actions" aria-label="메이트 체크인">
-          <button type="button" data-companion-action="light">가볍게 시작할래</button>
-          <button type="button" data-companion-action="steady">계획대로 해볼래</button>
-          <button type="button" data-companion-action="hard">오늘은 조금 힘들어</button>
+          <button id="openCompanionChat" type="button">이야기하기</button>
         </div>
       </section>
 
@@ -82,7 +76,8 @@
           <strong id="minimumGoalText">최소 성공: 5분만 해도 완료</strong>
           <span id="focusProgressText">시작 전</span>
         </div>
-        <button class="focus-start-button" id="startFocusButton" type="button">집중 시작</button>
+        <button class="focus-start-button" id="startFocusButton" type="button">모리와 시작하기</button>
+        <button class="focus-adjust-link" data-open-companion-chat type="button">오늘 계획이 부담스러운가요?</button>
       </section>
 
       <section class="execution-card today-card">
@@ -125,37 +120,7 @@
         </div>
       </section>
 
-      <section class="execution-card plan-editor-card">
-        <div class="card-title compact">
-          <div>
-            <h2>AI 제안 플랜</h2>
-            <span>수정 요청사항을 적으면 AI가 참고해서 새 스케줄을 다시 짭니다</span>
-          </div>
-          <span class="soft-badge" id="planStatusBadge">AI 제안</span>
-        </div>
-        <textarea id="planEditor" class="plan-editor" rows="7" hidden></textarea>
-        <div class="plan-preview-list" id="planPreviewList" aria-label="AI 제안 플랜"></div>
-        <label class="plan-editor-label" for="planRevisionRequest">수정 요청사항</label>
-        <div class="revision-quick-actions" aria-label="빠른 수정 요청">
-          <button type="button" data-revision-chip="시간을 10분 단위로 더 짧게 나눠줘.">시간을 더 짧게</button>
-          <button type="button" data-revision-chip="평일은 저녁 위주로 배치해줘.">저녁 위주로</button>
-          <button type="button" data-revision-chip="주말에는 복습만 가볍게 하고 싶어.">주말은 가볍게</button>
-          <button type="button" data-revision-chip="난이도를 낮추고 최소 성공 기준을 넣어줘.">난이도 낮추기</button>
-        </div>
-        <textarea
-          id="planRevisionRequest"
-          class="plan-editor plan-revision-request"
-          rows="4"
-          placeholder="예: 평일 아침은 어렵고 저녁 9시 이후가 좋아요. 주말에는 복습만 하고 싶어요."
-        ></textarea>
-        <div class="plan-editor-actions">
-          <button class="text-button primary-action" id="acceptPlanButton" type="button">이 플랜으로 시작하기</button>
-          <button class="text-button" id="regeneratePlanButton" type="button">수정한 플랜 받기</button>
-        </div>
-        <p id="planEditorMessage">AI가 제안한 계획은 위에 두고, 바꾸고 싶은 조건만 아래에 적어주세요.</p>
-      </section>
-
-      <section class="execution-card companion-run-card">
+      <section class="execution-card companion-run-card" id="matePanel">
         <div class="card-title compact">
           <div>
             <h2>목표 메이트 모리</h2>
@@ -177,6 +142,10 @@
           <span>함께한 날 <strong id="companionDays">1일</strong></span>
           <span>다음 성장 <strong id="companionNextGrowth">25%</strong></span>
         </div>
+        <div class="mate-actions" aria-label="모리 상호작용">
+          <button id="touchCompanion" type="button">쓰다듬기</button>
+          <button data-open-companion-chat type="button">모리와 대화하기</button>
+        </div>
       </section>
 
       <section class="execution-card journey-map-card" id="journeyMapCard">
@@ -190,15 +159,34 @@
         <div class="journey-map" id="journeyMap" aria-label="목표 여정 지도"></div>
       </section>
 
-      <section class="execution-card memory-card">
+      <section class="execution-card plan-editor-card" id="journeyPlanEditor">
         <div class="card-title compact">
           <div>
-            <h2>추억 카드</h2>
-            <span>작은 실행도 사라지지 않고 기록됩니다</span>
+            <h2>변경안 만들기</h2>
+            <span>모리가 제안하고, 적용은 사용자가 승인합니다</span>
           </div>
-          <span class="soft-badge">기록</span>
+          <span class="soft-badge" id="planStatusBadge">AI 제안</span>
         </div>
-        <div class="memory-list" id="memoryList"></div>
+        <textarea id="planEditor" class="plan-editor" rows="7" hidden></textarea>
+        <div class="plan-preview-list" id="planPreviewList" aria-label="현재 계획 요약"></div>
+        <label class="plan-editor-label" for="planRevisionRequest">어떤 점을 바꾸고 싶나요?</label>
+        <div class="revision-quick-actions" aria-label="빠른 수정 요청">
+          <button type="button" data-revision-chip="시간을 10분 단위로 더 짧게 나눠줘.">시간을 줄이고 싶어요</button>
+          <button type="button" data-revision-chip="평일은 저녁 위주로 배치해줘.">저녁 위주로 바꿔주세요</button>
+          <button type="button" data-revision-chip="주말에는 복습만 가볍게 하고 싶어.">주말은 가볍게 해주세요</button>
+          <button type="button" data-revision-chip="오늘은 가장 중요한 한 가지 과제만 남겨줘.">하루 한 가지만 하고 싶어요</button>
+        </div>
+        <textarea
+          id="planRevisionRequest"
+          class="plan-editor plan-revision-request"
+          rows="4"
+          placeholder="예: 평일에는 저녁 9시 이후만 가능하고, 주말에는 복습만 하고 싶어요."
+        ></textarea>
+        <div class="plan-editor-actions">
+          <button class="text-button primary-action" id="acceptPlanButton" type="button">이 변경안 적용하기</button>
+          <button class="text-button" id="regeneratePlanButton" type="button">변경안 만들기</button>
+        </div>
+        <p id="planEditorMessage">완료한 일정은 그대로 두고, 남은 계획만 바꾸는 흐름으로 보여줍니다.</p>
       </section>
 
       <section class="execution-card schedule-calendar-card">
@@ -237,6 +225,17 @@
         </ol>
       </section>
 
+      <section class="execution-card memory-card" id="recordsPanel">
+        <div class="card-title compact">
+          <div>
+            <h2>추억 카드</h2>
+            <span>작은 실행도 사라지지 않고 기록됩니다</span>
+          </div>
+          <span class="soft-badge">기록</span>
+        </div>
+        <div class="memory-list" id="memoryList"></div>
+      </section>
+
       <section class="execution-card coach-card">
         <p class="eyebrow">AI Coach</p>
         <h2>오늘은 완벽보다 체크인이 중요해요.</h2>
@@ -250,15 +249,9 @@
     <nav class="execution-tabbar" aria-label="앱 메뉴">
       <a class="active" href="#top" aria-label="오늘">⌂</a>
       <a href="#journeyMapCard" aria-label="여정">⌁</a>
-      <a href="#companionHome" aria-label="메이트">●</a>
-      <a href="#downloadPlanButton" aria-label="기록">▤</a>
-      <a href="index.html#pricing" aria-label="결제">₩</a>
+      <a href="#matePanel" aria-label="메이트">●</a>
+      <a href="#recordsPanel" aria-label="기록">▤</a>
     </nav>
-
-    <a class="floating-payment-cta app-payment-cta" href="index.html#pricing" aria-label="전체 플랜 열기">
-      <span>PRO · 전체 플랜 열기</span>
-      <strong>연 29,000원</strong>
-    </a>
 
     <div class="sheet-overlay" id="chatOverlay" hidden></div>
     <aside class="companion-chat-sheet" id="companionChatSheet" aria-labelledby="companionChatTitle" hidden>
@@ -286,7 +279,7 @@
         <textarea id="companionChatInput" rows="4" placeholder="예: 오늘 회의가 길어서 저녁 9시 이후에 10분짜리 행동만 남겨줘."></textarea>
       </label>
       <button class="chat-send-button" id="sendCompanionMessage" type="button">모리에게 보내기</button>
-      <p class="chat-response" id="companionChatResponse">모리는 요청을 바로 적용하지 않고, 아래 플랜 수정 요청에 반영해 승인받도록 도와줘요.</p>
+      <p class="chat-response" id="companionChatResponse">모리는 요청을 바로 적용하지 않고, Journey의 변경안 만들기에 반영해 승인받도록 도와줘요.</p>
     </aside>
 
     <div class="sheet-overlay" id="focusModeOverlay" hidden></div>
