@@ -4940,8 +4940,8 @@ body.sheet-open {
 }
 
 .home-page .hero-poster {
-  min-height: clamp(420px, 52vw, 620px);
-  padding: clamp(26px, 5vw, 58px);
+  min-height: clamp(360px, 62vw, 480px);
+  padding: clamp(24px, 6vw, 42px);
 }
 
 .home-page .hero {
@@ -4953,17 +4953,22 @@ body.sheet-open {
 }
 
 .home-page .hero-poster h1 {
-  font-size: clamp(44px, 7vw, 92px);
+  font-size: clamp(40px, 7.4vw, 60px);
 }
 
 .home-page .hero-poster p {
-  max-width: 420px;
-  font-size: clamp(17px, 2.2vw, 27px);
+  max-width: 380px;
+  font-size: clamp(16px, 2.4vw, 20px);
+}
+
+.home-page .poster-companions {
+  right: clamp(12px, 2.4vw, 24px);
+  bottom: clamp(12px, 2.4vw, 24px);
 }
 
 .home-page .poster-companions img {
-  width: clamp(210px, 34vw, 420px);
-  height: clamp(210px, 34vw, 420px);
+  width: clamp(170px, 30vw, 240px);
+  height: clamp(170px, 30vw, 240px);
 }
 
 .home-page .quick-use-cases .use-grid,
@@ -5033,28 +5038,6 @@ body.sheet-open {
     padding-inline: 24px;
   }
 
-  .home-page .hero-copy {
-    display: grid;
-    grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
-    gap: 24px;
-    align-items: end;
-  }
-
-  .home-page .hero-poster {
-    grid-column: 1 / -1;
-  }
-
-  .home-page .hero .eyebrow,
-  .home-page .hero-text,
-  .home-page .goal-form {
-    grid-column: 2;
-  }
-
-  .home-page .goal-form {
-    margin-top: -124px;
-    z-index: 4;
-  }
-
   .home-page .quick-use-cases .use-grid {
     grid-auto-flow: initial;
     grid-auto-columns: initial;
@@ -5097,6 +5080,49 @@ body.sheet-open {
 
   .home-page .coupon-strip {
     grid-column: 1 / -1;
+  }
+}
+
+@media (min-width: 1024px) {
+  .home-page .hero-poster {
+    min-height: 620px;
+    padding: 58px;
+  }
+
+  .home-page .hero-poster h1 {
+    font-size: clamp(72px, 7vw, 92px);
+  }
+
+  .home-page .hero-poster p {
+    max-width: 420px;
+    font-size: clamp(22px, 2.2vw, 27px);
+  }
+
+  .home-page .poster-companions img {
+    width: clamp(320px, 34vw, 420px);
+    height: clamp(320px, 34vw, 420px);
+  }
+
+  .home-page .hero-copy {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+    gap: 24px;
+    align-items: end;
+  }
+
+  .home-page .hero-poster {
+    grid-column: 1 / -1;
+  }
+
+  .home-page .hero .eyebrow,
+  .home-page .hero-text,
+  .home-page .goal-form {
+    grid-column: 2;
+  }
+
+  .home-page .goal-form {
+    margin-top: -124px;
+    z-index: 4;
   }
 }
 
