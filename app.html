@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>On My Way App - 오늘의 실행</title>
+    <meta
+      name="description"
+      content="On My Way의 목표 실행 화면입니다. 오늘의 스케줄을 체크하고, 목표 달성 게이지와 성장 대상을 확인합니다."
+    />
+    <link rel="icon" href="assets/logo-horizontal-symbol.png" type="image/png" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="execution-page">
+    <header class="execution-header">
+      <a href="index.html" aria-label="홈으로 돌아가기">
+        <img class="brand-logo" src="assets/logo-horizontal.png" alt="On My Way" />
+      </a>
+      <a class="ghost-link" href="index.html#designFlow">설계 수정</a>
+    </header>
+
+    <main class="execution-app" id="top">
+      <section class="execution-hero">
+        <div>
+          <p class="eyebrow">Today Mission</p>
+          <h1 id="executionGoal">3개월 안에 토익 900점 달성하기</h1>
+          <p>
+            <span id="executionStyle">루틴 점검형</span> ·
+            <span id="executionPeriod">90일 계획</span>
+          </p>
+        </div>
+        <div class="execution-gauge" aria-label="목표 달성률">
+          <strong id="executionProgress">42%</strong>
+          <span>달성</span>
+        </div>
+      </section>
+
+      <section class="execution-card progress-card">
+        <div class="card-title compact">
+          <div>
+            <h2>목표 달성 게이지</h2>
+            <span id="executionDay">Day 18 / 90</span>
+          </div>
+          <strong id="executionStreak">5일 연속</strong>
+        </div>
+        <div class="progress-track execution-progress-track">
+          <span id="executionProgressBar" style="width: 42%"></span>
+        </div>
+        <p id="executionMessage">오늘 계획 3개를 모두 끝내면 성장 대상이 한 단계 자랍니다.</p>
+      </section>
+
+      <section class="execution-card companion-run-card">
+        <div class="card-title compact">
+          <div>
+            <h2>나의 성장 대상</h2>
+            <span id="executionCompanionPath">씨앗 → 새싹 → 꽃</span>
+          </div>
+          <span class="soft-badge">함께 가는 중</span>
+        </div>
+        <div class="companion-run-body">
+          <img id="executionCompanion" src="assets/plant.svg" alt="식물 성장 캐릭터" />
+          <div>
+            <strong id="executionCompanionTitle">식물 키우기</strong>
+            <p id="executionCompanionText">
+              오늘의 계획을 모두 완료하면 새 잎이 하나 더 생깁니다.
+            </p>
+          </div>
+        </div>
+        <div class="execution-theme-picker" aria-label="성장 대상 선택">
+          <button class="execution-theme-button active" type="button" data-theme="plant">식물</button>
+          <button class="execution-theme-button" type="button" data-theme="dog">강아지</button>
+          <button class="execution-theme-button" type="button" data-theme="cat">고양이</button>
+          <button class="execution-theme-button" type="button" data-theme="home">집짓기</button>
+        </div>
+      </section>
+
+      <section class="execution-card">
+        <div class="card-title compact">
+          <div>
+            <h2>오늘의 스케줄</h2>
+            <span>완료하면 자동으로 게이지가 올라갑니다</span>
+          </div>
+          <button class="text-button" id="completeTodayButton" type="button">모두 완료</button>
+        </div>
+        <div class="execution-checklist">
+          <label>
+            <input class="execution-check" type="checkbox" />
+            <span>
+              <strong>07:30</strong>
+              단어 40개 암기
+            </span>
+          </label>
+          <label>
+            <input class="execution-check" type="checkbox" />
+            <span>
+              <strong>12:30</strong>
+              LC 파트 3 한 세트
+            </span>
+          </label>
+          <label>
+            <input class="execution-check" type="checkbox" />
+            <span>
+              <strong>21:00</strong>
+              오답 정리 20분
+            </span>
+          </label>
+        </div>
+      </section>
+
+      <section class="execution-card weekly-plan-card">
+        <div class="card-title compact">
+          <div>
+            <h2>이번 주 계획</h2>
+            <span>AI가 만든 실행 흐름 예시</span>
+          </div>
+          <button class="text-button" id="downloadPlanButton" type="button">PDF 받기</button>
+        </div>
+        <ol class="weekly-plan">
+          <li><span>월</span><strong>핵심 루틴 고정</strong><p>단어, LC, 오답 정리를 같은 시간에 실행</p></li>
+          <li><span>수</span><strong>중간 점검</strong><p>누락된 계획을 20분 단위로 재배치</p></li>
+          <li><span>금</span><strong>실전 세트</strong><p>시간 제한을 두고 약점 유형을 확인</p></li>
+          <li><span>일</span><strong>성장 리포트</strong><p>완료율과 다음 주 난이도를 조정</p></li>
+        </ol>
+      </section>
+
+      <section class="execution-card coach-card">
+        <p class="eyebrow">AI Coach</p>
+        <h2>오늘은 완벽보다 체크인이 중요해요.</h2>
+        <p>
+          계획을 놓친 항목이 있어도 실패로 처리하지 않습니다. 남은 시간에 맞춰 작은 단위로
+          다시 배치하는 것이 목표 달성률을 높입니다.
+        </p>
+      </section>
+    </main>
+
+    <nav class="execution-tabbar" aria-label="앱 메뉴">
+      <a class="active" href="#top" aria-label="오늘">⌂</a>
+      <a href="#executionCompanion" aria-label="성장">✦</a>
+      <a href="#downloadPlanButton" aria-label="계획">▣</a>
+      <a href="index.html#pricing" aria-label="결제">₩</a>
+    </nav>
+
+    <script src="script.js"></script>
+  </body>
+</html>

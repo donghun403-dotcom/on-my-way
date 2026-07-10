@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>On My Way - 내 성향에 맞는 목표 설계</title>
+    <meta
+      name="description"
+      content="On My Way는 목표, 성향, 기간을 바탕으로 실행 가능한 계획과 하루 스케줄, 성장 보상, 목표 달성 게이지를 제공하는 목표 달성 서비스입니다."
+    />
+    <meta property="og:title" content="On My Way" />
+    <meta
+      property="og:description"
+      content="내 성향에 맞게 목표를 세우고, 하루하루 실행하며, 성장 대상과 함께 끝까지 가는 길."
+    />
+    <meta property="og:type" content="website" />
+    <link rel="icon" href="assets/logo-horizontal-symbol.png" type="image/png" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="home-page">
+    <header class="site-header">
+      <a class="brand" href="#top" aria-label="On My Way home">
+        <img class="brand-logo" src="assets/logo-horizontal.png" alt="On My Way" />
+      </a>
+      <button class="menu-button" type="button" aria-label="메뉴 열기" aria-expanded="false">
+        <span></span>
+        <span></span>
+      </button>
+      <nav class="main-nav" aria-label="주요 메뉴">
+        <a href="#how">작동 방식</a>
+        <a href="#companion">성장</a>
+        <a href="#pricing">가격</a>
+        <a href="app.html">앱 실행</a>
+        <a href="admin.html">관리자</a>
+        <a class="nav-login" href="#pricing">로그인</a>
+        <a class="nav-cta" href="#diagnosis">목표 설계하기</a>
+      </nav>
+    </header>
+
+    <main id="top">
+      <section class="hero section-band">
+        <div class="hero-copy">
+          <div class="app-tabs" aria-label="홈 카테고리">
+            <a class="active" href="#diagnosis" aria-current="page">추천</a>
+            <a href="#designFlow">설계</a>
+            <a href="#companion">성장</a>
+            <a href="#pricing">가격</a>
+          </div>
+
+          <article class="hero-poster">
+            <div>
+              <span>오늘의 목표 여정</span>
+              <h1>내 성향에 맞게 목표를 세우고 끝까지 가는 길</h1>
+              <p>만세력과 MBTI를 참고해 오늘 실행할 수 있는 계획으로 바꿔요.</p>
+            </div>
+            <div class="poster-companions" aria-hidden="true">
+              <img src="assets/plant.svg" alt="" />
+              <img src="assets/dog.svg" alt="" />
+              <img src="assets/cat.svg" alt="" />
+            </div>
+          </article>
+
+          <p class="eyebrow">성향 기반 목표 설계</p>
+          <p class="hero-text">
+            목표를 먼저 알려주세요. MBTI와 만세력 기반 성향, 목표 기간, 현재 상황을 바탕으로
+            나에게 맞는 목표 설정 방식과 실행 계획을 제안합니다.
+          </p>
+
+          <form class="goal-form" id="diagnosis">
+            <label for="goalInput">무엇을 이루고 싶나요?</label>
+            <div class="goal-row">
+              <input
+                id="goalInput"
+                name="goal"
+                type="text"
+                value="3개월 안에 토익 900점 달성하기"
+                autocomplete="off"
+              />
+              <button type="submit">내 목표 설계 시작하기</button>
+            </div>
+            <p>성향 정보는 다음 단계에서 입력합니다.</p>
+          </form>
+        </div>
+
+      </section>
+
+      <section class="design-flow section-band" id="designFlow" aria-live="polite">
+        <div class="section-heading">
+          <p class="eyebrow">Goal Design Flow</p>
+          <h2>생년월일시와 MBTI를 바탕으로 목표 설계 스타일을 확인합니다</h2>
+          <p>
+            입력한 목표에 생년월일시 기반 만세력 성향과 MBTI 성향을 함께 반영해,
+            AI가 계획을 만들 수 있는 요청 데이터까지 준비합니다.
+          </p>
+        </div>
+
+        <div class="design-panel">
+          <form class="personality-form" id="personalityForm">
+            <div class="field-group wide">
+              <label for="designGoal">목표</label>
+              <input id="designGoal" type="text" value="3개월 안에 토익 900점 달성하기" />
+            </div>
+            <div class="field-group">
+              <label for="goalPeriod">목표 기간</label>
+              <select id="goalPeriod">
+                <option value="30">30일</option>
+                <option value="90" selected>90일</option>
+                <option value="100">100일</option>
+                <option value="180">6개월</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label for="currentState">현재 상태</label>
+              <input id="currentState" type="text" value="토익 720점, 평일 하루 1시간 가능" />
+            </div>
+            <div class="field-group">
+              <label for="birthDate">생년월일</label>
+              <input id="birthDate" type="date" value="1995-03-15" />
+            </div>
+            <div class="field-group">
+              <label for="birthTime">출생 시간</label>
+              <input id="birthTime" type="time" value="09:30" />
+            </div>
+            <div class="field-group">
+              <label for="birthPlace">출생지</label>
+              <input id="birthPlace" type="text" value="서울" />
+            </div>
+            <div class="field-group">
+              <label for="mbti">MBTI</label>
+              <select id="mbti">
+                <option>INTJ</option>
+                <option>INTP</option>
+                <option>ENTJ</option>
+                <option>ENTP</option>
+                <option>INFJ</option>
+                <option>INFP</option>
+                <option>ENFJ</option>
+                <option>ENFP</option>
+                <option>ISTJ</option>
+                <option selected>ISFJ</option>
+                <option>ESTJ</option>
+                <option>ESFJ</option>
+                <option>ISTP</option>
+                <option>ISFP</option>
+                <option>ESTP</option>
+                <option>ESFP</option>
+              </select>
+            </div>
+            <button type="submit">성향 분석하고 AI 계획 요청 만들기</button>
+            <a class="execution-link" href="app.html">설계 완료 후 실행 화면 열기</a>
+            <p class="form-note">
+              현재는 프론트엔드 프로토타입용 간이 만세력 계산입니다. 실제 서비스에서는 정밀 만세력
+              엔진과 AI API를 서버에서 연결합니다.
+            </p>
+          </form>
+
+          <aside class="analysis-card">
+            <div class="analysis-header">
+              <span>추천 계획 스타일</span>
+              <strong id="planningStyle">루틴 점검형</strong>
+            </div>
+            <div class="analysis-grid">
+              <article>
+                <span>만세력 기반 성향</span>
+                <p id="manseProfile">생년월일시를 입력하면 오행/일간 중심의 성향을 요약합니다.</p>
+              </article>
+              <article>
+                <span>MBTI 기반 성향</span>
+                <p id="mbtiProfile">MBTI를 선택하면 계획 유지 방식과 피드백 선호를 요약합니다.</p>
+              </article>
+              <article class="wide">
+                <span>AI 연결용 요청 데이터</span>
+                <textarea id="aiPayload" readonly></textarea>
+              </article>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <nav class="bottom-tabbar" aria-label="빠른 이동">
+        <a class="active" href="#top" aria-label="홈" aria-current="page">⌂</a>
+        <a href="#designFlow" aria-label="설계">◈</a>
+        <a href="#companion" aria-label="성장">✦</a>
+        <a href="#pricing" aria-label="가격">₩</a>
+      </nav>
+
+      <section class="problem section-band">
+        <div class="section-heading">
+          <p class="eyebrow">Problem</p>
+          <h2>왜 매번 계획은 좋은데 오래가지 않을까요?</h2>
+          <p>남들이 좋다는 방식이 나에게도 맞는 방식은 아닐 수 있습니다.</p>
+        </div>
+        <div class="problem-grid">
+          <article>
+            <h3>오늘 할 일이 흐림</h3>
+            <p>목표는 큰데, 지금 당장 해야 할 행동이 선명하지 않습니다.</p>
+          </article>
+          <article>
+            <h3>계획 강도가 어긋남</h3>
+            <p>너무 빡세거나 너무 느슨한 계획은 오래 유지되기 어렵습니다.</p>
+          </article>
+          <article>
+            <h3>하루 놓치면 무너짐</h3>
+            <p>놓친 날을 조정하지 못하면 전체 목표가 멀어진 느낌이 듭니다.</p>
+          </article>
+          <article class="problem-core">
+            <h3>핵심 문제</h3>
+            <p>남들이 좋다는 방식으로 해봤지만, 내 성향에는 잘 맞지 않았습니다.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="how section-band" id="how">
+        <div class="section-heading">
+          <p class="eyebrow">How It Works</p>
+          <h2>On My Way는 이렇게 목표를 설계합니다</h2>
+          <p>목표를 먼저 듣고, 성향을 참고해, 실행 가능한 계획으로 바꿉니다.</p>
+        </div>
+        <div class="steps">
+          <article>
+            <span>01</span>
+            <h3>목표 입력</h3>
+            <p>이루고 싶은 목표와 목표 기간을 입력합니다.</p>
+          </article>
+          <article>
+            <span>02</span>
+            <h3>성향 파악</h3>
+            <p>MBTI, 만세력 기반 정보, 현재 상태를 참고합니다.</p>
+          </article>
+          <article>
+            <span>03</span>
+            <h3>방식 추천</h3>
+            <p>루틴형, 몰입형, 점검형 등 맞는 방식을 추천합니다.</p>
+          </article>
+          <article>
+            <span>04</span>
+            <h3>실행 + 조정</h3>
+            <p>하루 스케줄, 체크인, 놓친 계획 조정으로 이어갑니다.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="result section-band">
+        <div class="section-heading">
+          <p class="eyebrow">Preview</p>
+          <h2>진단 후 이런 목표 설계를 받게 됩니다</h2>
+          <p>무료 미리보기로 방향을 확인하고, 앱에서 전체 계획과 체크인을 시작하세요.</p>
+        </div>
+        <div class="result-layout">
+          <div class="result-cards">
+            <article>
+              <span>성향 요약</span>
+              <strong>시작은 빠르지만 반복 점검이 필요해요.</strong>
+            </article>
+            <article>
+              <span>추천 목표 방식</span>
+              <strong>루틴 점검형 계획</strong>
+            </article>
+            <article>
+              <span>오늘의 첫 행동</span>
+              <strong>단어 40개 + LC 1세트</strong>
+            </article>
+          </div>
+          <div class="paid-box">
+            <h3>결제 후 앱에서 하는 것</h3>
+            <ul>
+              <li>하루 스케줄 체크</li>
+              <li>목표 달성 게이지</li>
+              <li>성장 대상 일일 변화</li>
+              <li>전체 스케줄 PDF 다운로드</li>
+            </ul>
+            <a href="app.html">하루 체험 시작하기</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="app-dashboard section-band">
+        <div class="section-heading">
+          <p class="eyebrow">Paid App</p>
+          <h2>결제 후에는 매일 실행할 수 있는 앱 화면으로 이어집니다</h2>
+        </div>
+        <div class="dashboard-shell">
+          <div class="dashboard-top">
+            <div>
+              <span>목표</span>
+              <strong>3개월 안에 토익 900점 달성</strong>
+            </div>
+            <button type="button">전체 스케줄 PDF 받기</button>
+          </div>
+          <div class="progress-block">
+            <div class="progress-label">
+              <span>목표 달성 게이지</span>
+              <strong>42%</strong>
+            </div>
+            <div class="progress-track"><span style="width: 42%"></span></div>
+            <p>남은 기간 52일 · 현재 페이스 안정</p>
+          </div>
+          <div class="dashboard-grid">
+            <article class="schedule-card">
+              <h3>오늘의 스케줄</h3>
+              <label><input type="checkbox" /> 07:30 단어 40개</label>
+              <label><input type="checkbox" /> 12:30 LC 1세트</label>
+              <label><input type="checkbox" /> 21:00 오답 정리 20분</label>
+              <button type="button">오늘 계획 완료하기</button>
+            </article>
+            <article class="companion-status">
+              <h3>성장 대상</h3>
+              <div class="plant-visual" aria-hidden="true">
+                <span></span>
+              </div>
+              <strong>오늘 단계: 18/90</strong>
+              <p>오늘도 같이 왔어요. 내일 한 단계 더 자라요.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="companion section-band" id="companion">
+        <div class="section-heading">
+          <p class="eyebrow">Growth Companion</p>
+          <h2>하루를 완수할 때마다, 함께 성장합니다</h2>
+          <p>최종 목표일에 맞춰 성장 대상의 완성 모습을 정하고, 매일 한 단계씩 보여줍니다.</p>
+        </div>
+        <div class="companion-layout">
+          <div class="theme-picker" role="list" aria-label="성장 테마 선택">
+            <button class="theme-button active" type="button" data-theme="plant">식물</button>
+            <button class="theme-button" type="button" data-theme="dog">강아지</button>
+            <button class="theme-button" type="button" data-theme="cat">고양이</button>
+            <button class="theme-button" type="button" data-theme="home">집짓기</button>
+          </div>
+          <div class="companion-preview">
+            <img class="companion-art" id="companionArt" src="assets/plant.svg" alt="식물 성장 캐릭터" />
+            <div>
+              <span id="themePath">씨앗 → 새싹 → 꽃</span>
+              <h3 id="themeTitle">식물 키우기</h3>
+              <p id="themeText">30일 뒤 작은 정원이 완성됩니다. 오늘은 새싹이 고개를 들었어요.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="use-cases section-band">
+        <div class="section-heading">
+          <p class="eyebrow">Use Cases</p>
+          <h2>어떤 목표든, 내 성향에 맞는 방식으로</h2>
+        </div>
+        <div class="use-grid">
+          <article><h3>시험/자격증</h3><p>3개월 안에 토익 900점 달성</p></article>
+          <article><h3>운동/다이어트</h3><p>12주 동안 체지방 줄이기</p></article>
+          <article><h3>취업/이직</h3><p>8주 안에 포트폴리오 완성</p></article>
+          <article><h3>부업/프로젝트</h3><p>100일 안에 첫 매출 만들기</p></article>
+          <article><h3>습관 형성</h3><p>30일 동안 매일 20분 독서</p></article>
+          <article><h3>저축/돈 관리</h3><p>6개월 동안 목표 금액 모으기</p></article>
+        </div>
+      </section>
+
+      <section class="pricing section-band" id="pricing">
+        <div class="section-heading">
+          <p class="eyebrow">Pricing</p>
+          <h2>내 목표에 맞는 방식으로 시작하세요</h2>
+          <p>먼저 진단하고, 하루 체험으로 맞는지 확인한 뒤 계속 진행할 수 있습니다.</p>
+        </div>
+        <div class="pricing-grid">
+          <article>
+            <p>Free Diagnosis</p>
+            <h3>무료</h3>
+            <ul>
+              <li>성향 요약</li>
+              <li>추천 목표 방식</li>
+              <li>오늘의 첫 행동</li>
+            </ul>
+            <a href="#diagnosis">무료 진단하기</a>
+          </article>
+          <article class="featured-plan">
+            <span class="plan-badge">추천</span>
+            <p>Premium Monthly</p>
+            <h3>월 9,900원</h3>
+            <ul>
+              <li>전체 목표 계획</li>
+              <li>하루 스케줄 체크</li>
+              <li>목표 달성 게이지</li>
+              <li>일일 성장 여정</li>
+            </ul>
+            <a href="app.html">하루 체험 시작하기</a>
+          </article>
+          <article>
+            <p>Goal Pass</p>
+            <h3>30일 14,900원~</h3>
+            <ul>
+              <li>목표 1개 집중 관리</li>
+              <li>기간형 전체 계획</li>
+              <li>PDF 다운로드</li>
+              <li>성장 결과물 저장</li>
+            </ul>
+            <a href="app.html">목표 패스 보기</a>
+          </article>
+        </div>
+      </section>
+
+      <section class="final-cta section-band">
+        <div>
+          <p class="eyebrow">Start</p>
+          <h2>지금 목표 하나를 적어보세요</h2>
+          <p>On My Way가 목표 설정 방식, 하루 스케줄, 성장 여정을 함께 설계합니다.</p>
+        </div>
+        <a href="#diagnosis">내 목표 설계 시작하기</a>
+      </section>
+    </main>
+
+    <footer>
+      <p>On My Way</p>
+      <p>성향 분석은 목표 설계를 돕는 참고 도구이며, 성공을 보장하지 않습니다.</p>
+    </footer>
+
+    <script src="script.js"></script>
+  </body>
+</html>
