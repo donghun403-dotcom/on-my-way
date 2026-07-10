@@ -4887,6 +4887,94 @@ body.sheet-open {
   filter: hue-rotate(74deg) saturate(1.75) brightness(0.78);
 }
 
+/* Landing app-preview contrast pass */
+.home-page .first-meeting-panel,
+.home-page .mori-goal-card,
+.home-page .app-plan-preview,
+.home-page .execution-preview-shell {
+  color: var(--routine-text);
+}
+
+.home-page .story-flow .section-heading .eyebrow,
+.home-page .app-dashboard .section-heading .eyebrow {
+  color: #9bb0ff !important;
+}
+
+.home-page .story-flow .section-heading h2,
+.home-page .app-dashboard .section-heading h2 {
+  color: #ffffff !important;
+}
+
+.home-page .mori-goal-card {
+  background: rgba(255, 255, 255, 0.96) !important;
+  border-color: var(--routine-line) !important;
+}
+
+.home-page .mori-message {
+  background: #070b0c !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+.home-page .mori-message span,
+.home-page .mori-chat-preview span,
+.home-page .today-plan-card span,
+.home-page .tomorrow-card span,
+.home-page .focus-preview-card span {
+  color: var(--routine-green-dark);
+}
+
+.home-page .mori-message span {
+  color: #5f83ff;
+}
+
+.home-page .mori-message p {
+  color: #ffffff !important;
+  text-shadow: none;
+}
+
+.home-page .compact-fields label {
+  color: var(--routine-muted) !important;
+}
+
+.home-page .mori-goal-card input,
+.home-page .mori-goal-card select,
+.home-page .today-plan-card,
+.home-page .tomorrow-card,
+.home-page .mori-chat-preview,
+.home-page .focus-preview-card,
+.home-page .execution-preview-shell .progress-block {
+  color: var(--routine-text) !important;
+  background: #ffffff !important;
+  border-color: var(--routine-line) !important;
+}
+
+.home-page .mori-goal-card input::placeholder {
+  color: #7a8391;
+}
+
+.home-page .app-plan-preview .analysis-header span,
+.home-page .today-plan-card p,
+.home-page .execution-preview-shell .dashboard-top span,
+.home-page .execution-preview-shell .progress-label span,
+.home-page .execution-preview-shell .progress-block p {
+  color: var(--routine-muted) !important;
+}
+
+.home-page .app-plan-preview .analysis-header strong,
+.home-page .today-plan-card strong,
+.home-page .tomorrow-card strong,
+.home-page .execution-preview-shell .dashboard-top strong,
+.home-page .execution-preview-shell .progress-label strong {
+  color: var(--routine-text) !important;
+}
+
+.home-page .today-plan-card a,
+.home-page .focus-preview-card button,
+.home-page .execution-preview-shell .execution-link {
+  color: #ffffff !important;
+  background: var(--routine-green) !important;
+}
+
 .sheet-open .companion-chat-sheet,
 .sheet-open .focus-mode {
   outline: none;
