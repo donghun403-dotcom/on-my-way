@@ -503,10 +503,10 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
   const preview = await requestAiPlan(payload);
   renderAiPreview(preview);
 
-  if (aiPreviewStatus) aiPreviewStatus.textContent = "AI 목표 설계 미리보기";
+  if (aiPreviewStatus) aiPreviewStatus.textContent = "모리가 만든 오늘의 계획";
   if (aiPreviewButton) {
     aiPreviewButton.disabled = false;
-    aiPreviewButton.textContent = "AI 목표 설계 미리보기";
+    aiPreviewButton.textContent = "오늘의 한 걸음 보기";
   }
 
   try {

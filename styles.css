@@ -1739,6 +1739,561 @@ footer p {
   color: var(--app-mint);
 }
 
+.home-page .hero-poster {
+  min-height: 470px;
+}
+
+.home-page .hero-poster h1 {
+  font-size: clamp(44px, 13vw, 72px);
+}
+
+.home-page .hero-poster p {
+  max-width: 210px;
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.55;
+}
+
+.home-page .poster-companions {
+  right: -12px;
+  bottom: -10px;
+}
+
+.home-page .poster-companions img {
+  width: min(52vw, 230px);
+  height: min(52vw, 230px);
+}
+
+.home-page .hero-text {
+  font-size: 16px;
+}
+
+.home-page .hero-text strong {
+  color: var(--app-mint);
+}
+
+.quick-use-cases {
+  padding-top: 4px;
+}
+
+.quick-use-cases .use-grid {
+  grid-auto-columns: minmax(122px, 38%);
+}
+
+.quick-use-cases .use-grid article {
+  min-height: 104px;
+  padding: 16px;
+  background: #ffffff;
+  border-color: rgba(31, 65, 176, 0.14);
+  box-shadow: 0 14px 30px rgba(31, 65, 176, 0.08);
+}
+
+.quick-use-cases .use-grid h3 {
+  color: var(--routine-text);
+  font-size: 18px;
+}
+
+.quick-use-cases .use-grid p {
+  color: var(--routine-muted);
+  font-size: 12px;
+}
+
+.home-page .problem .section-heading p {
+  display: none;
+}
+
+.home-page .problem-grid article {
+  display: grid;
+  align-content: space-between;
+  min-height: 184px;
+  padding: 20px;
+}
+
+.home-page .problem-grid article > span {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  background: rgba(244, 244, 244, 0.08);
+  border-radius: 16px;
+  font-size: 25px;
+}
+
+.home-page .problem-grid h3 {
+  margin: 20px 0 0;
+  font-size: 20px;
+  line-height: 1.38;
+}
+
+.home-page .problem-core {
+  grid-template-columns: 76px minmax(0, 1fr);
+  align-items: center;
+  align-content: center;
+  gap: 14px;
+}
+
+.home-page .problem-core img {
+  width: 76px;
+  height: 76px;
+}
+
+.home-page .problem-core p {
+  margin: 0;
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.5;
+}
+
+.home-page .product-pillars {
+  padding-top: 26px;
+  padding-bottom: 32px;
+  background: #f4f4f4;
+}
+
+.home-page .product-pillars .eyebrow,
+.home-page .product-pillars h2 {
+  color: var(--routine-text);
+}
+
+.home-page .pillar-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.home-page .pillar-grid article {
+  min-height: 232px;
+  padding: 24px;
+  background: #ffffff;
+  border-color: rgba(31, 65, 176, 0.16);
+  box-shadow: 0 18px 42px rgba(31, 65, 176, 0.1);
+}
+
+.home-page .pillar-grid span {
+  width: 58px;
+  height: 58px;
+  font-size: 30px;
+}
+
+.home-page .pillar-grid small {
+  color: var(--app-mint);
+  font-size: 12px;
+}
+
+.home-page .pillar-grid h3 {
+  max-width: 260px;
+  color: var(--routine-text);
+  font-size: 24px;
+  line-height: 1.3;
+}
+
+.story-flow {
+  background: var(--app-bg);
+}
+
+.journey-lane {
+  position: relative;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(138px, 44%);
+  gap: 10px;
+  margin-bottom: 16px;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scroll-snap-type: inline mandatory;
+}
+
+.journey-lane::before {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  left: 24px;
+  height: 2px;
+  content: "";
+  background: linear-gradient(var(--app-mint), var(--app-warm));
+}
+
+.journey-lane span {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  min-height: 112px;
+  align-content: end;
+  padding: 44px 14px 14px;
+  color: var(--app-text);
+  background: var(--app-card);
+  border: 1px solid var(--app-line);
+  border-radius: 16px;
+  font-weight: 900;
+  scroll-snap-align: start;
+}
+
+.journey-lane span::before {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  width: 18px;
+  height: 18px;
+  content: "";
+  background: var(--app-mint);
+  border: 4px solid var(--app-bg);
+  border-radius: 50%;
+}
+
+.first-meeting-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.mori-goal-card,
+.app-plan-preview {
+  display: grid;
+  gap: 12px;
+}
+
+.mori-message {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  background: #090b0b;
+  border: 1px solid var(--app-line);
+  border-radius: 18px;
+}
+
+.mori-message img {
+  width: 72px;
+  height: 72px;
+}
+
+.mori-message span,
+.mori-chat-preview span,
+.today-plan-card span,
+.tomorrow-card span {
+  color: var(--app-mint);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.mori-message p,
+.mori-chat-preview p {
+  margin: 4px 0 0;
+  color: var(--app-text);
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.mori-goal-card input,
+.mori-goal-card select,
+.compact-fields label {
+  width: 100%;
+}
+
+.mori-goal-card > #currentState,
+.mori-goal-card > #currentRoutine,
+.mori-goal-card > #routineTime {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.compact-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.compact-fields label {
+  display: grid;
+  gap: 6px;
+  color: var(--app-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.hidden-profile-fields,
+.hidden-preview-list,
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.app-plan-preview {
+  background: #ffffff !important;
+  color: var(--routine-text) !important;
+}
+
+.app-plan-preview .analysis-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.app-plan-preview .analysis-header span {
+  color: var(--routine-muted);
+}
+
+.app-plan-preview .analysis-header strong {
+  color: var(--app-mint);
+}
+
+.mori-chat-preview,
+.today-plan-card,
+.tomorrow-card,
+.compact-analysis article {
+  padding: 14px;
+  background: #f4f4f4 !important;
+  border: 1px solid #dde1ec !important;
+  border-radius: 18px !important;
+}
+
+.mori-chat-preview p,
+.today-plan-card strong,
+.tomorrow-card strong {
+  color: var(--routine-text);
+}
+
+.today-plan-card {
+  display: grid;
+  gap: 8px;
+}
+
+.today-plan-card strong {
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+.today-plan-card p,
+.compact-analysis p {
+  margin: 0;
+  color: var(--routine-muted) !important;
+}
+
+.today-plan-card a {
+  justify-self: start;
+  padding: 10px 16px;
+  color: #ffffff;
+  background: var(--app-mint);
+  border-radius: 12px;
+  font-weight: 900;
+}
+
+.tomorrow-card strong {
+  display: block;
+  margin-top: 5px;
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.compact-analysis {
+  display: none;
+}
+
+.execution-preview-shell {
+  display: grid;
+  gap: 14px;
+  background: #ffffff !important;
+  color: var(--routine-text) !important;
+}
+
+.execution-preview-shell .dashboard-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 86px;
+  align-items: center;
+}
+
+.execution-preview-shell .dashboard-top span {
+  color: var(--routine-muted);
+}
+
+.execution-preview-shell .dashboard-top strong {
+  color: var(--routine-text);
+  font-size: 26px;
+  line-height: 1.2;
+}
+
+.execution-preview-shell .dashboard-top img {
+  width: 86px;
+  height: 86px;
+}
+
+.focus-preview-card {
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+  background: #f4f4f4;
+  border: 1px solid #dde1ec;
+  border-radius: 20px;
+}
+
+.focus-preview-card span {
+  color: var(--app-mint);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.focus-preview-card p {
+  margin: 0;
+  color: var(--routine-text);
+  font-size: 24px;
+  font-weight: 900;
+}
+
+.focus-preview-card button {
+  min-height: 46px;
+  color: #ffffff;
+  background: var(--app-mint);
+  border: 0;
+  border-radius: 14px;
+  font: inherit;
+  font-weight: 900;
+}
+
+.execution-preview-shell .progress-block {
+  background: #f4f4f4;
+  border-color: #dde1ec;
+}
+
+.execution-preview-shell .progress-label span,
+.execution-preview-shell .progress-block p {
+  color: var(--routine-muted);
+}
+
+.execution-preview-shell .progress-label strong {
+  color: var(--app-mint);
+}
+
+.execution-preview-shell .execution-link {
+  display: grid;
+  min-height: 48px;
+  place-items: center;
+  color: #ffffff;
+  background: var(--app-mint);
+  border-radius: 14px;
+  font-weight: 900;
+}
+
+.home-page .pricing-offers {
+  max-width: 760px;
+}
+
+.home-page .pricing-option {
+  gap: 14px;
+}
+
+.home-page .pricing-option > strong {
+  color: var(--routine-text);
+  font-size: 28px;
+  line-height: 1;
+}
+
+.home-page .pricing-option.selected > strong {
+  color: var(--app-mint);
+}
+
+.pricing-benefits {
+  display: grid;
+  gap: 8px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.pricing-benefits li {
+  position: relative;
+  padding-left: 24px;
+  color: var(--routine-text);
+  font-weight: 850;
+}
+
+.pricing-benefits li::before {
+  position: absolute;
+  left: 0;
+  color: var(--app-mint);
+  content: "✓";
+  font-weight: 950;
+}
+
+@media (min-width: 760px) {
+  .home-page .section-band {
+    padding-inline: 32px;
+  }
+
+  .home-page .hero-poster {
+    min-height: 560px;
+    padding: 44px;
+  }
+
+  .home-page .hero-poster p {
+    max-width: 360px;
+    font-size: 24px;
+  }
+
+  .quick-use-cases .use-grid,
+  .home-page .problem-grid,
+  .home-page .pillar-grid {
+    grid-auto-flow: initial;
+    grid-auto-columns: initial;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    overflow: visible;
+  }
+
+  .quick-use-cases .use-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .home-page .problem-core {
+    grid-column: 1 / -1;
+  }
+
+  .journey-lane {
+    grid-auto-flow: initial;
+    grid-auto-columns: initial;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    overflow: visible;
+  }
+
+  .journey-lane::before {
+    top: 24px;
+    right: 24px;
+    bottom: auto;
+    left: 24px;
+    width: auto;
+    height: 2px;
+  }
+
+  .journey-lane span {
+    min-height: 116px;
+    padding: 46px 16px 16px;
+  }
+
+  .journey-lane span::before {
+    top: 15px;
+    left: 18px;
+  }
+
+  .first-meeting-panel {
+    grid-template-columns: 0.9fr 1.1fr;
+    align-items: stretch;
+  }
+
+  .home-page .pricing-offers {
+    grid-template-columns: 1fr 1.1fr;
+  }
+
+  .home-page .coupon-strip {
+    grid-column: 1 / -1;
+  }
+}
+
 .home-page footer {
   display: block;
   padding: 26px 14px 100px;
@@ -3695,6 +4250,77 @@ body.sheet-open {
   }
 }
 
+/* Landing story final overrides */
+.home-page .hero-poster {
+  min-height: 500px;
+}
+
+.home-page .poster-companions {
+  right: -18px;
+  bottom: -18px;
+  justify-content: flex-end;
+}
+
+.home-page .poster-companions img {
+  width: min(58vw, 250px);
+  height: min(58vw, 250px);
+}
+
+.home-page .problem-grid article > span,
+.home-page .pillar-grid span {
+  flex: none;
+}
+
+.home-page .first-meeting-panel .analysis-card,
+.home-page .execution-preview-shell {
+  box-shadow: 0 18px 44px rgba(31, 65, 176, 0.12);
+}
+
+.home-page .mori-goal-card input,
+.home-page .mori-goal-card select {
+  min-height: 48px;
+  padding: 0 14px;
+  color: var(--routine-text);
+  background: #ffffff;
+  border: 1px solid var(--routine-line);
+  border-radius: 14px;
+  font: inherit;
+  font-weight: 800;
+}
+
+.home-page .mori-goal-card > button {
+  min-height: 50px;
+  color: #ffffff;
+  background: var(--routine-green);
+  border: 0;
+}
+
+.home-page .mori-chat-preview p,
+.home-page .tomorrow-card strong {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+}
+
+.home-page .mori-chat-preview p {
+  -webkit-line-clamp: 2;
+}
+
+.home-page .tomorrow-card strong {
+  -webkit-line-clamp: 2;
+}
+
+@media (min-width: 760px) {
+  .home-page .hero-poster {
+    min-height: 620px;
+  }
+
+  .home-page .poster-companions img {
+    width: 340px;
+    height: 340px;
+  }
+}
+
 /* Soft Journey visual pass: calmer AI coach, expressive only where it matters. */
 .execution-page {
   --font-display: clamp(28px, 7vw, 34px);
@@ -4295,4 +4921,55 @@ body.sheet-open {
     grid-column: 1;
     grid-row: auto;
   }
+}
+
+/* Final landing layout is intentionally app-frame sized even on desktop. */
+.home-page .quick-use-cases .use-grid {
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(122px, 38%);
+  grid-template-columns: none;
+  overflow-x: auto;
+}
+
+.home-page .problem-grid {
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(220px, 72%);
+  grid-template-columns: none;
+  overflow-x: auto;
+}
+
+.home-page .pillar-grid,
+.home-page .first-meeting-panel,
+.home-page .pricing-offers {
+  grid-template-columns: 1fr;
+}
+
+.home-page .journey-lane {
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(138px, 44%);
+  grid-template-columns: none;
+  overflow-x: auto;
+}
+
+.home-page .journey-lane::before {
+  top: 24px;
+  right: 24px;
+  bottom: auto;
+  left: 24px;
+  width: auto;
+  height: 2px;
+}
+
+.home-page .journey-lane span {
+  min-height: 112px;
+  padding: 44px 14px 14px;
+}
+
+.home-page .journey-lane span::before {
+  top: 14px;
+  left: 14px;
+}
+
+.home-page .coupon-strip {
+  grid-column: auto;
 }
