@@ -4194,6 +4194,123 @@ body.sheet-open {
   font-weight: 500;
 }
 
+.difficulty-card,
+.recovery-card {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.92), rgba(235, 244, 249, 0.72)),
+    var(--soft-surface);
+}
+
+.difficulty-actions,
+.recovery-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.recovery-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.difficulty-actions button,
+.recovery-actions button {
+  min-height: 42px;
+  color: var(--soft-primary-dark);
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--soft-border);
+  border-radius: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.difficulty-actions button.active,
+.difficulty-actions button:hover,
+.recovery-actions button:hover {
+  color: #ffffff;
+  background: var(--soft-primary);
+  border-color: var(--soft-primary);
+}
+
+.plan-editor-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.plan-editor-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.proposal-summary {
+  grid-column: 1 / -1;
+  border-color: rgba(145, 196, 227, 0.38) !important;
+  background: var(--soft-sky-soft) !important;
+}
+
+.proposal-summary span {
+  color: #417a9a;
+}
+
+.pattern-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.pattern-list article {
+  padding: 13px 14px;
+  color: var(--soft-text);
+  background: rgba(255, 255, 255, 0.64);
+  border: 1px solid var(--soft-border);
+  border-radius: 16px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.pro-badge {
+  text-decoration: none;
+}
+
+.free-boundary {
+  display: grid;
+  gap: 8px;
+  margin: 0 auto 16px;
+  width: min(720px, 100%);
+}
+
+.free-boundary span {
+  padding: 12px 14px;
+  color: var(--soft-text, #1e2c29);
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--soft-border, #e3e9e7);
+  border-radius: 16px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.sheet-open .companion-chat-sheet,
+.sheet-open .focus-mode {
+  outline: none;
+}
+
+@media (max-width: 430px) {
+  .difficulty-actions,
+  .recovery-actions,
+  .plan-editor-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
 @media (max-width: 380px) {
   .execution-hero,
   .focus-task-card {

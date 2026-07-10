@@ -91,6 +91,35 @@
         <div class="execution-checklist" id="executionChecklist"></div>
       </section>
 
+      <section class="execution-card difficulty-card" id="difficultyCard" hidden>
+        <div class="card-title compact">
+          <div>
+            <h2>방금 한 걸음은 어땠나요?</h2>
+            <span>모리가 다음 계획의 난이도를 맞출 때 참고합니다</span>
+          </div>
+        </div>
+        <div class="difficulty-actions" aria-label="완료 난이도 피드백">
+          <button type="button" data-difficulty="easy">쉬웠어요</button>
+          <button type="button" data-difficulty="okay">적당했어요</button>
+          <button type="button" data-difficulty="hard">어려웠어요</button>
+        </div>
+      </section>
+
+      <section class="execution-card recovery-card" id="recoveryCard" hidden>
+        <div class="card-title compact">
+          <div>
+            <h2>놓친 일정이 있어요</h2>
+            <span id="recoverySummary">실패로 두지 않고 다시 시작할 수 있게 바꿉니다</span>
+          </div>
+        </div>
+        <div class="recovery-actions" aria-label="미완료 일정 회복">
+          <button type="button" data-recovery-action="tomorrow">내일로 옮기기</button>
+          <button type="button" data-recovery-action="five">5분으로 줄이기</button>
+          <button type="button" data-recovery-action="skip">이번 주에서 제외하기</button>
+          <button type="button" data-recovery-action="time">다른 시간으로 이동하기</button>
+        </div>
+      </section>
+
       <section class="execution-card progress-card">
         <div class="card-title compact">
           <div>
@@ -155,6 +184,7 @@
             <span>완료율에 따라 모리와 새로운 장소로 이동합니다</span>
           </div>
           <span class="soft-badge" id="journeyBadge">출발</span>
+          <a class="soft-badge pro-badge" href="index.html#pricing">PRO · 전체 여정</a>
         </div>
         <div class="journey-map" id="journeyMap" aria-label="목표 여정 지도"></div>
       </section>
@@ -185,6 +215,8 @@
         <div class="plan-editor-actions">
           <button class="text-button primary-action" id="acceptPlanButton" type="button">이 변경안 적용하기</button>
           <button class="text-button" id="regeneratePlanButton" type="button">변경안 만들기</button>
+          <button class="text-button" id="reviseAgainButton" type="button">다시 수정 요청하기</button>
+          <button class="text-button" id="keepPlanButton" type="button">기존 계획 유지하기</button>
         </div>
         <p id="planEditorMessage">완료한 일정은 그대로 두고, 남은 계획만 바꾸는 흐름으로 보여줍니다.</p>
       </section>
@@ -234,6 +266,7 @@
           <span class="soft-badge">기록</span>
         </div>
         <div class="memory-list" id="memoryList"></div>
+        <div class="pattern-list" id="patternList" aria-label="모리가 발견한 패턴"></div>
       </section>
 
       <section class="execution-card coach-card">
@@ -254,7 +287,7 @@
     </nav>
 
     <div class="sheet-overlay" id="chatOverlay" hidden></div>
-    <aside class="companion-chat-sheet" id="companionChatSheet" aria-labelledby="companionChatTitle" hidden>
+    <aside class="companion-chat-sheet" id="companionChatSheet" role="dialog" aria-modal="true" aria-labelledby="companionChatTitle" tabindex="-1" hidden>
       <div class="sheet-handle" aria-hidden="true"></div>
       <div class="sheet-title-row">
         <div>
@@ -283,7 +316,7 @@
     </aside>
 
     <div class="sheet-overlay" id="focusModeOverlay" hidden></div>
-    <section class="focus-mode" id="focusMode" aria-labelledby="focusModeTitle" hidden>
+    <section class="focus-mode" id="focusMode" role="dialog" aria-modal="true" aria-labelledby="focusModeTitle" tabindex="-1" hidden>
       <button id="closeFocusMode" type="button" aria-label="집중 모드 닫기">×</button>
       <img src="assets/buddy.svg" alt="집중을 응원하는 모리" />
       <span id="focusTimer">15:00</span>
@@ -294,6 +327,8 @@
         <button class="primary" id="finishFocusButton" type="button">완료했어요</button>
       </div>
     </section>
+
+    <div class="sr-only" id="appLiveRegion" aria-live="polite"></div>
 
     <script src="script.js"></script>
   </body>
