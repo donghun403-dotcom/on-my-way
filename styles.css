@@ -5387,6 +5387,100 @@ body.sheet-open {
   box-shadow: 0 12px 26px rgba(31, 65, 176, 0.2);
 }
 
+.home-page .story-flow .mori-goal-card {
+  gap: 14px;
+}
+
+.home-page .story-flow .compact-fields {
+  gap: 12px;
+  align-items: stretch;
+}
+
+.home-page .story-flow .compact-fields label,
+.home-page .story-flow .personality-fields label {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  min-height: 88px;
+  padding: 12px;
+  color: var(--routine-muted) !important;
+  background: #f8faff;
+  border: 1px solid rgba(31, 65, 176, 0.14);
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.home-page .story-flow .personality-fields {
+  gap: 12px;
+  padding: 12px;
+}
+
+.home-page .story-flow .profile-intro {
+  padding: 12px;
+  background: #ffffff;
+  border: 1px solid rgba(31, 65, 176, 0.12);
+  border-radius: 16px;
+}
+
+.home-page .story-flow .profile-intro span {
+  color: var(--routine-green-dark) !important;
+  line-height: 1.2;
+}
+
+.home-page .story-flow .profile-intro p {
+  margin-top: 6px;
+  line-height: 1.45;
+}
+
+.home-page .story-flow input,
+.home-page .story-flow select {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 46px;
+  padding: 0 14px !important;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 850;
+  line-height: 1.2;
+}
+
+.home-page .story-flow select {
+  padding-right: 34px;
+  text-overflow: ellipsis;
+}
+
+.home-page .story-flow #designGoal {
+  height: 52px;
+  min-height: 52px;
+  padding: 0 16px !important;
+  font-size: 15px;
+}
+
+.home-page .story-flow #aiPreviewButton {
+  box-sizing: border-box;
+  height: 54px;
+  min-height: 54px;
+  padding: 0 18px !important;
+  border-radius: 14px;
+  line-height: 1.2;
+}
+
+@media (max-width: 759px) {
+  .home-page .story-flow .compact-fields,
+  .home-page .story-flow .personality-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .home-page .story-flow .profile-intro {
+    grid-column: auto;
+  }
+}
+
 /* Make the app preview feel like part of the same landing story. */
 .home-page .app-dashboard {
   color: var(--routine-text);
