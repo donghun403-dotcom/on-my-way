@@ -5400,14 +5400,14 @@ body.sheet-open {
 .home-page .story-flow .personality-fields label {
   display: grid;
   align-content: start;
-  gap: 8px;
+  gap: 7px;
   min-width: 0;
-  min-height: 88px;
-  padding: 12px;
+  min-height: 0;
+  padding: 0;
   color: var(--routine-muted) !important;
-  background: #f8faff;
-  border: 1px solid rgba(31, 65, 176, 0.14);
-  border-radius: 16px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
   font-size: 12px;
   font-weight: 900;
   line-height: 1.2;
@@ -5415,14 +5415,14 @@ body.sheet-open {
 
 .home-page .story-flow .personality-fields {
   gap: 12px;
-  padding: 12px;
+  padding: 14px;
 }
 
 .home-page .story-flow .profile-intro {
-  padding: 12px;
-  background: #ffffff;
-  border: 1px solid rgba(31, 65, 176, 0.12);
-  border-radius: 16px;
+  padding: 0 0 2px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
 }
 
 .home-page .story-flow .profile-intro span {
