@@ -5464,3 +5464,48 @@ body.sheet-open {
 .home-page .execution-preview-shell .progress-track span {
   background: linear-gradient(90deg, var(--routine-green), var(--red));
 }
+
+/* Finish the landing page with the same bright, calm brand palette. */
+.home-page .final-cta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  color: var(--routine-text);
+  background:
+    radial-gradient(circle at 88% 18%, rgba(227, 64, 84, 0.12), transparent 24%),
+    radial-gradient(circle at 10% 80%, rgba(31, 65, 176, 0.1), transparent 28%),
+    linear-gradient(180deg, #f4f4f4 0%, #ffffff 100%);
+  border-top: 1px solid rgba(221, 225, 236, 0.9);
+}
+
+.home-page .final-cta .eyebrow {
+  color: var(--routine-green-dark) !important;
+}
+
+.home-page .final-cta h2 {
+  color: var(--routine-text) !important;
+}
+
+.home-page .final-cta p {
+  color: var(--routine-muted) !important;
+}
+
+.home-page .final-cta a {
+  flex: 0 0 auto;
+  color: #ffffff !important;
+  background-color: var(--routine-green) !important;
+  background-image: linear-gradient(135deg, var(--routine-green), #365bd2) !important;
+  box-shadow: 0 14px 30px rgba(31, 65, 176, 0.22);
+}
+
+@media (max-width: 759px) {
+  .home-page .final-cta {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .home-page .final-cta a {
+    width: 100%;
+  }
+}
