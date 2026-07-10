@@ -17,6 +17,9 @@ const birthPlaceInput = document.querySelector("#birthPlace");
 const mbtiInput = document.querySelector("#mbti");
 const goalPeriodInput = document.querySelector("#goalPeriod");
 const currentStateInput = document.querySelector("#currentState");
+const routineReadinessInput = document.querySelector("#routineReadiness");
+const routineTimeInput = document.querySelector("#routineTime");
+const currentRoutineInput = document.querySelector("#currentRoutine");
 const manseProfile = document.querySelector("#manseProfile");
 const mbtiProfile = document.querySelector("#mbtiProfile");
 const planningStyle = document.querySelector("#planningStyle");
@@ -52,6 +55,9 @@ const scheduleCalendar = document.querySelector("#scheduleCalendar");
 const calendarSummary = document.querySelector("#calendarSummary");
 const monthlyCompletion = document.querySelector("#monthlyCompletion");
 const weeklyPlanList = document.querySelector("#weeklyPlanList");
+const routineModeTitle = document.querySelector("#routineModeTitle");
+const routineModeMeta = document.querySelector("#routineModeMeta");
+const routineCueList = document.querySelector("#routineCueList");
 const completeTodayButton = document.querySelector("#completeTodayButton");
 const executionThemeButtons = document.querySelectorAll(".execution-theme-button");
 const executionCompanion = document.querySelector("#executionCompanion");
@@ -245,7 +251,20 @@ function decidePlanningStyle(manse, mbti) {
   return "균형 실행형";
 }
 
-function buildAiPlanPayload({ goal, period, currentState, birthDate, birthTime, birthPlace, mbti, manse, style }) {
+function buildAiPlanPayload({
+  goal,
+  period,
+  currentState,
+  routineReadiness,
+  routineTime,
+  currentRoutine,
+  birthDate,
+  birthTime,
+  birthPlace,
+  mbti,
+  manse,
+  style,
+}) {
   return {
     endpoint: "POST /api/ai/goal-plan",
     modelRole: "goal_planning_coach",
@@ -253,6 +272,11 @@ function buildAiPlanPayload({ goal, period, currentState, birthDate, birthTime, 
       goal,
       periodDays: Number(period),
       currentState,
+      routine: {
+        readiness: routineReadiness,
+        preferredTime: routineTime,
+        existingRoutine: currentRoutine,
+      },
       birth: {
         date: birthDate,
         time: birthTime,
@@ -263,7 +287,7 @@ function buildAiPlanPayload({ goal, period, currentState, birthDate, birthTime, 
       recommendedPlanningStyle: style,
     },
     instruction:
-      "만세력 기반 성향과 MBTI 성향을 함께 비교해 사용자가 목표를 달성하기 쉬운 계획 스타일을 정하고, 전체 기간 계획, 오늘의 스케줄, 체크인 방식, 성장 보상 메시지를 생성한다.",
+      "만세력 기반 성향, MBTI 성향, 기존 루틴과 실행 성향을 함께 비교해 사용자가 목표를 달성하기 쉬운 계획 스타일을 정하고, 전체 기간 계획, 오늘의 스케줄, 체크인 방식, 성장 보상 메시지를 생성한다.",
     outputSchema: {
       personalitySummary: "string",
       planningStyle: "string",
@@ -330,19 +354,26 @@ function getGoalPlanTemplates(goal) {
 }
 
 function buildLocalAiPreview(payload) {
-  const { goal, periodDays, currentState, mbti, manseoryeok, recommendedPlanningStyle } = payload.input;
+  const { goal, periodDays, currentState, mbti, manseoryeok, recommendedPlanningStyle, routine = {} } = payload.input;
   const template = getGoalPlanTemplates(goal);
   const period = Number(periodDays) || 90;
   const progress = Math.max(12, Math.min(48, Math.round(1800 / period)));
+  const routineTime = routine.preferredTime || "아침";
+  const existingRoutine = routine.existingRoutine || "이미 하는 작은 행동";
+  const readiness = routine.readiness || "보통이에요";
+  const lowFriction = readiness.includes("미뤄");
+  const routineAdvice = lowFriction
+    ? `${routineTime}에 ${existingRoutine} 직후 10분만 시작하고, 알림으로 다시 불러옵니다.`
+    : `${routineTime}에 ${existingRoutine}와 새 목표를 붙여 바로 실행 흐름을 만듭니다.`;
   const personalitySummary = `${manseoryeok.dayMaster.trait} 성향과 ${mbti}의 유지 방식을 함께 보면, 처음부터 큰 계획을 밀어붙이기보다 오늘 실행할 단위를 선명하게 두는 편이 좋습니다.`;
 
   return {
     personalitySummary,
     planningStyle: `${recommendedPlanningStyle} 계획`,
-    firstAction: template.firstAction,
+    firstAction: lowFriction ? `${routineTime} 10분 루틴: ${template.firstAction}` : `${routineTime} 루틴: ${template.firstAction}`,
     weekTitle: template.weekTitle,
-    weekPlan: template.weekPlan,
-    coachMessage: `${currentState || "현재 상태"}를 기준으로 보면, 이번 주는 완성보다 흐름을 만드는 것이 우선입니다.`,
+    weekPlan: [routineAdvice, ...template.weekPlan.slice(0, 2)],
+    coachMessage: `${currentState || "현재 상태"}를 기준으로 보면, 이번 주는 완성보다 흐름을 만드는 것이 우선입니다. ${routineAdvice}`,
     dashboard: {
       goal: goal.replace("하기", ""),
       progress,
@@ -380,6 +411,9 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
   const goal = designGoal.value.trim() || goalInput?.value.trim() || "목표 미입력";
   const period = goalPeriodInput.value;
   const currentState = currentStateInput.value.trim();
+  const routineReadiness = routineReadinessInput?.value || "보통이에요";
+  const routineTime = routineTimeInput?.value || "아침";
+  const currentRoutine = currentRoutineInput?.value.trim() || "이미 하는 작은 행동";
   const birthDate = birthDateInput.value;
   const birthTime = birthTimeInput.value;
   const birthPlace = birthPlaceInput.value.trim();
@@ -397,6 +431,9 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
     goal,
     period,
     currentState,
+    routineReadiness,
+    routineTime,
+    currentRoutine,
     birthDate,
     birthTime,
     birthPlace,
@@ -427,6 +464,9 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
         goal,
         period: Number(period),
         currentState,
+        routineReadiness,
+        routineTime,
+        currentRoutine,
         mbti,
         style,
         firstAction: preview.firstAction,
@@ -447,9 +487,11 @@ personalityForm?.addEventListener("submit", (event) => {
   runPersonalityAnalysis({ showLoading: true });
 });
 
-[birthDateInput, birthTimeInput, birthPlaceInput, mbtiInput, goalPeriodInput, currentStateInput, designGoal].forEach((field) => {
-  field?.addEventListener("change", runPersonalityAnalysis);
-});
+[birthDateInput, birthTimeInput, birthPlaceInput, mbtiInput, goalPeriodInput, currentStateInput, routineReadinessInput, routineTimeInput, currentRoutineInput, designGoal].forEach(
+  (field) => {
+    field?.addEventListener("change", runPersonalityAnalysis);
+  },
+);
 
 runPersonalityAnalysis();
 
@@ -539,6 +581,7 @@ function getDefaultPlanText(plan) {
   const preview = plan.aiPreview || {};
   const weekPlan = Array.isArray(preview.weekPlan) ? preview.weekPlan : [];
   const lines = [
+    `${plan.routineTime || "아침"}에 ${plan.currentRoutine || "기존 루틴"}와 목표를 연결하기`,
     plan.firstAction || preview.firstAction || "단어 40개 + LC 1세트",
     ...weekPlan,
     "하루 끝에는 완료 여부를 체크하고, 놓친 항목은 다음 날 작은 단위로 다시 배치합니다.",
@@ -561,10 +604,20 @@ function parsePlanText(planText, fallbackAction) {
   ];
 }
 
+function getRoutineTimes(plan) {
+  const timeSet = {
+    아침: ["07:00", "12:30", "21:00"],
+    점심: ["10:30", "13:00", "21:00"],
+    저녁: ["09:00", "18:30", "22:00"],
+    "자기 전": ["08:00", "20:30", "23:00"],
+  };
+  return timeSet[plan.routineTime] || timeSet["아침"];
+}
+
 function buildSchedule(plan, planText) {
   const period = Math.max(7, Math.min(Number(plan.period) || 30, 100));
   const baseTasks = parsePlanText(planText, plan.firstAction);
-  const times = ["07:30", "12:30", "21:00"];
+  const times = getRoutineTimes(plan);
   const weeklyFocus = ["루틴 고정", "기초 반복", "중간 점검", "약점 보완", "실전 적용", "가벼운 복습", "주간 리포트"];
 
   return Array.from({ length: period }, (_, index) => {
@@ -720,6 +773,34 @@ function renderWeeklyPlan(schedule) {
   });
 }
 
+function renderRoutineInsight(plan) {
+  if (!routineModeTitle) return;
+
+  const routineTime = plan.routineTime || "아침";
+  const currentRoutine = plan.currentRoutine || "기존 루틴";
+  const readiness = plan.routineReadiness || "보통이에요";
+  const isDelayProne = readiness.includes("미뤄");
+  const cues = isDelayProne
+    ? [`${currentRoutine} 뒤 10분만`, "알림으로 다시 시작", "못한 날은 다음 칸으로 이동"]
+    : [`${currentRoutine}와 연결`, "완료 즉시 체크", "달력에서 진행률 확인"];
+
+  routineModeTitle.textContent = `${routineTime} 루틴 모드`;
+  if (routineModeMeta) {
+    routineModeMeta.textContent = isDelayProne
+      ? `${readiness} 성향에 맞춰 작게 시작하고 다시 불러옵니다`
+      : `${readiness} 성향에 맞춰 바로 실행할 수 있게 배치합니다`;
+  }
+
+  if (routineCueList) {
+    routineCueList.innerHTML = "";
+    cues.forEach((cue) => {
+      const item = document.createElement("span");
+      item.textContent = cue;
+      routineCueList.append(item);
+    });
+  }
+}
+
 function renderExecutionPage(bundle) {
   if (!executionGoal) return;
 
@@ -758,6 +839,7 @@ function renderExecutionPage(bundle) {
   renderChecklist(selectedDay, state);
   renderCalendar(schedule, state);
   renderWeeklyPlan(schedule);
+  renderRoutineInsight(plan);
 }
 
 function applyExecutionTheme(themeName) {

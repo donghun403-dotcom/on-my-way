@@ -114,6 +114,27 @@
               <input id="currentState" type="text" value="토익 720점, 평일 하루 1시간 가능" />
             </div>
             <div class="field-group">
+              <label for="routineReadiness">실행 성향</label>
+              <select id="routineReadiness">
+                <option selected>바로 실행해요</option>
+                <option>보통이에요</option>
+                <option>자주 미뤄요</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label for="routineTime">주로 가능한 시간</label>
+              <select id="routineTime">
+                <option selected>아침</option>
+                <option>점심</option>
+                <option>저녁</option>
+                <option>자기 전</option>
+              </select>
+            </div>
+            <div class="field-group wide">
+              <label for="currentRoutine">이미 하고 있는 루틴</label>
+              <input id="currentRoutine" type="text" value="아침 물 마시기, 저녁 산책" />
+            </div>
+            <div class="field-group">
               <label for="birthDate">생년월일</label>
               <input id="birthDate" type="date" value="1995-03-15" />
             </div>
@@ -363,43 +384,54 @@
       <section class="pricing section-band" id="pricing">
         <div class="section-heading">
           <p class="eyebrow">Pricing</p>
-          <h2>내 목표에 맞는 방식으로 시작하세요</h2>
-          <p>먼저 진단하고, 하루 체험으로 맞는지 확인한 뒤 계속 진행할 수 있습니다.</p>
+          <h2>월 결제하면 추가로 할인돼요</h2>
+          <p>루틴과 목표를 계속 이어갈 수 있도록 가장 부담이 적은 플랜을 먼저 보여드려요.</p>
         </div>
-        <div class="pricing-grid">
-          <article>
-            <p>Free Diagnosis</p>
-            <h3>무료</h3>
-            <ul>
-              <li>성향 요약</li>
-              <li>추천 목표 방식</li>
-              <li>오늘의 첫 행동</li>
-            </ul>
-            <a href="#diagnosis">무료 진단하기</a>
+        <div class="pricing-offers" aria-label="결제 플랜">
+          <article class="pricing-option selected">
+            <span class="discount-badge">-38%</span>
+            <div class="pricing-choice">
+              <span class="choice-dot" aria-hidden="true"></span>
+              <div>
+                <h3>연 구독 (12개월)</h3>
+                <p>성향 분석, 루틴 체크, AI 스케줄, 월간 달력 진행률 포함</p>
+              </div>
+              <strong>29,000원</strong>
+            </div>
+            <div class="price-breakdown">
+              <p><span>정상가</span><del>46,800원</del></p>
+              <p><span>앱 할인가</span><em>-29%</em><del>33,000원</del></p>
+              <p class="highlight"><span>웹 추가 할인가</span><em>-12%</em><strong>29,000원</strong></p>
+            </div>
+            <div class="final-price">
+              <span>최종 금액</span>
+              <strong>29,000원</strong>
+              <small>1년마다 결제</small>
+            </div>
           </article>
-          <article class="featured-plan">
-            <span class="plan-badge">추천</span>
-            <p>Premium Monthly</p>
-            <h3>월 9,900원</h3>
-            <ul>
-              <li>전체 목표 계획</li>
-              <li>하루 스케줄 체크</li>
-              <li>목표 달성 게이지</li>
-              <li>일일 성장 여정</li>
-            </ul>
-            <a href="app.html">하루 체험 시작하기</a>
+
+          <article class="pricing-option muted">
+            <span class="discount-badge">-83%</span>
+            <div class="pricing-choice">
+              <span class="choice-dot" aria-hidden="true"></span>
+              <div>
+                <h3>평생 이용권</h3>
+                <p>한 번 결제로 장기 목표와 반복 루틴을 계속 관리</p>
+              </div>
+              <strong>79,000원</strong>
+            </div>
+            <div class="price-breakdown">
+              <p><span>정상가</span><del>468,000원</del></p>
+              <p><span>앱 할인가</span><em>-81%</em><del>89,000원</del></p>
+              <p><span>웹 추가 할인가</span><em>-11%</em><strong>79,000원</strong></p>
+            </div>
           </article>
-          <article>
-            <p>Goal Pass</p>
-            <h3>30일 14,900원~</h3>
-            <ul>
-              <li>목표 1개 집중 관리</li>
-              <li>기간형 전체 계획</li>
-              <li>PDF 다운로드</li>
-              <li>성장 결과물 저장</li>
-            </ul>
-            <a href="app.html">목표 패스 보기</a>
-          </article>
+
+          <a class="coupon-strip" href="#pricing" aria-label="추가 할인 쿠폰 받기">
+            <span>Discount</span>
+            <strong>추가 할인 쿠폰 받기</strong>
+            <b aria-hidden="true">›</b>
+          </a>
         </div>
       </section>
 
@@ -417,6 +449,11 @@
       <p>On My Way</p>
       <p>성향 분석은 목표 설계를 돕는 참고 도구이며, 성공을 보장하지 않습니다.</p>
     </footer>
+
+    <a class="floating-payment-cta" href="#pricing" aria-label="할인 받고 시작하기">
+      <span>할인 받고 시작하기</span>
+      <strong>연 29,000원</strong>
+    </a>
 
     <script src="script.js"></script>
   </body>
