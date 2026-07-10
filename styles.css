@@ -3725,3 +3725,483 @@ body.sheet-open {
     grid-template-columns: 1fr;
   }
 }
+
+/* Soft Journey visual pass: calmer AI coach, expressive only where it matters. */
+.execution-page {
+  --font-display: clamp(28px, 7vw, 34px);
+  --font-title: 22px;
+  --font-card-title: 18px;
+  --font-body: 15px;
+  --font-caption: 13px;
+  --soft-bg: #f7f9f8;
+  --soft-surface: rgba(255, 255, 255, 0.88);
+  --soft-surface-solid: #ffffff;
+  --soft-border: #e3e9e7;
+  --soft-text: #1e2c29;
+  --soft-muted: #687874;
+  --soft-faint: #9aa7a4;
+  --soft-primary: #2fb69d;
+  --soft-primary-dark: #238f7b;
+  --soft-primary-soft: #e3f5f0;
+  --soft-sky: #91c4e3;
+  --soft-sky-soft: #ebf4f9;
+  --soft-accent: #ebcb73;
+  --soft-accent-soft: #faf3dd;
+  color: var(--soft-text);
+  background:
+    radial-gradient(circle at 12% 2%, rgba(118, 211, 190, 0.16), transparent 31%),
+    radial-gradient(circle at 88% 18%, rgba(145, 196, 227, 0.13), transparent 28%),
+    var(--soft-bg);
+}
+
+.execution-header,
+.execution-app {
+  background: transparent;
+  box-shadow: none;
+}
+
+.execution-header {
+  min-height: 58px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.62);
+  background: rgba(247, 249, 248, 0.72);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.execution-header .brand-logo {
+  filter: none;
+}
+
+.ghost-link,
+.text-button {
+  min-height: 34px;
+  color: var(--soft-primary-dark);
+  background: rgba(255, 255, 255, 0.72);
+  border-color: var(--soft-border);
+  border-radius: 14px;
+  font-weight: 700;
+}
+
+.execution-app {
+  gap: 10px;
+  padding: 8px 12px 90px;
+}
+
+.execution-hero,
+.companion-home-card,
+.focus-task-card {
+  border: 1px solid rgba(255, 255, 255, 0.76);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(235, 247, 243, 0.9)),
+    var(--soft-surface-solid);
+  box-shadow: 0 18px 45px rgba(43, 88, 77, 0.09);
+}
+
+.execution-hero {
+  grid-template-columns: minmax(0, 1fr) 96px;
+  min-height: 132px;
+  padding: 20px;
+  border-radius: 30px;
+}
+
+.execution-hero .eyebrow {
+  color: var(--soft-primary-dark);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.execution-hero h1 {
+  margin: 6px 0 8px;
+  color: var(--soft-text);
+  font-size: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.execution-hero p,
+.execution-card p,
+.weekly-plan p {
+  color: var(--soft-muted);
+  font-size: var(--font-caption);
+}
+
+.execution-gauge {
+  width: 90px;
+  height: 90px;
+  border-color: rgba(47, 182, 157, 0.24);
+  background:
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.92), rgba(235, 247, 243, 0.75));
+  box-shadow: inset 0 0 0 7px rgba(47, 182, 157, 0.07);
+}
+
+.execution-gauge strong {
+  color: var(--soft-primary-dark);
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.execution-gauge span {
+  color: var(--soft-muted);
+  font-weight: 600;
+}
+
+.execution-card {
+  padding: 16px;
+  color: var(--soft-text);
+  background: var(--soft-surface);
+  border: 1px solid var(--soft-border);
+  border-radius: 18px;
+  box-shadow: none;
+}
+
+.companion-home-card {
+  min-height: 304px;
+  overflow: visible;
+  border-radius: 30px;
+}
+
+.companion-world {
+  min-height: 192px;
+  overflow: visible;
+  background:
+    radial-gradient(circle at 50% 70%, rgba(47, 182, 157, 0.13), transparent 32%),
+    linear-gradient(180deg, rgba(235, 244, 249, 0.82) 0%, rgba(255, 255, 255, 0.78) 100%);
+  border-color: rgba(255, 255, 255, 0.82);
+  border-radius: 26px;
+}
+
+.companion-world::before {
+  position: absolute;
+  right: 18%;
+  bottom: 22px;
+  left: 18%;
+  height: 30px;
+  content: "";
+  background: linear-gradient(90deg, rgba(47, 182, 157, 0.08), rgba(145, 196, 227, 0.18));
+  border-radius: 50%;
+}
+
+.companion-world::after {
+  position: absolute;
+  right: 44px;
+  bottom: 48px;
+  width: 116px;
+  height: 18px;
+  content: "";
+  background: rgba(47, 182, 157, 0.1);
+  border-radius: 999px;
+  transform: rotate(-6deg);
+}
+
+.companion-world img {
+  width: 166px;
+  height: 166px;
+  margin-top: -16px;
+  margin-bottom: -8px;
+  z-index: 2;
+  filter: drop-shadow(0 18px 22px rgba(35, 143, 123, 0.18));
+}
+
+.companion-speech,
+.companion-chat-sheet,
+.focus-mode {
+  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  box-shadow: 0 14px 38px rgba(41, 76, 68, 0.1);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.companion-speech strong,
+.focus-task-copy h2,
+.card-title.compact h2,
+.weekly-plan strong {
+  color: var(--soft-text);
+  font-weight: 700;
+}
+
+.companion-speech p,
+.companion-home-meta span,
+.companion-stats span,
+.focus-task-copy p,
+.focus-task-goal span,
+.card-title.compact span {
+  color: var(--soft-muted);
+  font-weight: 500;
+}
+
+.companion-home-meta div,
+.companion-stats span {
+  background: rgba(255, 255, 255, 0.58);
+  border-color: var(--soft-border);
+  border-radius: 16px;
+}
+
+.companion-home-meta strong,
+.companion-stats strong {
+  color: var(--soft-text);
+  font-weight: 700;
+}
+
+.companion-xp,
+.execution-progress-track {
+  position: relative;
+  height: 8px;
+  background: #e5ece9;
+  border-radius: 999px;
+}
+
+.companion-xp span,
+.execution-progress-track span {
+  background: linear-gradient(90deg, var(--soft-primary), var(--soft-sky));
+}
+
+.execution-progress-track::before {
+  position: absolute;
+  inset: -3px auto auto calc(var(--journey-dot, 42%) - 5px);
+  width: 14px;
+  height: 14px;
+  content: "";
+  background: var(--soft-primary);
+  border: 3px solid #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 6px 14px rgba(47, 182, 157, 0.24);
+}
+
+.focus-task-card {
+  grid-template-columns: minmax(0, 1fr) 94px;
+  gap: 12px;
+  align-items: stretch;
+  border-radius: 30px;
+}
+
+.focus-start-button,
+.focus-adjust-link {
+  grid-column: 1 / -1;
+}
+
+.focus-task-goal {
+  display: grid;
+  grid-column: 2;
+  grid-row: 1;
+  align-content: center;
+  min-height: 96px;
+  background: rgba(255, 255, 255, 0.62);
+  border-color: var(--soft-border);
+  border-radius: 18px;
+}
+
+.focus-start-button,
+.chat-send-button,
+.focus-mode-actions .primary {
+  min-height: 54px;
+  border-radius: 17px;
+  background: var(--soft-primary);
+  box-shadow: 0 10px 24px rgba(47, 182, 157, 0.22);
+  font-weight: 700;
+}
+
+.focus-start-button:active,
+.chat-send-button:active,
+.focus-mode-actions button:active {
+  transform: scale(0.98);
+}
+
+.companion-primary-actions button,
+.focus-adjust-link,
+.mate-actions button,
+.energy-options button,
+.quick-adjustments button,
+.focus-mode-actions button {
+  border-radius: 15px;
+  font-weight: 600;
+}
+
+.soft-badge {
+  color: var(--soft-primary-dark);
+  background: var(--soft-primary-soft);
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.plan-editor,
+.chat-input-label textarea {
+  color: var(--soft-text);
+  background: rgba(255, 255, 255, 0.74);
+  border-color: var(--soft-border);
+  border-radius: 17px;
+}
+
+#planEditorMessage {
+  color: var(--soft-primary-dark);
+  background: var(--soft-primary-soft);
+}
+
+.execution-checklist {
+  gap: 0;
+}
+
+.execution-checklist label,
+.weekly-plan li {
+  min-height: auto;
+  padding: 16px 0;
+  color: var(--soft-text);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid #e8edeb;
+  border-radius: 0;
+}
+
+.execution-checklist label:last-child,
+.weekly-plan li:last-child {
+  border-bottom: 0;
+}
+
+.execution-checklist input {
+  width: 26px;
+  height: 26px;
+  appearance: none;
+  flex: 0 0 auto;
+  border: 1.5px solid #cbd7d3;
+  border-radius: 9px;
+  background: #ffffff;
+  transition: transform 180ms ease, background 180ms ease, border-color 180ms ease;
+}
+
+.execution-checklist input:checked {
+  background:
+    linear-gradient(135deg, transparent 42%, #ffffff 0 58%, transparent 0) 8px 10px / 8px 8px no-repeat,
+    var(--soft-primary);
+  border-color: var(--soft-primary);
+  transform: scale(1.04);
+}
+
+.execution-checklist .task-content {
+  display: grid;
+  gap: 2px;
+}
+
+.execution-checklist strong {
+  color: var(--soft-primary-dark);
+  font-weight: 600;
+}
+
+.task-row.is-complete .task-content > span {
+  color: var(--soft-faint);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+  text-decoration-color: rgba(104, 120, 116, 0.42);
+}
+
+.minimum-action {
+  color: var(--soft-faint);
+  font-size: 12px;
+}
+
+.calendar-day {
+  color: var(--soft-text);
+  background: rgba(255, 255, 255, 0.78);
+  border-color: var(--soft-border);
+  border-radius: 13px;
+}
+
+.calendar-day::before {
+  background: rgba(47, 182, 157, 0.16);
+}
+
+.calendar-day.done {
+  color: #ffffff;
+  background: var(--soft-primary);
+  border-color: var(--soft-primary);
+}
+
+.weekly-plan li span {
+  color: var(--soft-primary-dark);
+  background: var(--soft-primary-soft);
+  border-radius: 13px;
+}
+
+.coach-card {
+  background:
+    radial-gradient(circle at top right, rgba(145, 196, 227, 0.18), transparent 34%),
+    var(--soft-surface);
+}
+
+.execution-tabbar {
+  bottom: max(12px, env(safe-area-inset-bottom));
+  width: min(calc(100% - 24px), 396px);
+  min-height: 54px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  border-radius: 24px;
+  box-shadow: 0 14px 36px rgba(34, 67, 58, 0.12);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.execution-tabbar a {
+  position: relative;
+  color: var(--soft-muted);
+  background: transparent;
+  border-radius: 16px;
+}
+
+.execution-tabbar a.active {
+  color: var(--soft-primary-dark);
+  background: rgba(47, 182, 157, 0.11);
+}
+
+.execution-tabbar a.active::after {
+  position: absolute;
+  right: 50%;
+  bottom: 4px;
+  width: 4px;
+  height: 4px;
+  content: "";
+  background: var(--soft-primary);
+  border-radius: 50%;
+  transform: translateX(50%);
+}
+
+.app-toast {
+  display: grid;
+  gap: 2px;
+  width: min(340px, calc(100vw - 28px));
+  padding: 13px 16px;
+  color: #ffffff;
+  background: rgba(31, 45, 42, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 16px;
+  box-shadow: 0 16px 35px rgba(20, 35, 31, 0.2);
+  text-align: left;
+}
+
+.app-toast strong {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.app-toast strong::before {
+  margin-right: 8px;
+  content: "✓";
+}
+
+.app-toast span {
+  padding-left: 22px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+@media (max-width: 380px) {
+  .execution-hero,
+  .focus-task-card {
+    grid-template-columns: 1fr;
+  }
+
+  .focus-task-goal {
+    grid-column: 1;
+    grid-row: auto;
+  }
+}

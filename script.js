@@ -42,6 +42,7 @@ const dashboardPaceText = document.querySelector("#dashboardPaceText");
 const executionGoal = document.querySelector("#executionGoal");
 const executionStyle = document.querySelector("#executionStyle");
 const executionPeriod = document.querySelector("#executionPeriod");
+const todayDateLabel = document.querySelector("#todayDateLabel");
 const executionDay = document.querySelector("#executionDay");
 const executionStreak = document.querySelector("#executionStreak");
 const executionProgress = document.querySelector("#executionProgress");
@@ -919,7 +920,16 @@ function showToast(message) {
     document.body.append(toast);
   }
 
-  toast.textContent = message;
+  const [title, detail] = message.split(" · ");
+  toast.innerHTML = "";
+  const titleEl = document.createElement("strong");
+  titleEl.textContent = title || message;
+  toast.append(titleEl);
+  if (detail) {
+    const detailEl = document.createElement("span");
+    detailEl.textContent = detail;
+    toast.append(detailEl);
+  }
   toast.classList.add("show");
   window.setTimeout(() => toast.classList.remove("show"), 2200);
 }
@@ -997,7 +1007,7 @@ function completeFocusTask() {
   if (wasUnchecked) addCompanionXp(10, "happy");
   closeFocusMode();
   pulseCompanion();
-  showToast(wasUnchecked ? "+10 XP · 모리가 오늘의 실행을 기억했어요" : "이미 완료된 한 걸음이에요");
+  showToast(wasUnchecked ? "오늘의 한 걸음 완료 · 모리가 10 XP를 얻었어요" : "이미 완료된 한 걸음이에요");
   trackCompanionEvent("focus_completed", { day: dayPlan.day, taskIndex: activeFocusTaskIndex, rewarded: wasUnchecked });
   renderExecutionPage(bundle);
 }
@@ -1034,10 +1044,13 @@ function renderChecklist(dayPlan, state) {
     const time = document.createElement("strong");
     const text = document.createElement("span");
 
+    label.className = "task-row";
     input.className = "execution-check";
     input.type = "checkbox";
     input.dataset.taskIndex = String(index);
     input.checked = Boolean(checked[index]);
+    label.classList.toggle("is-complete", input.checked);
+    content.className = "task-content";
 
     time.textContent = task.time;
     text.textContent = task.text;
@@ -1300,13 +1313,24 @@ function renderExecutionPage(bundle) {
   }
   updateRevisionButtonState();
   if (planStatusBadge) planStatusBadge.textContent = state.status || "AI 제안";
-  executionGoal.textContent = plan.goal || "3개월 안에 토익 900점 달성하기";
-  if (executionStyle) executionStyle.textContent = plan.style || "루틴 점검형";
-  if (executionPeriod) executionPeriod.textContent = `${period}일 계획`;
+  if (todayDateLabel) todayDateLabel.textContent = "Today";
+  executionGoal.textContent = "오늘의 한 걸음";
+  if (executionStyle) {
+    const todayLabel = new Date().toLocaleDateString("ko-KR", {
+      month: "long",
+      day: "numeric",
+      weekday: "long",
+    });
+    executionStyle.textContent = `${todayLabel} · ${selectedCompletion.completed}/${selectedCompletion.total} 완료`;
+  }
+  if (executionPeriod) executionPeriod.textContent = plan.goal || `${period}일 목표`;
   if (executionDay) executionDay.textContent = `Day ${selectedDay.day} / ${period}`;
   if (executionStreak) executionStreak.textContent = `${completedDays}일 완료`;
   if (executionProgress) executionProgress.textContent = `${overallProgress}%`;
-  if (executionProgressBar) executionProgressBar.style.width = `${overallProgress}%`;
+  if (executionProgressBar) {
+    executionProgressBar.style.width = `${overallProgress}%`;
+    executionProgressBar.parentElement?.style.setProperty("--journey-dot", `${overallProgress}%`);
+  }
   if (selectedScheduleTitle) selectedScheduleTitle.textContent = `${selectedDay.day}일차 스케줄`;
   if (selectedScheduleMeta) selectedScheduleMeta.textContent = `${selectedCompletion.percent}% 완료 · ${remainingTasks}개 남음`;
   if (monthlyCompletion) monthlyCompletion.textContent = `${monthProgress}%`;
@@ -1382,7 +1406,7 @@ executionChecklist?.addEventListener("change", (event) => {
   if (event.target.checked && wasUnchecked) {
     addCompanionXp(10, "happy");
     pulseCompanion();
-    showToast("+10 XP · 한 걸음을 기록했어요");
+    showToast("오늘의 한 걸음 완료 · 모리가 10 XP를 얻었어요");
     trackCompanionEvent("task_completed", { day: dayPlan.day, taskIndex });
   }
   renderExecutionPage(bundle);
@@ -1399,7 +1423,7 @@ completeTodayButton?.addEventListener("click", () => {
   if (newlyCompleted > 0) {
     addCompanionXp(newlyCompleted * 10 + 8, "happy");
     pulseCompanion();
-    showToast(`+${newlyCompleted * 10 + 8} XP · 오늘 계획을 모두 마쳤어요`);
+    showToast(`오늘 계획 완료 · 모리가 ${newlyCompleted * 10 + 8} XP를 얻었어요`);
     trackCompanionEvent("all_day_completed", { day: dayPlan.day, newlyCompleted });
   }
   renderExecutionPage(bundle);
@@ -1465,7 +1489,7 @@ touchCompanionButton?.addEventListener("click", () => {
   saveCompanionState(nextState);
   addCompanionXp(2, "happy");
   pulseCompanion();
-  showToast("+2 XP · 모리가 조금 더 가까워졌어요");
+  showToast("모리와 가까워졌어요 · 관계 XP 2를 얻었어요");
   if (companionMessage) companionMessage.textContent = "고마워요. 오늘은 아주 작은 행동부터 같이 해봐요.";
   trackCompanionEvent("companion_touched", { touched: nextState.touched });
   renderExecutionPage(getPlanBundle());
