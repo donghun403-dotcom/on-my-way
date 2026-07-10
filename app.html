@@ -49,6 +49,23 @@
         <p id="executionMessage">오늘 계획 3개를 모두 끝내면 성장 대상이 한 단계 자랍니다.</p>
       </section>
 
+      <section class="execution-card plan-editor-card">
+        <div class="card-title compact">
+          <div>
+            <h2>AI 제안 플랜</h2>
+            <span>그대로 수용하거나 직접 수정해서 새 스케줄을 요청하세요</span>
+          </div>
+          <span class="soft-badge" id="planStatusBadge">AI 제안</span>
+        </div>
+        <label class="plan-editor-label" for="planEditor">플랜 내용</label>
+        <textarea id="planEditor" class="plan-editor" rows="7"></textarea>
+        <div class="plan-editor-actions">
+          <button class="text-button" id="acceptPlanButton" type="button">그대로 적용</button>
+          <button class="text-button primary-action" id="regeneratePlanButton" type="button">수정한 플랜으로 새로 요청</button>
+        </div>
+        <p id="planEditorMessage">AI가 제안한 계획을 확인한 뒤, 내 생활 리듬에 맞게 고쳐도 됩니다.</p>
+      </section>
+
       <section class="execution-card companion-run-card">
         <div class="card-title compact">
           <div>
@@ -77,34 +94,32 @@
       <section class="execution-card">
         <div class="card-title compact">
           <div>
-            <h2>오늘의 스케줄</h2>
-            <span>완료하면 자동으로 게이지가 올라갑니다</span>
+            <h2 id="selectedScheduleTitle">오늘의 스케줄</h2>
+            <span id="selectedScheduleMeta">완료하면 자동으로 게이지가 올라갑니다</span>
           </div>
           <button class="text-button" id="completeTodayButton" type="button">모두 완료</button>
         </div>
-        <div class="execution-checklist">
-          <label>
-            <input class="execution-check" type="checkbox" />
-            <span>
-              <strong>07:30</strong>
-              <span id="executionFirstTask">단어 40개 암기</span>
-            </span>
-          </label>
-          <label>
-            <input class="execution-check" type="checkbox" />
-            <span>
-              <strong>12:30</strong>
-              LC 파트 3 한 세트
-            </span>
-          </label>
-          <label>
-            <input class="execution-check" type="checkbox" />
-            <span>
-              <strong>21:00</strong>
-              오답 정리 20분
-            </span>
-          </label>
+        <div class="execution-checklist" id="executionChecklist"></div>
+      </section>
+
+      <section class="execution-card schedule-calendar-card">
+        <div class="card-title compact">
+          <div>
+            <h2>이번 달 진행 달력</h2>
+            <span id="calendarSummary">하루 플랜 완성률을 한눈에 확인합니다</span>
+          </div>
+          <span class="soft-badge" id="monthlyCompletion">0%</span>
         </div>
+        <div class="calendar-weekdays" aria-hidden="true">
+          <span>월</span>
+          <span>화</span>
+          <span>수</span>
+          <span>목</span>
+          <span>금</span>
+          <span>토</span>
+          <span>일</span>
+        </div>
+        <div class="schedule-calendar" id="scheduleCalendar" aria-label="일별 플랜 완성률 달력"></div>
       </section>
 
       <section class="execution-card weekly-plan-card">
@@ -115,7 +130,7 @@
           </div>
           <button class="text-button" id="downloadPlanButton" type="button">PDF 받기</button>
         </div>
-        <ol class="weekly-plan">
+        <ol class="weekly-plan" id="weeklyPlanList">
           <li><span>월</span><strong>핵심 루틴 고정</strong><p>단어, LC, 오답 정리를 같은 시간에 실행</p></li>
           <li><span>수</span><strong>중간 점검</strong><p>누락된 계획을 20분 단위로 재배치</p></li>
           <li><span>금</span><strong>실전 세트</strong><p>시간 제한을 두고 약점 유형을 확인</p></li>

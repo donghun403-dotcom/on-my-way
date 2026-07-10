@@ -36,11 +36,22 @@ const executionGoal = document.querySelector("#executionGoal");
 const executionStyle = document.querySelector("#executionStyle");
 const executionPeriod = document.querySelector("#executionPeriod");
 const executionDay = document.querySelector("#executionDay");
+const executionStreak = document.querySelector("#executionStreak");
 const executionProgress = document.querySelector("#executionProgress");
 const executionProgressBar = document.querySelector("#executionProgressBar");
 const executionMessage = document.querySelector("#executionMessage");
-const executionFirstTask = document.querySelector("#executionFirstTask");
-const executionChecks = document.querySelectorAll(".execution-check");
+const planStatusBadge = document.querySelector("#planStatusBadge");
+const planEditor = document.querySelector("#planEditor");
+const acceptPlanButton = document.querySelector("#acceptPlanButton");
+const regeneratePlanButton = document.querySelector("#regeneratePlanButton");
+const planEditorMessage = document.querySelector("#planEditorMessage");
+const selectedScheduleTitle = document.querySelector("#selectedScheduleTitle");
+const selectedScheduleMeta = document.querySelector("#selectedScheduleMeta");
+const executionChecklist = document.querySelector("#executionChecklist");
+const scheduleCalendar = document.querySelector("#scheduleCalendar");
+const calendarSummary = document.querySelector("#calendarSummary");
+const monthlyCompletion = document.querySelector("#monthlyCompletion");
+const weeklyPlanList = document.querySelector("#weeklyPlanList");
 const completeTodayButton = document.querySelector("#completeTodayButton");
 const executionThemeButtons = document.querySelectorAll(".execution-theme-button");
 const executionCompanion = document.querySelector("#executionCompanion");
@@ -515,28 +526,238 @@ function saveExecutionState(state) {
   }
 }
 
-function updateExecutionProgress() {
-  if (!executionProgress || !executionProgressBar || !executionChecks.length) return;
-
-  const checkedCount = [...executionChecks].filter((item) => item.checked).length;
-  const taskBoost = Math.round((checkedCount / executionChecks.length) * 8);
-  const progress = Math.min(100, 42 + taskBoost);
-  const allDone = checkedCount === executionChecks.length;
-
-  executionProgress.textContent = `${progress}%`;
-  executionProgressBar.style.width = `${progress}%`;
-  if (executionMessage) {
-    executionMessage.textContent = allDone
-      ? "오늘 계획을 모두 완료했어요. 성장 대상이 한 단계 자랐습니다."
-      : `오늘 계획 ${executionChecks.length - checkedCount}개가 남았어요. 작게 끝내도 흐름은 이어집니다.`;
+function hashText(text) {
+  let hash = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    hash = (hash << 5) - hash + text.charCodeAt(index);
+    hash |= 0;
   }
+  return Math.abs(hash).toString(36);
+}
 
+function getDefaultPlanText(plan) {
+  const preview = plan.aiPreview || {};
+  const weekPlan = Array.isArray(preview.weekPlan) ? preview.weekPlan : [];
+  const lines = [
+    plan.firstAction || preview.firstAction || "단어 40개 + LC 1세트",
+    ...weekPlan,
+    "하루 끝에는 완료 여부를 체크하고, 놓친 항목은 다음 날 작은 단위로 다시 배치합니다.",
+  ];
+  return lines.map((line) => `- ${line}`).join("\n");
+}
+
+function parsePlanText(planText, fallbackAction) {
+  const parsed = planText
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^[-*•\d.\s]+/, "").trim())
+    .filter(Boolean);
+
+  const unique = [...new Set(parsed)];
+  if (unique.length >= 3) return unique;
+  return [
+    fallbackAction || "단어 40개 + LC 1세트",
+    "오답 정리 20분",
+    "오늘 진행 상황 체크인",
+  ];
+}
+
+function buildSchedule(plan, planText) {
+  const period = Math.max(7, Math.min(Number(plan.period) || 30, 100));
+  const baseTasks = parsePlanText(planText, plan.firstAction);
+  const times = ["07:30", "12:30", "21:00"];
+  const weeklyFocus = ["루틴 고정", "기초 반복", "중간 점검", "약점 보완", "실전 적용", "가벼운 복습", "주간 리포트"];
+
+  return Array.from({ length: period }, (_, index) => {
+    const day = index + 1;
+    const focus = weeklyFocus[index % weeklyFocus.length];
+    const tasks = times.map((time, taskIndex) => ({
+      time,
+      text:
+        taskIndex === 2 && day % 7 === 0
+          ? "이번 주 완료율 확인하고 다음 주 난이도 조정"
+          : baseTasks[(index + taskIndex) % baseTasks.length],
+    }));
+
+    return {
+      day,
+      title: `Day ${day} · ${focus}`,
+      tasks,
+    };
+  });
+}
+
+function getScheduleCompletion(schedule, checkedByDay) {
+  const totalTasks = schedule.reduce((sum, day) => sum + day.tasks.length, 0);
+  const completedTasks = schedule.reduce((sum, day) => {
+    const checked = checkedByDay[String(day.day)] || [];
+    return sum + checked.filter(Boolean).length;
+  }, 0);
+  return totalTasks ? Math.round((completedTasks / totalTasks) * 100) : 0;
+}
+
+function getVisibleMonthSchedule(schedule) {
+  return schedule.slice(0, Math.min(30, schedule.length));
+}
+
+function getDayCompletion(dayPlan, checkedByDay) {
+  const checked = checkedByDay[String(dayPlan.day)] || [];
+  const completed = checked.filter(Boolean).length;
+  const total = dayPlan.tasks.length || 1;
+  return {
+    completed,
+    total,
+    percent: Math.round((completed / total) * 100),
+  };
+}
+
+function getCompletedDayCount(schedule, checkedByDay) {
+  return schedule.filter((dayPlan) => getDayCompletion(dayPlan, checkedByDay).percent === 100).length;
+}
+
+function getPlanBundle({ reset = false, customText } = {}) {
+  const plan = readExecutionPlan();
+  const planText = customText ?? getExecutionState().planText ?? getDefaultPlanText(plan);
+  const schedule = buildSchedule(plan, planText);
+  const scheduleKey = hashText(`${plan.goal || ""}|${plan.period || ""}|${planText}`);
+  const previous = getExecutionState();
+  const canReuse = !reset && previous.scheduleKey === scheduleKey;
+  const state = canReuse
+    ? previous
+    : {
+        scheduleKey,
+        planText,
+        selectedDay: 1,
+        checkedByDay: {},
+        updatedAt: new Date().toISOString(),
+      };
+
+  state.planText = planText;
+  state.scheduleKey = scheduleKey;
+  state.selectedDay = Math.max(1, Math.min(Number(state.selectedDay) || 1, schedule.length));
+
+  return { plan, planText, schedule, state };
+}
+
+function savePlanBundleState(state) {
   saveExecutionState({
-    checked: [...executionChecks].map((item) => item.checked),
-    progress,
-    completedToday: allDone,
+    ...state,
     updatedAt: new Date().toISOString(),
   });
+}
+
+function renderChecklist(dayPlan, state) {
+  if (!executionChecklist) return;
+
+  executionChecklist.innerHTML = "";
+  const checked = state.checkedByDay[String(dayPlan.day)] || [];
+
+  dayPlan.tasks.forEach((task, index) => {
+    const label = document.createElement("label");
+    const input = document.createElement("input");
+    const content = document.createElement("span");
+    const time = document.createElement("strong");
+    const text = document.createElement("span");
+
+    input.className = "execution-check";
+    input.type = "checkbox";
+    input.dataset.taskIndex = String(index);
+    input.checked = Boolean(checked[index]);
+
+    time.textContent = task.time;
+    text.textContent = task.text;
+
+    content.append(time, text);
+    label.append(input, content);
+    executionChecklist.append(label);
+  });
+}
+
+function renderCalendar(schedule, state) {
+  if (!scheduleCalendar) return;
+
+  scheduleCalendar.innerHTML = "";
+  const monthDays = getVisibleMonthSchedule(schedule);
+
+  monthDays.forEach((dayPlan) => {
+    const completion = getDayCompletion(dayPlan, state.checkedByDay);
+    const button = document.createElement("button");
+    const day = document.createElement("strong");
+    const percent = document.createElement("span");
+
+    button.type = "button";
+    button.className = "calendar-day";
+    button.dataset.day = String(dayPlan.day);
+    button.style.setProperty("--day-progress", `${completion.percent}%`);
+    button.classList.toggle("selected", dayPlan.day === state.selectedDay);
+    button.classList.toggle("done", completion.percent === 100);
+    button.classList.toggle("partial", completion.percent > 0 && completion.percent < 100);
+
+    day.textContent = String(dayPlan.day);
+    percent.textContent = `${completion.percent}%`;
+    button.setAttribute("aria-label", `${dayPlan.day}일차 ${completion.percent}% 완료`);
+    button.append(day, percent);
+    scheduleCalendar.append(button);
+  });
+}
+
+function renderWeeklyPlan(schedule) {
+  if (!weeklyPlanList) return;
+  const labels = ["월", "수", "금", "일"];
+  const picks = [0, 2, 4, 6].map((index) => schedule[index]).filter(Boolean);
+
+  weeklyPlanList.innerHTML = "";
+  picks.forEach((dayPlan, index) => {
+    const item = document.createElement("li");
+    const day = document.createElement("span");
+    const title = document.createElement("strong");
+    const detail = document.createElement("p");
+
+    day.textContent = labels[index] || `D${dayPlan.day}`;
+    title.textContent = dayPlan.title.replace(/^Day \d+ · /, "");
+    detail.textContent = dayPlan.tasks.map((task) => task.text).slice(0, 2).join(" · ");
+    item.append(day, title, detail);
+    weeklyPlanList.append(item);
+  });
+}
+
+function renderExecutionPage(bundle) {
+  if (!executionGoal) return;
+
+  const { plan, planText, schedule, state } = bundle;
+  const period = schedule.length;
+  const selectedDay = schedule[state.selectedDay - 1] || schedule[0];
+  const selectedCompletion = getDayCompletion(selectedDay, state.checkedByDay);
+  const overallProgress = getScheduleCompletion(schedule, state.checkedByDay);
+  const visibleMonth = getVisibleMonthSchedule(schedule);
+  const monthProgress = getScheduleCompletion(visibleMonth, state.checkedByDay);
+  const monthCompletedDays = getCompletedDayCount(visibleMonth, state.checkedByDay);
+  const completedDays = getCompletedDayCount(schedule, state.checkedByDay);
+  const remainingTasks = selectedCompletion.total - selectedCompletion.completed;
+
+  if (planEditor && planEditor.value !== planText) planEditor.value = planText;
+  if (planStatusBadge) planStatusBadge.textContent = state.status || "AI 제안";
+  executionGoal.textContent = plan.goal || "3개월 안에 토익 900점 달성하기";
+  if (executionStyle) executionStyle.textContent = plan.style || "루틴 점검형";
+  if (executionPeriod) executionPeriod.textContent = `${period}일 계획`;
+  if (executionDay) executionDay.textContent = `Day ${selectedDay.day} / ${period}`;
+  if (executionStreak) executionStreak.textContent = `${completedDays}일 완료`;
+  if (executionProgress) executionProgress.textContent = `${overallProgress}%`;
+  if (executionProgressBar) executionProgressBar.style.width = `${overallProgress}%`;
+  if (selectedScheduleTitle) selectedScheduleTitle.textContent = `${selectedDay.day}일차 스케줄`;
+  if (selectedScheduleMeta) selectedScheduleMeta.textContent = `${selectedCompletion.percent}% 완료 · ${remainingTasks}개 남음`;
+  if (monthlyCompletion) monthlyCompletion.textContent = `${monthProgress}%`;
+  if (calendarSummary) calendarSummary.textContent = `첫 ${visibleMonth.length}일 중 ${monthCompletedDays}일을 완료했습니다`;
+
+  if (executionMessage) {
+    executionMessage.textContent =
+      selectedCompletion.percent === 100
+        ? `${selectedDay.day}일차 계획을 모두 완료했어요. 성장 대상이 한 단계 자랐습니다.`
+        : `${selectedDay.day}일차 계획 ${remainingTasks}개가 남았어요. 체크할 때마다 완성률이 바로 반영됩니다.`;
+  }
+
+  renderChecklist(selectedDay, state);
+  renderCalendar(schedule, state);
+  renderWeeklyPlan(schedule);
 }
 
 function applyExecutionTheme(themeName) {
@@ -565,22 +786,9 @@ function applyExecutionTheme(themeName) {
 function initializeExecutionPage() {
   if (!executionGoal) return;
 
-  const plan = readExecutionPlan();
-  const state = getExecutionState();
-  const period = plan.period || 90;
-  const day = Math.max(1, Math.min(period, Math.round(period * 0.2)));
-
-  executionGoal.textContent = plan.goal || "3개월 안에 토익 900점 달성하기";
-  if (executionStyle) executionStyle.textContent = plan.style || "루틴 점검형";
-  if (executionPeriod) executionPeriod.textContent = `${period}일 계획`;
-  if (executionDay) executionDay.textContent = `Day ${day} / ${period}`;
-  if (executionFirstTask) executionFirstTask.textContent = plan.firstAction || "단어 40개 암기";
-
-  if (Array.isArray(state.checked)) {
-    executionChecks.forEach((item, index) => {
-      item.checked = Boolean(state.checked[index]);
-    });
-  }
+  const bundle = getPlanBundle();
+  savePlanBundleState(bundle.state);
+  renderExecutionPage(bundle);
 
   let savedTheme = "plant";
   try {
@@ -589,18 +797,58 @@ function initializeExecutionPage() {
     savedTheme = "plant";
   }
   applyExecutionTheme(savedTheme);
-  updateExecutionProgress();
 }
 
-executionChecks.forEach((item) => {
-  item.addEventListener("change", updateExecutionProgress);
+executionChecklist?.addEventListener("change", (event) => {
+  if (!event.target.classList.contains("execution-check")) return;
+
+  const bundle = getPlanBundle();
+  const selectedDay = String(bundle.state.selectedDay);
+  const taskIndex = Number(event.target.dataset.taskIndex);
+  const dayPlan = bundle.schedule[bundle.state.selectedDay - 1];
+  const checked = bundle.state.checkedByDay[selectedDay] || Array(dayPlan.tasks.length).fill(false);
+  checked[taskIndex] = event.target.checked;
+  bundle.state.checkedByDay[selectedDay] = checked;
+  savePlanBundleState(bundle.state);
+  renderExecutionPage(bundle);
 });
 
 completeTodayButton?.addEventListener("click", () => {
-  executionChecks.forEach((item) => {
-    item.checked = true;
-  });
-  updateExecutionProgress();
+  const bundle = getPlanBundle();
+  const selectedDay = String(bundle.state.selectedDay);
+  const dayPlan = bundle.schedule[bundle.state.selectedDay - 1];
+  bundle.state.checkedByDay[selectedDay] = dayPlan.tasks.map(() => true);
+  savePlanBundleState(bundle.state);
+  renderExecutionPage(bundle);
+});
+
+scheduleCalendar?.addEventListener("click", (event) => {
+  const button = event.target.closest(".calendar-day");
+  if (!button) return;
+
+  const bundle = getPlanBundle();
+  bundle.state.selectedDay = Number(button.dataset.day);
+  savePlanBundleState(bundle.state);
+  renderExecutionPage(bundle);
+});
+
+acceptPlanButton?.addEventListener("click", () => {
+  const bundle = getPlanBundle({ customText: planEditor?.value || undefined });
+  bundle.state.status = "적용 완료";
+  savePlanBundleState(bundle.state);
+  if (planEditorMessage) planEditorMessage.textContent = "현재 플랜을 그대로 스케줄에 적용했습니다.";
+  renderExecutionPage(bundle);
+});
+
+regeneratePlanButton?.addEventListener("click", () => {
+  const customText = planEditor?.value.trim() || getDefaultPlanText(readExecutionPlan());
+  const bundle = getPlanBundle({ reset: true, customText });
+  bundle.state.status = "수정 반영";
+  savePlanBundleState(bundle.state);
+  if (planEditorMessage) {
+    planEditorMessage.textContent = "수정한 플랜을 바탕으로 새 스케줄을 만들었습니다. 기존 체크 상태는 새 플랜 기준으로 초기화됩니다.";
+  }
+  renderExecutionPage(bundle);
 });
 
 executionThemeButtons.forEach((button) => {

@@ -1976,6 +1976,46 @@ footer p {
   padding: 16px;
 }
 
+.plan-editor-card {
+  display: grid;
+  gap: 12px;
+}
+
+.plan-editor-label {
+  color: var(--app-muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.plan-editor {
+  width: 100%;
+  min-height: 170px;
+  padding: 14px;
+  color: var(--app-text);
+  background: #0a0d0d;
+  border: 1px solid var(--app-line);
+  border-radius: 18px;
+  resize: vertical;
+  line-height: 1.55;
+}
+
+.plan-editor-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.primary-action {
+  color: #061110;
+  background: var(--app-mint);
+}
+
+#planEditorMessage {
+  padding: 12px;
+  background: rgba(88, 223, 166, 0.08);
+  border-radius: 16px;
+}
+
 .card-title.compact {
   align-items: flex-start;
   margin-bottom: 14px;
@@ -2085,6 +2125,82 @@ footer p {
   font-size: 12px;
 }
 
+.schedule-calendar-card {
+  display: grid;
+  gap: 12px;
+}
+
+.calendar-weekdays,
+.schedule-calendar {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.calendar-weekdays span {
+  color: var(--app-muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.calendar-day {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 54px;
+  padding: 8px 4px;
+  overflow: hidden;
+  color: var(--app-text);
+  background: #0a0d0d;
+  border: 1px solid var(--app-line);
+  border-radius: 14px;
+  cursor: pointer;
+}
+
+.calendar-day::before {
+  position: absolute;
+  inset: auto 0 0;
+  height: var(--day-progress);
+  content: "";
+  background: rgba(88, 223, 166, 0.22);
+}
+
+.calendar-day strong,
+.calendar-day span {
+  position: relative;
+  z-index: 1;
+}
+
+.calendar-day strong {
+  font-size: 13px;
+}
+
+.calendar-day span {
+  color: var(--app-muted);
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.calendar-day.partial {
+  border-color: rgba(246, 204, 102, 0.44);
+}
+
+.calendar-day.done {
+  color: #061110;
+  background: var(--app-mint);
+  border-color: var(--app-mint);
+}
+
+.calendar-day.done span {
+  color: rgba(6, 17, 16, 0.72);
+}
+
+.calendar-day.selected {
+  outline: 2px solid var(--app-warm);
+  outline-offset: 2px;
+}
+
 .weekly-plan {
   display: grid;
   gap: 10px;
@@ -2174,6 +2290,15 @@ footer p {
 
   .companion-run-body {
     grid-template-columns: 1fr;
+  }
+
+  .plan-editor-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .calendar-day {
+    min-height: 48px;
+    border-radius: 12px;
   }
 }
 
