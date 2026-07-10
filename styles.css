@@ -315,6 +315,11 @@ footer p {
   cursor: pointer;
 }
 
+.personality-form button:disabled {
+  opacity: 0.72;
+  cursor: progress;
+}
+
 .form-note {
   margin: 0;
   color: var(--muted);
@@ -370,6 +375,26 @@ footer p {
   margin: 10px 0 0;
   color: #30364a;
   line-height: 1.65;
+}
+
+.ai-preview-card h3 {
+  margin: 10px 0 12px;
+  color: var(--blue);
+}
+
+.ai-preview-card ul {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 14px;
+  padding-left: 18px;
+  color: #30364a;
+  line-height: 1.55;
+}
+
+.ai-preview-card p {
+  padding: 14px;
+  background: var(--soft-blue);
+  border-radius: 14px;
 }
 
 .analysis-grid textarea {
@@ -1610,6 +1635,18 @@ footer p {
   background: #0a0d0d;
   border: 1px solid var(--app-line);
   border-radius: 16px;
+}
+
+.home-page .ai-preview-card h3 {
+  color: var(--app-mint);
+}
+
+.home-page .ai-preview-card ul {
+  color: var(--app-muted);
+}
+
+.home-page .ai-preview-card p {
+  background: rgba(88, 223, 166, 0.08);
 }
 
 .home-page .problem-grid,

@@ -20,7 +20,18 @@ const currentStateInput = document.querySelector("#currentState");
 const manseProfile = document.querySelector("#manseProfile");
 const mbtiProfile = document.querySelector("#mbtiProfile");
 const planningStyle = document.querySelector("#planningStyle");
-const aiPayload = document.querySelector("#aiPayload");
+const aiPreviewButton = document.querySelector("#aiPreviewButton");
+const aiPreviewStatus = document.querySelector("#aiPreviewStatus");
+const aiPreviewTitle = document.querySelector("#aiPreviewTitle");
+const aiPreviewList = document.querySelector("#aiPreviewList");
+const aiCoachMessage = document.querySelector("#aiCoachMessage");
+const previewPersonality = document.querySelector("#previewPersonality");
+const previewStyle = document.querySelector("#previewStyle");
+const previewAction = document.querySelector("#previewAction");
+const dashboardGoalPreview = document.querySelector("#dashboardGoalPreview");
+const dashboardProgressValue = document.querySelector("#dashboardProgressValue");
+const dashboardProgressBar = document.querySelector("#dashboardProgressBar");
+const dashboardPaceText = document.querySelector("#dashboardPaceText");
 const executionGoal = document.querySelector("#executionGoal");
 const executionStyle = document.querySelector("#executionStyle");
 const executionPeriod = document.querySelector("#executionPeriod");
@@ -28,6 +39,7 @@ const executionDay = document.querySelector("#executionDay");
 const executionProgress = document.querySelector("#executionProgress");
 const executionProgressBar = document.querySelector("#executionProgressBar");
 const executionMessage = document.querySelector("#executionMessage");
+const executionFirstTask = document.querySelector("#executionFirstTask");
 const executionChecks = document.querySelectorAll(".execution-check");
 const completeTodayButton = document.querySelector("#completeTodayButton");
 const executionThemeButtons = document.querySelectorAll(".execution-theme-button");
@@ -253,7 +265,105 @@ function buildAiPlanPayload({ goal, period, currentState, birthDate, birthTime, 
   };
 }
 
-function runPersonalityAnalysis() {
+function getGoalKind(goal) {
+  const text = goal.toLowerCase();
+  if (text.includes("토익") || text.includes("시험") || text.includes("자격증")) return "exam";
+  if (text.includes("운동") || text.includes("다이어트") || text.includes("체지방")) return "fitness";
+  if (text.includes("취업") || text.includes("이직") || text.includes("포트폴리오")) return "career";
+  if (text.includes("독서") || text.includes("습관")) return "habit";
+  if (text.includes("저축") || text.includes("돈")) return "money";
+  return "project";
+}
+
+function getGoalPlanTemplates(goal) {
+  const kind = getGoalKind(goal);
+  const templates = {
+    exam: {
+      firstAction: "단어 40개 + LC 1세트",
+      weekTitle: "이번 주에는 공부 시간을 고정합니다",
+      weekPlan: ["평일 같은 시간에 단어 40개를 먼저 끝냅니다.", "LC와 RC를 하루씩 번갈아 배치합니다.", "주말에는 오답만 모아 약한 유형을 다시 풉니다."],
+      pace: "남은 기간 52일 · 현재 페이스 안정",
+    },
+    fitness: {
+      firstAction: "20분 걷기 + 식사 기록 1개",
+      weekTitle: "이번 주에는 운동보다 기록을 먼저 안정화합니다",
+      weekPlan: ["평일 3일은 짧은 유산소부터 시작합니다.", "식사 기록은 완벽함보다 빠짐없는 체크를 우선합니다.", "주말에는 체중보다 컨디션 변화를 확인합니다."],
+      pace: "남은 기간 52일 · 초반 루틴 형성 중",
+    },
+    career: {
+      firstAction: "포트폴리오 목차 3개 정리",
+      weekTitle: "이번 주에는 결과물의 뼈대를 먼저 만듭니다",
+      weekPlan: ["첫날은 지원 직무와 필요한 증거를 정리합니다.", "중간에는 대표 프로젝트 1개를 완성도 있게 다듬습니다.", "주말에는 피드백 받을 버전을 만듭니다."],
+      pace: "남은 기간 52일 · 산출물 중심 진행",
+    },
+    habit: {
+      firstAction: "20분 실행 + 체크인 1회",
+      weekTitle: "이번 주에는 반복 가능한 최소 단위를 찾습니다",
+      weekPlan: ["하루 목표를 20분 이하로 유지합니다.", "못한 날은 다음 날 2배로 만들지 않고 다시 시작합니다.", "완료 후 한 줄 기록으로 흐름을 남깁니다."],
+      pace: "남은 기간 52일 · 반복 안정화 중",
+    },
+    money: {
+      firstAction: "이번 주 지출 3개 분류",
+      weekTitle: "이번 주에는 돈의 흐름을 먼저 보이게 합니다",
+      weekPlan: ["고정비와 변동비를 한 번에 분리합니다.", "작은 절약 목표를 하루 단위로 배치합니다.", "주말에는 목표 금액 대비 현재 위치를 확인합니다."],
+      pace: "남은 기간 52일 · 추적 루틴 형성 중",
+    },
+    project: {
+      firstAction: "작업 범위 3개로 나누기",
+      weekTitle: "이번 주에는 시작 가능한 단위로 쪼갭니다",
+      weekPlan: ["가장 작은 첫 산출물을 정의합니다.", "평일에는 30분 단위 실행을 반복합니다.", "주말에는 다음 주에 넘길 일을 다시 정렬합니다."],
+      pace: "남은 기간 52일 · 실행 단위 정리 중",
+    },
+  };
+  return templates[kind];
+}
+
+function buildLocalAiPreview(payload) {
+  const { goal, periodDays, currentState, mbti, manseoryeok, recommendedPlanningStyle } = payload.input;
+  const template = getGoalPlanTemplates(goal);
+  const period = Number(periodDays) || 90;
+  const progress = Math.max(12, Math.min(48, Math.round(1800 / period)));
+  const personalitySummary = `${manseoryeok.dayMaster.trait} 성향과 ${mbti}의 유지 방식을 함께 보면, 처음부터 큰 계획을 밀어붙이기보다 오늘 실행할 단위를 선명하게 두는 편이 좋습니다.`;
+
+  return {
+    personalitySummary,
+    planningStyle: `${recommendedPlanningStyle} 계획`,
+    firstAction: template.firstAction,
+    weekTitle: template.weekTitle,
+    weekPlan: template.weekPlan,
+    coachMessage: `${currentState || "현재 상태"}를 기준으로 보면, 이번 주는 완성보다 흐름을 만드는 것이 우선입니다.`,
+    dashboard: {
+      goal: goal.replace("하기", ""),
+      progress,
+      pace: template.pace,
+    },
+  };
+}
+
+async function requestAiPlan(payload) {
+  // 실제 서비스에서는 이 함수에서 서버 API를 호출하고, 화면에는 응답 결과만 노출합니다.
+  return buildLocalAiPreview(payload);
+}
+
+function renderAiPreview(preview) {
+  if (planningStyle) planningStyle.textContent = preview.planningStyle.replace(" 계획", "");
+  if (manseProfile) manseProfile.textContent = preview.personalitySummary;
+  if (mbtiProfile) mbtiProfile.textContent = `${preview.planningStyle}으로 시작하고, 첫 행동은 "${preview.firstAction}"으로 잡습니다.`;
+  if (aiPreviewTitle) aiPreviewTitle.textContent = preview.weekTitle;
+  if (aiPreviewList) {
+    aiPreviewList.innerHTML = preview.weekPlan.map((item) => `<li>${item}</li>`).join("");
+  }
+  if (aiCoachMessage) aiCoachMessage.textContent = preview.coachMessage;
+  if (previewPersonality) previewPersonality.textContent = preview.personalitySummary;
+  if (previewStyle) previewStyle.textContent = preview.planningStyle;
+  if (previewAction) previewAction.textContent = preview.firstAction;
+  if (dashboardGoalPreview) dashboardGoalPreview.textContent = preview.dashboard.goal;
+  if (dashboardProgressValue) dashboardProgressValue.textContent = `${preview.dashboard.progress}%`;
+  if (dashboardProgressBar) dashboardProgressBar.style.width = `${preview.dashboard.progress}%`;
+  if (dashboardPaceText) dashboardPaceText.textContent = preview.dashboard.pace;
+}
+
+async function runPersonalityAnalysis({ showLoading = false } = {}) {
   if (!personalityForm) return;
 
   const goal = designGoal.value.trim() || goalInput?.value.trim() || "목표 미입력";
@@ -284,10 +394,20 @@ function runPersonalityAnalysis() {
     style,
   });
 
-  planningStyle.textContent = style;
-  manseProfile.textContent = `${manse.summary} 사주 구성: 년 ${manse.pillars.year}, 월 ${manse.pillars.month}, 일 ${manse.pillars.day}, 시 ${manse.pillars.hour}.`;
-  mbtiProfile.textContent = mbtiSummary;
-  aiPayload.value = JSON.stringify(payload, null, 2);
+  if (showLoading) {
+    aiPreviewStatus.textContent = "AI가 목표 설계 중";
+    aiPreviewButton.disabled = true;
+    aiPreviewButton.textContent = "AI 미리보기 생성 중...";
+  }
+
+  const preview = await requestAiPlan(payload);
+  renderAiPreview(preview);
+
+  if (aiPreviewStatus) aiPreviewStatus.textContent = "AI 목표 설계 미리보기";
+  if (aiPreviewButton) {
+    aiPreviewButton.disabled = false;
+    aiPreviewButton.textContent = "AI 목표 설계 미리보기";
+  }
 
   try {
     localStorage.setItem(
@@ -298,7 +418,11 @@ function runPersonalityAnalysis() {
         currentState,
         mbti,
         style,
+        firstAction: preview.firstAction,
+        coachMessage: preview.coachMessage,
         manseSummary: manse.summary,
+        mbtiSummary,
+        aiPreview: preview,
         createdAt: new Date().toISOString(),
       }),
     );
@@ -309,7 +433,7 @@ function runPersonalityAnalysis() {
 
 personalityForm?.addEventListener("submit", (event) => {
   event.preventDefault();
-  runPersonalityAnalysis();
+  runPersonalityAnalysis({ showLoading: true });
 });
 
 [birthDateInput, birthTimeInput, birthPlaceInput, mbtiInput, goalPeriodInput, currentStateInput, designGoal].forEach((field) => {
@@ -450,6 +574,7 @@ function initializeExecutionPage() {
   if (executionStyle) executionStyle.textContent = plan.style || "루틴 점검형";
   if (executionPeriod) executionPeriod.textContent = `${period}일 계획`;
   if (executionDay) executionDay.textContent = `Day ${day} / ${period}`;
+  if (executionFirstTask) executionFirstTask.textContent = plan.firstAction || "단어 40개 암기";
 
   if (Array.isArray(state.checked)) {
     executionChecks.forEach((item, index) => {
