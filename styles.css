@@ -662,12 +662,11 @@ footer p {
 }
 
 .dashboard-grid {
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   margin-top: 18px;
 }
 
-.schedule-card,
-.companion-status {
+.schedule-card {
   padding: 22px;
   background: var(--white);
   border: 1px solid var(--line);
@@ -676,14 +675,6 @@ footer p {
 
 .schedule-card button {
   margin-top: 8px;
-}
-
-.plant-visual {
-  width: 132px;
-  height: 132px;
-  margin: 14px 0;
-  background: url("assets/plant.svg") center / contain no-repeat;
-  filter: drop-shadow(0 14px 20px rgba(31, 65, 176, 0.14));
 }
 
 .companion-layout {
@@ -1392,13 +1383,16 @@ footer p {
   display: block;
   width: 34px;
   height: 34px;
-  border: 0;
-  background: transparent;
+  border: 1px solid rgba(31, 65, 176, 0.24);
+  background: rgba(237, 242, 255, 0.92);
+  box-shadow: 0 8px 18px rgba(31, 65, 176, 0.12);
 }
 
 .home-page .menu-button span {
   width: 16px;
-  background: rgba(255, 255, 255, 0.82);
+  height: 2px;
+  background: var(--blue);
+  border-radius: 999px;
 }
 
 .home-page .main-nav {
@@ -1630,7 +1624,6 @@ footer p {
 .home-page .pricing-grid article,
 .home-page .paid-box,
 .home-page .schedule-card,
-.home-page .companion-status,
 .home-page .analysis-card {
   color: var(--app-text);
   background: var(--app-card);
@@ -2521,7 +2514,6 @@ footer p {
 .home-page .use-grid article,
 .home-page .paid-box,
 .home-page .schedule-card,
-.home-page .companion-status,
 .home-page .analysis-card,
 .execution-card,
 .execution-hero {
