@@ -68,17 +68,24 @@
         <div class="card-title compact">
           <div>
             <h2>AI 제안 플랜</h2>
-            <span>그대로 수용하거나 직접 수정해서 새 스케줄을 요청하세요</span>
+            <span>수정 요청사항을 적으면 AI가 참고해서 새 스케줄을 다시 짭니다</span>
           </div>
           <span class="soft-badge" id="planStatusBadge">AI 제안</span>
         </div>
-        <label class="plan-editor-label" for="planEditor">플랜 내용</label>
+        <label class="plan-editor-label" for="planEditor">AI 제안 플랜</label>
         <textarea id="planEditor" class="plan-editor" rows="7"></textarea>
+        <label class="plan-editor-label" for="planRevisionRequest">수정 요청사항</label>
+        <textarea
+          id="planRevisionRequest"
+          class="plan-editor plan-revision-request"
+          rows="4"
+          placeholder="예: 아침은 시간이 부족해서 저녁 위주로 바꿔줘. 주말은 복습만 가볍게 하고 싶어."
+        ></textarea>
         <div class="plan-editor-actions">
           <button class="text-button" id="acceptPlanButton" type="button">그대로 적용</button>
-          <button class="text-button primary-action" id="regeneratePlanButton" type="button">수정한 플랜으로 새로 요청</button>
+          <button class="text-button primary-action" id="regeneratePlanButton" type="button">요청 반영해서 새로 받기</button>
         </div>
-        <p id="planEditorMessage">AI가 제안한 계획을 확인한 뒤, 내 생활 리듬에 맞게 고쳐도 됩니다.</p>
+        <p id="planEditorMessage">AI가 제안한 계획은 위에 두고, 바꾸고 싶은 조건만 아래에 적어주세요.</p>
       </section>
 
       <section class="execution-card companion-run-card">

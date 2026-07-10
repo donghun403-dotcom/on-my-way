@@ -1999,6 +1999,10 @@ footer p {
   line-height: 1.55;
 }
 
+.plan-revision-request {
+  min-height: 112px;
+}
+
 .plan-editor-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;

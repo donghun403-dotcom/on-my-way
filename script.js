@@ -45,6 +45,7 @@ const executionProgressBar = document.querySelector("#executionProgressBar");
 const executionMessage = document.querySelector("#executionMessage");
 const planStatusBadge = document.querySelector("#planStatusBadge");
 const planEditor = document.querySelector("#planEditor");
+const planRevisionRequest = document.querySelector("#planRevisionRequest");
 const acceptPlanButton = document.querySelector("#acceptPlanButton");
 const regeneratePlanButton = document.querySelector("#regeneratePlanButton");
 const planEditorMessage = document.querySelector("#planEditorMessage");
@@ -604,32 +605,68 @@ function parsePlanText(planText, fallbackAction) {
   ];
 }
 
-function getRoutineTimes(plan) {
+function buildRevisedPlanText(baseText, revisionRequest) {
+  const request = revisionRequest.trim().replace(/\s+/g, " ");
+  if (!request) return baseText;
+
+  return [
+    `- 수정 요청 반영: ${request}`,
+    "- AI 재작성 기준: 요청사항을 우선 적용하고 부담이 큰 일정은 더 작은 단위로 나눕니다.",
+    baseText.trim(),
+  ].join("\n");
+}
+
+function getScheduleHints(revisionRequest) {
+  const request = revisionRequest || "";
+  return {
+    avoidMorning: request.includes("아침") && /제외|빼|어려|힘들|부족|싫/.test(request),
+    lightWeekend: /주말|토요일|일요일/.test(request) && /가볍|복습|휴식|쉬|비우|줄여/.test(request),
+    shorterTasks: /10분|15분|짧|가볍|부담|줄여|작게/.test(request),
+  };
+}
+
+function getRoutineTimes(plan, revisionRequest = "") {
+  const request = revisionRequest || "";
   const timeSet = {
     아침: ["07:00", "12:30", "21:00"],
     점심: ["10:30", "13:00", "21:00"],
     저녁: ["09:00", "18:30", "22:00"],
     "자기 전": ["08:00", "20:30", "23:00"],
   };
+
+  if (request.includes("자기 전")) return timeSet["자기 전"];
+  if (request.includes("저녁")) return timeSet["저녁"];
+  if (request.includes("점심")) return timeSet["점심"];
+  if (request.includes("아침") && !getScheduleHints(request).avoidMorning) return timeSet["아침"];
+  if (getScheduleHints(request).avoidMorning) return timeSet["저녁"];
+
   return timeSet[plan.routineTime] || timeSet["아침"];
 }
 
-function buildSchedule(plan, planText) {
+function buildSchedule(plan, planText, revisionRequest = "") {
   const period = Math.max(7, Math.min(Number(plan.period) || 30, 100));
   const baseTasks = parsePlanText(planText, plan.firstAction);
-  const times = getRoutineTimes(plan);
+  const times = getRoutineTimes(plan, revisionRequest);
+  const hints = getScheduleHints(revisionRequest);
   const weeklyFocus = ["루틴 고정", "기초 반복", "중간 점검", "약점 보완", "실전 적용", "가벼운 복습", "주간 리포트"];
 
   return Array.from({ length: period }, (_, index) => {
     const day = index + 1;
     const focus = weeklyFocus[index % weeklyFocus.length];
-    const tasks = times.map((time, taskIndex) => ({
-      time,
-      text:
-        taskIndex === 2 && day % 7 === 0
-          ? "이번 주 완료율 확인하고 다음 주 난이도 조정"
-          : baseTasks[(index + taskIndex) % baseTasks.length],
-    }));
+    const isWeekend = day % 7 === 6 || day % 7 === 0;
+    const tasks =
+      hints.lightWeekend && isWeekend
+        ? [
+            { time: times[0], text: "가벼운 복습과 기록 확인" },
+            { time: times[2], text: "다음 실행일에 넘길 항목 1개만 정리" },
+          ]
+        : times.map((time, taskIndex) => ({
+            time,
+            text:
+              taskIndex === 2 && day % 7 === 0
+                ? "이번 주 완료율 확인하고 다음 주 난이도 조정"
+                : `${hints.shorterTasks ? "작게: " : ""}${baseTasks[(index + taskIndex) % baseTasks.length]}`,
+          }));
 
     return {
       day,
@@ -667,24 +704,27 @@ function getCompletedDayCount(schedule, checkedByDay) {
   return schedule.filter((dayPlan) => getDayCompletion(dayPlan, checkedByDay).percent === 100).length;
 }
 
-function getPlanBundle({ reset = false, customText } = {}) {
+function getPlanBundle({ reset = false, customText, revisionRequest } = {}) {
   const plan = readExecutionPlan();
-  const planText = customText ?? getExecutionState().planText ?? getDefaultPlanText(plan);
-  const schedule = buildSchedule(plan, planText);
-  const scheduleKey = hashText(`${plan.goal || ""}|${plan.period || ""}|${planText}`);
   const previous = getExecutionState();
+  const planText = customText ?? previous.planText ?? getDefaultPlanText(plan);
+  const requestText = revisionRequest ?? previous.revisionRequest ?? "";
+  const schedule = buildSchedule(plan, planText, requestText);
+  const scheduleKey = hashText(`${plan.goal || ""}|${plan.period || ""}|${planText}|${requestText}`);
   const canReuse = !reset && previous.scheduleKey === scheduleKey;
   const state = canReuse
     ? previous
     : {
         scheduleKey,
         planText,
+        revisionRequest: requestText,
         selectedDay: 1,
         checkedByDay: {},
         updatedAt: new Date().toISOString(),
       };
 
   state.planText = planText;
+  state.revisionRequest = requestText;
   state.scheduleKey = scheduleKey;
   state.selectedDay = Math.max(1, Math.min(Number(state.selectedDay) || 1, schedule.length));
 
@@ -816,6 +856,9 @@ function renderExecutionPage(bundle) {
   const remainingTasks = selectedCompletion.total - selectedCompletion.completed;
 
   if (planEditor && planEditor.value !== planText) planEditor.value = planText;
+  if (planRevisionRequest && document.activeElement !== planRevisionRequest && planRevisionRequest.value !== (state.revisionRequest || "")) {
+    planRevisionRequest.value = state.revisionRequest || "";
+  }
   if (planStatusBadge) planStatusBadge.textContent = state.status || "AI 제안";
   executionGoal.textContent = plan.goal || "3개월 안에 토익 900점 달성하기";
   if (executionStyle) executionStyle.textContent = plan.style || "루틴 점검형";
@@ -915,7 +958,7 @@ scheduleCalendar?.addEventListener("click", (event) => {
 });
 
 acceptPlanButton?.addEventListener("click", () => {
-  const bundle = getPlanBundle({ customText: planEditor?.value || undefined });
+  const bundle = getPlanBundle({ customText: planEditor?.value || undefined, revisionRequest: planRevisionRequest?.value.trim() || "" });
   bundle.state.status = "적용 완료";
   savePlanBundleState(bundle.state);
   if (planEditorMessage) planEditorMessage.textContent = "현재 플랜을 그대로 스케줄에 적용했습니다.";
@@ -923,12 +966,16 @@ acceptPlanButton?.addEventListener("click", () => {
 });
 
 regeneratePlanButton?.addEventListener("click", () => {
-  const customText = planEditor?.value.trim() || getDefaultPlanText(readExecutionPlan());
-  const bundle = getPlanBundle({ reset: true, customText });
-  bundle.state.status = "수정 반영";
+  const baseText = planEditor?.value.trim() || getDefaultPlanText(readExecutionPlan());
+  const revisionRequest = planRevisionRequest?.value.trim() || "";
+  const customText = buildRevisedPlanText(baseText, revisionRequest);
+  const bundle = getPlanBundle({ reset: true, customText, revisionRequest });
+  bundle.state.status = revisionRequest ? "요청 반영" : "새로 생성";
   savePlanBundleState(bundle.state);
   if (planEditorMessage) {
-    planEditorMessage.textContent = "수정한 플랜을 바탕으로 새 스케줄을 만들었습니다. 기존 체크 상태는 새 플랜 기준으로 초기화됩니다.";
+    planEditorMessage.textContent = revisionRequest
+      ? "수정 요청사항을 참고해서 새 스케줄을 만들었습니다. 기존 체크 상태는 새 플랜 기준으로 초기화됩니다."
+      : "현재 플랜을 기준으로 새 스케줄을 만들었습니다. 원하는 조건을 적으면 더 구체적으로 다시 짤 수 있어요.";
   }
   renderExecutionPage(bundle);
 });
