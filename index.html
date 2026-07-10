@@ -96,78 +96,98 @@
 
         <div class="design-panel">
           <form class="personality-form" id="personalityForm">
-            <div class="field-group wide">
-              <label for="designGoal">목표</label>
-              <input id="designGoal" type="text" value="3개월 안에 토익 900점 달성하기" />
+            <div class="diagnosis-stepper" aria-label="진단 단계">
+              <span class="active">1 목표</span>
+              <span>2 루틴</span>
+              <span>3 맞춤</span>
             </div>
-            <div class="field-group">
-              <label for="goalPeriod">목표 기간</label>
-              <select id="goalPeriod">
-                <option value="30">30일</option>
-                <option value="90" selected>90일</option>
-                <option value="100">100일</option>
-                <option value="180">6개월</option>
-              </select>
+
+            <div class="diagnosis-step active" data-step-panel="1">
+              <div class="field-group wide">
+                <label for="designGoal">목표</label>
+                <input id="designGoal" type="text" value="3개월 안에 토익 900점 달성하기" />
+              </div>
+              <div class="field-group">
+                <label for="goalPeriod">목표 기간</label>
+                <select id="goalPeriod">
+                  <option value="30">30일</option>
+                  <option value="90" selected>90일</option>
+                  <option value="100">100일</option>
+                  <option value="180">6개월</option>
+                </select>
+              </div>
+              <div class="field-group">
+                <label for="currentState">현재 상태</label>
+                <input id="currentState" type="text" value="토익 720점, 평일 하루 1시간 가능" />
+              </div>
             </div>
-            <div class="field-group">
-              <label for="currentState">현재 상태</label>
-              <input id="currentState" type="text" value="토익 720점, 평일 하루 1시간 가능" />
+
+            <div class="diagnosis-step" data-step-panel="2">
+              <div class="field-group">
+                <label for="routineReadiness">실행 성향</label>
+                <select id="routineReadiness">
+                  <option selected>바로 실행해요</option>
+                  <option>보통이에요</option>
+                  <option>자주 미뤄요</option>
+                </select>
+              </div>
+              <div class="field-group">
+                <label for="routineTime">주로 가능한 시간</label>
+                <select id="routineTime">
+                  <option selected>아침</option>
+                  <option>점심</option>
+                  <option>저녁</option>
+                  <option>자기 전</option>
+                </select>
+              </div>
+              <div class="field-group wide">
+                <label for="currentRoutine">이미 하고 있는 루틴</label>
+                <input id="currentRoutine" type="text" value="아침 물 마시기, 저녁 산책" />
+              </div>
             </div>
-            <div class="field-group">
-              <label for="routineReadiness">실행 성향</label>
-              <select id="routineReadiness">
-                <option selected>바로 실행해요</option>
-                <option>보통이에요</option>
-                <option>자주 미뤄요</option>
-              </select>
+
+            <div class="diagnosis-step" data-step-panel="3">
+              <div class="field-group">
+                <label for="birthDate">생년월일 <span>선택</span></label>
+                <input id="birthDate" type="date" value="1995-03-15" />
+              </div>
+              <div class="field-group">
+                <label for="birthTime">출생 시간 <span>선택</span></label>
+                <input id="birthTime" type="time" value="09:30" />
+              </div>
+              <div class="field-group">
+                <label for="birthPlace">출생지 <span>선택</span></label>
+                <input id="birthPlace" type="text" value="서울" />
+              </div>
+              <div class="field-group">
+                <label for="mbti">MBTI</label>
+                <select id="mbti">
+                  <option>INTJ</option>
+                  <option>INTP</option>
+                  <option>ENTJ</option>
+                  <option>ENTP</option>
+                  <option>INFJ</option>
+                  <option>INFP</option>
+                  <option>ENFJ</option>
+                  <option>ENFP</option>
+                  <option>ISTJ</option>
+                  <option selected>ISFJ</option>
+                  <option>ESTJ</option>
+                  <option>ESFJ</option>
+                  <option>ISTP</option>
+                  <option>ISFP</option>
+                  <option>ESTP</option>
+                  <option>ESFP</option>
+                </select>
+              </div>
+              <p class="privacy-note">생년월일과 출생 정보는 생활 리듬과 성향을 더 세밀하게 참고하기 위한 선택 입력입니다.</p>
             </div>
-            <div class="field-group">
-              <label for="routineTime">주로 가능한 시간</label>
-              <select id="routineTime">
-                <option selected>아침</option>
-                <option>점심</option>
-                <option>저녁</option>
-                <option>자기 전</option>
-              </select>
+
+            <div class="diagnosis-controls">
+              <button class="text-button" id="diagnosisBackButton" type="button">이전</button>
+              <button class="text-button primary-action" id="diagnosisNextButton" type="button">다음</button>
+              <button type="submit" id="aiPreviewButton">AI 플랜 미리보기</button>
             </div>
-            <div class="field-group wide">
-              <label for="currentRoutine">이미 하고 있는 루틴</label>
-              <input id="currentRoutine" type="text" value="아침 물 마시기, 저녁 산책" />
-            </div>
-            <div class="field-group">
-              <label for="birthDate">생년월일</label>
-              <input id="birthDate" type="date" value="1995-03-15" />
-            </div>
-            <div class="field-group">
-              <label for="birthTime">출생 시간</label>
-              <input id="birthTime" type="time" value="09:30" />
-            </div>
-            <div class="field-group">
-              <label for="birthPlace">출생지</label>
-              <input id="birthPlace" type="text" value="서울" />
-            </div>
-            <div class="field-group">
-              <label for="mbti">MBTI</label>
-              <select id="mbti">
-                <option>INTJ</option>
-                <option>INTP</option>
-                <option>ENTJ</option>
-                <option>ENTP</option>
-                <option>INFJ</option>
-                <option>INFP</option>
-                <option>ENFJ</option>
-                <option>ENFP</option>
-                <option>ISTJ</option>
-                <option selected>ISFJ</option>
-                <option>ESTJ</option>
-                <option>ESFJ</option>
-                <option>ISTP</option>
-                <option>ISFP</option>
-                <option>ESTP</option>
-                <option>ESFP</option>
-              </select>
-            </div>
-            <button type="submit" id="aiPreviewButton">AI 목표 설계 미리보기</button>
             <a class="execution-link" href="app.html">설계 완료 후 실행 화면 열기</a>
             <p class="form-note">
               현재는 프론트엔드 프로토타입용 간이 미리보기입니다. 실제 서비스에서는 서버에서 정밀
@@ -384,52 +404,50 @@
       <section class="pricing section-band" id="pricing">
         <div class="section-heading">
           <p class="eyebrow">Pricing</p>
-          <h2>월 결제하면 추가로 할인돼요</h2>
-          <p>루틴과 목표를 계속 이어갈 수 있도록 가장 부담이 적은 플랜을 먼저 보여드려요.</p>
+          <h2>만들어진 플랜을 끝까지 실행하세요</h2>
+          <p>무료로 첫 플랜을 확인한 뒤, 전체 일정과 무제한 수정을 잠금 해제할 수 있습니다.</p>
         </div>
         <div class="pricing-offers" aria-label="결제 플랜">
           <article class="pricing-option selected">
-            <span class="discount-badge">-38%</span>
+            <span class="discount-badge">인기</span>
             <div class="pricing-choice">
               <span class="choice-dot" aria-hidden="true"></span>
               <div>
-                <h3>연 구독 (12개월)</h3>
-                <p>성향 분석, 루틴 체크, AI 스케줄, 월간 달력 진행률 포함</p>
+                <h3>연간 이용권</h3>
+                <p>전체 기간 일정, 무제한 수정, 달력 자동 배치, 주간 리포트 포함</p>
               </div>
-              <strong>29,000원</strong>
+              <strong>월 2,417원</strong>
             </div>
-            <div class="price-breakdown">
+            <div class="price-breakdown simple-pricing">
               <p><span>정상가</span><del>46,800원</del></p>
-              <p><span>앱 할인가</span><em>-29%</em><del>33,000원</del></p>
-              <p class="highlight"><span>웹 추가 할인가</span><em>-12%</em><strong>29,000원</strong></p>
+              <p class="highlight"><span>연간 결제금액</span><strong>29,000원</strong></p>
             </div>
             <div class="final-price">
-              <span>최종 금액</span>
+              <span>내 계획 잠금 해제</span>
               <strong>29,000원</strong>
               <small>1년마다 결제</small>
             </div>
           </article>
 
           <article class="pricing-option muted">
-            <span class="discount-badge">-83%</span>
+            <span class="discount-badge">한정</span>
             <div class="pricing-choice">
               <span class="choice-dot" aria-hidden="true"></span>
               <div>
-                <h3>평생 이용권</h3>
-                <p>한 번 결제로 장기 목표와 반복 루틴을 계속 관리</p>
+                <h3>얼리버드 평생 이용권</h3>
+                <p>기본 루틴 관리 평생 이용, AI 생성은 월별 크레딧 제공</p>
               </div>
               <strong>79,000원</strong>
             </div>
-            <div class="price-breakdown">
+            <div class="price-breakdown simple-pricing">
               <p><span>정상가</span><del>468,000원</del></p>
-              <p><span>앱 할인가</span><em>-81%</em><del>89,000원</del></p>
-              <p><span>웹 추가 할인가</span><em>-11%</em><strong>79,000원</strong></p>
+              <p><span>한정 가격</span><strong>79,000원</strong></p>
             </div>
           </article>
 
-          <a class="coupon-strip" href="#pricing" aria-label="추가 할인 쿠폰 받기">
-            <span>Discount</span>
-            <strong>추가 할인 쿠폰 받기</strong>
+          <a class="coupon-strip" href="app.html" aria-label="무료 플랜 먼저 확인하기">
+            <span>Free</span>
+            <strong>먼저 내 AI 플랜 확인하기</strong>
             <b aria-hidden="true">›</b>
           </a>
         </div>
@@ -450,9 +468,9 @@
       <p>성향 분석은 목표 설계를 돕는 참고 도구이며, 성공을 보장하지 않습니다.</p>
     </footer>
 
-    <a class="floating-payment-cta" href="#pricing" aria-label="할인 받고 시작하기">
-      <span>할인 받고 시작하기</span>
-      <strong>연 29,000원</strong>
+    <a class="floating-payment-cta" href="#designFlow" aria-label="내 목표 플랜 만들기">
+      <span>내 목표 플랜 만들기</span>
+      <strong>무료 미리보기</strong>
     </a>
 
     <script src="script.js"></script>

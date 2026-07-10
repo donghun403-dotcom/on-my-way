@@ -11,6 +11,10 @@ const themeTitle = document.querySelector("#themeTitle");
 const themePath = document.querySelector("#themePath");
 const themeText = document.querySelector("#themeText");
 const personalityForm = document.querySelector("#personalityForm");
+const diagnosisSteps = document.querySelectorAll(".diagnosis-step");
+const diagnosisStepperItems = document.querySelectorAll(".diagnosis-stepper span");
+const diagnosisBackButton = document.querySelector("#diagnosisBackButton");
+const diagnosisNextButton = document.querySelector("#diagnosisNextButton");
 const birthDateInput = document.querySelector("#birthDate");
 const birthTimeInput = document.querySelector("#birthTime");
 const birthPlaceInput = document.querySelector("#birthPlace");
@@ -45,10 +49,12 @@ const executionProgressBar = document.querySelector("#executionProgressBar");
 const executionMessage = document.querySelector("#executionMessage");
 const planStatusBadge = document.querySelector("#planStatusBadge");
 const planEditor = document.querySelector("#planEditor");
+const planPreviewList = document.querySelector("#planPreviewList");
 const planRevisionRequest = document.querySelector("#planRevisionRequest");
 const acceptPlanButton = document.querySelector("#acceptPlanButton");
 const regeneratePlanButton = document.querySelector("#regeneratePlanButton");
 const planEditorMessage = document.querySelector("#planEditorMessage");
+const revisionChipButtons = document.querySelectorAll("[data-revision-chip]");
 const selectedScheduleTitle = document.querySelector("#selectedScheduleTitle");
 const selectedScheduleMeta = document.querySelector("#selectedScheduleMeta");
 const executionChecklist = document.querySelector("#executionChecklist");
@@ -108,6 +114,39 @@ goalForm?.addEventListener("submit", (event) => {
 goalInput?.addEventListener("input", () => {
   if (designGoal) designGoal.value = goalInput.value.trim();
 });
+
+let diagnosisStepIndex = 0;
+
+function renderDiagnosisStep() {
+  if (!diagnosisSteps.length) return;
+
+  diagnosisSteps.forEach((step, index) => {
+    const isActive = index === diagnosisStepIndex;
+    step.classList.toggle("active", isActive);
+    step.hidden = !isActive;
+  });
+
+  diagnosisStepperItems.forEach((item, index) => {
+    item.classList.toggle("active", index === diagnosisStepIndex);
+    item.classList.toggle("done", index < diagnosisStepIndex);
+  });
+
+  if (diagnosisBackButton) diagnosisBackButton.hidden = diagnosisStepIndex === 0;
+  if (diagnosisNextButton) diagnosisNextButton.hidden = diagnosisStepIndex === diagnosisSteps.length - 1;
+  if (aiPreviewButton) aiPreviewButton.hidden = diagnosisStepIndex !== diagnosisSteps.length - 1;
+}
+
+diagnosisBackButton?.addEventListener("click", () => {
+  diagnosisStepIndex = Math.max(0, diagnosisStepIndex - 1);
+  renderDiagnosisStep();
+});
+
+diagnosisNextButton?.addEventListener("click", () => {
+  diagnosisStepIndex = Math.min(diagnosisSteps.length - 1, diagnosisStepIndex + 1);
+  renderDiagnosisStep();
+});
+
+renderDiagnosisStep();
 
 menuButton?.addEventListener("click", () => {
   const isOpen = mainNav.classList.toggle("open");
@@ -388,6 +427,22 @@ async function requestAiPlan(payload) {
   return buildLocalAiPreview(payload);
 }
 
+async function playAnalysisLoading() {
+  if (!aiPreviewStatus) return;
+
+  const steps = [
+    "목표를 실행 가능한 크기로 나누고 있어요",
+    "현재 루틴과 연결할 시간을 찾고 있어요",
+    "미루기 쉬운 구간에 대비책을 넣고 있어요",
+    "첫 주 계획을 만들고 있어요",
+  ];
+
+  for (const step of steps) {
+    aiPreviewStatus.textContent = step;
+    await new Promise((resolve) => setTimeout(resolve, 320));
+  }
+}
+
 function renderAiPreview(preview) {
   if (planningStyle) planningStyle.textContent = preview.planningStyle.replace(" 계획", "");
   if (manseProfile) manseProfile.textContent = preview.personalitySummary;
@@ -418,14 +473,11 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
   const birthDate = birthDateInput.value;
   const birthTime = birthTimeInput.value;
   const birthPlace = birthPlaceInput.value.trim();
-  const mbti = mbtiInput.value;
+  const mbti = mbtiInput.value || "ISFJ";
+  const safeBirthDate = birthDate || "1995-01-01";
+  const safeBirthTime = birthTime || "12:00";
 
-  if (!birthDate || !birthTime || !mbti) {
-    manseProfile.textContent = "생년월일시와 MBTI를 입력하면 성향 분석이 표시됩니다.";
-    return;
-  }
-
-  const manse = calculateSimpleManse(birthDate, birthTime);
+  const manse = calculateSimpleManse(safeBirthDate, safeBirthTime);
   const mbtiSummary = analyzeMbti(mbti);
   const style = decidePlanningStyle(manse, mbti);
   const payload = buildAiPlanPayload({
@@ -447,6 +499,7 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
     aiPreviewStatus.textContent = "AI가 목표 설계 중";
     aiPreviewButton.disabled = true;
     aiPreviewButton.textContent = "AI 미리보기 생성 중...";
+    await playAnalysisLoading();
   }
 
   const preview = await requestAiPlan(payload);
@@ -485,6 +538,11 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
 
 personalityForm?.addEventListener("submit", (event) => {
   event.preventDefault();
+  if (diagnosisSteps.length && diagnosisStepIndex < diagnosisSteps.length - 1) {
+    diagnosisStepIndex += 1;
+    renderDiagnosisStep();
+    return;
+  }
   runPersonalityAnalysis({ showLoading: true });
 });
 
@@ -759,7 +817,11 @@ function renderChecklist(dayPlan, state) {
     time.textContent = task.time;
     text.textContent = task.text;
 
-    content.append(time, text);
+    const minimum = document.createElement("small");
+    minimum.className = "minimum-action";
+    minimum.textContent = "최소 성공: 5분만 해도 완료";
+
+    content.append(time, text, minimum);
     label.append(input, content);
     executionChecklist.append(label);
   });
@@ -841,6 +903,36 @@ function renderRoutineInsight(plan) {
   }
 }
 
+function renderPlanPreview(planText) {
+  if (!planPreviewList) return;
+
+  const tasks = parsePlanText(planText, "오늘 첫 행동 정하기").slice(0, 6);
+  planPreviewList.innerHTML = "";
+
+  tasks.forEach((task, index) => {
+    const item = document.createElement("article");
+    const day = document.createElement("span");
+    const title = document.createElement("strong");
+    const detail = document.createElement("p");
+
+    day.textContent = `D${index + 1}`;
+    title.textContent = task.replace(/^수정 요청 반영:\s*/, "요청 반영");
+    detail.textContent = index === 0 ? "AI가 가장 먼저 반영할 실행 기준입니다." : "완료 기준과 최소 성공 기준을 함께 잡습니다.";
+    item.append(day, title, detail);
+    planPreviewList.append(item);
+  });
+}
+
+function updateRevisionButtonState() {
+  if (!regeneratePlanButton || !planRevisionRequest) return;
+
+  const hasRequest = planRevisionRequest.value.trim().length > 0;
+  regeneratePlanButton.disabled = !hasRequest;
+  if (planEditorMessage && !hasRequest) {
+    planEditorMessage.textContent = "바꾸고 싶은 내용을 한 가지 이상 적으면 수정한 플랜을 받을 수 있어요.";
+  }
+}
+
 function renderExecutionPage(bundle) {
   if (!executionGoal) return;
 
@@ -856,9 +948,11 @@ function renderExecutionPage(bundle) {
   const remainingTasks = selectedCompletion.total - selectedCompletion.completed;
 
   if (planEditor && planEditor.value !== planText) planEditor.value = planText;
+  renderPlanPreview(planText);
   if (planRevisionRequest && document.activeElement !== planRevisionRequest && planRevisionRequest.value !== (state.revisionRequest || "")) {
     planRevisionRequest.value = state.revisionRequest || "";
   }
+  updateRevisionButtonState();
   if (planStatusBadge) planStatusBadge.textContent = state.status || "AI 제안";
   executionGoal.textContent = plan.goal || "3개월 안에 토익 900점 달성하기";
   if (executionStyle) executionStyle.textContent = plan.style || "루틴 점검형";
@@ -957,6 +1051,20 @@ scheduleCalendar?.addEventListener("click", (event) => {
   renderExecutionPage(bundle);
 });
 
+revisionChipButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    if (!planRevisionRequest) return;
+
+    const chipText = button.dataset.revisionChip || "";
+    const current = planRevisionRequest.value.trim();
+    planRevisionRequest.value = current ? `${current}\n${chipText}` : chipText;
+    planRevisionRequest.focus();
+    updateRevisionButtonState();
+  });
+});
+
+planRevisionRequest?.addEventListener("input", updateRevisionButtonState);
+
 acceptPlanButton?.addEventListener("click", () => {
   const bundle = getPlanBundle({ customText: planEditor?.value || undefined, revisionRequest: planRevisionRequest?.value.trim() || "" });
   bundle.state.status = "적용 완료";
@@ -968,6 +1076,10 @@ acceptPlanButton?.addEventListener("click", () => {
 regeneratePlanButton?.addEventListener("click", () => {
   const baseText = planEditor?.value.trim() || getDefaultPlanText(readExecutionPlan());
   const revisionRequest = planRevisionRequest?.value.trim() || "";
+  if (!revisionRequest) {
+    updateRevisionButtonState();
+    return;
+  }
   const customText = buildRevisedPlanText(baseText, revisionRequest);
   const bundle = getPlanBundle({ reset: true, customText, revisionRequest });
   bundle.state.status = revisionRequest ? "요청 반영" : "새로 생성";

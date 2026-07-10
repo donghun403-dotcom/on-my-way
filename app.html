@@ -35,6 +35,17 @@
         </div>
       </section>
 
+      <section class="execution-card today-card">
+        <div class="card-title compact">
+          <div>
+            <h2 id="selectedScheduleTitle">오늘의 스케줄</h2>
+            <span id="selectedScheduleMeta">완료하면 자동으로 게이지가 올라갑니다</span>
+          </div>
+          <button class="text-button" id="completeTodayButton" type="button">모두 완료</button>
+        </div>
+        <div class="execution-checklist" id="executionChecklist"></div>
+      </section>
+
       <section class="execution-card progress-card">
         <div class="card-title compact">
           <div>
@@ -72,18 +83,24 @@
           </div>
           <span class="soft-badge" id="planStatusBadge">AI 제안</span>
         </div>
-        <label class="plan-editor-label" for="planEditor">AI 제안 플랜</label>
-        <textarea id="planEditor" class="plan-editor" rows="7"></textarea>
+        <textarea id="planEditor" class="plan-editor" rows="7" hidden></textarea>
+        <div class="plan-preview-list" id="planPreviewList" aria-label="AI 제안 플랜"></div>
         <label class="plan-editor-label" for="planRevisionRequest">수정 요청사항</label>
+        <div class="revision-quick-actions" aria-label="빠른 수정 요청">
+          <button type="button" data-revision-chip="시간을 10분 단위로 더 짧게 나눠줘.">시간을 더 짧게</button>
+          <button type="button" data-revision-chip="평일은 저녁 위주로 배치해줘.">저녁 위주로</button>
+          <button type="button" data-revision-chip="주말에는 복습만 가볍게 하고 싶어.">주말은 가볍게</button>
+          <button type="button" data-revision-chip="난이도를 낮추고 최소 성공 기준을 넣어줘.">난이도 낮추기</button>
+        </div>
         <textarea
           id="planRevisionRequest"
           class="plan-editor plan-revision-request"
           rows="4"
-          placeholder="예: 아침은 시간이 부족해서 저녁 위주로 바꿔줘. 주말은 복습만 가볍게 하고 싶어."
+          placeholder="예: 평일 아침은 어렵고 저녁 9시 이후가 좋아요. 주말에는 복습만 하고 싶어요."
         ></textarea>
         <div class="plan-editor-actions">
-          <button class="text-button" id="acceptPlanButton" type="button">그대로 적용</button>
-          <button class="text-button primary-action" id="regeneratePlanButton" type="button">요청 반영해서 새로 받기</button>
+          <button class="text-button primary-action" id="acceptPlanButton" type="button">이 플랜으로 시작하기</button>
+          <button class="text-button" id="regeneratePlanButton" type="button">수정한 플랜 받기</button>
         </div>
         <p id="planEditorMessage">AI가 제안한 계획은 위에 두고, 바꾸고 싶은 조건만 아래에 적어주세요.</p>
       </section>
@@ -111,17 +128,6 @@
           <button class="execution-theme-button" type="button" data-theme="cat">고양이</button>
           <button class="execution-theme-button" type="button" data-theme="home">집짓기</button>
         </div>
-      </section>
-
-      <section class="execution-card">
-        <div class="card-title compact">
-          <div>
-            <h2 id="selectedScheduleTitle">오늘의 스케줄</h2>
-            <span id="selectedScheduleMeta">완료하면 자동으로 게이지가 올라갑니다</span>
-          </div>
-          <button class="text-button" id="completeTodayButton" type="button">모두 완료</button>
-        </div>
-        <div class="execution-checklist" id="executionChecklist"></div>
       </section>
 
       <section class="execution-card schedule-calendar-card">
@@ -177,8 +183,8 @@
       <a href="index.html#pricing" aria-label="결제">₩</a>
     </nav>
 
-    <a class="floating-payment-cta app-payment-cta" href="index.html#pricing" aria-label="전체 플랜으로 계속하기">
-      <span>전체 플랜으로 계속하기</span>
+    <a class="floating-payment-cta app-payment-cta" href="index.html#pricing" aria-label="전체 플랜 열기">
+      <span>PRO · 전체 플랜 열기</span>
       <strong>연 29,000원</strong>
     </a>
 
