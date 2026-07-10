@@ -1458,6 +1458,11 @@ footer p {
   line-height: 1.65;
 }
 
+.home-page .hero-text strong {
+  color: var(--routine-text);
+  font-weight: 800;
+}
+
 .home-page .poster-companions {
   position: absolute;
   right: -8px;
