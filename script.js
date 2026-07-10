@@ -71,9 +71,30 @@ const executionCompanion = document.querySelector("#executionCompanion");
 const executionCompanionTitle = document.querySelector("#executionCompanionTitle");
 const executionCompanionPath = document.querySelector("#executionCompanionPath");
 const executionCompanionText = document.querySelector("#executionCompanionText");
+const companionHomeImage = document.querySelector("#companionHomeImage");
+const companionMoodLine = document.querySelector("#companionMoodLine");
+const companionMessage = document.querySelector("#companionMessage");
+const companionName = document.querySelector("#companionName");
+const companionStage = document.querySelector("#companionStage");
+const companionLevel = document.querySelector("#companionLevel");
+const companionXpBar = document.querySelector("#companionXpBar");
+const companionActionButtons = document.querySelectorAll("[data-companion-action]");
+const companionMood = document.querySelector("#companionMood");
+const companionDays = document.querySelector("#companionDays");
+const companionNextGrowth = document.querySelector("#companionNextGrowth");
+const journeyBadge = document.querySelector("#journeyBadge");
+const journeyMap = document.querySelector("#journeyMap");
+const memoryList = document.querySelector("#memoryList");
 const downloadPlanButton = document.querySelector("#downloadPlanButton");
 
 const themes = {
+  buddy: {
+    title: "목표 메이트 모리",
+    path: "작은 방 → 산책길 → 숲 → 별빛 언덕",
+    text: "모리는 계획이 커졌을 때 다시 시작할 수 있는 크기로 줄여주는 여정 파트너입니다.",
+    image: "assets/buddy.svg",
+    alt: "목표 메이트 모리",
+  },
   plant: {
     title: "식물 키우기",
     path: "씨앗 → 새싹 → 꽃",
@@ -903,6 +924,118 @@ function renderRoutineInsight(plan) {
   }
 }
 
+function getCompanionStage(overallProgress) {
+  const stages = [
+    { threshold: 0, title: "작은 방", badge: "출발", level: 1 },
+    { threshold: 25, title: "집 앞 산책길", badge: "25%", level: 2 },
+    { threshold: 50, title: "작은 숲", badge: "50%", level: 3 },
+    { threshold: 75, title: "별빛 언덕", badge: "75%", level: 4 },
+    { threshold: 100, title: "목표의 정원", badge: "완주", level: 5 },
+  ];
+
+  return stages.reduce((current, stage) => (overallProgress >= stage.threshold ? stage : current), stages[0]);
+}
+
+function getCompanionCopy({ selectedCompletion, remainingTasks, completedDays, overallProgress, readiness }) {
+  if (selectedCompletion.percent === 100) {
+    return {
+      mood: "뿌듯함",
+      line: "해냈다! 오늘의 우리는 한 걸음 더 갔어요.",
+      message: "완료한 기록은 그대로 남아 있어요. 내일은 조금 더 쉽게 시작할 수 있어요.",
+    };
+  }
+
+  if (readiness.includes("미뤄") || remainingTasks > 1) {
+    return {
+      mood: "응원",
+      line: "5분만 시작해도 오늘은 성공이에요.",
+      message: "계획이 컸다면 모리가 더 작은 단계로 나눠줄게요.",
+    };
+  }
+
+  if (overallProgress >= 50) {
+    return {
+      mood: "기대",
+      line: "절반을 지나왔어요. 속도보다 계속 가는 게 중요해요.",
+      message: "남은 일정은 오늘 컨디션에 맞춰 조절해도 괜찮아요.",
+    };
+  }
+
+  return {
+    mood: completedDays > 0 ? "기대" : "기본",
+    line: "오늘 첫 걸음을 기다리고 있어요.",
+    message: "함께 시작하면 부담이 조금 작아져요. 가장 작은 행동부터 가볼까요?",
+  };
+}
+
+function renderJourneyMap(overallProgress) {
+  if (!journeyMap) return;
+  const stage = getCompanionStage(overallProgress);
+  const stops = [
+    { title: "방", threshold: 0 },
+    { title: "산책길", threshold: 25 },
+    { title: "숲", threshold: 50 },
+    { title: "언덕", threshold: 75 },
+    { title: "정원", threshold: 100 },
+  ];
+
+  journeyMap.innerHTML = "";
+  stops.forEach((stop) => {
+    const item = document.createElement("span");
+    item.textContent = stop.title;
+    item.classList.toggle("done", overallProgress >= stop.threshold);
+    item.classList.toggle("current", stage.title.includes(stop.title) || (stage.title === "작은 방" && stop.title === "방"));
+    journeyMap.append(item);
+  });
+
+  if (journeyBadge) journeyBadge.textContent = stage.badge;
+}
+
+function renderMemoryCards({ selectedCompletion, completedDays, overallProgress }) {
+  if (!memoryList) return;
+  const memories = [
+    completedDays > 0 ? `처음으로 ${completedDays}일의 실행 기록을 만들었어요.` : "오늘 첫 체크인을 준비하고 있어요.",
+    selectedCompletion.percent > 0 ? `오늘 계획의 ${selectedCompletion.percent}%를 진행했어요.` : "아직 시작 전이어도, 계획은 여기서 기다리고 있어요.",
+    overallProgress >= 50 ? "목표의 절반을 넘어선 순간을 모리가 기억해요." : "작은 실행이 쌓이면 다음 장소가 열려요.",
+  ];
+
+  memoryList.innerHTML = "";
+  memories.forEach((memory) => {
+    const item = document.createElement("article");
+    item.textContent = memory;
+    memoryList.append(item);
+  });
+}
+
+function renderCompanionExperience({ plan, selectedCompletion, remainingTasks, completedDays, overallProgress }) {
+  const stage = getCompanionStage(overallProgress);
+  const copy = getCompanionCopy({
+    selectedCompletion,
+    remainingTasks,
+    completedDays,
+    overallProgress,
+    readiness: plan.routineReadiness || "보통이에요",
+  });
+  const nextMilestone = [25, 50, 75, 100].find((value) => overallProgress < value) || 100;
+
+  if (companionName) companionName.textContent = "모리";
+  if (companionHomeImage) companionHomeImage.src = "assets/buddy.svg";
+  if (companionMoodLine) companionMoodLine.textContent = copy.line;
+  if (companionMessage) companionMessage.textContent = copy.message;
+  if (companionStage) companionStage.textContent = stage.title;
+  if (companionLevel) companionLevel.textContent = `Lv. ${stage.level}`;
+  if (companionXpBar) companionXpBar.style.width = `${Math.max(6, overallProgress)}%`;
+  if (companionMood) companionMood.textContent = copy.mood;
+  if (companionDays) companionDays.textContent = `${Math.max(1, completedDays || 1)}일`;
+  if (companionNextGrowth) companionNextGrowth.textContent = `${nextMilestone}%`;
+  if (executionCompanionText) executionCompanionText.textContent = copy.message;
+  if (executionCompanionTitle) executionCompanionTitle.textContent = "목표 메이트 모리";
+  if (executionCompanionPath) executionCompanionPath.textContent = "작은 방 → 산책길 → 숲 → 별빛 언덕";
+
+  renderJourneyMap(overallProgress);
+  renderMemoryCards({ selectedCompletion, completedDays, overallProgress });
+}
+
 function renderPlanPreview(planText) {
   if (!planPreviewList) return;
 
@@ -969,7 +1102,7 @@ function renderExecutionPage(bundle) {
   if (executionMessage) {
     executionMessage.textContent =
       selectedCompletion.percent === 100
-        ? `${selectedDay.day}일차 계획을 모두 완료했어요. 성장 대상이 한 단계 자랐습니다.`
+        ? `${selectedDay.day}일차 계획을 모두 완료했어요. 모리와 다음 장소에 가까워졌습니다.`
         : `${selectedDay.day}일차 계획 ${remainingTasks}개가 남았어요. 체크할 때마다 완성률이 바로 반영됩니다.`;
   }
 
@@ -977,6 +1110,7 @@ function renderExecutionPage(bundle) {
   renderCalendar(schedule, state);
   renderWeeklyPlan(schedule);
   renderRoutineInsight(plan);
+  renderCompanionExperience({ plan, selectedCompletion, remainingTasks, completedDays, overallProgress });
 }
 
 function applyExecutionTheme(themeName) {
@@ -1009,12 +1143,13 @@ function initializeExecutionPage() {
   savePlanBundleState(bundle.state);
   renderExecutionPage(bundle);
 
-  let savedTheme = "plant";
+  let savedTheme = "buddy";
   try {
-    savedTheme = localStorage.getItem("omwExecutionTheme") || "plant";
+    savedTheme = localStorage.getItem("omwExecutionTheme") || "buddy";
   } catch (error) {
-    savedTheme = "plant";
+    savedTheme = "buddy";
   }
+  if (savedTheme !== "buddy") savedTheme = "buddy";
   applyExecutionTheme(savedTheme);
 }
 
@@ -1064,6 +1199,26 @@ revisionChipButtons.forEach((button) => {
 });
 
 planRevisionRequest?.addEventListener("input", updateRevisionButtonState);
+
+companionActionButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    if (!planRevisionRequest) return;
+
+    const action = button.dataset.companionAction;
+    const actionText = {
+      light: "오늘은 최소 성공 기준만 보이도록 가장 작은 행동으로 줄여줘.",
+      steady: "오늘은 기본 계획대로 진행할 수 있게 집중 순서만 정리해줘.",
+      hard: "오늘은 조금 힘들어서 가장 중요한 한 가지 과제만 남기고 나머지는 내일로 옮겨줘.",
+    }[action];
+
+    if (!actionText) return;
+    const current = planRevisionRequest.value.trim();
+    planRevisionRequest.value = current ? `${current}\n${actionText}` : actionText;
+    planRevisionRequest.focus();
+    if (companionMessage) companionMessage.textContent = "좋아요. 모리가 그 요청을 기준으로 계획을 더 작게 다시 정리할게요.";
+    updateRevisionButtonState();
+  });
+});
 
 acceptPlanButton?.addEventListener("click", () => {
   const bundle = getPlanBundle({ customText: planEditor?.value || undefined, revisionRequest: planRevisionRequest?.value.trim() || "" });

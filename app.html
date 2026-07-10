@@ -22,7 +22,7 @@
     <main class="execution-app" id="top">
       <section class="execution-hero">
         <div>
-          <p class="eyebrow">Today Mission</p>
+          <p class="eyebrow" id="todayDateLabel">오늘의 여정</p>
           <h1 id="executionGoal">3개월 안에 토익 900점 달성하기</h1>
           <p>
             <span id="executionStyle">루틴 점검형</span> ·
@@ -32,6 +32,39 @@
         <div class="execution-gauge" aria-label="목표 달성률">
           <strong id="executionProgress">42%</strong>
           <span>달성</span>
+        </div>
+      </section>
+
+      <section class="companion-home-card" id="companionHome">
+        <div class="companion-world">
+          <div class="world-sky" aria-hidden="true">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+          <img id="companionHomeImage" src="assets/buddy.svg" alt="목표 메이트 모리" />
+          <div class="companion-speech">
+            <strong id="companionMoodLine">오늘 첫 걸음을 기다리고 있어요.</strong>
+            <p id="companionMessage">5분만 시작해도 우리 여정은 계속돼요.</p>
+          </div>
+        </div>
+        <div class="companion-home-meta">
+          <div>
+            <span>목표 메이트</span>
+            <strong id="companionName">모리</strong>
+          </div>
+          <div>
+            <span id="companionStage">작은 방</span>
+            <strong id="companionLevel">Lv. 1</strong>
+          </div>
+        </div>
+        <div class="companion-xp" aria-label="메이트 성장 경험치">
+          <span id="companionXpBar" style="width: 0%"></span>
+        </div>
+        <div class="companion-actions" aria-label="메이트 체크인">
+          <button type="button" data-companion-action="light">가볍게 시작할래</button>
+          <button type="button" data-companion-action="steady">계획대로 해볼래</button>
+          <button type="button" data-companion-action="hard">오늘은 조금 힘들어</button>
         </div>
       </section>
 
@@ -108,26 +141,47 @@
       <section class="execution-card companion-run-card">
         <div class="card-title compact">
           <div>
-            <h2>나의 성장 대상</h2>
-            <span id="executionCompanionPath">씨앗 → 새싹 → 꽃</span>
+            <h2>목표 메이트 모리</h2>
+            <span id="executionCompanionPath">작은 방 → 산책길 → 숲 → 별빛 언덕</span>
           </div>
           <span class="soft-badge">함께 가는 중</span>
         </div>
         <div class="companion-run-body">
-          <img id="executionCompanion" src="assets/plant.svg" alt="식물 성장 캐릭터" />
+          <img id="executionCompanion" src="assets/buddy.svg" alt="목표 메이트 모리" />
           <div>
-            <strong id="executionCompanionTitle">식물 키우기</strong>
+            <strong id="executionCompanionTitle">회복 설계자</strong>
             <p id="executionCompanionText">
-              오늘의 계획을 모두 완료하면 새 잎이 하나 더 생깁니다.
+              모리는 혼내지 않고, 오늘 할 수 있는 크기로 계획을 줄여주는 여정 파트너입니다.
             </p>
           </div>
         </div>
-        <div class="execution-theme-picker" aria-label="성장 대상 선택">
-          <button class="execution-theme-button active" type="button" data-theme="plant">식물</button>
-          <button class="execution-theme-button" type="button" data-theme="dog">강아지</button>
-          <button class="execution-theme-button" type="button" data-theme="cat">고양이</button>
-          <button class="execution-theme-button" type="button" data-theme="home">집짓기</button>
+        <div class="companion-stats" aria-label="메이트 상태">
+          <span>기분 <strong id="companionMood">기대</strong></span>
+          <span>함께한 날 <strong id="companionDays">1일</strong></span>
+          <span>다음 성장 <strong id="companionNextGrowth">25%</strong></span>
         </div>
+      </section>
+
+      <section class="execution-card journey-map-card" id="journeyMapCard">
+        <div class="card-title compact">
+          <div>
+            <h2>여정 지도</h2>
+            <span>완료율에 따라 모리와 새로운 장소로 이동합니다</span>
+          </div>
+          <span class="soft-badge" id="journeyBadge">출발</span>
+        </div>
+        <div class="journey-map" id="journeyMap" aria-label="목표 여정 지도"></div>
+      </section>
+
+      <section class="execution-card memory-card">
+        <div class="card-title compact">
+          <div>
+            <h2>추억 카드</h2>
+            <span>작은 실행도 사라지지 않고 기록됩니다</span>
+          </div>
+          <span class="soft-badge">기록</span>
+        </div>
+        <div class="memory-list" id="memoryList"></div>
       </section>
 
       <section class="execution-card schedule-calendar-card">
@@ -178,8 +232,9 @@
 
     <nav class="execution-tabbar" aria-label="앱 메뉴">
       <a class="active" href="#top" aria-label="오늘">⌂</a>
-      <a href="#executionCompanion" aria-label="성장">✦</a>
-      <a href="#downloadPlanButton" aria-label="계획">▣</a>
+      <a href="#journeyMapCard" aria-label="여정">⌁</a>
+      <a href="#companionHome" aria-label="메이트">●</a>
+      <a href="#downloadPlanButton" aria-label="기록">▤</a>
       <a href="index.html#pricing" aria-label="결제">₩</a>
     </nav>
 
