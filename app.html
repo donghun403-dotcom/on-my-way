@@ -61,11 +61,28 @@
         <div class="companion-xp" aria-label="메이트 성장 경험치">
           <span id="companionXpBar" style="width: 0%"></span>
         </div>
+        <div class="companion-primary-actions">
+          <button class="primary" id="openCompanionChat" type="button">이야기하기</button>
+          <button id="touchCompanion" type="button">쓰다듬기</button>
+        </div>
         <div class="companion-actions" aria-label="메이트 체크인">
           <button type="button" data-companion-action="light">가볍게 시작할래</button>
           <button type="button" data-companion-action="steady">계획대로 해볼래</button>
           <button type="button" data-companion-action="hard">오늘은 조금 힘들어</button>
         </div>
+      </section>
+
+      <section class="execution-card focus-task-card" aria-labelledby="focusTaskTitle">
+        <div class="focus-task-copy">
+          <span>오늘의 한 걸음</span>
+          <h2 id="focusTaskTitle">가장 먼저 할 행동</h2>
+          <p id="focusTaskMeta">완료 기준을 작게 잡고 시작합니다</p>
+        </div>
+        <div class="focus-task-goal">
+          <strong id="minimumGoalText">최소 성공: 5분만 해도 완료</strong>
+          <span id="focusProgressText">시작 전</span>
+        </div>
+        <button class="focus-start-button" id="startFocusButton" type="button">집중 시작</button>
       </section>
 
       <section class="execution-card today-card">
@@ -242,6 +259,48 @@
       <span>PRO · 전체 플랜 열기</span>
       <strong>연 29,000원</strong>
     </a>
+
+    <div class="sheet-overlay" id="chatOverlay" hidden></div>
+    <aside class="companion-chat-sheet" id="companionChatSheet" aria-labelledby="companionChatTitle" hidden>
+      <div class="sheet-handle" aria-hidden="true"></div>
+      <div class="sheet-title-row">
+        <div>
+          <span>모리와 오늘 조정하기</span>
+          <h2 id="companionChatTitle">지금 상태를 알려주세요</h2>
+        </div>
+        <button id="closeCompanionChat" type="button" aria-label="대화 닫기">×</button>
+      </div>
+      <div class="energy-options" aria-label="오늘 상태 선택">
+        <button type="button" data-energy="good">좋아요</button>
+        <button type="button" data-energy="normal">보통이에요</button>
+        <button type="button" data-energy="tired">지쳤어요</button>
+      </div>
+      <div class="quick-adjustments" aria-label="빠른 계획 조정">
+        <button type="button" data-chat-action="shorten">더 짧게</button>
+        <button type="button" data-chat-action="move-evening">저녁으로 이동</button>
+        <button type="button" data-chat-action="encourage">응원해줘</button>
+        <button type="button" data-chat-action="one-task">하나만 남기기</button>
+      </div>
+      <label class="chat-input-label" for="companionChatInput">
+        <span>수정하거나 보완하고 싶은 점</span>
+        <textarea id="companionChatInput" rows="4" placeholder="예: 오늘 회의가 길어서 저녁 9시 이후에 10분짜리 행동만 남겨줘."></textarea>
+      </label>
+      <button class="chat-send-button" id="sendCompanionMessage" type="button">모리에게 보내기</button>
+      <p class="chat-response" id="companionChatResponse">모리는 요청을 바로 적용하지 않고, 아래 플랜 수정 요청에 반영해 승인받도록 도와줘요.</p>
+    </aside>
+
+    <div class="sheet-overlay" id="focusModeOverlay" hidden></div>
+    <section class="focus-mode" id="focusMode" aria-labelledby="focusModeTitle" hidden>
+      <button id="closeFocusMode" type="button" aria-label="집중 모드 닫기">×</button>
+      <img src="assets/buddy.svg" alt="집중을 응원하는 모리" />
+      <span id="focusTimer">15:00</span>
+      <h2 id="focusModeTitle">지금 할 한 가지</h2>
+      <p id="focusCriteria">완료 기준: 5분만 해도 성공</p>
+      <div class="focus-mode-actions">
+        <button id="minimizeFocusButton" type="button">오늘은 5분만 하기</button>
+        <button class="primary" id="finishFocusButton" type="button">완료했어요</button>
+      </div>
+    </section>
 
     <script src="script.js"></script>
   </body>

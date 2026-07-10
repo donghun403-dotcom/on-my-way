@@ -78,13 +78,36 @@ const companionName = document.querySelector("#companionName");
 const companionStage = document.querySelector("#companionStage");
 const companionLevel = document.querySelector("#companionLevel");
 const companionXpBar = document.querySelector("#companionXpBar");
+const openCompanionChatButton = document.querySelector("#openCompanionChat");
+const touchCompanionButton = document.querySelector("#touchCompanion");
 const companionActionButtons = document.querySelectorAll("[data-companion-action]");
+const focusTaskTitle = document.querySelector("#focusTaskTitle");
+const focusTaskMeta = document.querySelector("#focusTaskMeta");
+const minimumGoalText = document.querySelector("#minimumGoalText");
+const focusProgressText = document.querySelector("#focusProgressText");
+const startFocusButton = document.querySelector("#startFocusButton");
 const companionMood = document.querySelector("#companionMood");
 const companionDays = document.querySelector("#companionDays");
 const companionNextGrowth = document.querySelector("#companionNextGrowth");
 const journeyBadge = document.querySelector("#journeyBadge");
 const journeyMap = document.querySelector("#journeyMap");
 const memoryList = document.querySelector("#memoryList");
+const chatOverlay = document.querySelector("#chatOverlay");
+const companionChatSheet = document.querySelector("#companionChatSheet");
+const closeCompanionChatButton = document.querySelector("#closeCompanionChat");
+const energyButtons = document.querySelectorAll("[data-energy]");
+const chatActionButtons = document.querySelectorAll("[data-chat-action]");
+const companionChatInput = document.querySelector("#companionChatInput");
+const sendCompanionMessage = document.querySelector("#sendCompanionMessage");
+const companionChatResponse = document.querySelector("#companionChatResponse");
+const focusModeOverlay = document.querySelector("#focusModeOverlay");
+const focusMode = document.querySelector("#focusMode");
+const closeFocusModeButton = document.querySelector("#closeFocusMode");
+const focusTimer = document.querySelector("#focusTimer");
+const focusModeTitle = document.querySelector("#focusModeTitle");
+const focusCriteria = document.querySelector("#focusCriteria");
+const minimizeFocusButton = document.querySelector("#minimizeFocusButton");
+const finishFocusButton = document.querySelector("#finishFocusButton");
 const downloadPlanButton = document.querySelector("#downloadPlanButton");
 
 const themes = {
@@ -817,6 +840,187 @@ function savePlanBundleState(state) {
   });
 }
 
+const companionStateKey = "omwCompanionState";
+const companionEventKey = "omwCompanionEvents";
+let activeFocusTaskIndex = 0;
+
+function getDefaultCompanionState() {
+  return {
+    name: "모리",
+    level: 1,
+    xp: 0,
+    mood: "ready",
+    relationship: 1,
+    energy: "normal",
+    touched: 0,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function getCompanionState() {
+  try {
+    return {
+      ...getDefaultCompanionState(),
+      ...(JSON.parse(localStorage.getItem(companionStateKey)) || {}),
+    };
+  } catch (error) {
+    return getDefaultCompanionState();
+  }
+}
+
+function saveCompanionState(state) {
+  try {
+    localStorage.setItem(companionStateKey, JSON.stringify({ ...state, updatedAt: new Date().toISOString() }));
+  } catch (error) {
+    console.warn("Unable to save companion state", error);
+  }
+}
+
+function getXpRequirement(level) {
+  return 40 + Math.max(0, level - 1) * 18;
+}
+
+function addCompanionXp(amount, mood = "happy") {
+  const state = getCompanionState();
+  let nextXp = Math.max(0, (state.xp || 0) + amount);
+  let nextLevel = state.level || 1;
+
+  while (nextXp >= getXpRequirement(nextLevel)) {
+    nextXp -= getXpRequirement(nextLevel);
+    nextLevel += 1;
+  }
+
+  const nextState = {
+    ...state,
+    xp: nextXp,
+    level: nextLevel,
+    mood,
+  };
+  saveCompanionState(nextState);
+  return nextState;
+}
+
+function trackCompanionEvent(type, detail = {}) {
+  try {
+    const events = JSON.parse(localStorage.getItem(companionEventKey)) || [];
+    events.push({ type, detail, createdAt: new Date().toISOString() });
+    localStorage.setItem(companionEventKey, JSON.stringify(events.slice(-80)));
+  } catch (error) {
+    console.warn("Unable to save companion event", error);
+  }
+}
+
+function showToast(message) {
+  let toast = document.querySelector(".app-toast");
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.className = "app-toast";
+    document.body.append(toast);
+  }
+
+  toast.textContent = message;
+  toast.classList.add("show");
+  window.setTimeout(() => toast.classList.remove("show"), 2200);
+}
+
+function pulseCompanion() {
+  if (!companionHomeImage) return;
+  companionHomeImage.classList.remove("is-celebrating");
+  window.requestAnimationFrame(() => {
+    companionHomeImage.classList.add("is-celebrating");
+    window.setTimeout(() => companionHomeImage.classList.remove("is-celebrating"), 900);
+  });
+}
+
+function appendRevisionRequest(text, response = "좋아요. 그 요청을 플랜 수정 요청에 넣어둘게요.") {
+  if (!text || !planRevisionRequest) return;
+
+  const current = planRevisionRequest.value.trim();
+  planRevisionRequest.value = current ? `${current}\n${text}` : text;
+  updateRevisionButtonState();
+  if (planEditorMessage) {
+    planEditorMessage.textContent = "모리의 제안을 수정 요청에 담았습니다. 버튼을 누르면 새 스케줄 미리보기를 만들어요.";
+  }
+  if (companionChatResponse) companionChatResponse.textContent = response;
+  if (companionMessage) companionMessage.textContent = response;
+  planRevisionRequest.focus();
+}
+
+function setSheetOpen(sheet, overlay, open) {
+  if (!sheet || !overlay) return;
+
+  sheet.hidden = !open;
+  overlay.hidden = !open;
+  document.body.classList.toggle("sheet-open", open);
+}
+
+function openCompanionChat() {
+  setSheetOpen(companionChatSheet, chatOverlay, true);
+  if (companionChatInput) companionChatInput.focus();
+  trackCompanionEvent("companion_chat_opened");
+}
+
+function closeCompanionChat() {
+  setSheetOpen(companionChatSheet, chatOverlay, false);
+}
+
+function openFocusMode() {
+  const bundle = getPlanBundle();
+  const dayPlan = bundle.schedule[bundle.state.selectedDay - 1] || bundle.schedule[0];
+  const checked = bundle.state.checkedByDay[String(dayPlan.day)] || [];
+  const nextIndex = Math.max(0, dayPlan.tasks.findIndex((_, index) => !checked[index]));
+  const taskIndex = nextIndex === -1 ? 0 : nextIndex;
+  const task = dayPlan.tasks[taskIndex];
+
+  activeFocusTaskIndex = taskIndex;
+  if (focusModeTitle) focusModeTitle.textContent = task?.text || "오늘의 한 걸음";
+  if (focusCriteria) focusCriteria.textContent = `완료 기준: ${task?.time || "오늘"}에 5분만 해도 성공`;
+  if (focusTimer) focusTimer.textContent = "15:00";
+  setSheetOpen(focusMode, focusModeOverlay, true);
+  trackCompanionEvent("focus_started", { day: dayPlan.day, taskIndex });
+}
+
+function closeFocusMode() {
+  setSheetOpen(focusMode, focusModeOverlay, false);
+}
+
+function completeFocusTask() {
+  const bundle = getPlanBundle();
+  const selectedDay = String(bundle.state.selectedDay);
+  const dayPlan = bundle.schedule[bundle.state.selectedDay - 1] || bundle.schedule[0];
+  const checked = bundle.state.checkedByDay[selectedDay] || Array(dayPlan.tasks.length).fill(false);
+  const wasUnchecked = !checked[activeFocusTaskIndex];
+
+  checked[activeFocusTaskIndex] = true;
+  bundle.state.checkedByDay[selectedDay] = checked;
+  savePlanBundleState(bundle.state);
+  if (wasUnchecked) addCompanionXp(10, "happy");
+  closeFocusMode();
+  pulseCompanion();
+  showToast(wasUnchecked ? "+10 XP · 모리가 오늘의 실행을 기억했어요" : "이미 완료된 한 걸음이에요");
+  trackCompanionEvent("focus_completed", { day: dayPlan.day, taskIndex: activeFocusTaskIndex, rewarded: wasUnchecked });
+  renderExecutionPage(bundle);
+}
+
+function renderFocusTask(dayPlan, selectedCompletion) {
+  if (!focusTaskTitle || !dayPlan) return;
+
+  const bundle = getPlanBundle();
+  const checked = bundle.state.checkedByDay[String(dayPlan.day)] || [];
+  const nextIndex = dayPlan.tasks.findIndex((_, index) => !checked[index]);
+  const taskIndex = nextIndex === -1 ? 0 : nextIndex;
+  const task = dayPlan.tasks[taskIndex];
+
+  if (focusTaskTitle) focusTaskTitle.textContent = task?.text || "오늘 기록 돌아보기";
+  if (focusTaskMeta) focusTaskMeta.textContent = `${dayPlan.title.replace(/^Day \d+ · /, "")} · ${task?.time || "오늘"}`;
+  if (minimumGoalText) minimumGoalText.textContent = selectedCompletion.percent === 100 ? "오늘 계획을 모두 마쳤어요" : "최소 성공: 5분만 해도 완료";
+  if (focusProgressText) focusProgressText.textContent = `${selectedCompletion.completed}/${selectedCompletion.total} 완료`;
+  if (startFocusButton) {
+    startFocusButton.dataset.taskIndex = String(taskIndex);
+    startFocusButton.textContent = selectedCompletion.percent === 100 ? "다시 보기" : "집중 시작";
+  }
+}
+
 function renderChecklist(dayPlan, state) {
   if (!executionChecklist) return;
 
@@ -1009,6 +1213,9 @@ function renderMemoryCards({ selectedCompletion, completedDays, overallProgress 
 
 function renderCompanionExperience({ plan, selectedCompletion, remainingTasks, completedDays, overallProgress }) {
   const stage = getCompanionStage(overallProgress);
+  const companionState = getCompanionState();
+  const xpNeed = getXpRequirement(companionState.level || stage.level);
+  const xpPercent = xpNeed ? Math.round(((companionState.xp || 0) / xpNeed) * 100) : overallProgress;
   const copy = getCompanionCopy({
     selectedCompletion,
     remainingTasks,
@@ -1018,13 +1225,19 @@ function renderCompanionExperience({ plan, selectedCompletion, remainingTasks, c
   });
   const nextMilestone = [25, 50, 75, 100].find((value) => overallProgress < value) || 100;
 
-  if (companionName) companionName.textContent = "모리";
+  if (companionName) companionName.textContent = companionState.name || "모리";
   if (companionHomeImage) companionHomeImage.src = "assets/buddy.svg";
-  if (companionMoodLine) companionMoodLine.textContent = copy.line;
-  if (companionMessage) companionMessage.textContent = copy.message;
+  if (companionMoodLine) {
+    companionMoodLine.textContent =
+      companionState.energy === "tired" ? "오늘은 작게 줄이는 것도 실행이에요." : copy.line;
+  }
+  if (companionMessage) {
+    companionMessage.textContent =
+      companionState.mood === "happy" ? "방금 만든 실행 기록을 모리가 기억했어요." : copy.message;
+  }
   if (companionStage) companionStage.textContent = stage.title;
-  if (companionLevel) companionLevel.textContent = `Lv. ${stage.level}`;
-  if (companionXpBar) companionXpBar.style.width = `${Math.max(6, overallProgress)}%`;
+  if (companionLevel) companionLevel.textContent = `Lv. ${Math.max(stage.level, companionState.level || 1)}`;
+  if (companionXpBar) companionXpBar.style.width = `${Math.max(6, xpPercent || overallProgress)}%`;
   if (companionMood) companionMood.textContent = copy.mood;
   if (companionDays) companionDays.textContent = `${Math.max(1, completedDays || 1)}일`;
   if (companionNextGrowth) companionNextGrowth.textContent = `${nextMilestone}%`;
@@ -1110,11 +1323,12 @@ function renderExecutionPage(bundle) {
   renderCalendar(schedule, state);
   renderWeeklyPlan(schedule);
   renderRoutineInsight(plan);
+  renderFocusTask(selectedDay, selectedCompletion);
   renderCompanionExperience({ plan, selectedCompletion, remainingTasks, completedDays, overallProgress });
 }
 
 function applyExecutionTheme(themeName) {
-  const theme = themes[themeName] || themes.plant;
+  const theme = themes[themeName] || themes.buddy;
   executionThemeButtons.forEach((button) => {
     button.classList.toggle("active", button.dataset.theme === themeName);
   });
@@ -1161,9 +1375,16 @@ executionChecklist?.addEventListener("change", (event) => {
   const taskIndex = Number(event.target.dataset.taskIndex);
   const dayPlan = bundle.schedule[bundle.state.selectedDay - 1];
   const checked = bundle.state.checkedByDay[selectedDay] || Array(dayPlan.tasks.length).fill(false);
+  const wasUnchecked = !checked[taskIndex];
   checked[taskIndex] = event.target.checked;
   bundle.state.checkedByDay[selectedDay] = checked;
   savePlanBundleState(bundle.state);
+  if (event.target.checked && wasUnchecked) {
+    addCompanionXp(10, "happy");
+    pulseCompanion();
+    showToast("+10 XP · 한 걸음을 기록했어요");
+    trackCompanionEvent("task_completed", { day: dayPlan.day, taskIndex });
+  }
   renderExecutionPage(bundle);
 });
 
@@ -1171,8 +1392,16 @@ completeTodayButton?.addEventListener("click", () => {
   const bundle = getPlanBundle();
   const selectedDay = String(bundle.state.selectedDay);
   const dayPlan = bundle.schedule[bundle.state.selectedDay - 1];
+  const current = bundle.state.checkedByDay[selectedDay] || [];
+  const newlyCompleted = dayPlan.tasks.filter((_, index) => !current[index]).length;
   bundle.state.checkedByDay[selectedDay] = dayPlan.tasks.map(() => true);
   savePlanBundleState(bundle.state);
+  if (newlyCompleted > 0) {
+    addCompanionXp(newlyCompleted * 10 + 8, "happy");
+    pulseCompanion();
+    showToast(`+${newlyCompleted * 10 + 8} XP · 오늘 계획을 모두 마쳤어요`);
+    trackCompanionEvent("all_day_completed", { day: dayPlan.day, newlyCompleted });
+  }
   renderExecutionPage(bundle);
 });
 
@@ -1202,8 +1431,6 @@ planRevisionRequest?.addEventListener("input", updateRevisionButtonState);
 
 companionActionButtons.forEach((button) => {
   button.addEventListener("click", () => {
-    if (!planRevisionRequest) return;
-
     const action = button.dataset.companionAction;
     const actionText = {
       light: "오늘은 최소 성공 기준만 보이도록 가장 작은 행동으로 줄여줘.",
@@ -1212,12 +1439,91 @@ companionActionButtons.forEach((button) => {
     }[action];
 
     if (!actionText) return;
-    const current = planRevisionRequest.value.trim();
-    planRevisionRequest.value = current ? `${current}\n${actionText}` : actionText;
-    planRevisionRequest.focus();
-    if (companionMessage) companionMessage.textContent = "좋아요. 모리가 그 요청을 기준으로 계획을 더 작게 다시 정리할게요.";
-    updateRevisionButtonState();
+    const state = getCompanionState();
+    saveCompanionState({ ...state, energy: action === "hard" ? "tired" : action === "light" ? "normal" : "good", mood: "thinking" });
+    appendRevisionRequest(actionText, "좋아요. 모리가 그 요청을 기준으로 새 스케줄 제안을 준비할게요.");
+    addCompanionXp(2, "thinking");
+    trackCompanionEvent("energy_selected", { action });
   });
+});
+
+openCompanionChatButton?.addEventListener("click", openCompanionChat);
+closeCompanionChatButton?.addEventListener("click", closeCompanionChat);
+chatOverlay?.addEventListener("click", closeCompanionChat);
+
+touchCompanionButton?.addEventListener("click", () => {
+  const state = getCompanionState();
+  const nextState = {
+    ...state,
+    relationship: (state.relationship || 1) + 1,
+    touched: (state.touched || 0) + 1,
+    mood: "happy",
+  };
+  saveCompanionState(nextState);
+  addCompanionXp(2, "happy");
+  pulseCompanion();
+  showToast("+2 XP · 모리가 조금 더 가까워졌어요");
+  if (companionMessage) companionMessage.textContent = "고마워요. 오늘은 아주 작은 행동부터 같이 해봐요.";
+  trackCompanionEvent("companion_touched", { touched: nextState.touched });
+  renderExecutionPage(getPlanBundle());
+});
+
+energyButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    const energy = button.dataset.energy;
+    const state = getCompanionState();
+    const copy = {
+      good: "좋아요. 지금 흐름이면 첫 번째 행동부터 바로 시작해도 괜찮겠어요.",
+      normal: "보통인 날은 기준을 작게 잡으면 오래 갑니다.",
+      tired: "지친 날은 하나만 남기고 나머지는 내일로 보내는 제안을 만들 수 있어요.",
+    }[energy];
+
+    saveCompanionState({ ...state, energy, mood: energy === "tired" ? "caring" : "ready" });
+    energyButtons.forEach((item) => item.classList.toggle("active", item === button));
+    if (companionChatResponse) companionChatResponse.textContent = copy;
+    if (companionMessage) companionMessage.textContent = copy;
+    addCompanionXp(2, "ready");
+    trackCompanionEvent("chat_energy_selected", { energy });
+  });
+});
+
+chatActionButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    const action = button.dataset.chatAction;
+    const request = {
+      shorten: "오늘 할 일을 5~10분 단위의 더 짧은 행동으로 나눠줘.",
+      "move-evening": "오늘 실행 시간을 저녁으로 옮기고, 늦은 시간에도 부담 없는 순서로 다시 짜줘.",
+      encourage: "오늘 계획 앞에 바로 시작할 수 있는 짧은 응원 문장을 추가해줘.",
+      "one-task": "오늘은 가장 중요한 한 가지 과제만 남기고 나머지는 내일 이후로 옮기는 제안을 해줘.",
+    }[action];
+
+    if (!request) return;
+    appendRevisionRequest(request, "수정 요청에 담아뒀어요. 새 스케줄은 사용자가 확인한 뒤 적용됩니다.");
+    trackCompanionEvent("quick_adjustment_selected", { action });
+  });
+});
+
+sendCompanionMessage?.addEventListener("click", () => {
+  const message = companionChatInput?.value.trim() || "";
+  if (!message) {
+    if (companionChatResponse) companionChatResponse.textContent = "바꾸고 싶은 조건을 한 줄만 적어도 충분해요.";
+    return;
+  }
+
+  appendRevisionRequest(`사용자 추가 요청: ${message}`, "좋아요. 이 내용을 참고해서 AI가 다시 짠 스케줄 미리보기를 만들 수 있어요.");
+  companionChatInput.value = "";
+  addCompanionXp(3, "thinking");
+  trackCompanionEvent("custom_revision_requested", { length: message.length });
+});
+
+startFocusButton?.addEventListener("click", openFocusMode);
+focusModeOverlay?.addEventListener("click", closeFocusMode);
+closeFocusModeButton?.addEventListener("click", closeFocusMode);
+finishFocusButton?.addEventListener("click", completeFocusTask);
+minimizeFocusButton?.addEventListener("click", () => {
+  if (focusTimer) focusTimer.textContent = "05:00";
+  appendRevisionRequest("오늘은 이 행동을 5분짜리 최소 성공 기준으로 줄여줘.", "좋아요. 오늘은 5분만 해도 성공으로 제안할게요.");
+  trackCompanionEvent("minimum_focus_selected");
 });
 
 acceptPlanButton?.addEventListener("click", () => {
