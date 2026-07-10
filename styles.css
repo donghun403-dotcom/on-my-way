@@ -3569,7 +3569,11 @@ body.sheet-open {
 }
 
 .pillar-grid article {
-  padding: 18px;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-height: 210px;
+  padding: 20px;
   background: #ffffff;
   border: 1px solid var(--routine-line);
   border-radius: 22px;
@@ -3577,25 +3581,39 @@ body.sheet-open {
 }
 
 .pillar-grid span {
-  display: inline-flex;
-  margin-bottom: 12px;
-  padding: 6px 10px;
-  color: var(--routine-green-dark);
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
   background: #edf2ff;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 950;
+  border-radius: 16px;
+  font-size: 24px;
+}
+
+.pillar-grid small {
+  color: var(--routine-green-dark);
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  text-transform: uppercase;
 }
 
 .pillar-grid h3 {
-  margin: 0 0 8px;
+  margin: 0;
   color: var(--routine-text);
+  font-size: 19px;
+  line-height: 1.28;
 }
 
 .pillar-grid p {
   margin: 0;
   color: var(--routine-muted);
   line-height: 1.55;
+}
+
+.pillar-grid strong {
+  color: var(--routine-green-dark);
+  font-weight: 800;
 }
 
 .execution-message-recovered {
