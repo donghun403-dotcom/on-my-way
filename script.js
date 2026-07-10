@@ -5,11 +5,6 @@ const menuButton = document.querySelector(".menu-button");
 const mainNav = document.querySelector(".main-nav");
 const navLinks = document.querySelectorAll(".main-nav a");
 const sectionNavLinks = document.querySelectorAll(".main-nav a[href^='#'], .bottom-tabbar a");
-const themeButtons = document.querySelectorAll(".theme-button");
-const companionArt = document.querySelector("#companionArt");
-const themeTitle = document.querySelector("#themeTitle");
-const themePath = document.querySelector("#themePath");
-const themeText = document.querySelector("#themeText");
 const personalityForm = document.querySelector("#personalityForm");
 const diagnosisSteps = document.querySelectorAll(".diagnosis-step");
 const diagnosisStepperItems = document.querySelectorAll(".diagnosis-stepper span");
@@ -121,44 +116,6 @@ const finishFocusButton = document.querySelector("#finishFocusButton");
 const appLiveRegion = document.querySelector("#appLiveRegion");
 const downloadPlanButton = document.querySelector("#downloadPlanButton");
 
-const themes = {
-  buddy: {
-    title: "목표 메이트 모리",
-    path: "작은 방 → 산책길 → 숲 → 별빛 언덕",
-    text: "모리는 계획이 커졌을 때 다시 시작할 수 있는 크기로 줄여주는 여정 파트너입니다.",
-    image: "assets/buddy.svg",
-    alt: "목표 메이트 모리",
-  },
-  plant: {
-    title: "식물 키우기",
-    path: "씨앗 → 새싹 → 꽃",
-    text: "30일 뒤 작은 정원이 완성됩니다. 오늘은 새싹이 고개를 들었어요.",
-    image: "assets/plant.svg",
-    alt: "식물 성장 캐릭터",
-  },
-  dog: {
-    title: "강아지 키우기",
-    path: "첫 만남 → 산책 친구",
-    text: "매일 체크인할 때마다 조금 더 친해집니다. 오늘은 첫 산책을 기다리고 있어요.",
-    image: "assets/dog.svg",
-    alt: "강아지 성장 캐릭터",
-  },
-  cat: {
-    title: "고양이 키우기",
-    path: "낯가림 → 무릎 친구",
-    text: "차분히 쌓아가는 목표와 잘 어울립니다. 오늘은 가까이 앉아 응원해요.",
-    image: "assets/cat.svg",
-    alt: "고양이 성장 캐릭터",
-  },
-  home: {
-    title: "집짓기",
-    path: "터 → 방 → 작은 집",
-    text: "하루 계획을 완수할 때마다 공간이 채워집니다. 오늘은 첫 벽을 세웠어요.",
-    image: "assets/home.svg",
-    alt: "집짓기 성장 캐릭터",
-  },
-};
-
 goalForm?.addEventListener("submit", (event) => {
   event.preventDefault();
   const value = goalInput.value.trim();
@@ -237,7 +194,7 @@ sectionNavLinks.forEach((link) => {
 
 setActiveSectionLink(window.location.hash || "#top");
 
-const sectionAnchors = ["#top", "#designFlow", "#companion", "#pricing"]
+const sectionAnchors = ["#top", "#designFlow", "#pricing"]
   .map((hash) => ({ hash, element: document.querySelector(hash) }))
   .filter((item) => item.element);
 
@@ -251,22 +208,6 @@ if (sectionAnchors.length > 0) {
     { passive: true },
   );
 }
-
-themeButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    const theme = themes[button.dataset.theme];
-    if (!theme) return;
-
-    themeButtons.forEach((item) => item.classList.remove("active"));
-    button.classList.add("active");
-
-    companionArt.src = theme.image;
-    companionArt.alt = theme.alt;
-    themeTitle.textContent = theme.title;
-    themePath.textContent = theme.path;
-    themeText.textContent = theme.text;
-  });
-});
 
 const stems = [
   { ko: "갑", element: "목", trait: "시작과 성장 욕구가 강한 확장형" },
