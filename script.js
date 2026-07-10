@@ -78,6 +78,11 @@ const companionHomeImage = document.querySelector("#companionHomeImage");
 const companionMoodLine = document.querySelector("#companionMoodLine");
 const companionMessage = document.querySelector("#companionMessage");
 const companionName = document.querySelector("#companionName");
+const DEFAULT_ROUTINE_READINESS = "계획이 있으면 실행해요";
+
+function needsLowFrictionStart(readiness = DEFAULT_ROUTINE_READINESS) {
+  return ["준비", "미뤄", "중단"].some((keyword) => readiness.includes(keyword));
+}
 const companionStage = document.querySelector("#companionStage");
 const companionLevel = document.querySelector("#companionLevel");
 const companionXpBar = document.querySelector("#companionXpBar");
@@ -398,8 +403,8 @@ function buildLocalAiPreview(payload) {
   const progress = Math.max(12, Math.min(48, Math.round(1800 / period)));
   const routineTime = routine.preferredTime || "아침";
   const existingRoutine = routine.existingRoutine || "이미 하는 작은 행동";
-  const readiness = routine.readiness || "보통이에요";
-  const lowFriction = readiness.includes("미뤄");
+  const readiness = routine.readiness || DEFAULT_ROUTINE_READINESS;
+  const lowFriction = needsLowFrictionStart(readiness);
   const routineAdvice = lowFriction
     ? `${routineTime}에 ${existingRoutine} 직후 10분만 시작하고, 알림으로 다시 불러옵니다.`
     : `${routineTime}에 ${existingRoutine}와 새 목표를 붙여 바로 실행 흐름을 만듭니다.`;
@@ -465,7 +470,7 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
   const goal = designGoal.value.trim() || goalInput?.value.trim() || "목표 미입력";
   const period = goalPeriodInput.value;
   const currentState = currentStateInput.value.trim();
-  const routineReadiness = routineReadinessInput?.value || "보통이에요";
+  const routineReadiness = routineReadinessInput?.value || DEFAULT_ROUTINE_READINESS;
   const routineTime = routineTimeInput?.value || "아침";
   const currentRoutine = currentRoutineInput?.value.trim() || "이미 하는 작은 행동";
   const birthDate = birthDateInput.value;
@@ -1207,8 +1212,8 @@ function renderRoutineInsight(plan) {
 
   const routineTime = plan.routineTime || "아침";
   const currentRoutine = plan.currentRoutine || "기존 루틴";
-  const readiness = plan.routineReadiness || "보통이에요";
-  const isDelayProne = readiness.includes("미뤄");
+  const readiness = plan.routineReadiness || DEFAULT_ROUTINE_READINESS;
+  const isDelayProne = needsLowFrictionStart(readiness);
   const cues = isDelayProne
     ? [`${currentRoutine} 뒤 10분만`, "알림으로 다시 시작", "못한 날은 다음 칸으로 이동"]
     : [`${currentRoutine}와 연결`, "완료 즉시 체크", "달력에서 진행률 확인"];
@@ -1274,7 +1279,7 @@ function getCompanionCopy({ selectedCompletion, remainingTasks, completedDays, o
     ]);
   }
 
-  if (readiness.includes("미뤄") || remainingTasks > 1) {
+  if (needsLowFrictionStart(readiness) || remainingTasks > 1) {
     return pickCompanionCopy("overloaded", [
       {
         id: "overloaded-1",
@@ -1297,7 +1302,7 @@ function getCompanionCopy({ selectedCompletion, remainingTasks, completedDays, o
         id: "midway-1",
         mood: "기대",
         line: "절반을 지나왔어요. 속도보다 계속 가는 게 중요해요.",
-        message: "남은 일정은 오늘 컨디션에 맞춰 조절해도 괜찮아요.",
+        message: "남은 일정은 실행 성향과 오늘 상황에 맞춰 조절해도 괜찮아요.",
       },
       {
         id: "midway-2",
@@ -1427,7 +1432,7 @@ function renderCompanionExperience({ plan, selectedCompletion, remainingTasks, c
     remainingTasks,
     completedDays,
     overallProgress,
-    readiness: plan.routineReadiness || "보통이에요",
+    readiness: plan.routineReadiness || DEFAULT_ROUTINE_READINESS,
   });
   const nextMilestone = [25, 50, 75, 100].find((value) => overallProgress < value) || 100;
 
