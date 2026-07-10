@@ -1502,6 +1502,19 @@ footer p {
   line-height: 1.05;
 }
 
+.home-page .hero-poster h1 span {
+  display: block;
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  white-space: nowrap;
+}
+
+.home-page .hero-poster h1 {
+  font-size: clamp(32px, 9vw, 36px);
+}
+
 .home-page .hero-poster p,
 .home-page .hero-text,
 .home-page .section-heading p,
