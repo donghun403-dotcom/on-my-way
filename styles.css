@@ -2015,7 +2015,43 @@ footer p {
   font-weight: 800;
 }
 
-.hidden-profile-fields,
+.personality-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 12px;
+  background: #f8faff;
+  border: 1px solid var(--routine-line);
+  border-radius: 18px;
+}
+
+.profile-intro {
+  grid-column: 1 / -1;
+}
+
+.profile-intro span {
+  display: block;
+  color: var(--routine-green-dark);
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.profile-intro p {
+  margin: 4px 0 0;
+  color: var(--routine-muted);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.personality-fields label {
+  display: grid;
+  gap: 6px;
+  color: var(--routine-muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
 .hidden-preview-list,
 .sr-only {
   position: absolute;
@@ -2094,7 +2130,8 @@ footer p {
 }
 
 .compact-analysis {
-  display: none;
+  display: grid;
+  gap: 10px;
 }
 
 .execution-preview-shell {
@@ -4919,7 +4956,8 @@ body.sheet-open {
 .home-page .mori-chat-preview span,
 .home-page .today-plan-card span,
 .home-page .tomorrow-card span,
-.home-page .focus-preview-card span {
+.home-page .focus-preview-card span,
+.home-page .compact-analysis span {
   color: var(--routine-green-dark);
 }
 
@@ -4936,8 +4974,20 @@ body.sheet-open {
   color: var(--routine-muted) !important;
 }
 
+.home-page .personality-fields,
+.home-page .profile-intro p,
+.home-page .personality-fields label {
+  color: var(--routine-muted) !important;
+}
+
+.home-page .profile-intro span {
+  color: var(--routine-green-dark) !important;
+}
+
 .home-page .mori-goal-card input,
 .home-page .mori-goal-card select,
+.home-page .personality-fields input,
+.home-page .personality-fields select,
 .home-page .today-plan-card,
 .home-page .tomorrow-card,
 .home-page .mori-chat-preview,

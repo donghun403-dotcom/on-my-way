@@ -172,15 +172,44 @@
               <option>저녁</option>
               <option>자기 전</option>
             </select>
-            <div class="hidden-profile-fields" aria-hidden="true">
-              <input id="birthDate" type="date" value="1995-03-15" tabindex="-1" />
-              <input id="birthTime" type="time" value="09:30" tabindex="-1" />
-              <input id="birthPlace" type="text" value="서울" tabindex="-1" />
-              <select id="mbti" tabindex="-1">
-                <option selected>ISFJ</option>
-                <option>INTJ</option>
-                <option>ENFP</option>
-              </select>
+            <div class="personality-fields" aria-label="성향 분석 입력">
+              <div class="profile-intro">
+                <span>성향 분석</span>
+                <p>만세력과 MBTI를 참고해 AI가 나에게 맞는 실행 리듬을 잡아줍니다.</p>
+              </div>
+              <label>
+                생년월일
+                <input id="birthDate" type="date" value="1995-03-15" />
+              </label>
+              <label>
+                출생 시간
+                <input id="birthTime" type="time" value="09:30" />
+              </label>
+              <label>
+                출생지
+                <input id="birthPlace" type="text" value="서울" />
+              </label>
+              <label>
+                MBTI
+                <select id="mbti">
+                  <option>INTJ</option>
+                  <option>INTP</option>
+                  <option>ENTJ</option>
+                  <option>ENTP</option>
+                  <option>INFJ</option>
+                  <option>INFP</option>
+                  <option>ENFJ</option>
+                  <option>ENFP</option>
+                  <option>ISTJ</option>
+                  <option selected>ISFJ</option>
+                  <option>ESTJ</option>
+                  <option>ESFJ</option>
+                  <option>ISTP</option>
+                  <option>ISFP</option>
+                  <option>ESTP</option>
+                  <option>ESFP</option>
+                </select>
+              </label>
             </div>
             <button type="submit" id="aiPreviewButton">오늘의 한 걸음 보기</button>
           </form>
