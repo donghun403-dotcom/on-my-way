@@ -7940,3 +7940,365 @@ body.sheet-open {
     transition: none;
   }
 }
+
+/* Mori's tiny-step garden */
+.home-page .product-pillars {
+  position: relative;
+  padding-top: clamp(58px, 8vw, 96px);
+  padding-bottom: clamp(64px, 9vw, 108px);
+  background: transparent;
+}
+
+.home-page .product-pillars .section-heading {
+  max-width: 760px;
+  margin: 0 auto 36px;
+  text-align: center;
+}
+
+.home-page .product-pillars .section-heading .eyebrow {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  margin-bottom: 14px;
+  padding: 0 13px;
+  color: #9b7d8d;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 999px;
+  box-shadow: 0 8px 20px rgba(91, 106, 151, 0.07);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+}
+
+.home-page .product-pillars .pillar-lead {
+  max-width: 570px;
+  margin: 14px auto 0;
+  color: #737a8c;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.75;
+}
+
+.home-page .pillar-garden {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(230px, 1fr) minmax(230px, 0.92fr) minmax(230px, 1fr);
+  grid-template-rows: repeat(2, minmax(160px, auto));
+  gap: 16px 24px;
+  max-width: 1060px;
+  margin-inline: auto;
+  padding: clamp(24px, 5vw, 54px);
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 10% 84%, rgba(199, 228, 222, 0.52), transparent 25%),
+    radial-gradient(circle at 88% 12%, rgba(244, 208, 216, 0.52), transparent 24%),
+    linear-gradient(145deg, rgba(248, 251, 249, 0.93), rgba(244, 241, 249, 0.92));
+  border: 1px solid rgba(255, 255, 255, 0.92);
+  border-radius: clamp(32px, 5vw, 50px);
+  box-shadow: 0 30px 74px rgba(91, 106, 151, 0.14);
+}
+
+.home-page .pillar-garden::after {
+  position: absolute;
+  right: 7%;
+  bottom: -34px;
+  left: 7%;
+  height: 68px;
+  background: rgba(185, 215, 209, 0.22);
+  border-radius: 50% 50% 0 0;
+  content: "";
+}
+
+.home-page .pillar-card {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  align-content: center;
+  gap: 12px;
+  min-height: 164px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.96);
+  border-radius: 24px;
+  box-shadow: 0 15px 34px rgba(91, 106, 151, 0.09);
+  backdrop-filter: blur(8px);
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.home-page .pillar-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 22px 42px rgba(91, 106, 151, 0.14);
+}
+
+.home-page .pillar-plan {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.home-page .pillar-do {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.home-page .pillar-grow {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+.home-page .pillar-number {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  color: #839ba5;
+  background: #e7f2f1;
+  border-radius: 13px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+.home-page .pillar-do .pillar-number {
+  color: #aa7d70;
+  background: #f8e7df;
+}
+
+.home-page .pillar-grow .pillar-number {
+  color: #8c83a4;
+  background: #eee9f6;
+}
+
+.home-page .pillar-copy {
+  align-self: center;
+}
+
+.home-page .pillar-copy small {
+  display: block;
+  margin-bottom: 5px;
+  color: #8ca9a7;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.home-page .pillar-do .pillar-copy small {
+  color: #bb8c7e;
+}
+
+.home-page .pillar-grow .pillar-copy small {
+  color: #968cab;
+}
+
+.home-page .pillar-copy h3 {
+  max-width: none;
+  margin: 0;
+  color: #3b455f;
+  font-size: clamp(16px, 1.6vw, 20px);
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.home-page .pillar-copy p {
+  margin: 7px 0 0;
+  color: #7a8192;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.6;
+}
+
+.home-page .pillar-symbol {
+  position: absolute;
+  right: 16px;
+  bottom: 14px;
+  display: grid;
+  width: 27px;
+  height: 27px;
+  place-items: center;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.home-page .pillar-symbol-plan {
+  color: #7b9ea0;
+  background: #eef8f5;
+}
+
+.home-page .pillar-symbol-do {
+  color: #b68072;
+  background: #fff1ea;
+}
+
+.home-page .pillar-symbol-grow {
+  color: #8b80a6;
+  background: #f3eef9;
+}
+
+.home-page .pillar-mori {
+  position: relative;
+  z-index: 3;
+  display: grid;
+  grid-column: 2;
+  grid-row: 1 / 3;
+  align-self: stretch;
+  place-items: center;
+  min-height: 350px;
+}
+
+.home-page .pillar-mori-halo {
+  position: absolute;
+  width: 112%;
+  aspect-ratio: 1;
+  background: linear-gradient(145deg, rgba(213, 237, 233, 0.9), rgba(231, 226, 242, 0.88) 58%, rgba(250, 224, 228, 0.9));
+  border: 9px solid rgba(255, 255, 255, 0.54);
+  border-radius: 46% 54% 48% 52%;
+  transform: rotate(7deg);
+}
+
+.home-page .pillar-mori img {
+  position: relative;
+  z-index: 2;
+  width: min(92%, 245px);
+  height: 82%;
+  object-fit: contain;
+  filter: drop-shadow(0 24px 22px rgba(91, 106, 151, 0.2));
+}
+
+.home-page .pillar-mori-bubble {
+  position: absolute;
+  z-index: 4;
+  bottom: 7%;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 42px;
+  padding: 0 15px;
+  color: #485471;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.98);
+  border-radius: 999px;
+  box-shadow: 0 13px 28px rgba(91, 106, 151, 0.14);
+  font-size: 12px;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+.home-page .pillar-mori-bubble span {
+  color: #d99aa8;
+  font-size: 11px;
+}
+
+.home-page .pillar-spark {
+  position: absolute;
+  z-index: 4;
+  color: #88aaa8;
+}
+
+.home-page .pillar-spark-one {
+  top: 9%;
+  left: -3%;
+  font-size: 23px;
+}
+
+.home-page .pillar-spark-two {
+  top: 22%;
+  right: -2%;
+  color: #d99aa8;
+  font-size: 9px;
+}
+
+.home-page .pillar-promise {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-column: 1;
+  grid-row: 2;
+  align-content: center;
+  min-height: 164px;
+  padding: 22px;
+  color: #ffffff;
+  background: linear-gradient(145deg, #86a9a6, #8a95b1 62%, #ab91a0);
+  border-radius: 24px;
+  box-shadow: 0 17px 36px rgba(91, 106, 151, 0.16);
+}
+
+.home-page .pillar-promise span {
+  margin-bottom: 8px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.home-page .pillar-promise strong {
+  font-size: clamp(16px, 1.7vw, 20px);
+  line-height: 1.55;
+}
+
+@media (max-width: 860px) {
+  .home-page .pillar-garden {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: auto;
+  }
+
+  .home-page .pillar-mori {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    min-height: 300px;
+    margin-bottom: 6px;
+  }
+
+  .home-page .pillar-mori-halo {
+    width: min(300px, 78%);
+  }
+
+  .home-page .pillar-mori img {
+    width: min(215px, 60%);
+  }
+
+  .home-page .pillar-plan,
+  .home-page .pillar-do,
+  .home-page .pillar-grow,
+  .home-page .pillar-promise {
+    grid-column: auto;
+    grid-row: auto;
+  }
+}
+
+@media (max-width: 560px) {
+  .home-page .product-pillars .section-heading {
+    margin-bottom: 24px;
+  }
+
+  .home-page .pillar-garden {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 22px 15px 18px;
+    border-radius: 30px;
+  }
+
+  .home-page .pillar-mori {
+    grid-column: 1;
+    min-height: 280px;
+  }
+
+  .home-page .pillar-card,
+  .home-page .pillar-promise {
+    min-height: 145px;
+  }
+
+  .home-page .pillar-promise {
+    order: 5;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-page .pillar-card {
+    transition: none;
+  }
+}
