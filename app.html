@@ -73,7 +73,7 @@
           </div>
           <div class="today-ollie-stage">
             <img class="mascot-art" src="assets/ollie-action.png" alt="오늘의 한 걸음을 시작하는 올리" />
-            <span>오늘도 아주 작게<br />같이 시작해요!</span>
+            <span>AI가 오늘의 순서를<br />준비해뒀어요!</span>
           </div>
           <div class="execution-gauge" aria-label="목표 달성률">
             <strong id="executionProgress">42%</strong>
@@ -83,23 +83,23 @@
 
         <section class="execution-card focus-task-card" aria-labelledby="focusTaskTitle">
           <div class="focus-task-copy">
-            <span>오늘의 한 걸음</span>
+            <span>AI가 고른 첫 번째 일정</span>
             <h2 id="focusTaskTitle">가장 먼저 할 행동</h2>
-            <p id="focusTaskMeta">완료 기준을 작게 잡고 시작합니다</p>
+            <p id="focusTaskMeta">오늘 스케줄에서 지금 시작할 한 가지예요</p>
           </div>
           <div class="focus-task-goal">
-            <strong id="minimumGoalText">최소 성공: 5분만 해도 완료</strong>
+            <strong id="minimumGoalText">집중 시간 15분</strong>
             <span id="focusProgressText">시작 전</span>
           </div>
-          <button class="focus-start-button" id="startFocusButton" type="button">올리와 시작하기</button>
+          <button class="focus-start-button" id="startFocusButton" type="button">이 일정 시작하기</button>
           <button class="focus-adjust-link" data-open-companion-chat type="button">오늘 계획이 부담스러운가요?</button>
         </section>
 
         <section class="execution-card today-card">
           <div class="card-title compact">
             <div>
-              <h2 id="selectedScheduleTitle">오늘의 스케줄</h2>
-              <span id="selectedScheduleMeta">완료하면 자동으로 게이지가 올라갑니다</span>
+              <h2 id="selectedScheduleTitle">AI가 만든 오늘의 스케줄</h2>
+              <span id="selectedScheduleMeta">순서대로 하나씩 체크해 보세요</span>
             </div>
             <button class="text-button" id="completeTodayButton" type="button">모두 완료</button>
           </div>
@@ -505,14 +505,27 @@
     <section class="focus-mode" id="focusMode" role="dialog" aria-modal="true" aria-labelledby="focusModeTitle" tabindex="-1" hidden>
       <button id="closeFocusMode" type="button" aria-label="집중 모드 닫기">×</button>
       <img class="mascot-art" src="assets/ollie-action.png" alt="힘차게 시작을 응원하는 올리" />
+      <span class="focus-mode-kicker" id="focusModeKicker">한 가지에 집중할 시간</span>
       <span id="focusTimer">15:00</span>
       <h2 id="focusModeTitle">지금 할 한 가지</h2>
-      <p id="focusCriteria">완료 기준: 5분만 해도 성공</p>
+      <p id="focusCriteria">준비되면 시작을 눌러 올리와 함께 시간을 재보세요.</p>
+      <div class="focus-time-adjust" id="focusTimeAdjust" aria-label="집중 시간 조정">
+        <button id="decreaseFocusTime" type="button" aria-label="집중 시간 5분 줄이기">−</button>
+        <label for="focusMinutesInput"><span>집중 시간</span><input id="focusMinutesInput" type="number" min="1" max="180" step="1" value="15" /><b>분</b></label>
+        <button id="increaseFocusTime" type="button" aria-label="집중 시간 5분 늘리기">＋</button>
+      </div>
+      <div class="focus-timeup-message" id="focusTimeupMessage" role="status" hidden>
+        <strong>약속한 시간이 끝났어요!</strong>
+        <span>여기까지 집중한 것도 멋진 실행이에요. 완료하거나 시간을 더 이어갈 수 있어요.</span>
+      </div>
       <div class="focus-mode-actions">
-        <button id="minimizeFocusButton" type="button">오늘은 5분만 하기</button>
-        <button class="primary" id="finishFocusButton" type="button">완료했어요</button>
+        <button class="primary" id="focusTimerStartButton" type="button">집중 시작</button>
+        <button id="focusTimerPauseButton" type="button" disabled>일시정지</button>
+        <button class="focus-complete-button" id="finishFocusButton" type="button">이 일정 완료하기</button>
       </div>
     </section>
+
+    <div class="ollie-star-shower" id="ollieStarShower" aria-hidden="true"></div>
 
     <div class="sr-only" id="appLiveRegion" aria-live="polite"></div>
 

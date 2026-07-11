@@ -5652,6 +5652,11 @@ body.sheet-open {
   .execution-page .app-view.is-active {
     animation: none;
   }
+
+  .ollie-star-shower span {
+    animation-duration: 1ms;
+    animation-delay: 0ms;
+  }
 }
 
 /* Per-view heading shown at the top of secondary tabs */
@@ -9786,12 +9791,273 @@ body.sheet-open {
   padding: 28px;
 }
 
-.execution-page .execution-checklist label {
-  padding: 18px 0;
+.execution-page .execution-checklist {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
 }
 
-.execution-page .execution-checklist strong {
-  color: #4f5c77;
+.execution-page .execution-checklist .task-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 54px 36px minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+}
+
+.execution-page .execution-checklist .task-row > strong {
+  color: #53617b;
+  font-size: 11px;
+  text-align: right;
+}
+
+.execution-page .execution-checklist .execution-check {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  margin: 0;
+  appearance: none;
+  place-items: center;
+  background: #ffffff;
+  border: 2px solid #d6deeb;
+  border-radius: 13px;
+  cursor: pointer;
+}
+
+.execution-page .execution-checklist .execution-check::after {
+  content: "✓";
+  color: #ffffff;
+  font-size: 17px;
+  font-weight: 950;
+  opacity: 0;
+  transform: scale(0.6);
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.execution-page .execution-checklist .execution-check:checked {
+  background: linear-gradient(145deg, #75ad9a, #83a8a1);
+  border-color: transparent;
+  box-shadow: 0 9px 18px rgba(103, 157, 140, 0.24);
+}
+
+.execution-page .execution-checklist .execution-check:checked::after {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.execution-page .task-timeline-node {
+  position: absolute;
+  z-index: 0;
+  top: 50%;
+  bottom: -22px;
+  left: 79px;
+  width: 2px;
+  background: #e0e6ef;
+}
+
+.execution-page .task-row:last-child .task-timeline-node {
+  display: none;
+}
+
+.execution-page .task-content {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 14px 15px;
+  background: linear-gradient(145deg, rgba(237, 247, 243, 0.9), rgba(250, 252, 252, 0.92));
+  border: 1px solid rgba(119, 161, 149, 0.1);
+  border-radius: 17px;
+  transition: transform 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
+}
+
+.execution-page .task-row:hover .task-content {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 22px rgba(91, 106, 151, 0.1);
+}
+
+.execution-page .task-afternoon .task-content { background: linear-gradient(145deg, rgba(255, 247, 235, 0.92), rgba(255, 252, 247, 0.94)); }
+.execution-page .task-evening .task-content { background: linear-gradient(145deg, rgba(245, 240, 251, 0.92), rgba(251, 249, 253, 0.94)); }
+.execution-page .task-night .task-content { background: linear-gradient(145deg, rgba(238, 241, 250, 0.94), rgba(249, 249, 253, 0.94)); }
+.execution-page .task-row-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.execution-page .task-period { color: #6a9f8e; font-size: 9px; font-weight: 950; }
+.execution-page .task-afternoon .task-period { color: #d59339; }
+.execution-page .task-evening .task-period,
+.execution-page .task-night .task-period { color: #8c78b4; }
+.execution-page .task-content > span:not(.task-row-head) { color: #3f4b63; font-size: 12px; font-weight: 900; line-height: 1.4; }
+.execution-page .task-content .minimum-action { color: #8a94a6; font-size: 9px; font-weight: 750; }
+.execution-page .task-row.is-complete .task-content { opacity: 0.66; }
+.execution-page .task-row.is-complete .task-content > span:not(.task-row-head) { text-decoration: line-through; }
+
+.execution-page .focus-task-card {
+  background: radial-gradient(circle at 100% 0%, rgba(210, 235, 229, 0.82), transparent 38%), linear-gradient(145deg, rgba(255,255,255,.96), rgba(249,252,251,.9));
+}
+
+.execution-page .focus-task-goal strong {
+  color: #536179;
+}
+
+.execution-page .focus-start-button {
+  min-height: 58px;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.execution-page .focus-mode {
+  width: min(430px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+  gap: 11px;
+  padding: 20px;
+  background: radial-gradient(circle at 50% 6%, rgba(215, 237, 230, 0.88), transparent 31%), linear-gradient(155deg, #ffffff, #f7f5fa);
+  border: 1px solid rgba(255,255,255,.95);
+  border-radius: 30px;
+}
+
+.execution-page .focus-mode > #closeFocusMode {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  place-items: center;
+  color: #7f899a;
+  background: rgba(255,255,255,.72);
+  border: 0;
+  border-radius: 50%;
+  font-size: 22px;
+}
+
+.execution-page .focus-mode img {
+  width: 96px;
+  height: 96px;
+  margin-bottom: -5px;
+}
+
+.execution-page .focus-mode-kicker {
+  color: #75998e;
+  font-size: 9px;
+  font-weight: 950;
+  letter-spacing: .06em;
+}
+
+.execution-page #focusTimer {
+  color: #53658a;
+  font-size: clamp(44px, 12vw, 58px);
+  letter-spacing: -.04em;
+}
+
+.execution-page .focus-mode h2 {
+  max-width: 340px;
+  color: #38445d;
+  font-size: 19px;
+  line-height: 1.3;
+}
+
+.execution-page .focus-mode p {
+  max-width: 350px;
+  color: #7c8798;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.execution-page .focus-time-adjust {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 40px;
+  gap: 7px;
+  width: 100%;
+}
+
+.execution-page .focus-time-adjust > button {
+  min-height: 42px;
+  color: #64738d;
+  background: #eef2f7;
+  border: 0;
+  border-radius: 13px;
+  font-size: 19px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.execution-page .focus-time-adjust label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 42px;
+  background: rgba(255,255,255,.8);
+  border: 1px solid rgba(107,122,166,.13);
+  border-radius: 13px;
+}
+
+.execution-page .focus-time-adjust label > span { color: #84909f; font-size: 9px; font-weight: 800; }
+.execution-page .focus-time-adjust input { width: 45px; padding: 0; color: #4e5d77; background: transparent; border: 0; outline: 0; font: inherit; font-size: 14px; font-weight: 950; text-align: right; }
+.execution-page .focus-time-adjust b { color: #68758b; font-size: 10px; }
+
+.execution-page .focus-mode-actions {
+  grid-template-columns: 1fr 1fr;
+}
+
+.execution-page .focus-mode-actions button {
+  min-height: 48px;
+  border: 0;
+  cursor: pointer;
+}
+
+.execution-page .focus-mode-actions .focus-complete-button {
+  grid-column: 1 / -1;
+  color: #53627c;
+  background: #edf1f8;
+}
+
+.execution-page .focus-mode-actions button:disabled {
+  opacity: .48;
+  cursor: default;
+}
+
+.execution-page .focus-timeup-message {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+  padding: 11px 13px;
+  color: #5c6c84;
+  background: linear-gradient(145deg, #fff5d9, #f8ecf2);
+  border-radius: 14px;
+}
+.execution-page .focus-timeup-message strong { font-size: 11px; }
+.execution-page .focus-timeup-message span { font-size: 9px; font-weight: 750; line-height: 1.45; }
+
+.ollie-star-shower {
+  position: fixed;
+  z-index: 140;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.ollie-star-shower.show { opacity: 1; }
+.ollie-star-shower span {
+  position: absolute;
+  top: -8vh;
+  left: var(--star-x);
+  color: var(--star-color);
+  font-size: var(--star-size);
+  opacity: 0;
+  text-shadow: 0 0 12px currentColor, 0 3px 8px rgba(91,106,151,.16);
+  animation: ollie-star-fall var(--star-duration) cubic-bezier(.2,.65,.35,1) var(--star-delay) both;
+}
+
+@keyframes ollie-star-fall {
+  0% { opacity: 0; transform: translate3d(0,-5vh,0) rotate(0deg) scale(.5); }
+  15% { opacity: 1; }
+  100% { opacity: 0; transform: translate3d(-25px,105vh,0) rotate(220deg) scale(1.25); }
 }
 
 .execution-page .progress-card {
@@ -10778,6 +11044,37 @@ body.sheet-open {
   .execution-page .companion-world img {
     width: 190px;
     height: 215px;
+  }
+
+  .execution-page .today-card {
+    padding-inline: 16px;
+  }
+
+  .execution-page .execution-checklist .task-row {
+    grid-template-columns: 41px 30px minmax(0, 1fr);
+    gap: 7px;
+  }
+
+  .execution-page .execution-checklist .task-row > strong {
+    font-size: 9px;
+  }
+
+  .execution-page .execution-checklist .execution-check {
+    width: 30px;
+    height: 30px;
+    border-radius: 11px;
+  }
+
+  .execution-page .task-timeline-node {
+    left: 55px;
+  }
+
+  .execution-page .task-content {
+    padding: 12px;
+  }
+
+  .execution-page .focus-mode {
+    padding: 18px 16px;
   }
 
   .execution-page .memory-journal-grid,

@@ -402,9 +402,16 @@ const focusMode = document.querySelector("#focusMode");
 const closeFocusModeButton = document.querySelector("#closeFocusMode");
 const focusTimer = document.querySelector("#focusTimer");
 const focusModeTitle = document.querySelector("#focusModeTitle");
+const focusModeKicker = document.querySelector("#focusModeKicker");
 const focusCriteria = document.querySelector("#focusCriteria");
-const minimizeFocusButton = document.querySelector("#minimizeFocusButton");
+const focusMinutesInput = document.querySelector("#focusMinutesInput");
+const decreaseFocusTime = document.querySelector("#decreaseFocusTime");
+const increaseFocusTime = document.querySelector("#increaseFocusTime");
+const focusTimerStartButton = document.querySelector("#focusTimerStartButton");
+const focusTimerPauseButton = document.querySelector("#focusTimerPauseButton");
+const focusTimeupMessage = document.querySelector("#focusTimeupMessage");
 const finishFocusButton = document.querySelector("#finishFocusButton");
+const ollieStarShower = document.querySelector("#ollieStarShower");
 const appLiveRegion = document.querySelector("#appLiveRegion");
 
 goalForm?.addEventListener("submit", (event) => {
@@ -1464,7 +1471,16 @@ function savePlanBundleState(state) {
 
 const companionStateKey = "omwCompanionState";
 const companionEventKey = "omwCompanionEvents";
+const focusSessionKey = "omwFocusSession";
 let activeFocusTaskIndex = 0;
+let focusTimerInterval = null;
+let focusSession = {
+  taskKey: "",
+  status: "idle",
+  durationSeconds: 15 * 60,
+  remainingSeconds: 15 * 60,
+  endAt: null,
+};
 
 function getDefaultCompanionState() {
   return {
@@ -1585,6 +1601,28 @@ function pulseCompanion() {
   });
 }
 
+function showOllieStarShower(taskText = "오늘의 일정") {
+  if (!ollieStarShower) return;
+  ollieStarShower.replaceChildren();
+  ollieStarShower.setAttribute("aria-label", `${taskText} 완료. 올리의 별빛이 쏟아집니다.`);
+  const colors = ["#fff3a8", "#ffffff", "#cceee5", "#ded3f5", "#f7cad6"];
+  for (let index = 0; index < 34; index += 1) {
+    const star = document.createElement("span");
+    star.textContent = index % 4 === 0 ? "✦" : index % 3 === 0 ? "✧" : "•";
+    star.style.setProperty("--star-x", `${8 + Math.random() * 84}vw`);
+    star.style.setProperty("--star-delay", `${Math.random() * 0.45}s`);
+    star.style.setProperty("--star-duration", `${0.9 + Math.random() * 0.8}s`);
+    star.style.setProperty("--star-size", `${10 + Math.random() * 22}px`);
+    star.style.setProperty("--star-color", colors[index % colors.length]);
+    ollieStarShower.append(star);
+  }
+  ollieStarShower.classList.remove("show");
+  void ollieStarShower.offsetWidth;
+  ollieStarShower.classList.add("show");
+  announce(`${taskText} 완료! 올리의 별빛이 쏟아집니다.`);
+  window.setTimeout(() => ollieStarShower.classList.remove("show"), 2200);
+}
+
 function pulseBondCompanion(rewardText = "♥") {
   if (executionCompanion) {
     executionCompanion.classList.remove("is-petted");
@@ -1682,20 +1720,163 @@ function closeEnergyCharge() {
   setSheetOpen(energyChargeSheet, energyChargeOverlay, false);
 }
 
+function getSuggestedFocusMinutes(task) {
+  const match = String(task?.text || "").match(/(\d+)\s*분/);
+  return Math.max(1, Math.min(180, Number(match?.[1]) || 15));
+}
+
+function formatFocusTime(totalSeconds) {
+  const safeSeconds = Math.max(0, Math.ceil(totalSeconds || 0));
+  const minutes = Math.floor(safeSeconds / 60);
+  const seconds = safeSeconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function saveFocusSession() {
+  try {
+    localStorage.setItem(focusSessionKey, JSON.stringify(focusSession));
+  } catch (error) {
+    console.warn("Unable to save focus session", error);
+  }
+}
+
+function clearFocusTimerInterval() {
+  if (focusTimerInterval) window.clearInterval(focusTimerInterval);
+  focusTimerInterval = null;
+}
+
+function renderFocusTimer() {
+  if (focusSession.status === "running" && focusSession.endAt) {
+    focusSession.remainingSeconds = Math.max(0, Math.ceil((focusSession.endAt - Date.now()) / 1000));
+  }
+  if (focusTimer) focusTimer.textContent = formatFocusTime(focusSession.remainingSeconds);
+  if (focusMinutesInput && document.activeElement !== focusMinutesInput) {
+    focusMinutesInput.value = String(Math.max(1, Math.ceil(focusSession.remainingSeconds / 60)));
+  }
+  if (focusTimerStartButton) {
+    focusTimerStartButton.disabled = focusSession.status === "running";
+    focusTimerStartButton.textContent = focusSession.status === "paused" ? "계속하기" : focusSession.status === "finished" ? "다시 시작" : focusSession.status === "running" ? "집중하는 중" : "집중 시작";
+  }
+  if (focusTimerPauseButton) focusTimerPauseButton.disabled = focusSession.status !== "running";
+  if (focusModeKicker) {
+    focusModeKicker.textContent = focusSession.status === "running" ? "올리와 함께 집중하는 중" : focusSession.status === "paused" ? "잠시 멈췄어요" : focusSession.status === "finished" ? "집중 시간 완료" : "한 가지에 집중할 시간";
+  }
+  focusMode?.classList.toggle("is-running", focusSession.status === "running");
+  focusMode?.classList.toggle("is-paused", focusSession.status === "paused");
+  focusMode?.classList.toggle("is-finished", focusSession.status === "finished");
+  if (focusTimeupMessage) focusTimeupMessage.hidden = focusSession.status !== "finished";
+}
+
+function notifyFocusFinished() {
+  clearFocusTimerInterval();
+  focusSession.status = "finished";
+  focusSession.remainingSeconds = 0;
+  focusSession.endAt = null;
+  saveFocusSession();
+  renderFocusTimer();
+  showToast("집중 시간이 끝났어요 · 올리가 기다리고 있어요. 완료 여부를 알려주세요");
+  announce("집중 시간이 끝났습니다. 이 일정을 완료했는지 선택해 주세요.");
+  if ("Notification" in window && Notification.permission === "granted") {
+    new Notification("올리와의 집중 시간 완료", { body: "약속한 시간이 끝났어요. 앱에서 일정을 완료해 주세요." });
+  }
+  trackCompanionEvent("focus_timer_finished", { taskKey: focusSession.taskKey });
+}
+
+function tickFocusTimer() {
+  if (focusSession.status !== "running" || !focusSession.endAt) return;
+  focusSession.remainingSeconds = Math.max(0, Math.ceil((focusSession.endAt - Date.now()) / 1000));
+  if (focusSession.remainingSeconds <= 0) {
+    notifyFocusFinished();
+    return;
+  }
+  renderFocusTimer();
+}
+
+function startFocusTimer() {
+  if (focusSession.status === "finished" || focusSession.remainingSeconds <= 0) {
+    focusSession.remainingSeconds = focusSession.durationSeconds;
+  }
+  focusSession.status = "running";
+  focusSession.endAt = Date.now() + focusSession.remainingSeconds * 1000;
+  saveFocusSession();
+  clearFocusTimerInterval();
+  focusTimerInterval = window.setInterval(tickFocusTimer, 250);
+  renderFocusTimer();
+  if ("Notification" in window && Notification.permission === "default") {
+    try {
+      const permissionRequest = Notification.requestPermission();
+      permissionRequest?.catch?.(() => {});
+    } catch (error) {
+      console.warn("Unable to request focus notification permission", error);
+    }
+  }
+  trackCompanionEvent("focus_timer_started", { taskKey: focusSession.taskKey, seconds: focusSession.remainingSeconds });
+}
+
+function pauseFocusTimer() {
+  if (focusSession.status !== "running") return;
+  focusSession.remainingSeconds = Math.max(1, Math.ceil((focusSession.endAt - Date.now()) / 1000));
+  focusSession.status = "paused";
+  focusSession.endAt = null;
+  clearFocusTimerInterval();
+  saveFocusSession();
+  renderFocusTimer();
+  trackCompanionEvent("focus_timer_paused", { taskKey: focusSession.taskKey, seconds: focusSession.remainingSeconds });
+}
+
+function setFocusMinutes(minutes) {
+  const safeMinutes = Math.max(1, Math.min(180, Number(minutes) || 1));
+  focusSession.durationSeconds = safeMinutes * 60;
+  focusSession.remainingSeconds = safeMinutes * 60;
+  if (focusSession.status === "running") focusSession.endAt = Date.now() + focusSession.remainingSeconds * 1000;
+  if (focusSession.status === "finished") focusSession.status = "idle";
+  saveFocusSession();
+  renderFocusTimer();
+}
+
+function adjustFocusMinutes(delta) {
+  const currentMinutes = Math.max(1, Math.ceil(focusSession.remainingSeconds / 60));
+  setFocusMinutes(currentMinutes + delta);
+}
+
 function openFocusMode() {
   const bundle = getPlanBundle();
   const dayPlan = bundle.schedule[bundle.state.selectedDay - 1] || bundle.schedule[0];
   const checked = bundle.state.checkedByDay[String(dayPlan.day)] || [];
-  const nextIndex = Math.max(0, dayPlan.tasks.findIndex((_, index) => !checked[index]));
+  const nextIndex = dayPlan.tasks.findIndex((_, index) => !checked[index]);
   const taskIndex = nextIndex === -1 ? 0 : nextIndex;
   const task = dayPlan.tasks[taskIndex];
+  const taskKey = getTaskKey(dayPlan.day, taskIndex);
+  const suggestedMinutes = getSuggestedFocusMinutes(task);
 
   activeFocusTaskIndex = taskIndex;
-  if (focusModeTitle) focusModeTitle.textContent = task?.text || "오늘의 한 걸음";
-  if (focusCriteria) focusCriteria.textContent = `완료 기준: ${task?.time || "오늘"}에 5분만 해도 성공`;
-  if (focusTimer) focusTimer.textContent = "15:00";
+  if (focusModeTitle) focusModeTitle.textContent = task?.text || "지금 시작할 일정";
+  if (focusCriteria) focusCriteria.textContent = `${task?.time || "오늘"} 일정 · 시간은 언제든 조정할 수 있어요.`;
+
+  try {
+    const stored = safeJsonParse(localStorage.getItem(focusSessionKey), null);
+    if (stored?.taskKey === taskKey) focusSession = { ...focusSession, ...stored };
+  } catch (error) {
+    console.warn("Unable to restore focus session", error);
+  }
+
+  if (focusSession.taskKey !== taskKey) {
+    clearFocusTimerInterval();
+    focusSession = { taskKey, status: "idle", durationSeconds: suggestedMinutes * 60, remainingSeconds: suggestedMinutes * 60, endAt: null };
+    saveFocusSession();
+  }
+  if (focusSession.status === "running") {
+    const remaining = Math.ceil((Number(focusSession.endAt) - Date.now()) / 1000);
+    if (remaining <= 0) notifyFocusFinished();
+    else {
+      focusSession.remainingSeconds = remaining;
+      clearFocusTimerInterval();
+      focusTimerInterval = window.setInterval(tickFocusTimer, 250);
+    }
+  }
+  renderFocusTimer();
   setSheetOpen(focusMode, focusModeOverlay, true);
-  trackCompanionEvent("focus_started", { day: dayPlan.day, taskIndex });
+  trackCompanionEvent("focus_opened", { day: dayPlan.day, taskIndex });
 }
 
 function closeFocusMode() {
@@ -1739,9 +1920,17 @@ function completeFocusTask() {
   if (wasUnchecked) recordTaskCompletion(bundle.state, dayPlan, activeFocusTaskIndex);
   savePlanBundleState(bundle.state);
   if (wasUnchecked) addCompanionXp(10, "happy");
+  clearFocusTimerInterval();
+  try {
+    localStorage.removeItem(focusSessionKey);
+  } catch (error) {
+    console.warn("Unable to clear focus session", error);
+  }
+  focusSession = { taskKey: "", status: "idle", durationSeconds: 15 * 60, remainingSeconds: 15 * 60, endAt: null };
   closeFocusMode();
   pulseCompanion();
-  showToast(wasUnchecked ? "오늘의 한 걸음 완료 · 올리가 10 XP를 얻었어요" : "이미 완료된 한 걸음이에요");
+  if (wasUnchecked) showOllieStarShower(dayPlan.tasks[activeFocusTaskIndex]?.text);
+  showToast(wasUnchecked ? "일정 하나를 완료했어요 · 올리의 별빛과 10 XP를 받았어요" : "이미 완료된 일정이에요");
   trackCompanionEvent("focus_completed", { day: dayPlan.day, taskIndex: activeFocusTaskIndex, rewarded: wasUnchecked });
   renderExecutionPage(bundle);
 }
@@ -1755,14 +1944,23 @@ function renderFocusTask(dayPlan, selectedCompletion) {
   const taskIndex = nextIndex === -1 ? 0 : nextIndex;
   const task = dayPlan.tasks[taskIndex];
 
+  const suggestedMinutes = getSuggestedFocusMinutes(task);
   if (focusTaskTitle) focusTaskTitle.textContent = task?.text || "오늘 기록 돌아보기";
-  if (focusTaskMeta) focusTaskMeta.textContent = `${dayPlan.title.replace(/^Day \d+ · /, "")} · ${task?.time || "오늘"}`;
-  if (minimumGoalText) minimumGoalText.textContent = selectedCompletion.percent === 100 ? "오늘 계획을 모두 마쳤어요" : "최소 성공: 5분만 해도 완료";
+  if (focusTaskMeta) focusTaskMeta.textContent = selectedCompletion.percent === 100 ? "오늘 AI 스케줄을 모두 완료했어요" : `${task?.time || "오늘"} · 지금 시작하면 좋은 다음 일정`;
+  if (minimumGoalText) minimumGoalText.textContent = selectedCompletion.percent === 100 ? "오늘 일정 모두 완료" : `집중 시간 ${suggestedMinutes}분`;
   if (focusProgressText) focusProgressText.textContent = `${selectedCompletion.completed}/${selectedCompletion.total} 완료`;
   if (startFocusButton) {
     startFocusButton.dataset.taskIndex = String(taskIndex);
-    startFocusButton.textContent = selectedCompletion.percent === 100 ? "다시 보기" : "올리와 시작하기";
+    startFocusButton.textContent = selectedCompletion.percent === 100 ? "오늘 일정 다시 보기" : "이 일정 시작하기";
   }
+}
+
+function getTaskPeriod(time) {
+  const hour = Number(String(time || "").match(/\d{1,2}/)?.[0] || 12);
+  if (hour < 12) return { label: "아침", icon: "☀", theme: "morning" };
+  if (hour < 17) return { label: "오후", icon: "◉", theme: "afternoon" };
+  if (hour < 21) return { label: "저녁 루틴", icon: "☾", theme: "evening" };
+  return { label: "마무리", icon: "✦", theme: "night" };
 }
 
 function renderChecklist(dayPlan, state) {
@@ -1772,29 +1970,38 @@ function renderChecklist(dayPlan, state) {
   const checked = state.checkedByDay[String(dayPlan.day)] || [];
 
   dayPlan.tasks.forEach((task, index) => {
+    const period = getTaskPeriod(task.time);
     const label = document.createElement("label");
     const input = document.createElement("input");
     const content = document.createElement("span");
     const time = document.createElement("strong");
     const text = document.createElement("span");
+    const head = document.createElement("span");
+    const periodBadge = document.createElement("span");
+    const timelineNode = document.createElement("i");
 
-    label.className = "task-row";
+    label.className = `task-row task-${period.theme}`;
     input.className = "execution-check";
     input.type = "checkbox";
     input.dataset.taskIndex = String(index);
     input.checked = Boolean(checked[index]);
     label.classList.toggle("is-complete", input.checked);
     content.className = "task-content";
+    head.className = "task-row-head";
+    periodBadge.className = "task-period";
+    timelineNode.className = "task-timeline-node";
 
     time.textContent = task.time;
+    periodBadge.textContent = `${period.icon} ${period.label}`;
     text.textContent = task.text;
 
     const minimum = document.createElement("small");
     minimum.className = "minimum-action";
-    minimum.textContent = "최소 성공: 5분만 해도 완료";
+    minimum.textContent = `예상 ${getSuggestedFocusMinutes(task)}분`;
 
-    content.append(time, text, minimum);
-    label.append(input, content);
+    head.append(periodBadge);
+    content.append(head, text, minimum);
+    label.append(time, input, timelineNode, content);
     executionChecklist.append(label);
   });
 }
@@ -2428,7 +2635,7 @@ function renderExecutionPage(bundle) {
     executionProgressBar.style.width = `${overallProgress}%`;
     executionProgressBar.parentElement?.style.setProperty("--journey-dot", `${overallProgress}%`);
   }
-  if (selectedScheduleTitle) selectedScheduleTitle.textContent = `${selectedDay.day}일차 스케줄`;
+  if (selectedScheduleTitle) selectedScheduleTitle.textContent = `${selectedDay.day}일차 AI 스케줄`;
   if (selectedScheduleMeta) selectedScheduleMeta.textContent = `${selectedCompletion.percent}% 완료 · ${remainingTasks}개 남음`;
   if (monthlyCompletion) monthlyCompletion.textContent = `${monthProgress}%`;
   if (calendarSummary) calendarSummary.textContent = `첫 ${visibleMonth.length}일 중 ${monthCompletedDays}일을 완료했습니다`;
@@ -2487,6 +2694,19 @@ function initializeExecutionPage() {
   }
   if (savedTheme !== "buddy") savedTheme = "buddy";
   applyExecutionTheme(savedTheme);
+
+  try {
+    const storedFocus = safeJsonParse(localStorage.getItem(focusSessionKey), null);
+    if (storedFocus?.taskKey) {
+      focusSession = { ...focusSession, ...storedFocus };
+      if (focusSession.status === "running") {
+        if (Number(focusSession.endAt) <= Date.now()) window.setTimeout(notifyFocusFinished, 0);
+        else focusTimerInterval = window.setInterval(tickFocusTimer, 250);
+      }
+    }
+  } catch (error) {
+    console.warn("Unable to restore background focus timer", error);
+  }
 }
 
 executionChecklist?.addEventListener("change", (event) => {
@@ -2506,7 +2726,8 @@ executionChecklist?.addEventListener("change", (event) => {
     savePlanBundleState(bundle.state);
     addCompanionXp(10, "happy");
     pulseCompanion();
-    showToast("오늘의 한 걸음 완료 · 올리가 10 XP를 얻었어요");
+    showOllieStarShower(dayPlan.tasks[taskIndex]?.text);
+    showToast("일정 하나를 완료했어요 · 올리의 별빛과 10 XP를 받았어요");
     trackCompanionEvent("task_completed", { day: dayPlan.day, taskIndex });
   }
   renderExecutionPage(bundle);
@@ -2526,6 +2747,7 @@ completeTodayButton?.addEventListener("click", () => {
   if (newlyCompleted > 0) {
     addCompanionXp(newlyCompleted * 10 + 8, "happy");
     pulseCompanion();
+    showOllieStarShower("오늘의 AI 스케줄");
     showToast(`오늘 계획 완료 · 올리가 ${newlyCompleted * 10 + 8} XP를 얻었어요`);
     trackCompanionEvent("all_day_completed", { day: dayPlan.day, newlyCompleted });
   }
@@ -2738,11 +2960,11 @@ startFocusButton?.addEventListener("click", openFocusMode);
 focusModeOverlay?.addEventListener("click", closeFocusMode);
 closeFocusModeButton?.addEventListener("click", closeFocusMode);
 finishFocusButton?.addEventListener("click", completeFocusTask);
-minimizeFocusButton?.addEventListener("click", () => {
-  if (focusTimer) focusTimer.textContent = "05:00";
-  appendRevisionRequest("오늘은 이 행동을 5분짜리 최소 성공 기준으로 줄여줘.", "좋아요. 오늘은 5분만 해도 성공으로 제안할게요.");
-  trackCompanionEvent("minimum_focus_selected");
-});
+focusTimerStartButton?.addEventListener("click", startFocusTimer);
+focusTimerPauseButton?.addEventListener("click", pauseFocusTimer);
+decreaseFocusTime?.addEventListener("click", () => adjustFocusMinutes(-5));
+increaseFocusTime?.addEventListener("click", () => adjustFocusMinutes(5));
+focusMinutesInput?.addEventListener("change", () => setFocusMinutes(focusMinutesInput.value));
 
 difficultyButtons.forEach((button) => {
   button.addEventListener("click", () => {
