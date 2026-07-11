@@ -380,6 +380,15 @@ const journeyNextText = document.querySelector("#journeyNextText");
 const journeyNextBar = document.querySelector("#journeyNextBar");
 const memoryList = document.querySelector("#memoryList");
 const patternList = document.querySelector("#patternList");
+const memoryForm = document.querySelector("#memoryForm");
+const memoryCompletion = document.querySelector("#memoryCompletion");
+const memoryConversation = document.querySelector("#memoryConversation");
+const memoryMoodButtons = document.querySelectorAll("[data-memory-mood]");
+const memoryNote = document.querySelector("#memoryNote");
+const memoryObstacle = document.querySelector("#memoryObstacle");
+const memoryNextStep = document.querySelector("#memoryNextStep");
+const memorySaveHint = document.querySelector("#memorySaveHint");
+const memoryCount = document.querySelector("#memoryCount");
 const chatOverlay = document.querySelector("#chatOverlay");
 const companionChatSheet = document.querySelector("#companionChatSheet");
 const closeCompanionChatButton = document.querySelector("#closeCompanionChat");
@@ -1237,6 +1246,7 @@ function migrateExecutionState(rawState) {
         : {},
     recoveryActions: Array.isArray(state.recoveryActions) ? state.recoveryActions.slice(-30) : [],
     completedLog: Array.isArray(state.completedLog) ? state.completedLog.slice(-80) : [],
+    dailyMemories: Array.isArray(state.dailyMemories) ? state.dailyMemories.slice(-60) : [],
     lastCompletion: state.lastCompletion || null,
     lastSeenDate: state.lastSeenDate || todayKey,
     rolloverNotice: state.rolloverNotice || null,
@@ -1429,6 +1439,7 @@ function getPlanBundle({ reset = false, customText, revisionRequest } = {}) {
         difficultyByTask: previous.difficultyByTask || {},
         recoveryActions: previous.recoveryActions || [],
         completedLog: previous.completedLog || [],
+        dailyMemories: previous.dailyMemories || [],
         lastCompletion: previous.lastCompletion || null,
         lastSeenDate: previous.lastSeenDate || getTodayKey(),
         rolloverNotice: previous.rolloverNotice || null,
@@ -1531,7 +1542,7 @@ function addCompanionXp(amount, mood = "happy") {
 function trackCompanionEvent(type, detail = {}) {
   try {
     const events = JSON.parse(localStorage.getItem(companionEventKey)) || [];
-    events.push({ type, detail, createdAt: new Date().toISOString() });
+    events.push({ type, detail, dayKey: getTodayKey(), createdAt: new Date().toISOString() });
     localStorage.setItem(companionEventKey, JSON.stringify(events.slice(-80)));
   } catch (error) {
     console.warn("Unable to save companion event", error);
@@ -2015,21 +2026,140 @@ function renderJourneyMap(overallProgress) {
   if (journeyNextBar) journeyNextBar.style.width = `${segmentProgress}%`;
 }
 
-function renderMemoryCards({ selectedCompletion, completedDays, overallProgress }) {
+const memoryMoodMeta = {
+  light: { label: "가벼움", icon: "●" },
+  steady: { label: "보통", icon: "●" },
+  tired: { label: "지침", icon: "●" },
+};
+
+const memoryObstacleMeta = {
+  none: "특별한 방해 없음",
+  time: "시간 부족",
+  energy: "에너지 부족",
+  difficulty: "과제가 너무 큼",
+  focus: "집중이 흐트러짐",
+};
+
+function getLatestCompanionDialogue() {
+  const todayKey = getTodayKey();
+  const events = readCompanionEvents();
+  return [...events]
+    .reverse()
+    .find((event) => event.type === "companion_dialogue" && (event.dayKey || String(event.createdAt || "").slice(0, 10)) === todayKey);
+}
+
+function buildMemorySuggestion({ mood, obstacle, completion, nextStep }) {
+  if (nextStep) return `내일 첫 행동을 "${nextStep}"로 시작하도록 계획에 반영해줘.`;
+  if (obstacle === "time") return "내일 계획은 가능한 시간을 먼저 정하고, 핵심 행동 한 가지만 그 시간에 배치해줘.";
+  if (obstacle === "energy" || mood === "tired") return "내일 첫 행동은 5분짜리 최소 성공 기준으로 줄이고, 나머지는 선택 행동으로 바꿔줘.";
+  if (obstacle === "difficulty") return "내일 과제는 지금 크기의 절반 이하로 나누고, 완료 기준을 한 문장으로 선명하게 적어줘.";
+  if (obstacle === "focus") return "내일 계획은 한 번에 한 과제만 보이게 하고, 시작 알림과 10분 타이머를 연결해줘.";
+  if (completion >= 80) return "오늘 잘 된 시간과 실행 크기를 내일도 유지하고, 난이도는 올리지 말아줘.";
+  return "내일은 오늘보다 더 작은 첫 행동 하나만 먼저 보이도록 계획을 조정해줘.";
+}
+
+function formatMemoryDate(value) {
+  const date = new Date(value || Date.now());
+  return date.toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" });
+}
+
+function renderMemoryCards({ selectedCompletion }) {
   if (!memoryList) return;
   const state = getExecutionState();
-  const meolliees = [
-    completedDays > 0 ? `처음으로 ${completedDays}일의 실행 기록을 만들었어요.` : "오늘 첫 체크인을 준비하고 있어요.",
-    selectedCompletion.percent > 0 ? `오늘 계획의 ${selectedCompletion.percent}%를 진행했어요.` : "아직 시작 전이어도, 계획은 여기서 기다리고 있어요.",
-    overallProgress >= 50 ? "목표의 절반을 넘어선 순간을 올리가 기억해요." : "작은 실행이 쌓이면 다음 장소가 열려요.",
-  ];
+  const memories = [...(state.dailyMemories || [])].sort((a, b) => String(b.updatedAt || b.createdAt).localeCompare(String(a.updatedAt || a.createdAt)));
+  const todayId = `${getTodayKey()}-day${state.selectedDay}`;
+  const todayMemory = memories.find((item) => item.id === todayId);
+  const latestDialogue = getLatestCompanionDialogue();
+  const conversation = latestDialogue?.detail?.reply || companionMessage?.textContent || "아직 오늘 나눈 대화가 없어요.";
 
-  memoryList.innerHTML = "";
-  meolliees.forEach((memory) => {
-    const item = document.createElement("article");
-    item.textContent = memory;
-    memoryList.append(item);
-  });
+  if (memoryCompletion) memoryCompletion.textContent = `${selectedCompletion.percent}% 완료`;
+  if (memoryConversation) memoryConversation.textContent = conversation;
+  if (memoryCount) memoryCount.textContent = `${memories.length}장`;
+
+  const isEditingMemory = memoryForm?.contains(document.activeElement);
+  if (!isEditingMemory) {
+    const selectedMood = todayMemory?.mood || "steady";
+    memoryMoodButtons.forEach((button) => button.classList.toggle("selected", button.dataset.memoryMood === selectedMood));
+    if (memoryNote) memoryNote.value = todayMemory?.note || "";
+    if (memoryObstacle) memoryObstacle.value = todayMemory?.obstacle || "none";
+    if (memoryNextStep) memoryNextStep.value = todayMemory?.nextStep || "";
+  }
+
+  memoryList.replaceChildren();
+  if (!memories.length) {
+    const empty = document.createElement("article");
+    empty.className = "memory-empty-state";
+    const image = document.createElement("img");
+    image.src = "assets/ollie-comfort.png";
+    image.alt = "";
+    const copy = document.createElement("div");
+    const title = document.createElement("strong");
+    title.textContent = "첫 번째 하루를 남겨볼까요?";
+    const text = document.createElement("p");
+    text.textContent = "기분과 실행 기록을 남기면 올리가 내일 계획을 더 가볍게 맞춰드려요.";
+    copy.append(title, text);
+    empty.append(image, copy);
+    memoryList.append(empty);
+  } else {
+    memories.slice(0, 8).forEach((memory) => {
+      const mood = memoryMoodMeta[memory.mood] || memoryMoodMeta.steady;
+      const item = document.createElement("article");
+      item.className = `daily-memory-item mood-${memory.mood || "steady"}`;
+      item.dataset.mood = memory.mood || "steady";
+
+      const head = document.createElement("header");
+      head.className = "daily-memory-head";
+      const date = document.createElement("div");
+      date.className = "daily-memory-date";
+      const small = document.createElement("small");
+      small.textContent = `DAY ${memory.day || 1}`;
+      const dateStrong = document.createElement("strong");
+      dateStrong.textContent = formatMemoryDate(memory.updatedAt || memory.createdAt);
+      date.append(small, dateStrong);
+      const moodBadge = document.createElement("span");
+      moodBadge.className = "memory-mood-badge";
+      moodBadge.textContent = `${mood.icon} ${mood.label}`;
+      head.append(date, moodBadge);
+
+      const metrics = document.createElement("div");
+      metrics.className = "memory-metrics";
+      const completion = document.createElement("span");
+      completion.textContent = `실행 ${memory.completion || 0}%`;
+      const obstacle = document.createElement("span");
+      obstacle.textContent = memoryObstacleMeta[memory.obstacle] || memoryObstacleMeta.none;
+      metrics.append(completion, obstacle);
+
+      const note = document.createElement("p");
+      note.className = "memory-note";
+      note.textContent = memory.note || "한 줄 기록은 비워두었지만, 오늘의 실행과 기분은 저장했어요.";
+
+      const dialogue = document.createElement("div");
+      dialogue.className = "memory-dialogue";
+      const dialogueLabel = document.createElement("span");
+      dialogueLabel.textContent = "올리와의 대화";
+      const dialogueText = document.createElement("p");
+      dialogueText.textContent = memory.conversation || "오늘 올리가 건넨 응원을 함께 기억하고 있어요.";
+      dialogue.append(dialogueLabel, dialogueText);
+
+      const action = document.createElement("footer");
+      action.className = "daily-memory-footer";
+      const suggestion = document.createElement("div");
+      const suggestionLabel = document.createElement("small");
+      suggestionLabel.textContent = "내일을 위한 올리의 제안";
+      const suggestionText = document.createElement("strong");
+      suggestionText.textContent = memory.suggestion;
+      suggestion.append(suggestionLabel, suggestionText);
+      const applyButton = document.createElement("button");
+      applyButton.type = "button";
+      applyButton.className = "apply-memory-insight";
+      applyButton.dataset.memoryApply = memory.id;
+      applyButton.textContent = "내일 계획에 반영";
+      action.append(suggestion, applyButton);
+
+      item.append(head, metrics, note, dialogue, action);
+      memoryList.append(item);
+    });
+  }
 
   renderPatternCards(state);
   renderDifficultyPrompt(state);
@@ -2037,33 +2167,92 @@ function renderMemoryCards({ selectedCompletion, completedDays, overallProgress 
 
 function renderPatternCards(state) {
   if (!patternList) return;
+  const memories = state.dailyMemories || [];
   const completedLog = state.completedLog || [];
-  const difficultyValues = Object.values(state.difficultyByTask || {});
   const eveningCount = completedLog.filter((item) => Number(String(item.time).slice(0, 2)) >= 18).length;
-  const hardCount = difficultyValues.filter((value) => value === "hard").length;
-  const recoveryCount = (state.recoveryActions || []).length;
+  const averageCompletion = memories.length ? Math.round(memories.reduce((sum, item) => sum + Number(item.completion || 0), 0) / memories.length) : 0;
+  const tiredRecords = memories.filter((item) => item.mood === "tired");
+  const obstacleCounts = memories.reduce((counts, item) => {
+    if (item.obstacle && item.obstacle !== "none") counts[item.obstacle] = (counts[item.obstacle] || 0) + 1;
+    return counts;
+  }, {});
+  const commonObstacle = Object.entries(obstacleCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
+  const dialogueCount = memories.filter((item) => item.hasDialogue).length;
+
   const patterns = [
-    completedLog.length
-      ? `올리는 ${completedLog.length}개의 실행 기록을 기억하고 있어요.`
-      : "아직 패턴을 만들기 전이에요. 첫 완료가 기록의 시작입니다.",
-    eveningCount >= 2
-      ? "저녁 시간대 실행률이 높아요. 다음 변경안도 저녁 중심으로 제안할 수 있어요."
-      : "완료 시간이 쌓이면 가장 잘 맞는 시간대를 찾아드릴게요.",
-    hardCount
-      ? `${hardCount}개의 과제가 어렵다고 표시됐어요. 다음 계획은 더 작게 나누는 편이 좋아요.`
-      : "난이도 피드백을 남기면 올리가 다음 계획의 무게를 맞출 수 있어요.",
-    recoveryCount
-      ? `놓친 일정 ${recoveryCount}개를 회복 흐름으로 연결했어요.`
-      : "놓친 일정도 실패가 아니라 다음 선택지로 바꿀 수 있어요.",
+    { icon: "↗", title: "나의 실행 페이스", detail: memories.length ? `${memories.length}일 평균 실행률은 ${averageCompletion}%예요. 기록이 더 쌓이면 요일별 차이도 알려드릴게요.` : "첫 추억 카드를 저장하면 실행 페이스 분석이 시작돼요." },
+    { icon: "◌", title: "기분과 실행", detail: tiredRecords.length ? `지쳤다고 기록한 날이 ${tiredRecords.length}일 있어요. 그날의 실행률을 비교해 최소 행동 크기를 조정할 수 있어요.` : "기분을 기록하면 컨디션에 맞는 계획 강도를 찾을 수 있어요." },
+    { icon: "◇", title: "자주 막히는 지점", detail: commonObstacle ? `${memoryObstacleMeta[commonObstacle]}이 가장 자주 나타났어요. 다음 계획에서 이 지점을 먼저 줄여볼 수 있어요.` : eveningCount >= 2 ? "저녁 실행 기록이 많아요. 저녁 중심 루틴이 잘 맞을 가능성이 있어요." : "방해 요인을 기록하면 올리가 반복되는 막힘을 찾아드려요." },
+    { icon: "✦", title: "올리와의 대화 효과", detail: dialogueCount ? `올리와 대화한 기록이 ${dialogueCount}일 있어요. 대화한 날의 실행률 변화를 함께 살펴볼 수 있어요.` : "올리와 나눈 대화도 추억 카드에 담아 어떤 응원이 도움이 됐는지 찾아드려요." },
   ];
 
-  patternList.innerHTML = "";
+  patternList.replaceChildren();
   patterns.forEach((pattern) => {
     const item = document.createElement("article");
-    item.textContent = pattern;
+    const icon = document.createElement("span");
+    icon.textContent = pattern.icon;
+    const copy = document.createElement("div");
+    const title = document.createElement("strong");
+    title.textContent = pattern.title;
+    const detail = document.createElement("p");
+    detail.textContent = pattern.detail;
+    copy.append(title, detail);
+    item.append(icon, copy);
     patternList.append(item);
   });
 }
+
+memoryMoodButtons.forEach((button) => {
+  button.addEventListener("click", () => memoryMoodButtons.forEach((item) => item.classList.toggle("selected", item === button)));
+});
+
+memoryForm?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const bundle = getPlanBundle();
+  const selectedDay = bundle.schedule[bundle.state.selectedDay - 1] || bundle.schedule[0];
+  const completion = getDayCompletion(selectedDay, bundle.state.checkedByDay);
+  const mood = document.querySelector("[data-memory-mood].selected")?.dataset.memoryMood || "steady";
+  const obstacle = memoryObstacle?.value || "none";
+  const note = memoryNote?.value.trim() || "";
+  const nextStep = memoryNextStep?.value.trim() || "";
+  const latestDialogue = getLatestCompanionDialogue();
+  const conversation = latestDialogue?.detail?.reply || companionMessage?.textContent || "오늘 올리와 함께 계획을 확인했어요.";
+  const id = `${getTodayKey()}-day${bundle.state.selectedDay}`;
+  const existing = (bundle.state.dailyMemories || []).find((item) => item.id === id);
+  const memory = {
+    id,
+    day: bundle.state.selectedDay,
+    mood,
+    completion: completion.percent,
+    obstacle,
+    note,
+    nextStep,
+    conversation,
+    hasDialogue: Boolean(latestDialogue),
+    suggestion: buildMemorySuggestion({ mood, obstacle, completion: completion.percent, nextStep }),
+    createdAt: existing?.createdAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  bundle.state.dailyMemories = [...(bundle.state.dailyMemories || []).filter((item) => item.id !== id), memory].slice(-60);
+  savePlanBundleState(bundle.state);
+  trackCompanionEvent("daily_memory_saved", { day: memory.day, mood, completion: memory.completion, obstacle });
+  if (memorySaveHint) memorySaveHint.textContent = "저장했어요. 올리가 기록을 읽고 내일 계획 제안을 준비했어요.";
+  showToast("오늘의 추억 카드를 저장했어요 · 내일 계획에 반영할 제안도 만들었어요");
+  renderExecutionPage(getPlanBundle());
+});
+
+memoryList?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-memory-apply]");
+  if (!button) return;
+  const state = getExecutionState();
+  const memory = (state.dailyMemories || []).find((item) => item.id === button.dataset.memoryApply);
+  if (!memory?.suggestion) return;
+  appendRevisionRequest(memory.suggestion, "추억 카드에서 찾은 단서를 계획 수정 요청에 담았어요.");
+  trackCompanionEvent("memory_insight_applied", { memoryId: memory.id });
+  showToast("내일 계획에 반영할 준비가 됐어요 · 계획 탭에서 변경안을 확인해 주세요");
+  document.querySelector("#tab-plan")?.click();
+});
 
 function renderDifficultyPrompt(state) {
   if (!difficultyCard) return;
@@ -2531,6 +2720,10 @@ sendCompanionMessage?.addEventListener("click", async () => {
     const { reply, headline } = await requestCompanionReply(message);
     if (companionChatResponse) companionChatResponse.textContent = reply;
     showOllieReaction(reply, headline || "올리의 대답이에요.");
+    trackCompanionEvent("companion_dialogue", {
+      user: message.slice(0, 160),
+      reply: reply.slice(0, 240),
+    });
   } catch (error) {
     refundOllieEnergy(1);
     const fallback = "지금은 답을 만들지 못했어요. 방금 이야기는 계획 수정 요청에 담아뒀고, 에너지는 돌려드렸어요. 잠시 후 다시 말 걸어주세요.";

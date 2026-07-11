@@ -379,13 +379,46 @@
         <section class="execution-card memory-card" id="recordsPanel">
           <div class="card-title compact">
             <div>
-              <h2>추억 카드</h2>
-              <span>작은 실행도 사라지지 않고 기록됩니다</span>
+              <small class="memory-kicker">DAILY MEMORY WITH OLLIE</small>
+              <h2>올리와 쓰는 오늘의 기억</h2>
+              <span>오늘을 기록하면 내일 계획이 내 생활에 더 잘 맞아져요</span>
             </div>
-            <span class="soft-badge">기록</span>
+            <span class="soft-badge">기록 → 다음 계획</span>
+          </div>
+          <div class="memory-journal-grid">
+            <form class="memory-compose-card" id="memoryForm">
+              <div class="memory-auto-summary">
+                <div><span>오늘 실행</span><strong id="memoryCompletion">0% 완료</strong></div>
+                <div><span>올리의 오늘 한마디</span><p id="memoryConversation">아직 오늘 나눈 대화가 없어요.</p></div>
+              </div>
+              <fieldset class="memory-mood-picker">
+                <legend>오늘 기분은 어땠나요?</legend>
+                <button type="button" data-memory-mood="light"><span aria-hidden="true">●</span> 가벼움</button>
+                <button class="selected" type="button" data-memory-mood="steady"><span aria-hidden="true">●</span> 보통</button>
+                <button type="button" data-memory-mood="tired"><span aria-hidden="true">●</span> 지침</button>
+              </fieldset>
+              <label class="memory-field memory-note-field" for="memoryNote"><span>오늘의 한 줄</span><textarea id="memoryNote" rows="3" maxlength="240" placeholder="예: 시작은 무거웠지만 10분 하고 나니 생각보다 괜찮았다."></textarea></label>
+              <div class="memory-input-grid">
+                <label class="memory-field" for="memoryObstacle"><span>오늘 가장 방해된 것</span><select id="memoryObstacle"><option value="none">특별히 없었어요</option><option value="time">시간이 부족했어요</option><option value="energy">에너지가 부족했어요</option><option value="difficulty">과제가 너무 컸어요</option><option value="focus">집중이 흐트러졌어요</option></select></label>
+                <label class="memory-field" for="memoryNextStep"><span>내일의 가장 작은 행동</span><input id="memoryNextStep" type="text" maxlength="120" placeholder="예: 단어 앱 5분 열기" /></label>
+              </div>
+              <button class="save-memory-button" type="submit"><span>오늘의 추억 카드 저장하기</span><b aria-hidden="true">→</b></button>
+              <p class="memory-save-hint" id="memorySaveHint">실행률과 올리의 대화는 자동으로 함께 저장돼요.</p>
+            </form>
+            <aside class="memory-ollie-guide">
+              <img src="assets/ollie-thinking.png" alt="오늘의 기록을 함께 정리하는 올리" />
+              <div><span>올리는 이렇게 도와줘요</span><strong>기록을 다음 행동으로 바꿔요</strong><p>기분과 방해 요인을 비교해 내일의 시간, 난이도와 최소 행동을 제안해요.</p></div>
+            </aside>
+          </div>
+          <div class="memory-list-head">
+            <div><h3>차곡차곡 쌓인 기억</h3><p>최근 기록부터 보여드려요</p></div>
+            <span id="memoryCount">0장</span>
           </div>
           <div class="memory-list" id="memoryList"></div>
-          <div class="pattern-list" id="patternList" aria-label="올리가 발견한 패턴"></div>
+          <div class="memory-pattern-panel">
+            <div class="memory-pattern-head"><span>OLLIE'S INSIGHT</span><h3>올리가 발견한 성공 단서</h3><p>기록이 쌓일수록 계획을 더 정확하게 조정할 수 있어요.</p></div>
+            <div class="pattern-list" id="patternList" aria-label="올리가 발견한 패턴"></div>
+          </div>
         </section>
       </div>
     </main>
