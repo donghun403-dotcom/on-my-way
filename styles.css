@@ -5652,3 +5652,130 @@ body.sheet-open {
 .home-page .problem-core p {
   color: #ffffff;
 }
+
+/* ============================================================
+   Tabbed app shell — split the long execution scroll into
+   focused views (오늘 / 계획 / 모리 / 기록) with a labeled tab bar.
+   ============================================================ */
+.execution-page .app-view {
+  display: none;
+}
+
+.execution-page .app-view.is-active {
+  display: grid;
+  gap: 10px;
+  animation: viewFade 0.28s ease;
+}
+
+@keyframes viewFade {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .execution-page .app-view.is-active {
+    animation: none;
+  }
+}
+
+/* Per-view heading shown at the top of secondary tabs */
+.execution-page .view-head {
+  padding: 6px 6px 2px;
+}
+
+.execution-page .view-head h1 {
+  margin: 0;
+  color: var(--soft-text);
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.execution-page .view-head p {
+  margin: 6px 0 0;
+  color: var(--soft-muted);
+  font-size: var(--font-caption);
+  line-height: 1.55;
+}
+
+/* Inline link from the Today checklist over to the Plan tab */
+.execution-page .view-jump-link {
+  justify-self: start;
+  margin-top: 2px;
+  padding: 8px 14px;
+  color: var(--soft-primary-dark);
+  background: var(--soft-primary-soft);
+  border: 1px solid var(--soft-border);
+  border-radius: 12px;
+  font-size: var(--font-caption);
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.18s ease, transform 0.18s ease;
+}
+
+.execution-page .view-jump-link:hover {
+  background: rgba(107, 122, 166, 0.16);
+  transform: translateX(2px);
+}
+
+/* Labeled tab bar (icon + Korean label) replacing the icon-only dots */
+.execution-page .execution-tabbar {
+  display: flex;
+  gap: 4px;
+  width: min(calc(100% - 24px), 420px);
+  padding: 6px;
+  justify-content: space-between;
+}
+
+.execution-page .execution-tabbar .tab {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 2px;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 6px 4px;
+  color: var(--soft-faint);
+  background: transparent;
+  border: none;
+  border-radius: 14px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: color 0.18s ease, background 0.18s ease;
+}
+
+.execution-page .execution-tabbar .tab-icon {
+  font-size: 17px;
+  line-height: 1;
+}
+
+.execution-page .execution-tabbar .tab-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.execution-page .execution-tabbar .tab:hover {
+  color: var(--soft-muted);
+}
+
+.execution-page .execution-tabbar .tab.active {
+  color: var(--soft-primary-dark);
+  background: rgba(107, 122, 166, 0.12);
+}
+
+.execution-page .execution-tabbar .tab.active .tab-icon {
+  transform: translateY(-1px);
+}
+
+.execution-page .execution-tabbar .tab:focus-visible {
+  outline: 2px solid var(--soft-primary);
+  outline-offset: 2px;
+}
