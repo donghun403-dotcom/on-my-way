@@ -942,7 +942,7 @@ async function requestCompanionReply(message) {
     if (!response.ok) throw new Error(result.error || "올리가 답을 만들지 못했어요.");
     const reply = String(result.reply || "").trim();
     if (!reply) throw new Error("올리가 답을 만들지 못했어요.");
-    return reply;
+    return { reply, headline: String(result.headline || "").trim() };
   } catch (error) {
     if (error.name === "AbortError") throw new Error("올리의 답이 늦어지고 있어요. 잠시 후 다시 말 걸어주세요.");
     throw error;
@@ -1551,8 +1551,9 @@ function pulseCompanion() {
   });
 }
 
-function showOllieReaction(message) {
+function showOllieReaction(message, headline) {
   if (message && companionMessage) companionMessage.textContent = message;
+  if (headline && companionMoodLine) companionMoodLine.textContent = headline;
   closeCompanionChat();
   const speech = document.querySelector("#companionHome .companion-speech");
   window.setTimeout(() => {
@@ -2371,15 +2372,15 @@ energyButtons.forEach((button) => {
     const energy = button.dataset.energy;
     const state = getCompanionState();
     const copy = {
-      good: "좋아요. 지금 흐름이면 첫 번째 행동부터 바로 시작해도 괜찮겠어요.",
-      normal: "보통인 날은 기준을 작게 잡으면 오래 갑니다.",
-      tired: "지친 날은 하나만 남기고 나머지는 내일로 보내는 제안을 만들 수 있어요.",
+      good: { headline: "좋은 흐름이에요!", message: "좋아요. 지금 흐름이면 첫 번째 행동부터 바로 시작해도 괜찮겠어요." },
+      normal: { headline: "무리하지 않아도 괜찮아요.", message: "보통인 날은 기준을 작게 잡으면 오래 갑니다." },
+      tired: { headline: "지친 날은 줄이는 것도 실행이에요.", message: "지친 날은 하나만 남기고 나머지는 내일로 보내는 제안을 만들 수 있어요." },
     }[energy];
 
     saveCompanionState({ ...state, energy, mood: energy === "tired" ? "caring" : "ready" });
     energyButtons.forEach((item) => item.classList.toggle("active", item === button));
-    if (companionChatResponse) companionChatResponse.textContent = copy;
-    showOllieReaction(copy);
+    if (companionChatResponse) companionChatResponse.textContent = copy.message;
+    showOllieReaction(copy.message, copy.headline);
     addCompanionXp(2, "ready");
     trackCompanionEvent("chat_energy_selected", { energy });
   });
@@ -2400,7 +2401,7 @@ chatActionButtons.forEach((button) => {
       const line = encouragementLines[Math.floor(Math.random() * encouragementLines.length)];
       if (companionChatResponse) companionChatResponse.textContent = line;
       addCompanionXp(2, "happy");
-      showOllieReaction(line);
+      showOllieReaction(line, "올리의 응원이에요!");
       trackCompanionEvent("quick_adjustment_selected", { action });
       return;
     }
@@ -2408,21 +2409,24 @@ chatActionButtons.forEach((button) => {
     const preset = {
       shorten: {
         request: "오늘 할 일을 5~10분 단위의 더 짧은 행동으로 나눠줘.",
+        headline: "더 작게, 더 가볍게 가요.",
         response: "좋아요, 오늘 할 일을 5~10분짜리 작은 조각으로 나누는 제안을 준비할게요. 부담부터 줄여봐요.",
       },
       "move-evening": {
         request: "오늘 실행 시간을 저녁으로 옮기고, 늦은 시간에도 부담 없는 순서로 다시 짜줘.",
+        headline: "저녁형으로 바꿔볼게요.",
         response: "알겠어요, 오늘 일정은 저녁 시간대로 옮기는 제안을 만들게요. 늦게 시작해도 전혀 늦지 않아요.",
       },
       "one-task": {
         request: "오늘은 가장 중요한 한 가지 과제만 남기고 나머지는 내일 이후로 옮기는 제안을 해줘.",
+        headline: "오늘은 딱 하나만 해요.",
         response: "오늘은 가장 중요한 하나만 남기는 제안을 준비할게요. 하나를 끝내는 게 열 개를 계획하는 것보다 힘이 세요.",
       },
     }[action];
 
     if (!preset) return;
     appendRevisionRequest(preset.request, preset.response);
-    showOllieReaction();
+    showOllieReaction(undefined, preset.headline);
     trackCompanionEvent("quick_adjustment_selected", { action });
   });
 });
@@ -2439,20 +2443,20 @@ sendCompanionMessage?.addEventListener("click", async () => {
 
   appendRevisionRequest(`사용자 추가 요청: ${message}`, "올리가 답을 생각하고 있어요…");
   companionChatInput.value = "";
-  showOllieReaction();
+  showOllieReaction(undefined, "음, 잠깐만요…");
   addCompanionXp(3, "thinking");
   trackCompanionEvent("custom_revision_requested", { length: message.length });
 
   sendCompanionMessage.disabled = true;
   try {
-    const reply = await requestCompanionReply(message);
+    const { reply, headline } = await requestCompanionReply(message);
     if (companionChatResponse) companionChatResponse.textContent = reply;
-    showOllieReaction(reply);
+    showOllieReaction(reply, headline || "올리의 대답이에요.");
   } catch (error) {
     refundOllieEnergy(1);
     const fallback = "지금은 답을 만들지 못했어요. 방금 이야기는 계획 수정 요청에 담아뒀고, 에너지는 돌려드렸어요. 잠시 후 다시 말 걸어주세요.";
     if (companionChatResponse) companionChatResponse.textContent = fallback;
-    showOllieReaction(fallback);
+    showOllieReaction(fallback, "잠시 생각을 고르고 있어요.");
   } finally {
     sendCompanionMessage.disabled = false;
   }
