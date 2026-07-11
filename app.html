@@ -44,8 +44,89 @@
           <button class="energy-charge-button" id="openEnergyCharge" type="button" aria-label="올리 에너지 충전">＋<em>충전</em></button>
         </div>
         <a class="ghost-link" href="index.html#designFlow">설계 수정</a>
+        <button class="menu-toggle" id="menuToggle" type="button" aria-label="메뉴 열기" aria-expanded="false" aria-controls="appMenuDrawer">
+          <span></span><span></span><span></span>
+        </button>
       </div>
     </header>
+
+    <div class="app-menu-backdrop" id="appMenuBackdrop" hidden></div>
+    <aside class="app-menu-drawer" id="appMenuDrawer" aria-label="계정 메뉴" hidden>
+      <div class="drawer-account" id="drawerAccount">
+        <div class="drawer-guest" id="drawerGuest">
+          <img src="assets/ollie-comfort.png" alt="" />
+          <div>
+            <strong>아직 로그인 전이에요</strong>
+            <p>로그인하면 계획과 기록이 계정에 안전하게 이어져요.</p>
+          </div>
+          <button class="drawer-login-button" id="drawerLoginButton" type="button">간편 로그인 · 회원가입</button>
+        </div>
+        <div class="drawer-member" id="drawerMember" hidden>
+          <span class="drawer-avatar" id="drawerAvatar" aria-hidden="true">🙂</span>
+          <div>
+            <strong id="drawerName">회원</strong>
+            <span class="drawer-plan-badge" id="drawerPlanBadge">체험 중</span>
+          </div>
+        </div>
+      </div>
+      <nav class="drawer-nav" aria-label="계정 이동">
+        <button type="button" id="drawerMyPage" data-requires-auth hidden>👤 마이페이지</button>
+        <button type="button" id="drawerUpgrade" hidden>⭐ PRO 시작하기 · 월 2,900원</button>
+        <a href="index.html">🏠 홈으로</a>
+        <a href="index.html#designFlow">🛠 목표 설계 수정</a>
+        <a href="admin.html" id="drawerAdminLink" hidden>🔐 관리자 대시보드</a>
+        <button type="button" id="drawerLogout" data-requires-auth hidden>👋 로그아웃</button>
+      </nav>
+      <p class="drawer-footnote">On My Way · 작은 시작이 오래 이어지도록</p>
+    </aside>
+
+    <div class="sheet-overlay" id="accountSheetOverlay" hidden></div>
+    <aside class="companion-chat-sheet account-sheet" id="authSheet" role="dialog" aria-modal="true" aria-labelledby="authSheetTitle" tabindex="-1" hidden>
+      <header>
+        <div><span>3초 만에 시작</span><h2 id="authSheetTitle">간편하게 로그인하세요</h2></div>
+        <button type="button" id="closeAuthSheet" aria-label="로그인 닫기">×</button>
+      </header>
+      <p class="auth-sheet-copy">따로 아이디와 비밀번호를 만들 필요 없어요. 쓰던 계정으로 로그인하면 바로 회원가입까지 끝나요.</p>
+      <div class="auth-provider-list">
+        <button class="auth-provider kakao" type="button" data-auth-provider="kakao"><i>💬</i>카카오로 계속하기</button>
+        <button class="auth-provider naver" type="button" data-auth-provider="naver"><i>N</i>네이버로 계속하기</button>
+        <button class="auth-provider google" type="button" data-auth-provider="google"><i>G</i>구글로 계속하기</button>
+      </div>
+      <p class="auth-sheet-terms">로그인하면 서비스 이용약관과 개인정보 처리방침에 동의하게 됩니다.<br />1일 무료 체험은 로그인 없이도 이용할 수 있어요.</p>
+    </aside>
+
+    <aside class="companion-chat-sheet account-sheet" id="myPageSheet" role="dialog" aria-modal="true" aria-labelledby="myPageTitle" tabindex="-1" hidden>
+      <header>
+        <div><span>MY PAGE</span><h2 id="myPageTitle">마이페이지</h2></div>
+        <button type="button" id="closeMyPageSheet" aria-label="마이페이지 닫기">×</button>
+      </header>
+      <div class="mypage-profile">
+        <span class="drawer-avatar" id="myPageAvatar" aria-hidden="true">🙂</span>
+        <div>
+          <strong id="myPageName">회원</strong>
+          <small id="myPageEmail"></small>
+          <span class="mypage-provider" id="myPageProvider">카카오 계정</span>
+        </div>
+      </div>
+      <div class="mypage-plan-card" id="myPagePlanCard">
+        <div>
+          <span>현재 이용권</span>
+          <strong id="myPagePlanTitle">1일 무료 체험</strong>
+          <p id="myPagePlanMeta">체험 종료까지 23시간 59분</p>
+        </div>
+        <button type="button" id="myPageSubscribe">PRO 시작하기<em>월 2,900원</em></button>
+      </div>
+      <ul class="mypage-benefit-list" id="myPageBenefits">
+        <li>목표와 일정 무제한 생성</li>
+        <li>매월 올리 에너지 300</li>
+        <li>계획과 다이어리 기록 유지</li>
+      </ul>
+      <div class="mypage-actions">
+        <button type="button" id="myPageCancelPro" hidden>구독 해지</button>
+        <button type="button" id="myPageLogout">로그아웃</button>
+      </div>
+      <p class="auth-sheet-terms" id="myPagePaymentNote">결제는 데모로 처리돼요. 실제 PG(결제) 연동 전까지 카드 정보는 받지 않습니다.</p>
+    </aside>
 
     <div class="ollie-energy-warning" id="ollieEnergyWarning" role="status" aria-live="polite" hidden>
       <span aria-hidden="true">●</span>
@@ -570,6 +651,7 @@
       </div>
     </section>
 
+    <script src="https://js.tosspayments.com/v2/standard"></script>
     <script src="script.js"></script>
     <script>
       // View switching for the tabbed app shell.

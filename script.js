@@ -227,6 +227,10 @@ function updateTrialStatus(expiresAt) {
 function initializeTrialAccess() {
   if (!document.body.classList.contains("execution-page")) return;
   const access = readTrialAccess();
+  if (access?.plan === "pro") {
+    if (trialStatusBanner) trialStatusBanner.hidden = true;
+    return;
+  }
   if (!access?.expiresAt) {
     lockTrialExperience("not-started");
     return;
@@ -252,7 +256,314 @@ trialPhoneInput?.addEventListener("input", () => {
   }
 });
 
-initializeTrialAccess();
+// ===== 회원 · 인증 =====
+const authUiState = { user: null, loaded: false };
+const menuToggle = document.querySelector("#menuToggle");
+const appMenuDrawer = document.querySelector("#appMenuDrawer");
+const appMenuBackdrop = document.querySelector("#appMenuBackdrop");
+const drawerGuest = document.querySelector("#drawerGuest");
+const drawerMember = document.querySelector("#drawerMember");
+const drawerAvatar = document.querySelector("#drawerAvatar");
+const drawerName = document.querySelector("#drawerName");
+const drawerPlanBadge = document.querySelector("#drawerPlanBadge");
+const drawerLoginButton = document.querySelector("#drawerLoginButton");
+const drawerMyPage = document.querySelector("#drawerMyPage");
+const drawerUpgrade = document.querySelector("#drawerUpgrade");
+const drawerAdminLink = document.querySelector("#drawerAdminLink");
+const drawerLogout = document.querySelector("#drawerLogout");
+const authSheet = document.querySelector("#authSheet");
+const accountSheetOverlay = document.querySelector("#accountSheetOverlay");
+const closeAuthSheetButton = document.querySelector("#closeAuthSheet");
+const authProviderButtons = document.querySelectorAll("[data-auth-provider]");
+const myPageSheet = document.querySelector("#myPageSheet");
+const closeMyPageSheetButton = document.querySelector("#closeMyPageSheet");
+const myPageAvatar = document.querySelector("#myPageAvatar");
+const myPageName = document.querySelector("#myPageName");
+const myPageEmail = document.querySelector("#myPageEmail");
+const myPageProvider = document.querySelector("#myPageProvider");
+const myPagePlanTitle = document.querySelector("#myPagePlanTitle");
+const myPagePlanMeta = document.querySelector("#myPagePlanMeta");
+const myPageSubscribeButton = document.querySelector("#myPageSubscribe");
+const myPageCancelProButton = document.querySelector("#myPageCancelPro");
+const myPageLogoutButton = document.querySelector("#myPageLogout");
+const navLoginLink = document.querySelector("#navLoginLink");
+
+const AUTH_PROVIDER_LABELS = { kakao: "카카오 계정", naver: "네이버 계정", google: "구글 계정", password: "운영자 계정" };
+
+async function accountRequest(url, options = {}) {
+  const response = await fetch(url, {
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    credentials: "same-origin",
+    ...options,
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || "요청을 처리하지 못했어요.");
+  return data;
+}
+
+function syncServerPlanToLocal() {
+  const user = authUiState.user;
+  if (!user || !document.body.classList.contains("execution-page")) return;
+
+  if (user.plan === "pro") {
+    try {
+      localStorage.setItem(
+        TRIAL_ACCESS_KEY,
+        JSON.stringify({ startedAt: user.proSince || Date.now(), expiresAt: Date.now() + 3650 * 24 * 60 * 60 * 1000, plan: "pro" }),
+      );
+    } catch (error) {
+      console.warn("Unable to sync PRO plan", error);
+    }
+    return;
+  }
+
+  const local = readTrialAccess();
+  if (user.trialExpiresAt && (!local || local.plan === "pro" || Number(user.trialExpiresAt) > Number(local.expiresAt || 0))) {
+    try {
+      localStorage.setItem(
+        TRIAL_ACCESS_KEY,
+        JSON.stringify({ startedAt: user.trialStartedAt || Date.now(), expiresAt: Number(user.trialExpiresAt), plan: "trial" }),
+      );
+    } catch (error) {
+      console.warn("Unable to sync trial plan", error);
+    }
+  }
+}
+
+function accountInitial(user) {
+  return String(user?.name || "🙂").trim().slice(0, 1) || "🙂";
+}
+
+function formatAccountDate(value) {
+  if (!value) return "-";
+  return new Date(Number(value)).toLocaleDateString("ko-KR", { year: "numeric", month: "short", day: "numeric" });
+}
+
+function renderMyPageSheet() {
+  const user = authUiState.user;
+  if (!myPageSheet || !user) return;
+
+  if (myPageAvatar) myPageAvatar.textContent = accountInitial(user);
+  if (myPageName) myPageName.textContent = user.name;
+  if (myPageEmail) myPageEmail.textContent = user.email || "이메일 미등록";
+  if (myPageProvider) myPageProvider.textContent = AUTH_PROVIDER_LABELS[user.provider] || "소셜 계정";
+
+  const isPro = user.plan === "pro";
+  if (myPagePlanTitle) myPagePlanTitle.textContent = isPro ? "PRO 구독 중" : "1일 무료 체험";
+  if (myPagePlanMeta) {
+    if (isPro) {
+      myPagePlanMeta.textContent = `${formatAccountDate(user.proSince)}부터 이용 중 · 월 2,900원`;
+    } else {
+      const remaining = Math.max(0, Number(user.trialExpiresAt || 0) - Date.now());
+      const hours = Math.floor(remaining / 3600000);
+      const minutes = Math.floor((remaining % 3600000) / 60000);
+      myPagePlanMeta.textContent = remaining > 0 ? `체험 종료까지 ${hours}시간 ${minutes}분` : "체험이 종료되었어요. PRO로 이어가 보세요.";
+    }
+  }
+  if (myPageSubscribeButton) myPageSubscribeButton.hidden = isPro;
+  if (myPageCancelProButton) myPageCancelProButton.hidden = !isPro;
+}
+
+function renderAccountUi() {
+  const user = authUiState.user;
+
+  if (drawerGuest) drawerGuest.hidden = Boolean(user);
+  if (drawerMember) drawerMember.hidden = !user;
+  if (user) {
+    if (drawerAvatar) drawerAvatar.textContent = accountInitial(user);
+    if (drawerName) drawerName.textContent = user.name;
+    if (drawerPlanBadge) {
+      drawerPlanBadge.textContent = user.plan === "pro" ? "PRO 이용 중" : "무료 체험 중";
+      drawerPlanBadge.classList.toggle("pro", user.plan === "pro");
+    }
+  }
+  if (drawerMyPage) drawerMyPage.hidden = !user;
+  if (drawerLogout) drawerLogout.hidden = !user;
+  if (drawerUpgrade) drawerUpgrade.hidden = !user || user.plan === "pro";
+  if (drawerAdminLink) drawerAdminLink.hidden = user?.role !== "admin";
+
+  if (navLoginLink) {
+    if (user) {
+      navLoginLink.textContent = `${user.name}님`;
+      navLoginLink.href = "app.html?auth=my";
+    } else {
+      navLoginLink.textContent = "로그인";
+      navLoginLink.href = "app.html?auth=login";
+    }
+  }
+
+  renderMyPageSheet();
+}
+
+function setDrawerOpen(open) {
+  if (!appMenuDrawer || !menuToggle) return;
+  appMenuDrawer.hidden = !open;
+  if (appMenuBackdrop) appMenuBackdrop.hidden = !open;
+  menuToggle.setAttribute("aria-expanded", open ? "true" : "false");
+  menuToggle.classList.toggle("open", open);
+}
+
+function openAuthSheet() {
+  setDrawerOpen(false);
+  setSheetOpen(authSheet, accountSheetOverlay, true);
+}
+
+function openMyPageSheet() {
+  setDrawerOpen(false);
+  renderMyPageSheet();
+  setSheetOpen(myPageSheet, accountSheetOverlay, true);
+}
+
+function authRedirectTarget() {
+  const params = new URLSearchParams(location.search);
+  if (params.get("redirect") === "admin") return "/admin.html";
+  return location.pathname || "/app.html";
+}
+
+async function startSubscription() {
+  if (!authUiState.user) {
+    openAuthSheet();
+    return;
+  }
+  try {
+    const config = await accountRequest("/api/billing/config");
+    if (config.configured) {
+      if (typeof window.TossPayments !== "function") throw new Error("결제 모듈을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
+      const tossPayments = window.TossPayments(config.clientKey);
+      const payment = tossPayments.payment({ customerKey: config.customerKey });
+      await payment.requestBillingAuth({
+        method: "CARD",
+        successUrl: `${location.origin}/app.html?billing=success`,
+        failUrl: `${location.origin}/app.html?billing=fail`,
+        customerEmail: authUiState.user.email || undefined,
+        customerName: authUiState.user.name || undefined,
+      });
+      return;
+    }
+    if (!config.demo) throw new Error("자동결제 계약과 결제 키 설정이 아직 필요합니다.");
+    const confirmed = window.confirm("로컬 개발용 데모 결제로 PRO를 시작할까요? 실제 결제는 발생하지 않습니다.");
+    if (!confirmed) return;
+    const data = await accountRequest("/api/billing/subscribe", { method: "POST", body: "{}" });
+    authUiState.user = data.user;
+    syncServerPlanToLocal();
+    showToast("개발용 PRO 구독이 시작되었어요.");
+    window.setTimeout(() => location.reload(), 700);
+  } catch (error) {
+    showToast(error.message);
+  }
+}
+
+async function cancelProSubscription() {
+  const confirmed = window.confirm("PRO 구독을 해지할까요? 이미 결제한 이용 기간이 끝날 때까지 PRO를 이용할 수 있어요.");
+  if (!confirmed) return;
+  try {
+    const data = await accountRequest("/api/billing/cancel", { method: "POST", body: "{}" });
+    authUiState.user = data.user;
+    syncServerPlanToLocal();
+    showToast(data.user.plan === "pro" ? "해지 예약이 완료됐어요. 현재 이용 기간까지 PRO가 유지됩니다." : "구독이 해지되었어요.");
+    window.setTimeout(() => location.reload(), 900);
+  } catch (error) {
+    showToast(error.message);
+  }
+}
+
+async function logoutAccount() {
+  try {
+    await accountRequest("/api/auth/logout", { method: "POST", body: "{}" });
+  } catch {}
+  if (authUiState.user?.plan === "pro") {
+    try {
+      localStorage.removeItem(TRIAL_ACCESS_KEY);
+    } catch {}
+  }
+  location.href = location.pathname;
+}
+
+function handleAuthQueryParams() {
+  const params = new URLSearchParams(location.search);
+  const authParam = params.get("auth");
+  if (!authParam) return;
+
+  if (authParam === "success") showToast("로그인되었어요 · 올리가 기억할게요!");
+  if (authParam === "error") showToast("로그인에 실패했어요. 다시 시도해 주세요.");
+  if (params.get("admin") === "denied") showToast("관리자 권한이 있는 계정만 접근할 수 있어요.");
+  if (authParam === "login" && !authUiState.user) openAuthSheet();
+  if (authParam === "my" || (authParam === "login" && authUiState.user)) {
+    if (authUiState.user) openMyPageSheet();
+  }
+
+  params.delete("auth");
+  params.delete("admin");
+  const query = params.toString();
+  window.history.replaceState(null, "", `${location.pathname}${query ? `?${query}` : ""}`);
+}
+
+async function handleBillingQueryParams() {
+  const params = new URLSearchParams(location.search);
+  const billing = params.get("billing");
+  if (!billing) return;
+  try {
+    if (billing === "success") {
+      const data = await accountRequest("/api/billing/activate", {
+        method: "POST",
+        body: JSON.stringify({ authKey: params.get("authKey"), customerKey: params.get("customerKey") }),
+      });
+      authUiState.user = data.user;
+      syncServerPlanToLocal();
+      renderAccountUi();
+      showToast(data.alreadyActive ? "이미 PRO 구독을 이용 중이에요." : "PRO 월정액이 시작되었어요!");
+    } else {
+      showToast(params.get("message") || "결제가 취소되었어요. 다시 시도할 수 있어요.");
+    }
+  } catch (error) {
+    showToast(error.message);
+  } finally {
+    ["billing", "authKey", "customerKey", "code", "message"].forEach((key) => params.delete(key));
+    const query = params.toString();
+    window.history.replaceState(null, "", `${location.pathname}${query ? `?${query}` : ""}`);
+  }
+}
+
+async function initAccountExperience() {
+  try {
+    const data = await accountRequest("/api/auth/me");
+    authUiState.user = data.user || null;
+  } catch {
+    authUiState.user = null;
+  }
+  authUiState.loaded = true;
+
+  syncServerPlanToLocal();
+  renderAccountUi();
+  initializeTrialAccess();
+  initializeAdminGate();
+  await handleBillingQueryParams();
+  handleAuthQueryParams();
+}
+
+menuToggle?.addEventListener("click", () => setDrawerOpen(appMenuDrawer?.hidden !== false));
+appMenuBackdrop?.addEventListener("click", () => setDrawerOpen(false));
+drawerLoginButton?.addEventListener("click", openAuthSheet);
+drawerMyPage?.addEventListener("click", openMyPageSheet);
+drawerUpgrade?.addEventListener("click", startSubscription);
+drawerLogout?.addEventListener("click", logoutAccount);
+closeAuthSheetButton?.addEventListener("click", () => setSheetOpen(authSheet, accountSheetOverlay, false));
+closeMyPageSheetButton?.addEventListener("click", () => setSheetOpen(myPageSheet, accountSheetOverlay, false));
+accountSheetOverlay?.addEventListener("click", () => {
+  setSheetOpen(authSheet?.hidden === false ? authSheet : myPageSheet, accountSheetOverlay, false);
+});
+myPageSubscribeButton?.addEventListener("click", startSubscription);
+myPageCancelProButton?.addEventListener("click", cancelProSubscription);
+myPageLogoutButton?.addEventListener("click", logoutAccount);
+
+authProviderButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    const provider = button.dataset.authProvider;
+    location.href = `/api/auth/start?provider=${provider}&redirect=${encodeURIComponent(authRedirectTarget())}`;
+  });
+});
+
+initAccountExperience();
 
 function getMonthlyEnergyReset() {
   const reset = new Date();
@@ -1160,12 +1471,10 @@ personalityForm?.addEventListener("submit", (event) => {
 
 runPersonalityAnalysis();
 
-const adminLoginForm = document.querySelector("#adminLoginForm");
-const adminPassword = document.querySelector("#adminPassword");
-const adminLogin = document.querySelector("#adminLogin");
 const adminDashboard = document.querySelector("#adminDashboard");
-const loginError = document.querySelector("#loginError");
-const TEMP_ADMIN_PASSWORD = "OMW-2026";
+const memberTableBody = document.querySelector("#memberTableBody");
+const memberCount = document.querySelector("#memberCount");
+const refreshMembers = document.querySelector("#refreshMembers");
 const riskFilter = document.querySelector("#riskFilter");
 const goalFilter = document.querySelector("#goalFilter");
 const planFilter = document.querySelector("#planFilter");
@@ -1173,18 +1482,75 @@ const adminUserSearch = document.querySelector("#adminUserSearch");
 const resetAdminFilters = document.querySelector("#resetAdminFilters");
 const adminVisibleCount = document.querySelector("#adminVisibleCount");
 const adminRows = document.querySelectorAll(".admin-table tbody tr[data-risk]");
-const adminEmptyRow = document.querySelector(".admin-empty-row");
+const adminEmptyRow = document.querySelector("#users .admin-empty-row");
 
-adminLoginForm?.addEventListener("submit", (event) => {
-  event.preventDefault();
-  if (adminPassword.value.trim() === TEMP_ADMIN_PASSWORD) {
-    loginError.textContent = "";
-    adminLogin.style.display = "none";
-    adminDashboard.classList.remove("locked");
+function escapeAccountText(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
+}
+
+function formatAdminDate(value) {
+  return value ? new Date(Number(value)).toLocaleString("ko-KR", { dateStyle: "short", timeStyle: "short" }) : "-";
+}
+
+async function loadAdminMembers() {
+  if (!memberTableBody) return;
+  memberTableBody.innerHTML = '<tr class="admin-empty-row"><td colspan="7">회원 정보를 불러오는 중입니다.</td></tr>';
+  try {
+    const { users } = await accountRequest("/api/admin/users");
+    if (memberCount) memberCount.textContent = `${users.length}명`;
+    if (!users.length) {
+      memberTableBody.innerHTML = '<tr class="admin-empty-row"><td colspan="7">아직 가입한 회원이 없습니다.</td></tr>';
+      return;
+    }
+    memberTableBody.innerHTML = users
+      .map((user) => {
+        const trialEnded = user.plan !== "pro" && Number(user.trialExpiresAt || 0) <= Date.now();
+        const planLabel = user.plan === "pro" ? "PRO" : trialEnded ? "체험 종료" : "체험 중";
+        return `<tr data-member-id="${escapeAccountText(user.id)}">
+          <td><strong>${escapeAccountText(user.name)}</strong><small>${escapeAccountText(user.email || user.id)}</small></td>
+          <td>${escapeAccountText(AUTH_PROVIDER_LABELS[user.provider] || user.provider)}</td>
+          <td><span class="plan-pill ${user.plan === "pro" ? "pro" : "trial"}">${planLabel}</span></td>
+          <td>${formatAdminDate(user.createdAt)}</td><td>${formatAdminDate(user.lastLoginAt)}</td>
+          <td>${user.role === "admin" ? "관리자" : "회원"}</td>
+          <td><button type="button" data-member-action="plan" data-next-value="${user.plan === "pro" ? "trial" : "pro"}">${user.plan === "pro" ? "PRO 해제" : "PRO 전환"}</button>
+          <button type="button" data-member-action="role" data-next-value="${user.role === "admin" ? "member" : "admin"}">${user.role === "admin" ? "관리자 해제" : "관리자 지정"}</button></td>
+        </tr>`;
+      })
+      .join("");
+  } catch (error) {
+    memberTableBody.innerHTML = `<tr class="admin-empty-row"><td colspan="7">${escapeAccountText(error.message)}</td></tr>`;
+  }
+}
+
+async function initializeAdminGate() {
+  if (!adminDashboard) return;
+  if (authUiState.user?.role !== "admin") {
+    location.href = authUiState.user ? "/app.html?admin=denied" : "/app.html?auth=login&redirect=admin";
     return;
   }
+  adminDashboard.classList.remove("locked");
+  await loadAdminMembers();
+}
 
-  loginError.textContent = "임시 비밀번호가 맞지 않습니다.";
+refreshMembers?.addEventListener("click", loadAdminMembers);
+memberTableBody?.addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-member-action]");
+  const row = button?.closest("tr[data-member-id]");
+  if (!button || !row) return;
+  const action = button.dataset.memberAction;
+  const label = action === "role" ? "권한" : "플랜";
+  if (!window.confirm(`이 회원의 ${label}을 변경할까요?`)) return;
+  button.disabled = true;
+  try {
+    await accountRequest("/api/admin/users/update", {
+      method: "POST",
+      body: JSON.stringify({ id: row.dataset.memberId, [action]: button.dataset.nextValue }),
+    });
+    await loadAdminMembers();
+  } catch (error) {
+    showToast(error.message);
+    button.disabled = false;
+  }
 });
 
 function applyAdminTableFilters() {

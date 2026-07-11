@@ -8,22 +8,6 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body class="admin-page">
-    <main class="admin-login" id="adminLogin">
-      <section class="login-card">
-        <img class="login-logo" src="assets/logo-horizontal-ollie.png" alt="On My Way" />
-        <p class="eyebrow">Admin Access</p>
-        <h1>On My Way 관리자</h1>
-        <p>임시 비밀번호를 입력하면 운영 대시보드 미리보기에 접근할 수 있습니다.</p>
-        <form id="adminLoginForm">
-          <label for="adminPassword">임시 비밀번호</label>
-          <input id="adminPassword" type="password" placeholder="비밀번호 입력" autocomplete="current-password" />
-          <button type="submit">관리자 페이지 들어가기</button>
-          <span id="loginError" role="alert"></span>
-        </form>
-        <small>프로토타입 임시 비밀번호: OMW-2026</small>
-      </section>
-    </main>
-
     <main class="admin-dashboard-page locked" id="adminDashboard">
       <aside class="admin-sidebar">
         <a class="brand" href="index.html"><img class="brand-logo" src="assets/logo-horizontal-ollie.png" alt="On My Way" /></a>
@@ -34,7 +18,8 @@
           <a href="#retention">리텐션·이탈</a>
           <a href="#product">기능 사용</a>
           <a href="#costs">AI 비용</a>
-          <a href="#users">유저 관리</a>
+          <a href="#members">회원 관리</a>
+          <a href="#users">유저 운영 큐</a>
         </nav>
         <div class="admin-sidebar-note"><strong>오늘 확인할 것</strong><span>체험 이탈 126명</span><span>3일 미접속 42명</span><span>AI 비용 정상</span></div>
       </aside>
@@ -138,9 +123,28 @@
           <div class="action-list"><article><b>P0</b><div><strong>첫 일정 미완료 유저 회복</strong><p>가입 2시간 뒤 미체크 유저에게 5분 타이머 딥링크를 발송합니다.</p></div><span>예상 회복 +8%</span></article><article><b>P1</b><div><strong>체험 CTA A/B 테스트</strong><p>결과 화면 중단 CTA와 하단 CTA의 체험 시작률을 비교합니다.</p></div><span>목표 +5%p</span></article><article><b>P1</b><div><strong>운동 목표 2주차 난이도 완화</strong><p>실행률 30% 미만 유저에게 AI 재설계 제안을 노출합니다.</p></div><span>대상 184명</span></article></div>
         </section>
 
+        <section class="admin-table-section" id="members">
+          <div class="card-title admin-user-title">
+            <div><h2>가입 회원 관리</h2><span><b id="memberCount">0명</b> · 소셜 로그인으로 가입한 실제 회원 목록입니다</span></div>
+            <div class="table-filters">
+              <button id="refreshMembers" type="button">새로고침</button>
+            </div>
+          </div>
+          <div class="admin-table-wrap">
+            <table class="admin-table admin-user-table">
+              <caption class="sr-only">가입 회원의 계정, 플랜, 가입일, 최근 로그인과 관리 작업</caption>
+              <thead><tr><th>회원</th><th>가입 방법</th><th>플랜</th><th>가입일</th><th>최근 로그인</th><th>권한</th><th>관리</th></tr></thead>
+              <tbody id="memberTableBody">
+                <tr class="admin-empty-row"><td colspan="7">아직 가입한 회원이 없습니다. 앱에서 소셜 로그인을 하면 이곳에 나타나요.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="admin-table-note">PRO 전환·해제는 즉시 반영됩니다. 관리자 지정은 신중하게 사용하세요.</p>
+        </section>
+
         <section class="admin-table-section" id="users">
           <div class="card-title admin-user-title">
-            <div><h2>유저 운영 큐</h2><span><b id="adminVisibleCount">8명</b> · 지금 조치가 필요한 유저를 우선 표시합니다</span></div>
+            <div><h2>유저 운영 큐 <span class="card-tag">샘플</span></h2><span><b id="adminVisibleCount">8명</b> · 지금 조치가 필요한 유저를 우선 표시합니다</span></div>
             <div class="table-filters">
               <input id="adminUserSearch" type="search" placeholder="유저 ID 검색" aria-label="유저 ID 검색" />
               <select id="riskFilter" aria-label="위험 상태"><option value="all">전체 상태</option><option value="3days">3일 미접속</option><option value="prepay">체험·결제 이탈</option><option value="pause">목표 중단 위험</option><option value="stable">안정</option></select>

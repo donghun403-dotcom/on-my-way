@@ -1,6 +1,7 @@
 import { createAiGoalPlan } from "./ai-goal-plan.mjs";
 import { createCompanionReply } from "./ai-companion-chat.mjs";
 import { createAiPlanRevision } from "./ai-plan-revision.mjs";
+import { handleAccountApi, parseCookies, createKvStore, currentSessionUser, renewDueSubscriptions } from "./auth-service.mjs";
 
 function json(body, status = 200) {
   return Response.json(body, {
@@ -9,9 +10,61 @@ function json(body, status = 200) {
   });
 }
 
+function accountResultToResponse(result) {
+  const headers = new Headers({ "Cache-Control": "no-store" });
+  for (const value of result.cookies || []) headers.append("Set-Cookie", value);
+  if (result.redirect) {
+    headers.set("Location", result.redirect);
+    return new Response(null, { status: result.status || 302, headers });
+  }
+  if (result.html) {
+    headers.set("Content-Type", "text/html; charset=utf-8");
+    return new Response(result.html, { status: result.status || 200, headers });
+  }
+  headers.set("Content-Type", "application/json; charset=utf-8");
+  return new Response(JSON.stringify(result.json ?? {}), { status: result.status || 200, headers });
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    const cookies = parseCookies(request.headers.get("cookie"));
+    const accountContext = {
+      method: request.method,
+      url,
+      secure: url.protocol === "https:",
+      getCookie: (name) => cookies[name],
+      readJson: () => request.json().catch(() => ({})),
+      env,
+      store: createKvStore(env.USERS_KV),
+    };
+
+    if (url.pathname === "/admin.html" || url.pathname === "/admin") {
+      if (!env.USERS_KV) return json({ error: "USERS_KV 바인딩이 필요합니다." }, 503);
+      try {
+        const user = await currentSessionUser(accountContext);
+        if (user?.role !== "admin") {
+          const location = user ? "/app.html?admin=denied" : "/app.html?auth=login&redirect=admin";
+          return Response.redirect(new URL(location, url.origin), 302);
+        }
+        if (url.pathname === "/admin") return Response.redirect(new URL("/admin.html", url.origin), 302);
+      } catch (error) {
+        console.error("Admin access check failed", error);
+        return json({ error: "관리자 접근을 확인하지 못했습니다." }, 500);
+      }
+    }
+
+    if (url.pathname.startsWith("/api/auth/") || url.pathname.startsWith("/api/billing/") || url.pathname.startsWith("/api/admin/")) {
+      if (!env.USERS_KV && url.pathname !== "/api/auth/providers") return json({ error: "회원 저장소 설정이 필요합니다." }, 503);
+      try {
+        const result = await handleAccountApi(accountContext);
+        if (result) return accountResultToResponse(result);
+        return json({ error: "요청을 처리할 수 없어요." }, 404);
+      } catch (error) {
+        console.error("Account API failed", error);
+        return json({ error: "요청 처리 중 문제가 생겼어요." }, 500);
+      }
+    }
 
     if (url.pathname === "/api/ai/goal-plan") {
       if (request.method !== "POST") return json({ error: "POST 요청만 사용할 수 있어요." }, 405);
@@ -89,5 +142,11 @@ export default {
     }
 
     return env.ASSETS.fetch(request);
+  },
+  async scheduled(_controller, env, ctx) {
+    if (!env.USERS_KV) return;
+    ctx.waitUntil(
+      renewDueSubscriptions({ env, store: createKvStore(env.USERS_KV) }).then((result) => console.log("Subscription renewal completed", result)),
+    );
   },
 };

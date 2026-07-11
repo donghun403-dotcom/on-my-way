@@ -1310,6 +1310,9 @@ footer {
 .admin-page .table-filters input { width: 140px; }
 .admin-page .table-filters button { cursor: pointer; }
 .admin-page .table-filters button:hover { background: #e9f2ef; }
+.admin-page #memberTableBody button { margin: 2px 3px 2px 0; padding: 6px 8px; color: #536174; background: #f6f8fb; border: 1px solid #dfe5ec; border-radius: 8px; font: inherit; font-size: 9px; font-weight: 800; cursor: pointer; white-space: nowrap; }
+.admin-page #memberTableBody button:hover { color: #315c50; background: #e9f2ef; border-color: #c9ddd6; }
+.admin-page #memberTableBody button:disabled { opacity: .55; cursor: wait; }
 .admin-user-table td:first-child strong,.admin-user-table td:first-child small { display: block; }
 .admin-user-table td:first-child small { margin-top: 3px; color: #9098a7; font-size: 8px; }
 .plan-pill { display: inline-flex; padding: 5px 8px; border-radius: 999px; font-size: 8px; font-weight: 950; }
