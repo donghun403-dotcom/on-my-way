@@ -1,4 +1,6 @@
 .git/
+.wrangler/
+node_modules/
 .agents/
 .claude/
 docs/
@@ -9,6 +11,7 @@ On My Way 로고/
 serve-local.cjs
 worker.mjs
 ai-goal-plan.mjs
+ai-companion-chat.mjs
 wrangler.jsonc
 *.pdf
 *.md
