@@ -2826,30 +2826,6 @@ footer p {
   }
 }
 
-@media print {
-  .execution-header,
-  .execution-tabbar,
-  .text-button,
-  .ghost-link {
-    display: none !important;
-  }
-
-  .execution-page,
-  .execution-app {
-    color: #111;
-    background: #fff;
-  }
-
-  .execution-card,
-  .execution-hero {
-    break-inside: avoid;
-    color: #111;
-    background: #fff;
-    border-color: #d9d9d9;
-    box-shadow: none;
-  }
-}
-
 .home-page .site-header,
 .home-page main,
 .home-page footer,

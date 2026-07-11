@@ -358,7 +358,6 @@ const focusCriteria = document.querySelector("#focusCriteria");
 const minimizeFocusButton = document.querySelector("#minimizeFocusButton");
 const finishFocusButton = document.querySelector("#finishFocusButton");
 const appLiveRegion = document.querySelector("#appLiveRegion");
-const downloadPlanButton = document.querySelector("#downloadPlanButton");
 
 goalForm?.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -774,7 +773,6 @@ function buildAiPlanPayload({
       todaySchedule: "array",
       checkInRules: "array",
       companionGrowthPlan: "array",
-      pdfSections: "array",
     },
   };
 }
@@ -2451,10 +2449,6 @@ executionThemeButtons.forEach((button) => {
   button.addEventListener("click", () => {
     applyExecutionTheme(button.dataset.theme);
   });
-});
-
-downloadPlanButton?.addEventListener("click", () => {
-  window.print();
 });
 
 initializeExecutionPage();
