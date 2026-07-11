@@ -397,6 +397,7 @@ const memoryForm = document.querySelector("#memoryForm");
 const memoryCompletion = document.querySelector("#memoryCompletion");
 const memoryConversation = document.querySelector("#memoryConversation");
 const memoryMoodButtons = document.querySelectorAll("[data-memory-mood]");
+const memoryMoodEcho = document.querySelector("#memoryMoodEcho");
 const memoryTitle = document.querySelector("#memoryTitle");
 const memoryNote = document.querySelector("#memoryNote");
 const memoryObstacle = document.querySelector("#memoryObstacle");
@@ -2419,17 +2420,34 @@ function renderJourneyMap(overallProgress) {
 }
 
 const memoryMoodMeta = {
-  happy: { label: "기쁨", icon: "😊" },
-  proud: { label: "뿌듯함", icon: "✨" },
-  calm: { label: "평온함", icon: "🌿" },
-  tired: { label: "지침", icon: "🌙" },
-  heavy: { label: "답답함", icon: "☁️" },
-  light: { label: "가벼움", icon: "😊" },
-  steady: { label: "보통", icon: "🌿" },
+  happy: { label: "기쁨", icon: "😊", echo: "웃음이 머문 하루였네요. 그 순간을 아래에 남겨볼까요?" },
+  excited: { label: "설렘", icon: "🌸", echo: "두근거림이 있던 하루군요. 무엇이 마음을 설레게 했나요?" },
+  proud: { label: "뿌듯함", icon: "✨", echo: "스스로 해낸 마음이에요. 오래 기억할 가치가 있어요." },
+  grateful: { label: "고마움", icon: "🍀", echo: "고마운 마음이 든 순간, 누구 덕분이었는지 남겨두면 더 오래 남아요." },
+  calm: { label: "평온함", icon: "🌿", echo: "잔잔한 하루도 소중한 기록이 돼요." },
+  tired: { label: "지침", icon: "🌙", echo: "애쓴 만큼 지친 거예요. 오늘은 짧게 적어도 충분해요." },
+  regret: { label: "아쉬움", icon: "🍂", echo: "아쉬움이 남는 하루였군요. 내일 다시 이어가면 돼요." },
+  heavy: { label: "답답함", icon: "☁️", echo: "답답한 마음은 글로 풀어내면 조금 가벼워져요." },
+  anxious: { label: "불안함", icon: "🌫️", echo: "불안했던 마음, 걱정을 한 줄로 적어보면 조금 또렷해져요." },
+  sad: { label: "슬픔", icon: "🌧️", echo: "슬펐던 마음도 올리가 함께 기억할게요. 천천히 적어보세요." },
+  light: { label: "가벼움", icon: "😊", echo: "가벼운 마음으로 보낸 하루네요." },
+  steady: { label: "보통", icon: "🌿", echo: "잔잔한 하루도 소중한 기록이 돼요." },
 };
+
+const lowEnergyMoods = new Set(["tired", "heavy", "anxious", "sad"]);
+
+function isLowMemoryMood(mood) {
+  return lowEnergyMoods.has(normalizeMemoryMood(mood));
+}
 
 function normalizeMemoryMood(mood) {
   return { light: "happy", steady: "calm" }[mood] || mood || "calm";
+}
+
+function updateMemoryMoodEcho(mood) {
+  if (!memoryMoodEcho) return;
+  const meta = memoryMoodMeta[normalizeMemoryMood(mood)] || memoryMoodMeta.calm;
+  memoryMoodEcho.textContent = meta.echo;
 }
 
 const memoryObstacleMeta = {
@@ -2451,7 +2469,8 @@ function getLatestCompanionDialogue() {
 function buildMemorySuggestion({ mood, obstacle, completion, nextStep }) {
   if (nextStep) return `내일 첫 행동을 "${nextStep}"로 시작하도록 계획에 반영해줘.`;
   if (obstacle === "time") return "내일 계획은 가능한 시간을 먼저 정하고, 핵심 행동 한 가지만 그 시간에 배치해줘.";
-  if (obstacle === "energy" || mood === "tired" || mood === "heavy") return "내일 첫 행동은 5분짜리 최소 성공 기준으로 줄이고, 나머지는 선택 행동으로 바꿔줘.";
+  if (mood === "anxious") return "내일 첫 행동은 시작 시간을 정확히 정하고, 시작 전에 준비할 것 한 가지만 적어 걱정을 줄여줘.";
+  if (obstacle === "energy" || isLowMemoryMood(mood)) return "내일 첫 행동은 5분짜리 최소 성공 기준으로 줄이고, 나머지는 선택 행동으로 바꿔줘.";
   if (obstacle === "difficulty") return "내일 과제는 지금 크기의 절반 이하로 나누고, 완료 기준을 한 문장으로 선명하게 적어줘.";
   if (obstacle === "focus") return "내일 계획은 한 번에 한 과제만 보이게 하고, 시작 알림과 10분 타이머를 연결해줘.";
   if (completion >= 80) return "오늘 잘 된 시간과 실행 크기를 내일도 유지하고, 난이도는 올리지 말아줘.";
@@ -2480,6 +2499,7 @@ function renderMemoryCards({ selectedCompletion }) {
   if (!isEditingMemory) {
     const selectedMood = normalizeMemoryMood(todayMemory?.mood);
     memoryMoodButtons.forEach((button) => button.classList.toggle("selected", button.dataset.memoryMood === selectedMood));
+    updateMemoryMoodEcho(selectedMood);
     if (memoryTitle) memoryTitle.value = todayMemory?.title || "";
     if (memoryNote) memoryNote.value = todayMemory?.note || "";
     if (memoryObstacle) memoryObstacle.value = todayMemory?.obstacle || "none";
@@ -2598,7 +2618,7 @@ function renderPatternCards(state) {
   const completedLog = state.completedLog || [];
   const eveningCount = completedLog.filter((item) => Number(String(item.time).slice(0, 2)) >= 18).length;
   const averageCompletion = memories.length ? Math.round(memories.reduce((sum, item) => sum + Number(item.completion || 0), 0) / memories.length) : 0;
-  const tiredRecords = memories.filter((item) => item.mood === "tired" || item.mood === "heavy");
+  const tiredRecords = memories.filter((item) => isLowMemoryMood(item.mood));
   const obstacleCounts = memories.reduce((counts, item) => {
     if (item.obstacle && item.obstacle !== "none") counts[item.obstacle] = (counts[item.obstacle] || 0) + 1;
     return counts;
@@ -2630,7 +2650,10 @@ function renderPatternCards(state) {
 }
 
 memoryMoodButtons.forEach((button) => {
-  button.addEventListener("click", () => memoryMoodButtons.forEach((item) => item.classList.toggle("selected", item === button)));
+  button.addEventListener("click", () => {
+    memoryMoodButtons.forEach((item) => item.classList.toggle("selected", item === button));
+    updateMemoryMoodEcho(button.dataset.memoryMood);
+  });
 });
 
 memoryForm?.addEventListener("submit", (event) => {
@@ -2692,6 +2715,7 @@ memoryList?.addEventListener("click", (event) => {
     if (memoryNextStep) memoryNextStep.value = memory.nextStep || "";
     const selectedMood = normalizeMemoryMood(memory.mood);
     memoryMoodButtons.forEach((button) => button.classList.toggle("selected", button.dataset.memoryMood === selectedMood));
+    updateMemoryMoodEcho(selectedMood);
     const saveLabel = memorySaveButton?.querySelector("span");
     if (saveLabel) saveLabel.textContent = "수정한 다이어리 저장하기";
     memoryForm.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -2897,8 +2921,8 @@ function renderDailyCoach(state, selectedCompletion) {
       };
     } else if (obstacle === "time") {
       copy = { title: "어제 시간이 부족했으니, 오늘은 중요한 일정부터 지켜요.", message: "첫 일정에 타이머를 맞추고 끝낸 뒤 남은 시간에 따라 다음 일정을 선택해도 괜찮아요.", image: "assets/ollie-thinking.png" };
-    } else if (obstacle === "energy" || yesterdayMemory.mood === "tired" || yesterdayMemory.mood === "heavy") {
-      copy = { title: "어제 지쳤던 만큼, 오늘은 첫 일정 하나에 집중해요.", message: "컨디션을 확인하면서 한 가지를 완료하고, 힘이 남으면 다음 일정으로 넘어가요.", image: "assets/ollie-comfort.png" };
+    } else if (obstacle === "energy" || isLowMemoryMood(yesterdayMemory.mood)) {
+      copy = { title: "어제 마음이 무거웠던 만큼, 오늘은 첫 일정 하나에 집중해요.", message: "컨디션을 확인하면서 한 가지를 완료하고, 힘이 남으면 다음 일정으로 넘어가요.", image: "assets/ollie-comfort.png" };
     } else if (obstacle === "difficulty") {
       copy = { title: "어제 어려웠던 일은 오늘 완료 기준부터 확인해요.", message: "한 번에 전부 하려 하지 말고, 스케줄에 적힌 시간과 분량까지만 끝내보세요.", image: "assets/ollie-thinking.png" };
     } else if (Number(yesterdayMemory.completion || 0) >= 80) {

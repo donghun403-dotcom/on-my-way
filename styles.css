@@ -11130,6 +11130,18 @@ body.sheet-open {
   box-shadow: 0 8px 18px rgba(91, 106, 151, 0.1);
 }
 
+.execution-page .memory-mood-echo {
+  grid-column: 1 / -1;
+  margin: 2px 0 0;
+  padding: 8px 11px;
+  color: #6f8a7f;
+  background: linear-gradient(145deg, rgba(233, 245, 240, 0.75), rgba(241, 237, 247, 0.65));
+  border-radius: 11px;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.5;
+}
+
 .execution-page .memory-field { display: grid; gap: 7px; }
 .execution-page .memory-field textarea,
 .execution-page .memory-field select,
@@ -11243,12 +11255,17 @@ body.sheet-open {
   border-radius: 18px;
 }
 .execution-page .memory-list article.daily-memory-item { display: grid; gap: 11px; border-left: 4px solid #98b7ad; }
-.execution-page .daily-memory-item[data-mood="tired"] { border-left-color: #c49aa5; }
-.execution-page .daily-memory-item[data-mood="steady"] { border-left-color: #9b9ab7; }
-.execution-page .daily-memory-item[data-mood="happy"] { border-left-color: #efbd75; }
-.execution-page .daily-memory-item[data-mood="proud"] { border-left-color: #b395ce; }
-.execution-page .daily-memory-item[data-mood="calm"] { border-left-color: #7fa99a; }
-.execution-page .daily-memory-item[data-mood="heavy"] { border-left-color: #8993ad; }
+.execution-page .memory-list article.daily-memory-item[data-mood="tired"] { border-left-color: #c49aa5; }
+.execution-page .memory-list article.daily-memory-item[data-mood="steady"] { border-left-color: #9b9ab7; }
+.execution-page .memory-list article.daily-memory-item[data-mood="happy"] { border-left-color: #efbd75; }
+.execution-page .memory-list article.daily-memory-item[data-mood="excited"] { border-left-color: #e8a3bd; }
+.execution-page .memory-list article.daily-memory-item[data-mood="proud"] { border-left-color: #b395ce; }
+.execution-page .memory-list article.daily-memory-item[data-mood="grateful"] { border-left-color: #8fbf8f; }
+.execution-page .memory-list article.daily-memory-item[data-mood="calm"] { border-left-color: #7fa99a; }
+.execution-page .memory-list article.daily-memory-item[data-mood="regret"] { border-left-color: #cfa77e; }
+.execution-page .memory-list article.daily-memory-item[data-mood="heavy"] { border-left-color: #8993ad; }
+.execution-page .memory-list article.daily-memory-item[data-mood="anxious"] { border-left-color: #a8a4c4; }
+.execution-page .memory-list article.daily-memory-item[data-mood="sad"] { border-left-color: #85a3c2; }
 
 .execution-page .memory-list article.diary-entry {
   position: relative;
