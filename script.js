@@ -67,6 +67,11 @@ const trialPaywallKicker = document.querySelector("#trialPaywallKicker");
 const trialPaywallTitle = document.querySelector("#trialPaywallTitle");
 const trialPaywallCopy = document.querySelector("#trialPaywallCopy");
 const trialPaywallAction = document.querySelector("#trialPaywallAction");
+const moriEnergyMeter = document.querySelector("#moriEnergyMeter");
+const moriEnergyBalance = document.querySelector("#moriEnergyBalance");
+const moriEnergyBar = document.querySelector("#moriEnergyBar");
+const moriEnergyWarning = document.querySelector("#moriEnergyWarning");
+const weeklyOptimizeButton = document.querySelector("#weeklyOptimizeButton");
 const executionGoal = document.querySelector("#executionGoal");
 const executionStyle = document.querySelector("#executionStyle");
 const executionPeriod = document.querySelector("#executionPeriod");
@@ -115,6 +120,8 @@ const DEFAULT_ROUTINE_READINESS = "계획이 있으면 실행해요";
 const TRIAL_ACCESS_KEY = "omwTrialAccess";
 const TRIAL_LEAD_KEY = "omwTrialLead";
 const TRIAL_DURATION_MS = 24 * 60 * 60 * 1000;
+const MORI_ENERGY_KEY = "omwMoriEnergy";
+const FREE_PLAN_GENERATED_KEY = "omwFreePlanGenerated";
 
 if (appTourSection && designFlowSection && appTourSection.nextElementSibling !== designFlowSection) {
   designFlowSection.parentNode?.insertBefore(appTourSection, designFlowSection);
@@ -222,6 +229,87 @@ trialPhoneInput?.addEventListener("input", () => {
 });
 
 initializeTrialAccess();
+
+function getMonthlyEnergyReset() {
+  const reset = new Date();
+  reset.setMonth(reset.getMonth() + 1, 1);
+  reset.setHours(0, 0, 0, 0);
+  return reset.getTime();
+}
+
+function getMoriEnergyPlan() {
+  const access = readTrialAccess();
+  return access?.plan === "pro" ? { plan: "pro", allocation: 300 } : { plan: "trial", allocation: 10 };
+}
+
+function readMoriEnergyState() {
+  const energyPlan = getMoriEnergyPlan();
+  let state = null;
+  try {
+    state = JSON.parse(localStorage.getItem(MORI_ENERGY_KEY) || "null");
+  } catch (error) {
+    state = null;
+  }
+
+  const shouldReset =
+    !state ||
+    state.plan !== energyPlan.plan ||
+    !Number.isFinite(Number(state.remaining)) ||
+    (energyPlan.plan === "pro" && Date.now() >= Number(state.resetAt || 0));
+
+  if (shouldReset) {
+    state = {
+      plan: energyPlan.plan,
+      allocation: energyPlan.allocation,
+      remaining: energyPlan.allocation,
+      resetAt: energyPlan.plan === "pro" ? getMonthlyEnergyReset() : Number(readTrialAccess()?.expiresAt || Date.now() + TRIAL_DURATION_MS),
+    };
+    saveMoriEnergyState(state);
+  }
+
+  return state;
+}
+
+function saveMoriEnergyState(state) {
+  try {
+    localStorage.setItem(MORI_ENERGY_KEY, JSON.stringify(state));
+  } catch (error) {
+    console.warn("Unable to save Mori Energy", error);
+  }
+}
+
+function renderMoriEnergy() {
+  if (!moriEnergyMeter) return;
+  const state = readMoriEnergyState();
+  const allocation = Math.max(1, Number(state.allocation) || 1);
+  const remaining = Math.max(0, Number(state.remaining) || 0);
+  const percent = Math.max(0, Math.min(100, (remaining / allocation) * 100));
+  const isLow = percent <= 20;
+
+  if (moriEnergyBalance) moriEnergyBalance.textContent = `${remaining} / ${allocation}`;
+  if (moriEnergyBar) moriEnergyBar.style.width = `${percent}%`;
+  moriEnergyMeter.classList.toggle("is-low", isLow);
+  if (moriEnergyWarning) moriEnergyWarning.hidden = !isLow;
+}
+
+function consumeMoriEnergy(amount, label) {
+  const state = readMoriEnergyState();
+  const cost = Math.max(0, Number(amount) || 0);
+  if (Number(state.remaining) < cost) {
+    if (moriEnergyWarning) moriEnergyWarning.hidden = false;
+    showToast(`${label}에 필요한 모리 에너지가 부족해요`);
+    announce(`${label}에 필요한 모리 에너지가 부족합니다.`);
+    return false;
+  }
+
+  state.remaining = Number(state.remaining) - cost;
+  saveMoriEnergyState(state);
+  renderMoriEnergy();
+  announce(`${label}에 모리 에너지 ${cost}를 사용했습니다. ${state.remaining} 남았습니다.`);
+  return true;
+}
+
+renderMoriEnergy();
 
 function needsLowFrictionStart(readiness = DEFAULT_ROUTINE_READINESS) {
   return ["준비", "미뤄", "중단"].some((keyword) => readiness.includes(keyword));
@@ -713,6 +801,19 @@ function renderAiPreview(preview) {
 async function runPersonalityAnalysis({ showLoading = false } = {}) {
   if (!personalityForm) return;
 
+  if (showLoading && readTrialAccess()?.plan !== "pro") {
+    try {
+      if (localStorage.getItem(FREE_PLAN_GENERATED_KEY) === "true") {
+        if (aiPreviewStatus) aiPreviewStatus.textContent = "무료 목표 계획 1개를 이미 만들었어요";
+        planPreviewPanel?.classList.add("is-ready");
+        showToast("무료 플랜은 목표 계획 1개를 만들 수 있어요. 앱에서 모리 에너지로 수정해 보세요.");
+        return;
+      }
+    } catch (error) {
+      /* storage unavailable — continue */
+    }
+  }
+
   const goal = designGoal.value.trim() || goalInput?.value.trim() || "목표 미입력";
   const period = goalPeriodInput.value;
   const currentState = currentStateInput.value.trim();
@@ -786,6 +887,13 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
   }
 
   if (showLoading) saveTrialLead();
+  if (showLoading && readTrialAccess()?.plan !== "pro") {
+    try {
+      localStorage.setItem(FREE_PLAN_GENERATED_KEY, "true");
+    } catch (error) {
+      /* storage unavailable — ignore */
+    }
+  }
 }
 
 personalityForm?.addEventListener("submit", (event) => {
@@ -2053,6 +2161,8 @@ sendCompanionMessage?.addEventListener("click", () => {
     return;
   }
 
+  if (!consumeMoriEnergy(1, "간단한 계획 수정")) return;
+
   appendRevisionRequest(`사용자 추가 요청: ${message}`, "좋아요. 이 내용을 참고해서 AI가 다시 짠 스케줄 미리보기를 만들 수 있어요.");
   companionChatInput.value = "";
   addCompanionXp(3, "thinking");
@@ -2159,6 +2269,7 @@ regeneratePlanButton?.addEventListener("click", () => {
     updateRevisionButtonState();
     return;
   }
+  if (!consumeMoriEnergy(3, "오늘 일정 다시 만들기")) return;
   const customText = buildRevisedPlanText(baseText, revisionRequest);
   const bundle = getPlanBundle();
   bundle.state.pendingPlanText = customText;
@@ -2169,6 +2280,16 @@ regeneratePlanButton?.addEventListener("click", () => {
     planEditorMessage.textContent = "모리가 변경안을 만들었습니다. 아직 적용되지 않았고, 완료한 일정은 그대로 보호됩니다.";
   }
   renderExecutionPage(bundle);
+});
+
+weeklyOptimizeButton?.addEventListener("click", () => {
+  if (!consumeMoriEnergy(5, "주간 최적화")) return;
+  appendRevisionRequest(
+    "이번 주 완료율과 남은 일정을 기준으로 다음 7일의 실행 순서와 난이도를 최적화해줘.",
+    "이번 주 흐름을 살펴보고, 무리 없이 이어갈 수 있는 변경안을 준비했어요.",
+  );
+  showToast("주간 최적화 제안을 준비했어요 · 모리 에너지 5 사용");
+  trackCompanionEvent("weekly_optimization_requested", { energy: 5 });
 });
 
 reviseAgainButton?.addEventListener("click", () => {

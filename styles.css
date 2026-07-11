@@ -8680,3 +8680,367 @@ body.sheet-open {
     border-radius: 26px;
   }
 }
+
+/* Pricing System v1 — Mori Energy */
+.home-page .pricing-offers {
+  width: min(100%, 980px);
+  max-width: 980px;
+}
+
+.home-page .mori-energy-system,
+.home-page .energy-packs {
+  grid-column: 1 / -1;
+}
+
+.home-page .mori-energy-system {
+  display: grid;
+  gap: 18px;
+  padding: clamp(22px, 4vw, 32px);
+  background:
+    radial-gradient(circle at 90% 0%, rgba(214, 236, 232, 0.72), transparent 34%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(242, 240, 248, 0.92));
+  border: 1px solid rgba(255, 255, 255, 0.94);
+  border-radius: 28px;
+  box-shadow: 0 20px 48px rgba(91, 106, 151, 0.12);
+}
+
+.home-page .energy-system-heading {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.85fr) minmax(280px, 1.15fr);
+  gap: 24px;
+  align-items: end;
+}
+
+.home-page .energy-system-heading span,
+.home-page .energy-packs > div > span {
+  display: block;
+  margin-bottom: 6px;
+  color: #789a97;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.home-page .energy-system-heading h3,
+.home-page .energy-packs h3 {
+  margin: 0;
+  color: #3d4862;
+  font-size: clamp(21px, 3vw, 27px);
+}
+
+.home-page .energy-system-heading p,
+.home-page .energy-packs > div > p {
+  margin: 0;
+  color: #737b8d;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.home-page .energy-cost-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.home-page .energy-cost-grid article {
+  display: grid;
+  align-content: start;
+  min-height: 138px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.84);
+  border: 1px solid rgba(107, 122, 166, 0.1);
+  border-radius: 18px;
+}
+
+.home-page .energy-cost-grid article > span {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  margin-bottom: 13px;
+  place-items: center;
+  color: #ffffff;
+  background: linear-gradient(145deg, #7ca19d, #8794ad);
+  border-radius: 13px;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.home-page .energy-cost-grid strong {
+  color: #45506a;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.home-page .energy-cost-grid small {
+  margin-top: 5px;
+  color: #828999;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.home-page .energy-reset-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 11px 13px;
+  color: #6d7587;
+  background: rgba(230, 240, 239, 0.72);
+  border-radius: 13px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.home-page .energy-reset-note span {
+  color: #6f9996;
+  font-size: 16px;
+}
+
+.home-page .energy-packs {
+  display: grid;
+  grid-template-columns: minmax(210px, 0.8fr) minmax(0, 1.6fr);
+  gap: 24px;
+  align-items: center;
+  padding: 24px;
+  background: rgba(255, 255, 255, 0.68);
+  border: 1px solid rgba(255, 255, 255, 0.86);
+  border-radius: 24px;
+  box-shadow: 0 16px 36px rgba(91, 106, 151, 0.09);
+}
+
+.home-page .energy-pack-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.home-page .energy-pack-grid article {
+  position: relative;
+  display: grid;
+  min-height: 118px;
+  padding: 15px;
+  background: #ffffff;
+  border: 1px solid rgba(107, 122, 166, 0.12);
+  border-radius: 17px;
+}
+
+.home-page .energy-pack-grid article.recommended {
+  background: #eef5f3;
+  border-color: rgba(107, 151, 146, 0.34);
+}
+
+.home-page .energy-pack-grid span {
+  color: #9a8390;
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.home-page .energy-pack-grid strong {
+  align-self: end;
+  color: #46516a;
+  font-size: 14px;
+}
+
+.home-page .energy-pack-grid b {
+  margin-top: 4px;
+  color: #758e98;
+  font-size: 18px;
+}
+
+.execution-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mori-energy-meter {
+  display: grid;
+  grid-template-columns: 24px auto;
+  grid-template-rows: auto 4px;
+  gap: 3px 8px;
+  min-width: 142px;
+  padding: 8px 11px;
+  color: #4b566d;
+  background: rgba(239, 247, 245, 0.92);
+  border: 1px solid rgba(107, 122, 166, 0.12);
+  border-radius: 14px;
+}
+
+.mori-energy-meter .energy-leaf {
+  display: grid;
+  grid-row: 1 / 3;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  color: #ffffff;
+  background: linear-gradient(145deg, #79a29d, #8494ae);
+  border-radius: 9px 13px 9px 13px;
+  font-size: 8px;
+  transform: rotate(-7deg);
+}
+
+.mori-energy-meter > div:first-of-type {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 7px;
+}
+
+.mori-energy-meter small {
+  color: #778193;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.mori-energy-meter strong {
+  color: #46526a;
+  font-size: 11px;
+}
+
+.mori-energy-track {
+  overflow: hidden;
+  background: rgba(107, 122, 166, 0.12);
+  border-radius: 999px;
+}
+
+.mori-energy-track span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #7aa39d, #8c97b1);
+  border-radius: inherit;
+  transition: width 180ms ease;
+}
+
+.mori-energy-meter.is-low {
+  background: #fff1ed;
+  border-color: rgba(204, 129, 109, 0.28);
+}
+
+.mori-energy-meter.is-low .energy-leaf,
+.mori-energy-meter.is-low .mori-energy-track span {
+  background: linear-gradient(145deg, #d58d7a, #bd8394);
+}
+
+.mori-energy-warning {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px clamp(18px, 4vw, 42px);
+  color: #6e514e;
+  background: #fff0ec;
+  border-bottom: 1px solid rgba(190, 126, 112, 0.18);
+  font-size: 11px;
+}
+
+.mori-energy-warning[hidden] {
+  display: none !important;
+}
+
+.mori-energy-warning > span {
+  color: #cf806f;
+  font-size: 9px;
+}
+
+.mori-energy-warning p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.mori-energy-warning a {
+  padding: 7px 10px;
+  color: #ffffff;
+  background: #bd7d76;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.weekly-plan-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.energy-action-button {
+  min-height: 34px;
+  padding: 0 10px;
+  color: #59677d;
+  background: #eef5f3;
+  border: 1px solid rgba(107, 151, 146, 0.2);
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.energy-action-button span,
+.button-energy-cost {
+  display: inline-grid;
+  min-width: 20px;
+  min-height: 20px;
+  margin-left: 4px;
+  padding-inline: 5px;
+  place-items: center;
+  color: #ffffff;
+  background: rgba(71, 92, 110, 0.55);
+  border-radius: 999px;
+  font-size: 9px;
+  line-height: 1;
+}
+
+.plan-cta .button-energy-cost {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+@media (max-width: 760px) {
+  .home-page .energy-system-heading,
+  .home-page .energy-packs {
+    grid-template-columns: 1fr;
+  }
+
+  .home-page .energy-cost-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .execution-header-actions .ghost-link {
+    display: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .home-page .energy-pack-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .home-page .energy-pack-grid article {
+    min-height: 92px;
+  }
+
+  .mori-energy-meter {
+    min-width: 130px;
+  }
+
+  .mori-energy-warning {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .mori-energy-warning a {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .weekly-plan-actions {
+    align-items: flex-end;
+    flex-direction: column;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mori-energy-track span {
+    transition: none;
+  }
+}
