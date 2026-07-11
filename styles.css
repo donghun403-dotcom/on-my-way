@@ -6886,14 +6886,14 @@ body.sheet-open {
 }
 
 /* Company footer and persistent landing CTA */
-.home-page .site-footer {
+.site-footer {
   position: relative;
   display: grid;
   grid-template-columns: minmax(180px, 0.7fr) minmax(0, 1.3fr);
   gap: 28px;
   align-items: end;
   min-height: 190px;
-  padding: 38px clamp(22px, 5vw, 56px) 132px;
+  padding: 38px clamp(22px, 5vw, 56px) 48px;
   color: var(--routine-text);
   background:
     radial-gradient(circle at 12% 22%, rgba(107, 122, 166, 0.13), transparent 34%),
@@ -6931,7 +6931,7 @@ body.sheet-open {
   text-align: right;
 }
 
-.home-page .site-footer .footer-information p {
+.site-footer .footer-information p {
   margin: 0;
   color: #566078;
   font-size: 13px;
@@ -6972,12 +6972,12 @@ body.sheet-open {
 }
 
 @media (max-width: 759px) {
-  .home-page .site-footer {
+  .site-footer {
     grid-template-columns: 1fr;
     gap: 20px;
     align-items: start;
     min-height: 250px;
-    padding: 34px 22px calc(172px + env(safe-area-inset-bottom));
+    padding: 34px 22px 42px;
   }
 
   .footer-information {
@@ -9663,5 +9663,47 @@ body.sheet-open {
 @media (prefers-reduced-motion: reduce) {
   .execution-page .app-view.is-active {
     animation: none;
+  }
+}
+
+/* Shared footer across landing, app, and admin pages */
+.home-page .site-footer {
+  padding-bottom: 132px;
+}
+
+.execution-page .site-footer {
+  width: min(calc(100% - 32px), 1120px);
+  min-height: 168px;
+  margin: 0 auto 20px;
+  padding-bottom: 124px;
+  background:
+    radial-gradient(circle at 12% 22%, rgba(126, 168, 162, 0.16), transparent 34%),
+    radial-gradient(circle at 90% 78%, rgba(201, 141, 153, 0.14), transparent 38%),
+    rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.84);
+  border-radius: 28px;
+  box-shadow: 0 18px 44px rgba(91, 106, 151, 0.09);
+}
+
+.admin-page .site-footer {
+  position: relative;
+  z-index: 2;
+  min-height: 150px;
+  background:
+    radial-gradient(circle at 12% 22%, rgba(107, 122, 166, 0.11), transparent 34%),
+    radial-gradient(circle at 90% 78%, rgba(201, 141, 153, 0.1), transparent 38%),
+    rgba(255, 255, 255, 0.78);
+}
+
+@media (max-width: 759px) {
+  .home-page .site-footer {
+    padding-bottom: calc(172px + env(safe-area-inset-bottom));
+  }
+
+  .execution-page .site-footer {
+    width: min(calc(100% - 20px), 520px);
+    margin-bottom: 10px;
+    padding-bottom: calc(118px + env(safe-area-inset-bottom));
+    border-radius: 22px;
   }
 }
