@@ -114,6 +114,10 @@ const scheduleCalendar = document.querySelector("#scheduleCalendar");
 const calendarSummary = document.querySelector("#calendarSummary");
 const monthlyCompletion = document.querySelector("#monthlyCompletion");
 const weeklyPlanList = document.querySelector("#weeklyPlanList");
+const dailyCoachImage = document.querySelector("#dailyCoachImage");
+const dailyCoachKicker = document.querySelector("#dailyCoachKicker");
+const dailyCoachTitle = document.querySelector("#dailyCoachTitle");
+const dailyCoachMessage = document.querySelector("#dailyCoachMessage");
 const routineModeTitle = document.querySelector("#routineModeTitle");
 const routineModeMeta = document.querySelector("#routineModeMeta");
 const routineCueList = document.querySelector("#routineCueList");
@@ -1301,7 +1305,7 @@ function getDefaultPlanText(plan) {
   const preview = plan.aiPreview || {};
   const weekPlan = Array.isArray(preview.weekPlan) ? preview.weekPlan : [];
   const lines = [
-    `${plan.routineTime || "아침"}에 ${plan.currentRoutine || "기존 루틴"}와 목표를 연결하기`,
+    `기존 루틴(${plan.currentRoutine || "일상 루틴"})을 마친 뒤 목표 행동 시작하기`,
     plan.firstAction || preview.firstAction || "단어 40개 + LC 1세트",
     ...weekPlan,
     "하루 끝에는 완료 여부를 체크하고, 놓친 항목은 다음 날 작은 단위로 다시 배치합니다.",
@@ -1309,10 +1313,25 @@ function getDefaultPlanText(plan) {
   return lines.map((line) => `- ${line}`).join("\n");
 }
 
+function cleanScheduleTaskText(value) {
+  let text = String(value || "").replace(/^[-*•\d.\s]+/, "").trim();
+  if (!text || /^(수정 요청 반영|AI 재작성 기준)\s*:/.test(text)) return "";
+
+  text = text
+    .replace(/^(작게|가볍게|우선)\s*:\s*/g, "")
+    .replace(/^\S+에\s+(.+)와 목표를 연결하기$/, "기존 루틴($1) 후 목표 행동 시작하기")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (/^(수정 요청 반영|AI 재작성 기준)\s*:/.test(text)) return "";
+  if (/요청사항을 우선 적용|부담이 큰 일정은|더 작은 단위로 나눕니다/.test(text)) return "";
+  return text;
+}
+
 function parsePlanText(planText, fallbackAction) {
   const parsed = planText
     .split(/\r?\n/)
-    .map((line) => line.replace(/^[-*•\d.\s]+/, "").trim())
+    .map(cleanScheduleTaskText)
     .filter(Boolean);
 
   const unique = [...new Set(parsed)];
@@ -1322,17 +1341,6 @@ function parsePlanText(planText, fallbackAction) {
     "오답 정리 20분",
     "오늘 진행 상황 체크인",
   ];
-}
-
-function buildRevisedPlanText(baseText, revisionRequest) {
-  const request = revisionRequest.trim().replace(/\s+/g, " ");
-  if (!request) return baseText;
-
-  return [
-    `- 수정 요청 반영: ${request}`,
-    "- AI 재작성 기준: 요청사항을 우선 적용하고 부담이 큰 일정은 더 작은 단위로 나눕니다.",
-    baseText.trim(),
-  ].join("\n");
 }
 
 function getScheduleHints(revisionRequest) {
@@ -1376,15 +1384,18 @@ function buildSchedule(plan, planText, revisionRequest = "") {
     const tasks =
       hints.lightWeekend && isWeekend
         ? [
-            { time: times[0], text: "가벼운 복습과 기록 확인" },
-            { time: times[2], text: "다음 실행일에 넘길 항목 1개만 정리" },
+            { time: times[0], text: "이번 주 핵심 내용 한 번 복습하기", durationMinutes: 10 },
+            { time: times[2], text: "다음 실행일에 이어갈 항목 1개 정하기", durationMinutes: 5 },
           ]
         : times.map((time, taskIndex) => ({
             time,
+            durationMinutes: hints.shorterTasks ? 10 : undefined,
             text:
               taskIndex === 2 && day % 7 === 0
                 ? "이번 주 완료율 확인하고 다음 주 난이도 조정"
-                : `${hints.shorterTasks ? "작게: " : ""}${baseTasks[(index + taskIndex) % baseTasks.length]}`,
+                : hints.shorterTasks
+                  ? cleanScheduleTaskText(baseTasks[(index + taskIndex) % baseTasks.length]) || "오늘의 핵심 행동 시작하기"
+                  : cleanScheduleTaskText(baseTasks[(index + taskIndex) % baseTasks.length]) || "오늘의 핵심 행동 시작하기",
           }));
 
     return {
@@ -1743,6 +1754,8 @@ function closeEnergyCharge() {
 }
 
 function getSuggestedFocusMinutes(task) {
+  const explicitDuration = Number(task?.durationMinutes);
+  if (Number.isFinite(explicitDuration) && explicitDuration > 0) return Math.max(1, Math.min(180, explicitDuration));
   const match = String(task?.text || "").match(/(\d+)\s*분/);
   return Math.max(1, Math.min(180, Number(match?.[1]) || 15));
 }
@@ -2622,6 +2635,65 @@ function updateRevisionButtonState() {
   }
 }
 
+function renderDailyCoach(state, selectedCompletion) {
+  if (!dailyCoachTitle || !dailyCoachMessage) return;
+
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayKey = yesterday.toLocaleDateString("en-CA");
+  const memories = Array.isArray(state.dailyMemories) ? state.dailyMemories : [];
+  const yesterdayMemory = [...memories]
+    .reverse()
+    .find((memory) => String(memory.id || "").startsWith(yesterdayKey));
+
+  const dailyMessages = [
+    { title: "오늘의 첫 체크가 이번 주의 방향을 만들어요.", message: "가장 먼저 보이는 일정 하나를 끝내고, 나머지는 그다음에 생각해도 충분해요.", image: "assets/ollie-action.png" },
+    { title: "시작한 순간부터 오늘 계획은 이미 움직이고 있어요.", message: "완벽한 시간보다 정해둔 시간에 첫 일정을 여는 것이 더 중요해요.", image: "assets/ollie-thinking.png" },
+    { title: "중간에 속도가 달라도, 체크한 기록은 사라지지 않아요.", message: "지금 가능한 일정부터 완료하고 어려웠던 항목은 올리에게 알려주세요.", image: "assets/ollie-comfort.png" },
+    { title: "오늘의 한 번이 목표까지 가는 리듬을 만들어요.", message: "타이머를 켜고 첫 일정에만 집중하면 다음 행동이 훨씬 선명해져요.", image: "assets/ollie-action.png" },
+    { title: "이번 주에 쌓은 실행을 오늘 한 칸 더 이어가요.", message: "남은 일정 수보다 지금 체크할 수 있는 한 가지를 먼저 골라보세요.", image: "assets/ollie-celebrate.png" },
+    { title: "오늘은 유지하는 것만으로도 충분히 좋은 실행이에요.", message: "가장 중요한 일정 하나를 지키고, 다음 주에 이어갈 기록을 남겨보세요.", image: "assets/ollie-comfort.png" },
+    { title: "오늘의 기록이 다음 주 계획을 더 정확하게 만들어요.", message: "완료 여부와 기분을 남기면 올리가 다음 스케줄의 시간과 난이도를 맞출게요.", image: "assets/ollie-thinking.png" },
+  ];
+
+  let copy = dailyMessages[new Date().getDay()];
+  let kicker = "OLLIE COACH · 오늘의 응원";
+
+  if (yesterdayMemory) {
+    kicker = "OLLIE COACH · 어제 기록을 읽었어요";
+    const nextStep = String(yesterdayMemory.nextStep || "").trim();
+    const obstacle = yesterdayMemory.obstacle || "none";
+
+    if (nextStep) {
+      copy = {
+        title: `어제 정한 “${nextStep}”부터 시작해 볼까요?`,
+        message: `어제의 실행률은 ${Number(yesterdayMemory.completion || 0)}%였어요. 오늘은 스케줄의 첫 행동으로 연결해 흐름을 이어가요.`,
+        image: "assets/ollie-action.png",
+      };
+    } else if (obstacle === "time") {
+      copy = { title: "어제 시간이 부족했으니, 오늘은 중요한 일정부터 지켜요.", message: "첫 일정에 타이머를 맞추고 끝낸 뒤 남은 시간에 따라 다음 일정을 선택해도 괜찮아요.", image: "assets/ollie-thinking.png" };
+    } else if (obstacle === "energy" || yesterdayMemory.mood === "tired") {
+      copy = { title: "어제 지쳤던 만큼, 오늘은 첫 일정 하나에 집중해요.", message: "컨디션을 확인하면서 한 가지를 완료하고, 힘이 남으면 다음 일정으로 넘어가요.", image: "assets/ollie-comfort.png" };
+    } else if (obstacle === "difficulty") {
+      copy = { title: "어제 어려웠던 일은 오늘 완료 기준부터 확인해요.", message: "한 번에 전부 하려 하지 말고, 스케줄에 적힌 시간과 분량까지만 끝내보세요.", image: "assets/ollie-thinking.png" };
+    } else if (Number(yesterdayMemory.completion || 0) >= 80) {
+      copy = { title: "어제 만든 좋은 흐름을 오늘도 같은 순서로 이어가요.", message: "잘 맞았던 실행 시간과 순서를 유지하면 오늘의 체크도 자연스럽게 쌓일 거예요.", image: "assets/ollie-celebrate.png" };
+    } else {
+      copy = { title: "어제 남긴 기록 덕분에 오늘의 시작점이 선명해졌어요.", message: "가장 먼저 보이는 일정 하나를 체크하고, 끝난 뒤 난이도를 알려주세요.", image: "assets/ollie-action.png" };
+    }
+  }
+
+  if (selectedCompletion.percent === 100) {
+    kicker = "OLLIE COACH · 오늘 일정 완료";
+    copy = { title: "오늘 스케줄을 모두 해냈어요. 이 흐름을 올리가 기억할게요!", message: "오늘의 기분과 잘된 점을 추억 카드에 남기면 내일 계획을 더 정확하게 맞출 수 있어요.", image: "assets/ollie-celebrate.png" };
+  }
+
+  if (dailyCoachKicker) dailyCoachKicker.textContent = kicker;
+  dailyCoachTitle.textContent = copy.title;
+  dailyCoachMessage.textContent = copy.message;
+  if (dailyCoachImage) dailyCoachImage.src = copy.image;
+}
+
 function renderExecutionPage(bundle) {
   if (!executionGoal) return;
 
@@ -2681,6 +2753,7 @@ function renderExecutionPage(bundle) {
   renderWeeklyPlan(schedule);
   renderRoutineInsight(plan);
   renderFocusTask(selectedDay, selectedCompletion);
+  renderDailyCoach(state, selectedCompletion);
   renderRecoveryPrompt(state, selectedCompletion);
   renderCompanionExperience({ plan, selectedCompletion, remainingTasks, completedDays, overallProgress });
 }
