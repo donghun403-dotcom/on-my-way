@@ -1494,10 +1494,9 @@ function showOllieReaction(message) {
     pulseCompanion();
     if (!speech) return;
     speech.classList.remove("is-reacting");
-    window.requestAnimationFrame(() => {
-      speech.classList.add("is-reacting");
-      window.setTimeout(() => speech.classList.remove("is-reacting"), 1600);
-    });
+    void speech.offsetWidth;
+    speech.classList.add("is-reacting");
+    window.setTimeout(() => speech.classList.remove("is-reacting"), 1600);
   }, 80);
 }
 
