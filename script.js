@@ -1519,6 +1519,28 @@ function getXpRequirement(level) {
   return 40 + Math.max(0, level - 1) * 18;
 }
 
+async function requestAiPlanRevision(payload) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 60000);
+
+  try {
+    const response = await fetch("/api/ai/plan-revision", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "AI 변경안을 만드는 중 문제가 생겼어요.");
+    return result.revision || result;
+  } catch (error) {
+    if (error.name === "AbortError") throw new Error("AI 변경안 작성이 길어지고 있어요. 잠시 후 다시 시도해 주세요.");
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
 const companionBondLevels = [
   { level: 1, name: "새싹 친구", next: "포근한 미소와 반가운 인사", detail: "한 단계 가까워지면 올리가 더 다정한 표정과 새 인사로 맞아줘요." },
   { level: 2, name: "포근한 단짝", next: "별빛 언덕의 반짝 대사", detail: "올리가 실행을 기억하고 별빛 언덕에서만 들려주는 응원을 시작해요." },
@@ -2457,8 +2479,15 @@ memoryList?.addEventListener("click", (event) => {
   if (!memory?.suggestion) return;
   appendRevisionRequest(memory.suggestion, "추억 카드에서 찾은 단서를 계획 수정 요청에 담았어요.");
   trackCompanionEvent("memory_insight_applied", { memoryId: memory.id });
-  showToast("내일 계획에 반영할 준비가 됐어요 · 계획 탭에서 변경안을 확인해 주세요");
+  showToast("추억 카드의 제안을 옮겼어요 · AI 변경안 만들기를 눌러 확인해 주세요");
   document.querySelector("#tab-plan")?.click();
+  window.setTimeout(() => {
+    const editor = document.querySelector("#journeyPlanEditor");
+    editor?.scrollIntoView({ behavior: "smooth", block: "start" });
+    editor?.classList.add("memory-revision-arrival");
+    planRevisionRequest?.focus({ preventScroll: true });
+    window.setTimeout(() => editor?.classList.remove("memory-revision-arrival"), 1800);
+  }, 140);
 });
 
 function renderDifficultyPrompt(state) {
@@ -3049,7 +3078,7 @@ acceptPlanButton?.addEventListener("click", () => {
   renderExecutionPage(bundle);
 });
 
-regeneratePlanButton?.addEventListener("click", () => {
+regeneratePlanButton?.addEventListener("click", async () => {
   const currentBundle = getPlanBundle();
   const baseText = planEditor?.value.trim() || currentBundle.state.planText || getDefaultPlanText(readExecutionPlan());
   const revisionRequest = planRevisionRequest?.value.trim() || "";
@@ -3057,17 +3086,59 @@ regeneratePlanButton?.addEventListener("click", () => {
     updateRevisionButtonState();
     return;
   }
-  if (!consumeOllieEnergy(3, "오늘 일정 다시 만들기")) return;
-  const customText = buildRevisedPlanText(baseText, revisionRequest);
-  const bundle = getPlanBundle();
-  bundle.state.pendingPlanText = customText;
-  bundle.state.pendingRevisionRequest = revisionRequest;
-  bundle.state.status = "변경안 대기";
-  savePlanBundleState(bundle.state);
-  if (planEditorMessage) {
-    planEditorMessage.textContent = "올리가 변경안을 만들었습니다. 아직 적용되지 않았고, 완료한 일정은 그대로 보호됩니다.";
+  if (!consumeOllieEnergy(3, "AI 계획 수정")) {
+    openEnergyCharge();
+    return;
   }
-  renderExecutionPage(bundle);
+
+  const plan = currentBundle.plan || readExecutionPlan();
+  const buttonMarkup = regeneratePlanButton.innerHTML;
+  regeneratePlanButton.disabled = true;
+  regeneratePlanButton.textContent = "올리가 AI 변경안을 만들고 있어요…";
+  if (planEditorMessage) planEditorMessage.textContent = "추억과 실행 기록을 읽고 목표에 맞는 변경안을 설계하고 있어요.";
+  trackCompanionEvent("ai_plan_revision_requested", { energy: 3, requestLength: revisionRequest.length });
+
+  try {
+    const revision = await requestAiPlanRevision({
+      goal: plan.goal || "나의 목표",
+      periodDays: Number(plan.period) || currentBundle.schedule.length || 30,
+      currentState: plan.currentState || "현재 계획을 실행 중",
+      planningStyle: plan.style || "실행 중심형",
+      routine: {
+        readiness: plan.routineReadiness || DEFAULT_ROUTINE_READINESS,
+        preferredTime: plan.routineTime || "아침",
+        existingRoutine: plan.currentRoutine || "기존 루틴",
+      },
+      currentPlanText: baseText,
+      revisionRequest,
+      completedTasks: (currentBundle.state.completedLog || []).map((item) => item.text),
+    });
+
+    const revisedTasks = Array.isArray(revision.revisedTasks) ? revision.revisedTasks.map((task) => String(task).trim()).filter(Boolean) : [];
+    if (revisedTasks.length < 3) throw new Error("AI 변경안의 실행 항목이 충분하지 않아요. 다시 시도해 주세요.");
+
+    const customText = revisedTasks.map((task) => `- ${task}`).join("\n");
+    const bundle = getPlanBundle();
+    bundle.state.pendingPlanText = customText;
+    bundle.state.pendingRevisionRequest = revisionRequest;
+    bundle.state.status = "AI 변경안 대기";
+    savePlanBundleState(bundle.state);
+    if (planEditorMessage) {
+      const changes = Array.isArray(revision.changes) ? revision.changes.slice(0, 2).join(" · ") : "요청한 조건을 반영했어요.";
+      planEditorMessage.textContent = `${revision.ollieMessage || "올리가 AI 변경안을 만들었어요."} ${changes} 아직 적용 전이며, 아래에서 확인 후 승인할 수 있어요.`;
+    }
+    showToast("AI 변경안이 준비됐어요 · 확인 후 적용하기를 눌러 주세요");
+    trackCompanionEvent("ai_plan_revision_ready", { energy: 3, taskCount: revisedTasks.length });
+    renderExecutionPage(bundle);
+  } catch (error) {
+    refundOllieEnergy(3);
+    if (planEditorMessage) planEditorMessage.textContent = `${error.message || "AI 변경안을 만들지 못했어요."} 사용한 올리 에너지는 돌려드렸어요.`;
+    showToast("AI 변경안을 만들지 못했어요 · 올리 에너지 3을 돌려드렸어요");
+    trackCompanionEvent("ai_plan_revision_failed", { message: String(error.message || error).slice(0, 160) });
+  } finally {
+    regeneratePlanButton.innerHTML = buttonMarkup;
+    updateRevisionButtonState();
+  }
 });
 
 weeklyOptimizeButton?.addEventListener("click", () => {

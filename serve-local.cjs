@@ -6,6 +6,7 @@ const port = Number(process.env.PORT || 8765);
 const host = "127.0.0.1";
 const root = path.resolve(__dirname);
 const aiGoalPlanModule = import("./ai-goal-plan.mjs");
+const aiPlanRevisionModule = import("./ai-plan-revision.mjs");
 
 const contentTypes = {
   ".html": "text/html; charset=utf-8",
@@ -75,6 +76,27 @@ const server = http.createServer(async (request, response) => {
     } catch (error) {
       console.error("AI goal plan request failed", error);
       sendJson(response, error.status || 500, { error: error.message || "AI 계획을 만들지 못했어요." });
+    }
+    return;
+  }
+
+  if (pathname === "/api/ai/plan-revision") {
+    if (request.method !== "POST") {
+      sendJson(response, 405, { error: "POST 요청만 사용할 수 있어요." });
+      return;
+    }
+
+    try {
+      const input = await readJsonBody(request, 20000);
+      const { createAiPlanRevision } = await aiPlanRevisionModule;
+      const result = await createAiPlanRevision(input, {
+        apiKey: process.env.OPENAI_API_KEY,
+        model: process.env.OPENAI_MODEL || "gpt-5.4-mini",
+      });
+      sendJson(response, 200, result);
+    } catch (error) {
+      console.error("AI plan revision request failed", error);
+      sendJson(response, error.status || 500, { error: error.message || "AI 변경안을 만들지 못했어요." });
     }
     return;
   }
