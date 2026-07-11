@@ -388,10 +388,12 @@ const memoryForm = document.querySelector("#memoryForm");
 const memoryCompletion = document.querySelector("#memoryCompletion");
 const memoryConversation = document.querySelector("#memoryConversation");
 const memoryMoodButtons = document.querySelectorAll("[data-memory-mood]");
+const memoryTitle = document.querySelector("#memoryTitle");
 const memoryNote = document.querySelector("#memoryNote");
 const memoryObstacle = document.querySelector("#memoryObstacle");
 const memoryNextStep = document.querySelector("#memoryNextStep");
 const memorySaveHint = document.querySelector("#memorySaveHint");
+const memorySaveButton = document.querySelector("#memorySaveButton");
 const memoryCount = document.querySelector("#memoryCount");
 const chatOverlay = document.querySelector("#chatOverlay");
 const companionChatSheet = document.querySelector("#companionChatSheet");
@@ -1257,7 +1259,7 @@ function migrateExecutionState(rawState) {
         : {},
     recoveryActions: Array.isArray(state.recoveryActions) ? state.recoveryActions.slice(-30) : [],
     completedLog: Array.isArray(state.completedLog) ? state.completedLog.slice(-80) : [],
-    dailyMemories: Array.isArray(state.dailyMemories) ? state.dailyMemories.slice(-60) : [],
+    dailyMemories: Array.isArray(state.dailyMemories) ? state.dailyMemories.slice(-365) : [],
     lastCompletion: state.lastCompletion || null,
     lastSeenDate: state.lastSeenDate || todayKey,
     rolloverNotice: state.rolloverNotice || null,
@@ -2269,10 +2271,18 @@ function renderJourneyMap(overallProgress) {
 }
 
 const memoryMoodMeta = {
-  light: { label: "가벼움", icon: "●" },
-  steady: { label: "보통", icon: "●" },
-  tired: { label: "지침", icon: "●" },
+  happy: { label: "기쁨", icon: "😊" },
+  proud: { label: "뿌듯함", icon: "✨" },
+  calm: { label: "평온함", icon: "🌿" },
+  tired: { label: "지침", icon: "🌙" },
+  heavy: { label: "답답함", icon: "☁️" },
+  light: { label: "가벼움", icon: "😊" },
+  steady: { label: "보통", icon: "🌿" },
 };
+
+function normalizeMemoryMood(mood) {
+  return { light: "happy", steady: "calm" }[mood] || mood || "calm";
+}
 
 const memoryObstacleMeta = {
   none: "특별한 방해 없음",
@@ -2293,7 +2303,7 @@ function getLatestCompanionDialogue() {
 function buildMemorySuggestion({ mood, obstacle, completion, nextStep }) {
   if (nextStep) return `내일 첫 행동을 "${nextStep}"로 시작하도록 계획에 반영해줘.`;
   if (obstacle === "time") return "내일 계획은 가능한 시간을 먼저 정하고, 핵심 행동 한 가지만 그 시간에 배치해줘.";
-  if (obstacle === "energy" || mood === "tired") return "내일 첫 행동은 5분짜리 최소 성공 기준으로 줄이고, 나머지는 선택 행동으로 바꿔줘.";
+  if (obstacle === "energy" || mood === "tired" || mood === "heavy") return "내일 첫 행동은 5분짜리 최소 성공 기준으로 줄이고, 나머지는 선택 행동으로 바꿔줘.";
   if (obstacle === "difficulty") return "내일 과제는 지금 크기의 절반 이하로 나누고, 완료 기준을 한 문장으로 선명하게 적어줘.";
   if (obstacle === "focus") return "내일 계획은 한 번에 한 과제만 보이게 하고, 시작 알림과 10분 타이머를 연결해줘.";
   if (completion >= 80) return "오늘 잘 된 시간과 실행 크기를 내일도 유지하고, 난이도는 올리지 말아줘.";
@@ -2309,8 +2319,8 @@ function renderMemoryCards({ selectedCompletion }) {
   if (!memoryList) return;
   const state = getExecutionState();
   const memories = [...(state.dailyMemories || [])].sort((a, b) => String(b.updatedAt || b.createdAt).localeCompare(String(a.updatedAt || a.createdAt)));
-  const todayId = `${getTodayKey()}-day${state.selectedDay}`;
-  const todayMemory = memories.find((item) => item.id === todayId);
+  const todayKey = getTodayKey();
+  const todayMemory = memories.find((item) => item.diaryDate === todayKey || String(item.id || "").startsWith(todayKey));
   const latestDialogue = getLatestCompanionDialogue();
   const conversation = latestDialogue?.detail?.reply || companionMessage?.textContent || "아직 오늘 나눈 대화가 없어요.";
 
@@ -2320,11 +2330,14 @@ function renderMemoryCards({ selectedCompletion }) {
 
   const isEditingMemory = memoryForm?.contains(document.activeElement);
   if (!isEditingMemory) {
-    const selectedMood = todayMemory?.mood || "steady";
+    const selectedMood = normalizeMemoryMood(todayMemory?.mood);
     memoryMoodButtons.forEach((button) => button.classList.toggle("selected", button.dataset.memoryMood === selectedMood));
+    if (memoryTitle) memoryTitle.value = todayMemory?.title || "";
     if (memoryNote) memoryNote.value = todayMemory?.note || "";
     if (memoryObstacle) memoryObstacle.value = todayMemory?.obstacle || "none";
     if (memoryNextStep) memoryNextStep.value = todayMemory?.nextStep || "";
+    const saveLabel = memorySaveButton?.querySelector("span");
+    if (saveLabel) saveLabel.textContent = todayMemory ? "오늘의 다이어리 업데이트하기" : "오늘의 다이어리 저장하기";
   }
 
   memoryList.replaceChildren();
@@ -2336,18 +2349,18 @@ function renderMemoryCards({ selectedCompletion }) {
     image.alt = "";
     const copy = document.createElement("div");
     const title = document.createElement("strong");
-    title.textContent = "첫 번째 하루를 남겨볼까요?";
+    title.textContent = "첫 번째 다이어리를 써볼까요?";
     const text = document.createElement("p");
-    text.textContent = "기분과 실행 기록을 남기면 올리가 내일 계획을 더 가볍게 맞춰드려요.";
+    text.textContent = "오늘의 감정과 기억하고 싶은 순간을 남기면 올리가 내일 계획까지 이어드려요.";
     copy.append(title, text);
     empty.append(image, copy);
     memoryList.append(empty);
   } else {
-    memories.slice(0, 8).forEach((memory) => {
+    memories.slice(0, 30).forEach((memory) => {
       const mood = memoryMoodMeta[memory.mood] || memoryMoodMeta.steady;
       const item = document.createElement("article");
-      item.className = `daily-memory-item mood-${memory.mood || "steady"}`;
-      item.dataset.mood = memory.mood || "steady";
+      item.className = `daily-memory-item diary-entry mood-${normalizeMemoryMood(memory.mood)}`;
+      item.dataset.mood = normalizeMemoryMood(memory.mood);
 
       const head = document.createElement("header");
       head.className = "daily-memory-head";
@@ -2356,12 +2369,16 @@ function renderMemoryCards({ selectedCompletion }) {
       const small = document.createElement("small");
       small.textContent = `DAY ${memory.day || 1}`;
       const dateStrong = document.createElement("strong");
-      dateStrong.textContent = formatMemoryDate(memory.updatedAt || memory.createdAt);
+      dateStrong.textContent = formatMemoryDate(memory.diaryDate || memory.createdAt);
       date.append(small, dateStrong);
       const moodBadge = document.createElement("span");
       moodBadge.className = "memory-mood-badge";
       moodBadge.textContent = `${mood.icon} ${mood.label}`;
       head.append(date, moodBadge);
+
+      const diaryTitle = document.createElement("h4");
+      diaryTitle.className = "diary-entry-title";
+      diaryTitle.textContent = memory.title || `${mood.label}을 기억한 하루`;
 
       const metrics = document.createElement("div");
       metrics.className = "memory-metrics";
@@ -2373,7 +2390,15 @@ function renderMemoryCards({ selectedCompletion }) {
 
       const note = document.createElement("p");
       note.className = "memory-note";
-      note.textContent = memory.note || "한 줄 기록은 비워두었지만, 오늘의 실행과 기분은 저장했어요.";
+      note.textContent = memory.note || "글로 남기지는 않았지만, 오늘의 감정과 실행을 한 장의 기억으로 저장했어요.";
+
+      const nextStep = document.createElement("div");
+      nextStep.className = "diary-next-step";
+      const nextStepLabel = document.createElement("span");
+      nextStepLabel.textContent = "내일의 첫 장면";
+      const nextStepText = document.createElement("strong");
+      nextStepText.textContent = memory.nextStep || "내일의 나에게 맡겨둘게요.";
+      nextStep.append(nextStepLabel, nextStepText);
 
       const dialogue = document.createElement("div");
       dialogue.className = "memory-dialogue";
@@ -2398,7 +2423,19 @@ function renderMemoryCards({ selectedCompletion }) {
       applyButton.textContent = "내일 계획에 반영";
       action.append(suggestion, applyButton);
 
-      item.append(head, metrics, note, dialogue, action);
+      const diaryActions = document.createElement("div");
+      diaryActions.className = "diary-entry-actions";
+      const editButton = document.createElement("button");
+      editButton.type = "button";
+      editButton.dataset.memoryEdit = memory.id;
+      editButton.textContent = "다시 쓰기";
+      const deleteButton = document.createElement("button");
+      deleteButton.type = "button";
+      deleteButton.dataset.memoryDelete = memory.id;
+      deleteButton.textContent = "기록 지우기";
+      diaryActions.append(editButton, deleteButton);
+
+      item.append(head, diaryTitle, metrics, note, nextStep, dialogue, action, diaryActions);
       memoryList.append(item);
     });
   }
@@ -2413,7 +2450,7 @@ function renderPatternCards(state) {
   const completedLog = state.completedLog || [];
   const eveningCount = completedLog.filter((item) => Number(String(item.time).slice(0, 2)) >= 18).length;
   const averageCompletion = memories.length ? Math.round(memories.reduce((sum, item) => sum + Number(item.completion || 0), 0) / memories.length) : 0;
-  const tiredRecords = memories.filter((item) => item.mood === "tired");
+  const tiredRecords = memories.filter((item) => item.mood === "tired" || item.mood === "heavy");
   const obstacleCounts = memories.reduce((counts, item) => {
     if (item.obstacle && item.obstacle !== "none") counts[item.obstacle] = (counts[item.obstacle] || 0) + 1;
     return counts;
@@ -2422,10 +2459,10 @@ function renderPatternCards(state) {
   const dialogueCount = memories.filter((item) => item.hasDialogue).length;
 
   const patterns = [
-    { icon: "↗", title: "나의 실행 페이스", detail: memories.length ? `${memories.length}일 평균 실행률은 ${averageCompletion}%예요. 기록이 더 쌓이면 요일별 차이도 알려드릴게요.` : "첫 추억 카드를 저장하면 실행 페이스 분석이 시작돼요." },
+    { icon: "↗", title: "나의 실행 페이스", detail: memories.length ? `${memories.length}일 평균 실행률은 ${averageCompletion}%예요. 기록이 더 쌓이면 요일별 차이도 알려드릴게요.` : "첫 다이어리를 저장하면 실행 페이스 분석이 시작돼요." },
     { icon: "◌", title: "기분과 실행", detail: tiredRecords.length ? `지쳤다고 기록한 날이 ${tiredRecords.length}일 있어요. 그날의 실행률을 비교해 최소 행동 크기를 조정할 수 있어요.` : "기분을 기록하면 컨디션에 맞는 계획 강도를 찾을 수 있어요." },
     { icon: "◇", title: "자주 막히는 지점", detail: commonObstacle ? `${memoryObstacleMeta[commonObstacle]}이 가장 자주 나타났어요. 다음 계획에서 이 지점을 먼저 줄여볼 수 있어요.` : eveningCount >= 2 ? "저녁 실행 기록이 많아요. 저녁 중심 루틴이 잘 맞을 가능성이 있어요." : "방해 요인을 기록하면 올리가 반복되는 막힘을 찾아드려요." },
-    { icon: "✦", title: "올리와의 대화 효과", detail: dialogueCount ? `올리와 대화한 기록이 ${dialogueCount}일 있어요. 대화한 날의 실행률 변화를 함께 살펴볼 수 있어요.` : "올리와 나눈 대화도 추억 카드에 담아 어떤 응원이 도움이 됐는지 찾아드려요." },
+    { icon: "✦", title: "올리와의 대화 효과", detail: dialogueCount ? `올리와 대화한 기록이 ${dialogueCount}일 있어요. 대화한 날의 실행률 변화를 함께 살펴볼 수 있어요.` : "올리와 나눈 대화도 다이어리에 담아 어떤 응원이 도움이 됐는지 찾아드려요." },
   ];
 
   patternList.replaceChildren();
@@ -2453,38 +2490,78 @@ memoryForm?.addEventListener("submit", (event) => {
   const bundle = getPlanBundle();
   const selectedDay = bundle.schedule[bundle.state.selectedDay - 1] || bundle.schedule[0];
   const completion = getDayCompletion(selectedDay, bundle.state.checkedByDay);
-  const mood = document.querySelector("[data-memory-mood].selected")?.dataset.memoryMood || "steady";
+  const mood = document.querySelector("[data-memory-mood].selected")?.dataset.memoryMood || "calm";
+  const title = memoryTitle?.value.trim() || "오늘의 한 장";
   const obstacle = memoryObstacle?.value || "none";
   const note = memoryNote?.value.trim() || "";
   const nextStep = memoryNextStep?.value.trim() || "";
   const latestDialogue = getLatestCompanionDialogue();
   const conversation = latestDialogue?.detail?.reply || companionMessage?.textContent || "오늘 올리와 함께 계획을 확인했어요.";
-  const id = `${getTodayKey()}-day${bundle.state.selectedDay}`;
+  const editingId = memoryForm.dataset.editingMemoryId || "";
+  const todayKey = getTodayKey();
+  const existingToday = (bundle.state.dailyMemories || []).find((item) => item.diaryDate === todayKey || String(item.id || "").startsWith(todayKey));
+  const id = editingId || existingToday?.id || todayKey;
   const existing = (bundle.state.dailyMemories || []).find((item) => item.id === id);
+  const recordedCompletion = editingId && existing ? Number(existing.completion || 0) : completion.percent;
   const memory = {
     id,
-    day: bundle.state.selectedDay,
+    diaryDate: existing?.diaryDate || (editingId ? String(existing?.id || "").slice(0, 10) : todayKey),
+    day: existing?.day || bundle.state.selectedDay,
+    title,
     mood,
-    completion: completion.percent,
+    completion: recordedCompletion,
     obstacle,
     note,
     nextStep,
-    conversation,
-    hasDialogue: Boolean(latestDialogue),
-    suggestion: buildMemorySuggestion({ mood, obstacle, completion: completion.percent, nextStep }),
+    conversation: editingId && existing ? existing.conversation : conversation,
+    hasDialogue: editingId && existing ? existing.hasDialogue : Boolean(latestDialogue),
+    suggestion: buildMemorySuggestion({ mood, obstacle, completion: recordedCompletion, nextStep }),
     createdAt: existing?.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
 
-  bundle.state.dailyMemories = [...(bundle.state.dailyMemories || []).filter((item) => item.id !== id), memory].slice(-60);
+  bundle.state.dailyMemories = [...(bundle.state.dailyMemories || []).filter((item) => item.id !== id), memory].slice(-365);
   savePlanBundleState(bundle.state);
+  delete memoryForm.dataset.editingMemoryId;
   trackCompanionEvent("daily_memory_saved", { day: memory.day, mood, completion: memory.completion, obstacle });
-  if (memorySaveHint) memorySaveHint.textContent = "저장했어요. 올리가 기록을 읽고 내일 계획 제안을 준비했어요.";
-  showToast("오늘의 추억 카드를 저장했어요 · 내일 계획에 반영할 제안도 만들었어요");
+  if (memorySaveHint) memorySaveHint.textContent = "다이어리에 저장했어요. 오늘의 마음과 순간을 올리가 오래 기억할게요.";
+  showToast("오늘의 다이어리를 저장했어요 · 차곡차곡 쌓인 기록에서 확인해 보세요");
+  memorySaveButton?.blur();
   renderExecutionPage(getPlanBundle());
 });
 
 memoryList?.addEventListener("click", (event) => {
+  const editButton = event.target.closest("[data-memory-edit]");
+  const deleteButton = event.target.closest("[data-memory-delete]");
+  if (editButton) {
+    const state = getExecutionState();
+    const memory = (state.dailyMemories || []).find((item) => item.id === editButton.dataset.memoryEdit);
+    if (!memory) return;
+    memoryForm.dataset.editingMemoryId = memory.id;
+    if (memoryTitle) memoryTitle.value = memory.title || "";
+    if (memoryNote) memoryNote.value = memory.note || "";
+    if (memoryObstacle) memoryObstacle.value = memory.obstacle || "none";
+    if (memoryNextStep) memoryNextStep.value = memory.nextStep || "";
+    const selectedMood = normalizeMemoryMood(memory.mood);
+    memoryMoodButtons.forEach((button) => button.classList.toggle("selected", button.dataset.memoryMood === selectedMood));
+    const saveLabel = memorySaveButton?.querySelector("span");
+    if (saveLabel) saveLabel.textContent = "수정한 다이어리 저장하기";
+    memoryForm.scrollIntoView({ behavior: "smooth", block: "center" });
+    window.setTimeout(() => memoryTitle?.focus({ preventScroll: true }), 320);
+    showToast("기록을 다시 펼쳤어요 · 고친 뒤 저장하면 같은 날짜에 업데이트돼요");
+    return;
+  }
+  if (deleteButton) {
+    const state = getExecutionState();
+    const memory = (state.dailyMemories || []).find((item) => item.id === deleteButton.dataset.memoryDelete);
+    if (!memory || !window.confirm(`“${memory.title || formatMemoryDate(memory.createdAt)}” 기록을 지울까요?`)) return;
+    state.dailyMemories = (state.dailyMemories || []).filter((item) => item.id !== memory.id);
+    savePlanBundleState(state);
+    if (memoryForm.dataset.editingMemoryId === memory.id) delete memoryForm.dataset.editingMemoryId;
+    showToast("다이어리 기록을 지웠어요");
+    renderExecutionPage(getPlanBundle());
+    return;
+  }
   const button = event.target.closest("[data-memory-apply]");
   if (!button) return;
   const state = getExecutionState();
@@ -2644,7 +2721,7 @@ function renderDailyCoach(state, selectedCompletion) {
   const memories = Array.isArray(state.dailyMemories) ? state.dailyMemories : [];
   const yesterdayMemory = [...memories]
     .reverse()
-    .find((memory) => String(memory.id || "").startsWith(yesterdayKey));
+    .find((memory) => memory.diaryDate === yesterdayKey || String(memory.id || "").startsWith(yesterdayKey));
 
   const dailyMessages = [
     { title: "오늘의 첫 체크가 이번 주의 방향을 만들어요.", message: "가장 먼저 보이는 일정 하나를 끝내고, 나머지는 그다음에 생각해도 충분해요.", image: "assets/ollie-action.png" },
@@ -2672,7 +2749,7 @@ function renderDailyCoach(state, selectedCompletion) {
       };
     } else if (obstacle === "time") {
       copy = { title: "어제 시간이 부족했으니, 오늘은 중요한 일정부터 지켜요.", message: "첫 일정에 타이머를 맞추고 끝낸 뒤 남은 시간에 따라 다음 일정을 선택해도 괜찮아요.", image: "assets/ollie-thinking.png" };
-    } else if (obstacle === "energy" || yesterdayMemory.mood === "tired") {
+    } else if (obstacle === "energy" || yesterdayMemory.mood === "tired" || yesterdayMemory.mood === "heavy") {
       copy = { title: "어제 지쳤던 만큼, 오늘은 첫 일정 하나에 집중해요.", message: "컨디션을 확인하면서 한 가지를 완료하고, 힘이 남으면 다음 일정으로 넘어가요.", image: "assets/ollie-comfort.png" };
     } else if (obstacle === "difficulty") {
       copy = { title: "어제 어려웠던 일은 오늘 완료 기준부터 확인해요.", message: "한 번에 전부 하려 하지 말고, 스케줄에 적힌 시간과 분량까지만 끝내보세요.", image: "assets/ollie-thinking.png" };

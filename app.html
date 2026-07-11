@@ -389,19 +389,22 @@
                 <div><span>오늘 실행</span><strong id="memoryCompletion">0% 완료</strong></div>
                 <div><span>올리의 오늘 한마디</span><p id="memoryConversation">아직 오늘 나눈 대화가 없어요.</p></div>
               </div>
+              <label class="memory-field memory-title-field" for="memoryTitle"><span>오늘의 다이어리 제목</span><input id="memoryTitle" type="text" maxlength="60" placeholder="예: 망설였지만 결국 시작한 날" /></label>
               <fieldset class="memory-mood-picker">
-                <legend>오늘 기분은 어땠나요?</legend>
-                <button type="button" data-memory-mood="light"><span aria-hidden="true">●</span> 가벼움</button>
-                <button class="selected" type="button" data-memory-mood="steady"><span aria-hidden="true">●</span> 보통</button>
-                <button type="button" data-memory-mood="tired"><span aria-hidden="true">●</span> 지침</button>
+                <legend>오늘의 마음은 어떤 색이었나요?</legend>
+                <button type="button" data-memory-mood="happy"><span aria-hidden="true">😊</span> 기쁨</button>
+                <button type="button" data-memory-mood="proud"><span aria-hidden="true">✨</span> 뿌듯함</button>
+                <button class="selected" type="button" data-memory-mood="calm"><span aria-hidden="true">🌿</span> 평온함</button>
+                <button type="button" data-memory-mood="tired"><span aria-hidden="true">🌙</span> 지침</button>
+                <button type="button" data-memory-mood="heavy"><span aria-hidden="true">☁️</span> 답답함</button>
               </fieldset>
-              <label class="memory-field memory-note-field" for="memoryNote"><span>오늘의 한 줄</span><textarea id="memoryNote" rows="3" maxlength="240" placeholder="예: 시작은 무거웠지만 10분 하고 나니 생각보다 괜찮았다."></textarea></label>
+              <label class="memory-field memory-note-field" for="memoryNote"><span>오늘 기억하고 싶은 순간</span><textarea id="memoryNote" rows="4" maxlength="500" placeholder="무슨 일이 있었고, 어떤 마음이 들었나요? 사소한 순간도 좋아요."></textarea></label>
               <div class="memory-input-grid">
                 <label class="memory-field" for="memoryObstacle"><span>오늘 가장 방해된 것</span><select id="memoryObstacle"><option value="none">특별히 없었어요</option><option value="time">시간이 부족했어요</option><option value="energy">에너지가 부족했어요</option><option value="difficulty">과제가 너무 컸어요</option><option value="focus">집중이 흐트러졌어요</option></select></label>
                 <label class="memory-field" for="memoryNextStep"><span>내일의 가장 작은 행동</span><input id="memoryNextStep" type="text" maxlength="120" placeholder="예: 단어 앱 5분 열기" /></label>
               </div>
-              <button class="save-memory-button" type="submit"><span>오늘의 추억 카드 저장하기</span><b aria-hidden="true">→</b></button>
-              <p class="memory-save-hint" id="memorySaveHint">실행률과 올리의 대화는 자동으로 함께 저장돼요.</p>
+              <button class="save-memory-button" id="memorySaveButton" type="submit"><span>오늘의 다이어리 저장하기</span><b aria-hidden="true">→</b></button>
+              <p class="memory-save-hint" id="memorySaveHint">실행률과 올리의 대화도 한 장의 기억으로 함께 저장돼요.</p>
             </form>
             <aside class="memory-ollie-guide">
               <img src="assets/ollie-thinking.png" alt="오늘의 기록을 함께 정리하는 올리" />
@@ -409,7 +412,7 @@
             </aside>
           </div>
           <div class="memory-list-head">
-            <div><h3>차곡차곡 쌓인 기억</h3><p>최근 기록부터 보여드려요</p></div>
+            <div><h3>차곡차곡 쌓인 나의 다이어리</h3><p>감정과 실행이 하루 한 장씩 이어져요</p></div>
             <span id="memoryCount">0장</span>
           </div>
           <div class="memory-list" id="memoryList"></div>
