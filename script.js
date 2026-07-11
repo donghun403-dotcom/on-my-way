@@ -111,8 +111,12 @@ const recoveryCard = document.querySelector("#recoveryCard");
 const recoverySummary = document.querySelector("#recoverySummary");
 const recoveryButtons = document.querySelectorAll("[data-recovery-action]");
 const scheduleCalendar = document.querySelector("#scheduleCalendar");
+const calendarMonthTitle = document.querySelector("#calendarMonthTitle");
 const calendarSummary = document.querySelector("#calendarSummary");
 const monthlyCompletion = document.querySelector("#monthlyCompletion");
+const previousCalendarMonth = document.querySelector("#previousCalendarMonth");
+const currentCalendarMonth = document.querySelector("#currentCalendarMonth");
+const nextCalendarMonth = document.querySelector("#nextCalendarMonth");
 const weeklyPlanList = document.querySelector("#weeklyPlanList");
 const dailyCoachImage = document.querySelector("#dailyCoachImage");
 const dailyCoachKicker = document.querySelector("#dailyCoachKicker");
@@ -1261,6 +1265,7 @@ function migrateExecutionState(rawState) {
     completedLog: Array.isArray(state.completedLog) ? state.completedLog.slice(-80) : [],
     dailyMemories: Array.isArray(state.dailyMemories) ? state.dailyMemories.slice(-365) : [],
     lastCompletion: state.lastCompletion || null,
+    planStartDate: state.planStartDate || "",
     lastSeenDate: state.lastSeenDate || todayKey,
     rolloverNotice: state.rolloverNotice || null,
     updatedAt: state.updatedAt || new Date().toISOString(),
@@ -1301,6 +1306,11 @@ function hashText(text) {
     hash |= 0;
   }
   return Math.abs(hash).toString(36);
+}
+
+function getLocalDateKey(value) {
+  const date = value ? new Date(value) : new Date();
+  return Number.isNaN(date.getTime()) ? getTodayKey() : date.toLocaleDateString("en-CA");
 }
 
 function getDefaultPlanText(plan) {
@@ -1417,10 +1427,6 @@ function getScheduleCompletion(schedule, checkedByDay) {
   return totalTasks ? Math.round((completedTasks / totalTasks) * 100) : 0;
 }
 
-function getVisibleMonthSchedule(schedule) {
-  return schedule.slice(0, Math.min(30, schedule.length));
-}
-
 function getDayCompletion(dayPlan, checkedByDay) {
   const checked = checkedByDay[String(dayPlan.day)] || [];
   const completed = checked.filter(Boolean).length;
@@ -1461,6 +1467,7 @@ function getPlanBundle({ reset = false, customText, revisionRequest } = {}) {
         completedLog: previous.completedLog || [],
         dailyMemories: previous.dailyMemories || [],
         lastCompletion: previous.lastCompletion || null,
+        planStartDate: previous.planStartDate || getLocalDateKey(plan.createdAt),
         lastSeenDate: previous.lastSeenDate || getTodayKey(),
         rolloverNotice: previous.rolloverNotice || null,
         updatedAt: new Date().toISOString(),
@@ -1471,6 +1478,7 @@ function getPlanBundle({ reset = false, customText, revisionRequest } = {}) {
   state.revisionRequest = requestText;
   state.scheduleKey = scheduleKey;
   state.selectedDay = Math.max(1, Math.min(Number(state.selectedDay) || 1, schedule.length));
+  state.planStartDate = state.planStartDate || getLocalDateKey(plan.createdAt);
 
   return { plan, planText, schedule, state };
 }
@@ -1486,6 +1494,7 @@ const companionStateKey = "omwCompanionState";
 const companionEventKey = "omwCompanionEvents";
 const focusSessionKey = "omwFocusSession";
 let activeFocusTaskIndex = 0;
+let calendarViewDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let focusTimerInterval = null;
 let focusSession = {
   taskKey: "",
@@ -2043,37 +2052,104 @@ function renderChecklist(dayPlan, state) {
   });
 }
 
-function renderCalendar(schedule, state) {
+function getPlanStartDate(plan, state) {
+  const source = state?.planStartDate || plan?.createdAt || getTodayKey();
+  const parsed = new Date(source);
+  const safeDate = Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+  return new Date(safeDate.getFullYear(), safeDate.getMonth(), safeDate.getDate());
+}
+
+function getCalendarDayDifference(date, startDate) {
+  const dateUtc = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+  const startUtc = Date.UTC(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+  return Math.round((dateUtc - startUtc) / 86400000);
+}
+
+function isSameCalendarDate(first, second) {
+  return first.getFullYear() === second.getFullYear() && first.getMonth() === second.getMonth() && first.getDate() === second.getDate();
+}
+
+function renderCalendar(schedule, state, plan) {
   if (!scheduleCalendar) return;
 
-  scheduleCalendar.innerHTML = "";
-  const monthDays = getVisibleMonthSchedule(schedule);
+  scheduleCalendar.replaceChildren();
+  const year = calendarViewDate.getFullYear();
+  const month = calendarViewDate.getMonth();
+  const planStartDate = getPlanStartDate(plan, state);
+  const today = new Date();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstDayOffset = (new Date(year, month, 1).getDay() + 6) % 7;
+  const monthPlanDays = [];
 
-  monthDays.forEach((dayPlan) => {
-    const completion = getDayCompletion(dayPlan, state.checkedByDay);
+  if (calendarMonthTitle) calendarMonthTitle.textContent = `${year}년 ${month + 1}월`;
+
+  for (let index = 0; index < firstDayOffset; index += 1) {
+    const empty = document.createElement("span");
+    empty.className = "calendar-empty";
+    empty.setAttribute("aria-hidden", "true");
+    scheduleCalendar.append(empty);
+  }
+
+  for (let dayNumber = 1; dayNumber <= daysInMonth; dayNumber += 1) {
+    const actualDate = new Date(year, month, dayNumber);
+    const planDayNumber = getCalendarDayDifference(actualDate, planStartDate) + 1;
+    const dayPlan = planDayNumber >= 1 && planDayNumber <= schedule.length ? schedule[planDayNumber - 1] : null;
+    const completion = dayPlan ? getDayCompletion(dayPlan, state.checkedByDay) : { percent: 0 };
     const button = document.createElement("button");
     const day = document.createElement("strong");
     const percent = document.createElement("span");
+    const planLabel = document.createElement("small");
     const ollie = document.createElement("img");
 
     button.type = "button";
     button.className = "calendar-day";
-    button.dataset.day = String(dayPlan.day);
+    button.disabled = !dayPlan;
+    if (dayPlan) button.dataset.day = String(dayPlan.day);
+    button.dataset.date = actualDate.toLocaleDateString("en-CA");
     button.style.setProperty("--day-progress", `${completion.percent}%`);
-    button.classList.toggle("selected", dayPlan.day === state.selectedDay);
-    button.classList.toggle("done", completion.percent === 100);
-    button.classList.toggle("partial", completion.percent > 0 && completion.percent < 100);
+    button.classList.toggle("selected", Boolean(dayPlan && dayPlan.day === state.selectedDay));
+    button.classList.toggle("today", isSameCalendarDate(actualDate, today));
+    button.classList.toggle("saturday", actualDate.getDay() === 6);
+    button.classList.toggle("sunday", actualDate.getDay() === 0);
+    button.classList.toggle("done", Boolean(dayPlan && completion.percent === 100));
+    button.classList.toggle("partial", Boolean(dayPlan && completion.percent > 0 && completion.percent < 100));
+    button.classList.toggle("outside-plan", !dayPlan);
 
-    day.textContent = String(dayPlan.day);
-    percent.textContent = `${completion.percent}%`;
+    day.textContent = String(dayNumber);
+    planLabel.textContent = isSameCalendarDate(actualDate, today) ? "오늘" : dayPlan ? `D${dayPlan.day}` : "";
+    percent.textContent = dayPlan ? `${completion.percent}%` : planDayNumber < 1 ? "시작 전" : "계획 밖";
     ollie.className = "calendar-ollie";
     ollie.src = completion.percent === 100 ? "assets/ollie-celebrate.png" : "assets/ollie-thinking.png";
     ollie.alt = "";
-    ollie.hidden = completion.percent !== 100 && dayPlan.day !== state.selectedDay;
-    button.setAttribute("aria-label", `${dayPlan.day}일차 ${completion.percent}% 완료`);
-    button.append(day, percent, ollie);
+    ollie.hidden = !dayPlan || (completion.percent !== 100 && dayPlan.day !== state.selectedDay);
+    button.setAttribute(
+      "aria-label",
+      dayPlan
+        ? `${year}년 ${month + 1}월 ${dayNumber}일, 계획 ${dayPlan.day}일차, ${completion.percent}% 완료`
+        : `${year}년 ${month + 1}월 ${dayNumber}일, 연결된 계획 없음`,
+    );
+    button.append(day, planLabel, percent, ollie);
     scheduleCalendar.append(button);
-  });
+    if (dayPlan) monthPlanDays.push(dayPlan);
+  }
+
+  const usedCells = firstDayOffset + daysInMonth;
+  const trailingCells = (7 - (usedCells % 7)) % 7;
+  for (let index = 0; index < trailingCells; index += 1) {
+    const empty = document.createElement("span");
+    empty.className = "calendar-empty";
+    empty.setAttribute("aria-hidden", "true");
+    scheduleCalendar.append(empty);
+  }
+
+  const monthProgress = monthPlanDays.length ? getScheduleCompletion(monthPlanDays, state.checkedByDay) : 0;
+  const completedDays = monthPlanDays.filter((dayPlan) => getDayCompletion(dayPlan, state.checkedByDay).percent === 100).length;
+  if (monthlyCompletion) monthlyCompletion.textContent = `${monthProgress}%`;
+  if (calendarSummary) {
+    calendarSummary.textContent = monthPlanDays.length
+      ? `목표 일정 ${monthPlanDays.length}일 · 완료한 날 ${completedDays}일`
+      : "이 달에는 연결된 목표 일정이 없어요";
+  }
 }
 
 function renderWeeklyPlan(schedule) {
@@ -2779,9 +2855,6 @@ function renderExecutionPage(bundle) {
   const selectedDay = schedule[state.selectedDay - 1] || schedule[0];
   const selectedCompletion = getDayCompletion(selectedDay, state.checkedByDay);
   const overallProgress = getScheduleCompletion(schedule, state.checkedByDay);
-  const visibleMonth = getVisibleMonthSchedule(schedule);
-  const monthProgress = getScheduleCompletion(visibleMonth, state.checkedByDay);
-  const monthCompletedDays = getCompletedDayCount(visibleMonth, state.checkedByDay);
   const completedDays = getCompletedDayCount(schedule, state.checkedByDay);
   const remainingTasks = selectedCompletion.total - selectedCompletion.completed;
 
@@ -2815,8 +2888,6 @@ function renderExecutionPage(bundle) {
   }
   if (selectedScheduleTitle) selectedScheduleTitle.textContent = `${selectedDay.day}일차 AI 스케줄`;
   if (selectedScheduleMeta) selectedScheduleMeta.textContent = `${selectedCompletion.percent}% 완료 · ${remainingTasks}개 남음`;
-  if (monthlyCompletion) monthlyCompletion.textContent = `${monthProgress}%`;
-  if (calendarSummary) calendarSummary.textContent = `첫 ${visibleMonth.length}일 중 ${monthCompletedDays}일을 완료했습니다`;
 
   if (executionMessage) {
     executionMessage.textContent =
@@ -2826,7 +2897,7 @@ function renderExecutionPage(bundle) {
   }
 
   renderChecklist(selectedDay, state);
-  renderCalendar(schedule, state);
+  renderCalendar(schedule, state, plan);
   renderWeeklyPlan(schedule);
   renderRoutineInsight(plan);
   renderFocusTask(selectedDay, selectedCompletion);
@@ -2935,12 +3006,34 @@ completeTodayButton?.addEventListener("click", () => {
 
 scheduleCalendar?.addEventListener("click", (event) => {
   const button = event.target.closest(".calendar-day");
-  if (!button) return;
+  if (!button || button.disabled || !button.dataset.day) return;
 
   const bundle = getPlanBundle();
   bundle.state.selectedDay = Number(button.dataset.day);
   savePlanBundleState(bundle.state);
   renderExecutionPage(bundle);
+});
+
+previousCalendarMonth?.addEventListener("click", () => {
+  calendarViewDate = new Date(calendarViewDate.getFullYear(), calendarViewDate.getMonth() - 1, 1);
+  renderExecutionPage(getPlanBundle());
+});
+
+currentCalendarMonth?.addEventListener("click", () => {
+  const today = new Date();
+  calendarViewDate = new Date(today.getFullYear(), today.getMonth(), 1);
+  const bundle = getPlanBundle();
+  const todayPlanDay = getCalendarDayDifference(today, getPlanStartDate(bundle.plan, bundle.state)) + 1;
+  if (todayPlanDay >= 1 && todayPlanDay <= bundle.schedule.length) {
+    bundle.state.selectedDay = todayPlanDay;
+    savePlanBundleState(bundle.state);
+  }
+  renderExecutionPage(bundle);
+});
+
+nextCalendarMonth?.addEventListener("click", () => {
+  calendarViewDate = new Date(calendarViewDate.getFullYear(), calendarViewDate.getMonth() + 1, 1);
+  renderExecutionPage(getPlanBundle());
 });
 
 revisionChipButtons.forEach((button) => {

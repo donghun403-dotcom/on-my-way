@@ -202,12 +202,19 @@
           <div class="card-title compact">
             <div>
               <small class="calendar-kicker">OLLIE'S MONTH</small>
-              <h2>이번 달 진행</h2>
+              <h2 id="calendarMonthTitle">이번 달 진행</h2>
               <span id="calendarSummary">하루 플랜 완성률을 한눈에 확인합니다</span>
             </div>
-            <div class="calendar-progress-badge">
-              <img src="assets/ollie-action.png" alt="" />
-              <span class="soft-badge" id="monthlyCompletion">0%</span>
+            <div class="calendar-head-actions">
+              <div class="calendar-progress-badge">
+                <img src="assets/ollie-action.png" alt="" />
+                <span class="soft-badge" id="monthlyCompletion">0%</span>
+              </div>
+              <div class="calendar-month-nav" aria-label="달력 월 이동">
+                <button id="previousCalendarMonth" type="button" aria-label="이전 달">‹</button>
+                <button id="currentCalendarMonth" type="button">오늘</button>
+                <button id="nextCalendarMonth" type="button" aria-label="다음 달">›</button>
+              </div>
             </div>
           </div>
           <div class="calendar-weekdays" aria-hidden="true">
