@@ -75,6 +75,13 @@ const ollieEnergyMeter = document.querySelector("#ollieEnergyMeter");
 const ollieEnergyBalance = document.querySelector("#ollieEnergyBalance");
 const ollieEnergyBar = document.querySelector("#ollieEnergyBar");
 const ollieEnergyWarning = document.querySelector("#ollieEnergyWarning");
+const openEnergyChargeButton = document.querySelector("#openEnergyCharge");
+const warningChargeButton = document.querySelector("#warningChargeButton");
+const energyChargeOverlay = document.querySelector("#energyChargeOverlay");
+const energyChargeSheet = document.querySelector("#energyChargeSheet");
+const closeEnergyChargeButton = document.querySelector("#closeEnergyCharge");
+const energyChargeBalance = document.querySelector("#energyChargeBalance");
+const energyPackButtons = document.querySelectorAll("[data-energy-pack]");
 const weeklyOptimizeButton = document.querySelector("#weeklyOptimizeButton");
 const executionGoal = document.querySelector("#executionGoal");
 const executionStyle = document.querySelector("#executionStyle");
@@ -291,6 +298,7 @@ function renderOllieEnergy() {
   const isLow = percent <= 20;
 
   if (ollieEnergyBalance) ollieEnergyBalance.textContent = `${remaining} / ${allocation}`;
+  if (energyChargeBalance) energyChargeBalance.textContent = `${remaining} / ${allocation}`;
   if (ollieEnergyBar) ollieEnergyBar.style.width = `${percent}%`;
   ollieEnergyMeter.classList.toggle("is-low", isLow);
   if (ollieEnergyWarning) ollieEnergyWarning.hidden = !isLow;
@@ -319,6 +327,22 @@ function refundOllieEnergy(amount) {
   state.remaining = Math.min(Number(state.allocation) || 0, Number(state.remaining || 0) + refund);
   saveOllieEnergyState(state);
   renderOllieEnergy();
+}
+
+function chargeOllieEnergy(amount) {
+  const state = readOllieEnergyState();
+  const charge = Math.max(0, Number(amount) || 0);
+  state.remaining = Number(state.remaining || 0) + charge;
+  if (state.remaining > Number(state.allocation || 0)) state.allocation = state.remaining;
+  saveOllieEnergyState(state);
+  renderOllieEnergy();
+  if (ollieEnergyMeter) {
+    ollieEnergyMeter.classList.remove("is-charged");
+    void ollieEnergyMeter.offsetWidth;
+    ollieEnergyMeter.classList.add("is-charged");
+    window.setTimeout(() => ollieEnergyMeter.classList.remove("is-charged"), 1200);
+  }
+  announce(`올리 에너지 ${charge}를 충전했습니다. ${state.remaining} 남았습니다.`);
 }
 
 renderOllieEnergy();
@@ -1596,6 +1620,16 @@ function closeCompanionChat() {
   setSheetOpen(companionChatSheet, chatOverlay, false);
 }
 
+function openEnergyCharge() {
+  renderOllieEnergy();
+  setSheetOpen(energyChargeSheet, energyChargeOverlay, true);
+  trackCompanionEvent("energy_charge_opened");
+}
+
+function closeEnergyCharge() {
+  setSheetOpen(energyChargeSheet, energyChargeOverlay, false);
+}
+
 function openFocusMode() {
   const bundle = getPlanBundle();
   const dayPlan = bundle.schedule[bundle.state.selectedDay - 1] || bundle.schedule[0];
@@ -2297,6 +2331,24 @@ openCompanionChatTriggers.forEach((button) => {
 closeCompanionChatButton?.addEventListener("click", closeCompanionChat);
 chatOverlay?.addEventListener("click", closeCompanionChat);
 
+openEnergyChargeButton?.addEventListener("click", openEnergyCharge);
+warningChargeButton?.addEventListener("click", openEnergyCharge);
+closeEnergyChargeButton?.addEventListener("click", closeEnergyCharge);
+energyChargeOverlay?.addEventListener("click", closeEnergyCharge);
+
+energyPackButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    const amount = Number(button.dataset.energyPack) || 0;
+    if (!amount) return;
+    chargeOllieEnergy(amount);
+    trackCompanionEvent("energy_pack_purchased", { amount });
+    window.setTimeout(() => {
+      closeEnergyCharge();
+      showToast(`올리 에너지 +${amount} 충전 완료 · 올리와의 대화와 계획 조정에 사용할 수 있어요`);
+    }, 450);
+  });
+});
+
 touchCompanionButton?.addEventListener("click", () => {
   const state = getCompanionState();
   const nextState = {
@@ -2461,6 +2513,7 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && activeSheet) {
     event.preventDefault();
     if (activeSheet === companionChatSheet) closeCompanionChat();
+    if (activeSheet === energyChargeSheet) closeEnergyCharge();
     if (activeSheet === focusMode) closeFocusMode();
   }
 

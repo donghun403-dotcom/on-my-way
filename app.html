@@ -41,6 +41,7 @@
           <span class="energy-leaf" aria-hidden="true">◆</span>
           <div><small>올리 에너지</small><strong id="ollieEnergyBalance">10 / 10</strong></div>
           <div class="ollie-energy-track" aria-hidden="true"><span id="ollieEnergyBar" style="width: 100%"></span></div>
+          <button class="energy-charge-button" id="openEnergyCharge" type="button" aria-label="올리 에너지 충전">＋<em>충전</em></button>
         </div>
         <a class="ghost-link" href="index.html#designFlow">설계 수정</a>
       </div>
@@ -48,8 +49,8 @@
 
     <div class="ollie-energy-warning" id="ollieEnergyWarning" role="status" aria-live="polite" hidden>
       <span aria-hidden="true">●</span>
-      <p><strong>올리 에너지가 얼마 남지 않았어요.</strong> 추가 충전하거나 다음 충전일까지 사용할 기능을 골라보세요.</p>
-      <a href="index.html#pricing">에너지 충전 보기</a>
+      <p><strong>올리 에너지가 얼마 남지 않았어요.</strong> 지금 바로 충전하고 올리와 계속 함께해요.</p>
+      <button type="button" id="warningChargeButton">지금 충전하기</button>
     </div>
 
     <div class="trial-status-banner" id="trialStatusBanner" role="status" hidden>
@@ -422,6 +423,29 @@
       </label>
       <button class="chat-send-button" id="sendCompanionMessage" type="button">올리에게 보내기</button>
       <p class="chat-response" id="companionChatResponse">메시지를 보내면 올리 에너지 1을 사용해 올리가 직접 답해줘요. 계획을 바꾸는 요청은 계획 탭의 변경안에도 함께 담아둬요.</p>
+    </aside>
+
+    <div class="sheet-overlay" id="energyChargeOverlay" hidden></div>
+    <aside class="companion-chat-sheet energy-charge-sheet" id="energyChargeSheet" role="dialog" aria-modal="true" aria-labelledby="energyChargeTitle" tabindex="-1" hidden>
+      <div class="sheet-handle" aria-hidden="true"></div>
+      <div class="sheet-title-row">
+        <div>
+          <span>올리 에너지</span>
+          <h2 id="energyChargeTitle">에너지 충전하기</h2>
+        </div>
+        <button id="closeEnergyCharge" type="button" aria-label="충전 닫기">×</button>
+      </div>
+      <div class="energy-charge-balance">
+        <span class="energy-leaf" aria-hidden="true">◆</span>
+        <div><small>남은 에너지</small><strong id="energyChargeBalance">10 / 10</strong></div>
+      </div>
+      <div class="energy-pack-list" aria-label="충전 상품 선택">
+        <button type="button" class="energy-pack" data-energy-pack="10"><strong>+10</strong><span>가볍게</span><em>₩1,000</em></button>
+        <button type="button" class="energy-pack is-featured" data-energy-pack="30"><strong>+30</strong><span>가장 인기</span><em>₩2,500</em></button>
+        <button type="button" class="energy-pack" data-energy-pack="100"><strong>+100</strong><span>넉넉하게</span><em>₩6,900</em></button>
+      </div>
+      <a class="energy-pro-link" href="index.html#pricing">매달 300 에너지가 필요하다면 <strong>프로 플랜 보기 →</strong></a>
+      <p class="chat-response">에너지는 올리와의 대화, 일정 다시 만들기, 주간 최적화에 사용돼요.</p>
     </aside>
 
     <div class="sheet-overlay" id="focusModeOverlay" hidden></div>
