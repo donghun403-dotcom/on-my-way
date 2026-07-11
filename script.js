@@ -10,6 +10,19 @@ const diagnosisSteps = document.querySelectorAll(".diagnosis-step");
 const diagnosisStepperItems = document.querySelectorAll(".diagnosis-stepper span");
 const diagnosisBackButton = document.querySelector("#diagnosisBackButton");
 const diagnosisNextButton = document.querySelector("#diagnosisNextButton");
+const diagnosisStepTitle = document.querySelector("#diagnosisStepTitle");
+const diagnosisStepCount = document.querySelector("#diagnosisStepCount");
+const diagnosisProgressBar = document.querySelector("#diagnosisProgressBar");
+const wizardStepLabel = document.querySelector("#wizardStepLabel");
+const wizardProgressValue = document.querySelector("#wizardProgressValue");
+const wizardLiveGoal = document.querySelector("#wizardLiveGoal");
+const wizardLiveTiming = document.querySelector("#wizardLiveTiming");
+const reviewGoal = document.querySelector("#reviewGoal");
+const reviewPeriod = document.querySelector("#reviewPeriod");
+const reviewTime = document.querySelector("#reviewTime");
+const reviewReadiness = document.querySelector("#reviewReadiness");
+const planPreviewPanel = document.querySelector("#planPreviewPanel");
+const goalSuggestionButtons = document.querySelectorAll("[data-goal-suggestion]");
 const birthDateInput = document.querySelector("#birthDate");
 const birthTimeInput = document.querySelector("#birthTime");
 const birthPlaceInput = document.querySelector("#birthPlace");
@@ -134,6 +147,29 @@ goalInput?.addEventListener("input", () => {
 
 let diagnosisStepIndex = 0;
 
+const wizardStepLabels = ["목표 설정 중", "실행 리듬 설정 중", "성향 설정 중", "최종 확인"];
+
+function updateWizardSummary() {
+  const goal = designGoal?.value.trim() || "목표를 입력해 주세요";
+  const selectedPeriod = goalPeriodInput?.selectedOptions?.[0]?.textContent.split(" · ")[0] || "기간 미정";
+  const time = routineTimeInput?.value || "시간 미정";
+  const readiness = routineReadinessInput?.value || "실행 스타일 미정";
+
+  if (wizardLiveGoal) wizardLiveGoal.textContent = goal;
+  if (wizardLiveTiming) wizardLiveTiming.textContent = `${selectedPeriod} · ${time}`;
+  if (reviewGoal) reviewGoal.textContent = goal;
+  if (reviewPeriod) reviewPeriod.textContent = selectedPeriod;
+  if (reviewTime) reviewTime.textContent = time;
+  if (reviewReadiness) reviewReadiness.textContent = readiness;
+}
+
+function canLeaveDiagnosisStep() {
+  if (diagnosisStepIndex !== 0 || designGoal?.value.trim()) return true;
+  designGoal?.focus();
+  designGoal?.reportValidity();
+  return false;
+}
+
 function renderDiagnosisStep() {
   if (!diagnosisSteps.length) return;
 
@@ -146,11 +182,26 @@ function renderDiagnosisStep() {
   diagnosisStepperItems.forEach((item, index) => {
     item.classList.toggle("active", index === diagnosisStepIndex);
     item.classList.toggle("done", index < diagnosisStepIndex);
+    if (index === diagnosisStepIndex) {
+      item.setAttribute("aria-current", "step");
+    } else {
+      item.removeAttribute("aria-current");
+    }
   });
+
+  const progress = Math.round(((diagnosisStepIndex + 1) / diagnosisSteps.length) * 100);
+  const activeStep = diagnosisSteps[diagnosisStepIndex];
+  if (diagnosisStepTitle) diagnosisStepTitle.textContent = activeStep?.dataset.stepTitle || "목표를 설정해 주세요";
+  if (diagnosisStepCount) diagnosisStepCount.textContent = `${diagnosisStepIndex + 1} / ${diagnosisSteps.length}`;
+  if (diagnosisProgressBar) diagnosisProgressBar.style.width = `${progress}%`;
+  if (wizardStepLabel) wizardStepLabel.textContent = wizardStepLabels[diagnosisStepIndex] || "설정 중";
+  if (wizardProgressValue) wizardProgressValue.textContent = `${progress}%`;
 
   if (diagnosisBackButton) diagnosisBackButton.hidden = diagnosisStepIndex === 0;
   if (diagnosisNextButton) diagnosisNextButton.hidden = diagnosisStepIndex === diagnosisSteps.length - 1;
+  if (diagnosisNextButton) diagnosisNextButton.textContent = diagnosisStepIndex === diagnosisSteps.length - 2 ? "설정 확인" : "다음 단계";
   if (aiPreviewButton) aiPreviewButton.hidden = diagnosisStepIndex !== diagnosisSteps.length - 1;
+  updateWizardSummary();
 }
 
 diagnosisBackButton?.addEventListener("click", () => {
@@ -159,8 +210,18 @@ diagnosisBackButton?.addEventListener("click", () => {
 });
 
 diagnosisNextButton?.addEventListener("click", () => {
+  if (!canLeaveDiagnosisStep()) return;
   diagnosisStepIndex = Math.min(diagnosisSteps.length - 1, diagnosisStepIndex + 1);
   renderDiagnosisStep();
+});
+
+goalSuggestionButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    if (!designGoal) return;
+    designGoal.value = button.dataset.goalSuggestion || "";
+    goalSuggestionButtons.forEach((item) => item.classList.toggle("selected", item === button));
+    updateWizardSummary();
+  });
 });
 
 renderDiagnosisStep();
@@ -507,11 +568,12 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
 
   const preview = await requestAiPlan(payload);
   renderAiPreview(preview);
+  if (showLoading) planPreviewPanel?.classList.add("is-ready");
 
   if (aiPreviewStatus) aiPreviewStatus.textContent = "모리가 만든 오늘의 계획";
   if (aiPreviewButton) {
     aiPreviewButton.disabled = false;
-    aiPreviewButton.textContent = "오늘의 한 걸음 보기";
+    aiPreviewButton.textContent = "오늘의 한 걸음 만들기";
   }
 
   try {
@@ -542,6 +604,7 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
 personalityForm?.addEventListener("submit", (event) => {
   event.preventDefault();
   if (diagnosisSteps.length && diagnosisStepIndex < diagnosisSteps.length - 1) {
+    if (!canLeaveDiagnosisStep()) return;
     diagnosisStepIndex += 1;
     renderDiagnosisStep();
     return;
@@ -552,6 +615,7 @@ personalityForm?.addEventListener("submit", (event) => {
 [birthDateInput, birthTimeInput, birthPlaceInput, mbtiInput, goalPeriodInput, currentStateInput, routineReadinessInput, routineTimeInput, currentRoutineInput, designGoal].forEach(
   (field) => {
     field?.addEventListener("change", runPersonalityAnalysis);
+    field?.addEventListener("input", updateWizardSummary);
   },
 );
 

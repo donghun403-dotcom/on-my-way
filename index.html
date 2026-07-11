@@ -141,119 +141,156 @@
           <span>매일 조금씩 성장</span>
           <span>목표 달성</span>
         </div>
-        <div class="design-panel first-meeting-panel">
+        <div class="design-panel first-meeting-panel goal-builder-shell">
+          <nav class="diagnosis-stepper" aria-label="목표 설정 단계">
+            <span class="active" data-diagnosis-step="0" aria-current="step"><b>01</b><em>목표</em></span>
+            <span data-diagnosis-step="1"><b>02</b><em>루틴</em></span>
+            <span data-diagnosis-step="2"><b>03</b><em>성향</em></span>
+            <span data-diagnosis-step="3"><b>04</b><em>확인</em></span>
+          </nav>
+
           <form class="personality-form mori-goal-card" id="personalityForm">
-            <div class="mori-message">
-              <img class="mascot-art mascot-avatar" src="assets/on-my-way-mascot.png" alt="" />
+            <header class="builder-header">
               <div>
-                <span>모리</span>
-                <p>“이렇게 해보면 어때?”</p>
+                <p class="builder-kicker">Goal Builder</p>
+                <h3 id="diagnosisStepTitle">먼저 이루고 싶은 목표를 알려주세요</h3>
               </div>
-            </div>
-            <input id="designGoal" type="text" value="3개월 안에 토익 900점 달성하기" aria-label="목표" />
-            <div class="compact-fields">
-              <label>
-                기간
-                <select id="goalPeriod">
-                  <option value="30">30일</option>
-                  <option value="90" selected>90일</option>
-                  <option value="100">100일</option>
-                  <option value="180">6개월</option>
-                </select>
-              </label>
-              <label>
-                목표 실행 성향
-                <select id="routineReadiness">
-                  <option>바로 실행하는 편이에요</option>
-                  <option selected>계획이 있으면 실행해요</option>
-                  <option>시작 전 준비가 필요해요</option>
-                  <option>자주 미뤄요</option>
-                  <option>시작해도 쉽게 중단돼요</option>
-                </select>
-              </label>
-            </div>
-            <input id="currentState" type="text" value="토익 720점, 평일 하루 1시간 가능" aria-label="현재 상황" />
-            <input id="currentRoutine" type="text" value="아침 물 마시기, 저녁 산책" aria-label="이미 하고 있는 루틴" />
-            <select id="routineTime" aria-label="가능한 시간">
-              <option selected>아침</option>
-              <option>점심</option>
-              <option>저녁</option>
-              <option>자기 전</option>
-            </select>
-            <div class="personality-fields" aria-label="성향 분석 입력">
-              <div class="profile-intro">
-                <span>성향 분석</span>
-                <p>만세력과 MBTI를 참고해 AI가 나에게 맞는 실행 리듬을 잡아줍니다.</p>
+              <span id="diagnosisStepCount">1 / 4</span>
+            </header>
+            <div class="builder-progress" aria-hidden="true"><span id="diagnosisProgressBar" style="width: 25%"></span></div>
+
+            <section class="diagnosis-step active" data-step-title="먼저 이루고 싶은 목표를 알려주세요">
+              <div class="mori-message compact-mori-message">
+                <img class="mascot-art mascot-avatar" src="assets/on-my-way-mascot.png" alt="" />
+                <div>
+                  <span>모리의 질문</span>
+                  <p>지금 가장 바꾸고 싶은 한 가지는 무엇인가요?</p>
+                </div>
               </div>
-              <label>
-                생년월일
-                <input id="birthDate" type="date" value="1995-03-15" />
+              <label class="builder-field builder-field-large" for="designGoal">
+                <span>나의 목표</span>
+                <input id="designGoal" type="text" value="3개월 안에 토익 900점 달성하기" placeholder="예: 3개월 안에 토익 900점 달성하기" required />
               </label>
-              <label>
-                출생 시간
-                <input id="birthTime" type="time" value="09:30" />
-              </label>
-              <label>
-                출생지
-                <input id="birthPlace" type="text" value="서울" />
-              </label>
-              <label>
-                MBTI
-                <select id="mbti">
-                  <option>INTJ</option>
-                  <option>INTP</option>
-                  <option>ENTJ</option>
-                  <option>ENTP</option>
-                  <option>INFJ</option>
-                  <option>INFP</option>
-                  <option>ENFJ</option>
-                  <option>ENFP</option>
-                  <option>ISTJ</option>
-                  <option selected>ISFJ</option>
-                  <option>ESTJ</option>
-                  <option>ESFJ</option>
-                  <option>ISTP</option>
-                  <option>ISFP</option>
-                  <option>ESTP</option>
-                  <option>ESFP</option>
-                </select>
-              </label>
-            </div>
-            <button type="submit" id="aiPreviewButton">오늘의 한 걸음 보기</button>
+              <div class="goal-suggestions" aria-label="목표 예시">
+                <button type="button" data-goal-suggestion="매일 20분씩 운동 습관 만들기">운동 습관</button>
+                <button type="button" data-goal-suggestion="3개월 안에 토익 900점 달성하기">시험 준비</button>
+                <button type="button" data-goal-suggestion="매일 자기 전 30분 독서하기">독서 루틴</button>
+              </div>
+              <p class="field-helper">완벽하게 적지 않아도 괜찮아요. 다음 단계에서 모리가 실행 가능한 크기로 다듬어 드려요.</p>
+            </section>
+
+            <section class="diagnosis-step" data-step-title="내 생활에 맞는 실행 리듬을 찾아볼게요" hidden>
+              <div class="builder-field-grid">
+                <label class="builder-field" for="goalPeriod">
+                  <span>목표 기간</span>
+                  <select id="goalPeriod">
+                    <option value="30">30일 · 빠르게 집중</option>
+                    <option value="90" selected>90일 · 꾸준히 성장</option>
+                    <option value="100">100일 · 습관으로 정착</option>
+                    <option value="180">6개월 · 여유 있게 달성</option>
+                  </select>
+                </label>
+                <label class="builder-field" for="routineTime">
+                  <span>집중하기 좋은 시간</span>
+                  <select id="routineTime">
+                    <option selected>아침</option>
+                    <option>점심</option>
+                    <option>저녁</option>
+                    <option>자기 전</option>
+                  </select>
+                </label>
+                <label class="builder-field builder-field-wide" for="routineReadiness">
+                  <span>평소 실행 스타일</span>
+                  <select id="routineReadiness">
+                    <option>바로 실행하는 편이에요</option>
+                    <option selected>계획이 있으면 실행해요</option>
+                    <option>시작 전 준비가 필요해요</option>
+                    <option>자주 미뤄요</option>
+                    <option>시작해도 쉽게 중단돼요</option>
+                  </select>
+                </label>
+                <label class="builder-field builder-field-wide" for="currentState">
+                  <span>현재 상황</span>
+                  <input id="currentState" type="text" value="토익 720점, 평일 하루 1시간 가능" placeholder="현재 수준과 사용할 수 있는 시간을 적어주세요" />
+                </label>
+                <label class="builder-field builder-field-wide" for="currentRoutine">
+                  <span>이미 하고 있는 작은 루틴</span>
+                  <input id="currentRoutine" type="text" value="아침 물 마시기, 저녁 산책" placeholder="예: 아침 커피, 퇴근 후 산책" />
+                </label>
+              </div>
+            </section>
+
+            <section class="diagnosis-step" data-step-title="나에게 맞는 응원 방식을 선택해요" hidden>
+              <div class="profile-intro refined-profile-intro">
+                <span>선택 입력</span>
+                <p>성향 정보를 더하면 계획의 강도와 응원 방식이 세밀해져요. 원하지 않는 항목은 비워도 됩니다.</p>
+              </div>
+              <div class="personality-fields" aria-label="성향 분석 입력">
+                <label for="birthDate">생년월일<input id="birthDate" type="date" value="1995-03-15" /></label>
+                <label for="birthTime">출생 시간<input id="birthTime" type="time" value="09:30" /></label>
+                <label for="birthPlace">출생지<input id="birthPlace" type="text" value="서울" /></label>
+                <label for="mbti">MBTI
+                  <select id="mbti">
+                    <option>INTJ</option><option>INTP</option><option>ENTJ</option><option>ENTP</option>
+                    <option>INFJ</option><option>INFP</option><option>ENFJ</option><option>ENFP</option>
+                    <option>ISTJ</option><option selected>ISFJ</option><option>ESTJ</option><option>ESFJ</option>
+                    <option>ISTP</option><option>ISFP</option><option>ESTP</option><option>ESFP</option>
+                  </select>
+                </label>
+              </div>
+              <div class="privacy-note"><span aria-hidden="true">✓</span> 입력 내용은 목표 계획을 만드는 데만 사용됩니다.</div>
+            </section>
+
+            <section class="diagnosis-step" data-step-title="설정을 확인하고 첫 걸음을 만들어볼게요" hidden>
+              <div class="review-card">
+                <div><span>목표</span><strong id="reviewGoal">3개월 안에 토익 900점 달성하기</strong></div>
+                <div><span>기간</span><strong id="reviewPeriod">90일</strong></div>
+                <div><span>실행 시간</span><strong id="reviewTime">아침</strong></div>
+                <div><span>계획 스타일</span><strong id="reviewReadiness">계획이 있으면 실행해요</strong></div>
+              </div>
+              <div class="mori-final-note">
+                <img src="assets/on-my-way-mascot.png" alt="" />
+                <p><strong>준비됐어요!</strong> 설정을 바탕으로 오늘 바로 끝낼 수 있는 첫 행동을 만들게요.</p>
+              </div>
+            </section>
+
+            <footer class="builder-actions">
+              <button class="builder-back" type="button" id="diagnosisBackButton" hidden>이전</button>
+              <button class="builder-next" type="button" id="diagnosisNextButton">다음 단계</button>
+              <button type="submit" id="aiPreviewButton" hidden>오늘의 한 걸음 만들기</button>
+            </footer>
           </form>
 
-          <aside class="analysis-card app-plan-preview">
-            <div class="analysis-header">
-              <span id="aiPreviewStatus">모리가 만든 오늘의 계획</span>
-              <strong id="planningStyle">루틴 점검형</strong>
+          <aside class="analysis-card app-plan-preview" id="planPreviewPanel">
+            <div class="live-summary">
+              <div class="summary-head">
+                <span>Live Preview</span>
+                <b id="wizardStepLabel">목표 설정 중</b>
+              </div>
+              <img src="assets/on-my-way-mascot.png" alt="" />
+              <p>입력할수록 모리가 나에게 맞는 계획을 구체화해요.</p>
+              <dl>
+                <div><dt>목표</dt><dd id="wizardLiveGoal">토익 900점 달성</dd></div>
+                <div><dt>리듬</dt><dd id="wizardLiveTiming">90일 · 아침</dd></div>
+              </dl>
+              <div class="summary-progress"><span>설정 완성도</span><strong id="wizardProgressValue">25%</strong></div>
             </div>
-            <article class="mori-chat-preview">
-              <span>모리</span>
-              <p id="aiCoachMessage">목표를 작게 쪼개면 오늘 바로 시작할 수 있습니다.</p>
-            </article>
-            <article class="today-plan-card">
-              <span>오늘</span>
-              <strong id="previewAction">단어 40개 + LC 1세트</strong>
-              <p>저녁 8:30 · 15분</p>
-              <a href="app.html">시작하기</a>
-            </article>
-            <article class="tomorrow-card">
-              <span>내일</span>
-              <strong id="aiPreviewTitle">이번 주에는 루틴을 고정합니다</strong>
-            </article>
-            <div class="analysis-grid compact-analysis">
-              <article>
-                <span>성향 요약</span>
-                <p id="manseProfile">생년월일시와 MBTI를 입력하면 AI가 목표 설계 관점으로 요약합니다.</p>
+            <div class="preview-result-content">
+              <div class="analysis-header">
+                <span id="aiPreviewStatus">모리가 만든 오늘의 계획</span>
+                <strong id="planningStyle">루틴 점검형</strong>
+              </div>
+              <article class="mori-chat-preview"><span>모리</span><p id="aiCoachMessage">목표를 작게 쪼개면 오늘 바로 시작할 수 있습니다.</p></article>
+              <article class="today-plan-card">
+                <span>오늘</span><strong id="previewAction">단어 40개 + LC 1세트</strong><p>저녁 8:30 · 15분</p><a href="app.html">시작하기</a>
               </article>
-              <article>
-                <span>추천 방식</span>
-                <p id="mbtiProfile">목표 기간과 현재 상태에 맞는 실행 방식을 보여줍니다.</p>
-              </article>
+              <article class="tomorrow-card"><span>내일</span><strong id="aiPreviewTitle">이번 주에는 루틴을 고정합니다</strong></article>
+              <div class="analysis-grid compact-analysis">
+                <article><span>성향 요약</span><p id="manseProfile">생년월일시와 MBTI를 입력하면 AI가 목표 설계 관점으로 요약합니다.</p></article>
+                <article><span>추천 방식</span><p id="mbtiProfile">목표 기간과 현재 상태에 맞는 실행 방식을 보여줍니다.</p></article>
+              </div>
             </div>
-            <ul id="aiPreviewList" class="hidden-preview-list">
-              <li>평일에는 같은 시간에 작은 행동 1개를 반복합니다.</li>
-            </ul>
+            <ul id="aiPreviewList" class="hidden-preview-list"><li>평일에는 같은 시간에 작은 행동 1개를 반복합니다.</li></ul>
             <strong id="previewPersonality" class="sr-only">시작은 빠르지만 반복 점검이 필요해요.</strong>
             <strong id="previewStyle" class="sr-only">루틴 점검형 계획</strong>
           </aside>

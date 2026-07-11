@@ -5902,3 +5902,758 @@ body.sheet-open {
     animation: none;
   }
 }
+
+/* Refined goal builder: progressive disclosure with a calm app-like shell. */
+.home-page .goal-builder-shell {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1.08fr) minmax(310px, 0.92fr);
+  gap: 0;
+  max-width: 1120px;
+  min-height: 610px;
+  margin-inline: auto;
+  padding: 0;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  border-radius: 28px;
+  box-shadow: 0 30px 80px rgba(91, 106, 151, 0.2);
+  backdrop-filter: blur(18px);
+}
+
+.diagnosis-stepper {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 20px 10px;
+  color: rgba(255, 255, 255, 0.74);
+  background: linear-gradient(180deg, #75a3bf 0%, #7896b4 48%, #8d91aa 100%);
+}
+
+.diagnosis-stepper span {
+  position: relative;
+  display: grid;
+  min-height: 92px;
+  place-items: center;
+  align-content: center;
+  gap: 5px;
+  border-radius: 18px;
+  transition: color 180ms ease, background 180ms ease, transform 180ms ease;
+}
+
+.diagnosis-stepper span:not(:last-child)::after {
+  position: absolute;
+  bottom: -12px;
+  left: 50%;
+  width: 1px;
+  height: 24px;
+  content: "";
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.diagnosis-stepper b {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.44);
+  border-radius: 12px;
+  font-size: 11px;
+}
+
+.diagnosis-stepper em {
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.diagnosis-stepper span.active {
+  color: #536986;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 12px 26px rgba(55, 77, 108, 0.18);
+  transform: translateX(2px);
+}
+
+.diagnosis-stepper span.done b {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.home-page .goal-builder-shell .mori-goal-card {
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  gap: 0;
+  min-width: 0;
+  min-height: 610px;
+  padding: 34px clamp(24px, 4vw, 46px) 28px;
+  background: rgba(255, 255, 255, 0.94) !important;
+  border: 0 !important;
+  border-radius: 0;
+  box-shadow: none !important;
+}
+
+.builder-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.builder-kicker {
+  margin: 0 0 8px;
+  color: #7b8eaa;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.builder-header h3 {
+  max-width: 430px;
+  margin: 0;
+  color: #2a3145;
+  font-family: "Nanum Myeongjo", Georgia, serif;
+  font-size: clamp(22px, 2.5vw, 30px);
+  line-height: 1.3;
+}
+
+.builder-header > span {
+  flex: none;
+  padding: 7px 10px;
+  color: #70809b;
+  background: #eef2f8;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.builder-progress {
+  height: 4px;
+  margin: 22px 0 28px;
+  overflow: hidden;
+  background: #edf0f5;
+  border-radius: 999px;
+}
+
+.builder-progress span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #76a6c1, #9b8fa9, #c398a2);
+  border-radius: inherit;
+  transition: width 280ms ease;
+}
+
+.diagnosis-step {
+  align-content: start;
+  animation: builder-step-in 260ms ease;
+}
+
+.diagnosis-step[hidden] {
+  display: none !important;
+}
+
+.diagnosis-step.active {
+  display: grid;
+  gap: 18px;
+}
+
+@keyframes builder-step-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+.home-page .compact-mori-message {
+  display: grid;
+  grid-template-columns: 62px minmax(0, 1fr);
+  gap: 14px;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, #edf4fb, #f8f4f7) !important;
+  border: 1px solid rgba(116, 147, 181, 0.14) !important;
+  border-radius: 18px;
+}
+
+.home-page .compact-mori-message img {
+  width: 62px;
+  height: 68px;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  filter: drop-shadow(0 10px 14px rgba(91, 106, 151, 0.18));
+}
+
+.home-page .compact-mori-message span {
+  color: #7388a4 !important;
+}
+
+.home-page .compact-mori-message p {
+  margin-top: 3px;
+  color: #38445d !important;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.builder-field,
+.builder-field-grid {
+  min-width: 0;
+}
+
+.builder-field {
+  display: grid;
+  gap: 8px;
+  color: #3a4357;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.builder-field > span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.home-page .goal-builder-shell .builder-field input,
+.home-page .goal-builder-shell .builder-field select,
+.home-page .goal-builder-shell .personality-fields input,
+.home-page .goal-builder-shell .personality-fields select {
+  width: 100%;
+  min-height: 50px;
+  padding: 0 15px !important;
+  color: #30394e !important;
+  background: rgba(255, 255, 255, 0.96) !important;
+  border: 1px solid #dbe1eb !important;
+  border-radius: 12px;
+  box-shadow: 0 3px 10px rgba(91, 106, 151, 0.04);
+  outline: none;
+  font-size: 14px;
+  font-weight: 700;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.home-page .goal-builder-shell .builder-field input:focus,
+.home-page .goal-builder-shell .builder-field select:focus,
+.home-page .goal-builder-shell .personality-fields input:focus,
+.home-page .goal-builder-shell .personality-fields select:focus {
+  border-color: #8daac2 !important;
+  box-shadow: 0 0 0 4px rgba(117, 163, 191, 0.12);
+}
+
+.home-page .goal-builder-shell .builder-field-large input {
+  min-height: 58px;
+  font-size: 15px;
+}
+
+.builder-field-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px 14px;
+}
+
+.builder-field-wide {
+  grid-column: 1 / -1;
+}
+
+.goal-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.goal-suggestions button {
+  padding: 9px 12px;
+  color: #697994;
+  background: #f3f6fa;
+  border: 1px solid #e2e7ef;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 850;
+  cursor: pointer;
+  transition: color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.goal-suggestions button:hover,
+.goal-suggestions button.selected {
+  color: #ffffff;
+  background: #7f99b4;
+  border-color: #7f99b4;
+  transform: translateY(-1px);
+}
+
+.field-helper {
+  margin: 0;
+  color: #858d9e;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.home-page .goal-builder-shell .personality-fields {
+  grid-template-columns: 1fr 1fr;
+  gap: 18px 14px;
+  padding: 0;
+  background: transparent !important;
+  border: 0 !important;
+}
+
+.home-page .goal-builder-shell .personality-fields label {
+  gap: 8px;
+  color: #3a4357 !important;
+  font-size: 12px;
+}
+
+.refined-profile-intro {
+  padding: 16px 18px !important;
+  background: #f4f7fb !important;
+  border: 1px solid #e3e8f0 !important;
+  border-radius: 16px !important;
+}
+
+.privacy-note {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: #788397;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.privacy-note span {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  color: #ffffff;
+  background: #91a9bd;
+  border-radius: 50%;
+}
+
+.review-card {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.review-card div {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 15px;
+  background: #f6f8fb;
+  border: 1px solid #e4e8ef;
+  border-radius: 14px;
+}
+
+.review-card span {
+  color: #8992a3;
+  font-size: 10px;
+  font-weight: 850;
+}
+
+.review-card strong {
+  overflow: hidden;
+  color: #354057;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mori-final-note {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+  padding: 15px 18px;
+  background: linear-gradient(135deg, #edf4fb, #f8f1f4);
+  border-radius: 18px;
+}
+
+.mori-final-note img {
+  width: 72px;
+  height: 86px;
+  object-fit: contain;
+}
+
+.mori-final-note p {
+  margin: 0;
+  color: #647087;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.mori-final-note strong {
+  display: block;
+  margin-bottom: 3px;
+  color: #344057;
+  font-size: 15px;
+}
+
+.builder-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid #edf0f4;
+}
+
+.builder-actions button {
+  min-height: 50px;
+  padding: 0 22px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.builder-back {
+  margin-right: auto;
+  color: #748097;
+  background: #f2f4f8;
+  border: 1px solid #e1e5ec;
+}
+
+.builder-next,
+.home-page .goal-builder-shell #aiPreviewButton {
+  color: #ffffff;
+  background: linear-gradient(135deg, #77a3bd, #9d93aa) !important;
+  border: 0;
+  box-shadow: 0 12px 24px rgba(91, 106, 151, 0.2);
+}
+
+.home-page .goal-builder-shell .app-plan-preview {
+  display: grid;
+  align-content: center;
+  min-width: 0;
+  padding: clamp(26px, 4vw, 42px);
+  background:
+    radial-gradient(circle at 75% 15%, rgba(201, 151, 163, 0.14), transparent 35%),
+    radial-gradient(circle at 15% 85%, rgba(117, 163, 191, 0.16), transparent 40%),
+    linear-gradient(155deg, #f6f8fc, #eef2f8) !important;
+  border: 0 !important;
+  border-left: 1px solid rgba(221, 226, 235, 0.86) !important;
+  border-radius: 0;
+  box-shadow: none !important;
+}
+
+.live-summary {
+  display: grid;
+  justify-items: center;
+  gap: 18px;
+  text-align: center;
+}
+
+.summary-head {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.summary-head span {
+  color: #8290a4;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.summary-head b {
+  padding: 7px 10px;
+  color: #6d7f99;
+  background: rgba(255, 255, 255, 0.72);
+  border-radius: 999px;
+  font-size: 10px;
+}
+
+.live-summary > img {
+  width: 150px;
+  height: 190px;
+  object-fit: contain;
+  filter: drop-shadow(0 22px 26px rgba(91, 106, 151, 0.2));
+  animation: mascot-float 5s ease-in-out infinite;
+}
+
+.live-summary > p {
+  max-width: 250px;
+  margin: -5px 0 0;
+  color: #6e788d;
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.6;
+}
+
+.live-summary dl {
+  display: grid;
+  width: 100%;
+  gap: 8px;
+  margin: 0;
+}
+
+.live-summary dl div {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid rgba(255, 255, 255, 0.86);
+  border-radius: 13px;
+}
+
+.live-summary dt {
+  color: #8a94a5;
+  font-size: 10px;
+  font-weight: 850;
+}
+
+.live-summary dd {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: #38435a;
+  font-size: 12px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.summary-progress {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 4px;
+  color: #78859a;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.summary-progress strong {
+  color: #6f87a2;
+  font-size: 16px;
+}
+
+.preview-result-content {
+  display: none;
+}
+
+.app-plan-preview.is-ready {
+  align-content: start !important;
+  overflow-y: auto;
+}
+
+.app-plan-preview.is-ready .live-summary {
+  display: none;
+}
+
+.app-plan-preview.is-ready .preview-result-content {
+  display: grid;
+  gap: 12px;
+  animation: builder-step-in 300ms ease;
+}
+
+@media (max-width: 940px) {
+  .home-page .goal-builder-shell {
+    grid-template-columns: 68px minmax(0, 1fr);
+  }
+
+  .home-page .goal-builder-shell .app-plan-preview {
+    grid-column: 2;
+    border-top: 1px solid rgba(221, 226, 235, 0.86) !important;
+    border-left: 0 !important;
+  }
+
+  .live-summary > img {
+    width: 112px;
+    height: 142px;
+  }
+}
+
+@media (max-width: 640px) {
+  .home-page .goal-builder-shell {
+    grid-template-columns: 1fr;
+    border-radius: 22px;
+  }
+
+  .diagnosis-stepper {
+    position: relative;
+    z-index: 2;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    padding: 8px;
+  }
+
+  .diagnosis-stepper span {
+    min-height: 60px;
+    gap: 2px;
+  }
+
+  .diagnosis-stepper span:not(:last-child)::after {
+    top: 50%;
+    right: -9px;
+    bottom: auto;
+    left: auto;
+    width: 18px;
+    height: 1px;
+  }
+
+  .diagnosis-stepper b {
+    width: 28px;
+    height: 28px;
+    border-radius: 9px;
+  }
+
+  .home-page .goal-builder-shell .mori-goal-card {
+    min-height: 590px;
+    padding: 26px 20px 22px;
+  }
+
+  .builder-header h3 {
+    font-size: 22px;
+  }
+
+  .builder-field-grid,
+  .home-page .goal-builder-shell .personality-fields,
+  .review-card {
+    grid-template-columns: 1fr;
+  }
+
+  .builder-field-wide {
+    grid-column: auto;
+  }
+
+  .home-page .goal-builder-shell .app-plan-preview {
+    grid-column: 1;
+    padding: 28px 22px;
+  }
+
+  .builder-actions button {
+    padding-inline: 17px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .diagnosis-step,
+  .app-plan-preview.is-ready .preview-result-content,
+  .live-summary > img {
+    animation: none;
+  }
+}
+
+/* ============================================================
+   Plan tab — 확인 → 진행 → 수정 flow. Numbered edit steps and a
+   folded-in routine strip replace the old flat 4-button editor.
+   ============================================================ */
+.execution-page .routine-strip {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--soft-border);
+}
+
+.execution-page .routine-strip-head {
+  display: grid;
+  gap: 2px;
+}
+
+.execution-page .routine-strip-head strong {
+  color: var(--soft-text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.execution-page .routine-strip-head span {
+  color: var(--soft-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* Numbered edit steps inside the 계획 수정하기 card */
+.execution-page .plan-editor-card .edit-step {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid var(--soft-border);
+  border-radius: 16px;
+}
+
+.execution-page .edit-step-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--soft-text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.execution-page .edit-step-label i {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  color: #ffffff;
+  background: var(--soft-primary);
+  border-radius: 50%;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+/* Primary / ghost call-to-action buttons for the edit flow */
+.execution-page .plan-cta {
+  width: 100%;
+  min-height: 46px;
+  padding: 0 14px;
+  color: #ffffff;
+  background: var(--soft-primary);
+  border: 1px solid var(--soft-primary);
+  border-radius: 14px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.18s ease, opacity 0.18s ease;
+}
+
+.execution-page .plan-cta:hover:not(:disabled) {
+  background: var(--soft-primary-dark);
+}
+
+.execution-page .plan-cta.ghost {
+  color: var(--soft-primary-dark);
+  background: rgba(255, 255, 255, 0.85);
+  border-color: var(--soft-border);
+}
+
+.execution-page .plan-cta.ghost:hover:not(:disabled) {
+  background: var(--soft-primary-soft);
+}
+
+.execution-page .plan-apply-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.execution-page .plan-text-link {
+  justify-self: start;
+  padding: 4px 2px;
+  color: var(--soft-primary-dark);
+  background: none;
+  border: 0;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+/* Any disabled control in the edit flow reads as "not this step yet" */
+.execution-page .plan-editor-card button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}

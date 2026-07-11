@@ -120,14 +120,15 @@
       <div class="app-view" id="view-plan" data-view="plan" role="tabpanel" aria-labelledby="tab-plan" hidden>
         <div class="view-head">
           <h1>계획 다듬기</h1>
-          <p>스케줄을 확인하고, 모리와 함께 오늘에 맞게 바꿔요.</p>
+          <p>지금 계획을 확인하고 → 진행을 보고 → 필요하면 바로 고쳐요.</p>
         </div>
 
+        <!-- ① 지금 내 계획 확인 -->
         <section class="execution-card weekly-plan-card">
           <div class="card-title compact">
             <div>
-              <h2>이번 주 계획</h2>
-              <span>AI가 만든 실행 흐름 예시</span>
+              <h2>현재 계획</h2>
+              <span>지금 진행 중인 이번 주 실행 흐름이에요</span>
             </div>
             <button class="text-button" id="downloadPlanButton" type="button">PDF 받기</button>
           </div>
@@ -137,12 +138,24 @@
             <li><span>금</span><strong>실전 세트</strong><p>시간 제한을 두고 약점 유형을 확인</p></li>
             <li><span>일</span><strong>성장 리포트</strong><p>완료율과 다음 주 난이도를 조정</p></li>
           </ol>
+          <div class="routine-strip">
+            <div class="routine-strip-head">
+              <strong id="routineModeTitle">아침 루틴 모드</strong>
+              <span id="routineModeMeta">이미 하고 있는 루틴과 새 목표를 연결합니다</span>
+            </div>
+            <div class="routine-cue-list" id="routineCueList">
+              <span>물 마시기 뒤 10분 실행</span>
+              <span>작게 시작하기</span>
+              <span>완료 즉시 체크</span>
+            </div>
+          </div>
         </section>
 
+        <!-- ② 진행 확인 -->
         <section class="execution-card schedule-calendar-card">
           <div class="card-title compact">
             <div>
-              <h2>이번 달 진행 달력</h2>
+              <h2>이번 달 진행</h2>
               <span id="calendarSummary">하루 플랜 완성률을 한눈에 확인합니다</span>
             </div>
             <span class="soft-badge" id="monthlyCompletion">0%</span>
@@ -159,51 +172,49 @@
           <div class="schedule-calendar" id="scheduleCalendar" aria-label="일별 플랜 완성률 달력"></div>
         </section>
 
+        <!-- ③ 수정 -->
         <section class="execution-card plan-editor-card" id="journeyPlanEditor">
           <div class="card-title compact">
             <div>
-              <h2>변경안 만들기</h2>
-              <span>모리가 제안하고, 적용은 사용자가 승인합니다</span>
+              <h2>계획 수정하기</h2>
+              <span>모리가 제안하고, 적용은 직접 승인해요</span>
             </div>
             <span class="soft-badge" id="planStatusBadge">AI 제안</span>
           </div>
-          <textarea id="planEditor" class="plan-editor" rows="7" hidden></textarea>
-          <div class="plan-preview-list" id="planPreviewList" aria-label="현재 계획 요약"></div>
-          <label class="plan-editor-label" for="planRevisionRequest">어떤 점을 바꾸고 싶나요?</label>
-          <div class="revision-quick-actions" aria-label="빠른 수정 요청">
-            <button type="button" data-revision-chip="시간을 10분 단위로 더 짧게 나눠줘.">시간을 줄이고 싶어요</button>
-            <button type="button" data-revision-chip="평일은 저녁 위주로 배치해줘.">저녁 위주로 바꿔주세요</button>
-            <button type="button" data-revision-chip="주말에는 복습만 가볍게 하고 싶어.">주말은 가볍게 해주세요</button>
-            <button type="button" data-revision-chip="오늘은 가장 중요한 한 가지 과제만 남겨줘.">하루 한 가지만 하고 싶어요</button>
-          </div>
-          <textarea
-            id="planRevisionRequest"
-            class="plan-editor plan-revision-request"
-            rows="4"
-            placeholder="예: 평일에는 저녁 9시 이후만 가능하고, 주말에는 복습만 하고 싶어요."
-          ></textarea>
-          <div class="plan-editor-actions">
-            <button class="text-button primary-action" id="acceptPlanButton" type="button">이 변경안 적용하기</button>
-            <button class="text-button" id="regeneratePlanButton" type="button">변경안 만들기</button>
-            <button class="text-button" id="reviseAgainButton" type="button">다시 수정 요청하기</button>
-            <button class="text-button" id="keepPlanButton" type="button">기존 계획 유지하기</button>
-          </div>
-          <p id="planEditorMessage">완료한 일정은 그대로 두고, 남은 계획만 바꾸는 흐름으로 보여줍니다.</p>
-        </section>
 
-        <section class="execution-card routine-insight-card">
-          <div class="card-title compact">
-            <div>
-              <h2 id="routineModeTitle">아침 루틴 모드</h2>
-              <span id="routineModeMeta">이미 하고 있는 루틴과 새 목표를 연결합니다</span>
+          <div class="edit-step">
+            <span class="edit-step-label"><i>1</i>지금 적용 중인 계획</span>
+            <div class="plan-preview-list" id="planPreviewList" aria-label="현재 계획 요약"></div>
+          </div>
+
+          <div class="edit-step">
+            <label class="edit-step-label" for="planRevisionRequest"><i>2</i>바꾸고 싶은 점</label>
+            <div class="revision-quick-actions" aria-label="빠른 수정 요청">
+              <button type="button" data-revision-chip="시간을 10분 단위로 더 짧게 나눠줘.">시간을 줄이고 싶어요</button>
+              <button type="button" data-revision-chip="평일은 저녁 위주로 배치해줘.">저녁 위주로 바꿔주세요</button>
+              <button type="button" data-revision-chip="주말에는 복습만 가볍게 하고 싶어.">주말은 가볍게 해주세요</button>
+              <button type="button" data-revision-chip="오늘은 가장 중요한 한 가지 과제만 남겨줘.">하루 한 가지만 하고 싶어요</button>
             </div>
-            <span class="soft-badge">루틴 체크</span>
+            <textarea
+              id="planRevisionRequest"
+              class="plan-editor plan-revision-request"
+              rows="4"
+              placeholder="예: 평일에는 저녁 9시 이후만 가능하고, 주말에는 복습만 하고 싶어요."
+            ></textarea>
+            <button class="plan-cta" id="regeneratePlanButton" type="button">변경안 만들기</button>
           </div>
-          <div class="routine-cue-list" id="routineCueList">
-            <span>물 마시기 뒤 10분 실행</span>
-            <span>작게 시작하기</span>
-            <span>완료 즉시 체크</span>
+
+          <div class="edit-step">
+            <span class="edit-step-label"><i>3</i>변경안 확인 후 적용</span>
+            <div class="plan-apply-actions">
+              <button class="plan-cta" id="acceptPlanButton" type="button">적용하기</button>
+              <button class="plan-cta ghost" id="keepPlanButton" type="button">취소하고 기존 유지</button>
+            </div>
+            <button class="plan-text-link" id="reviseAgainButton" type="button">다시 수정 요청하기</button>
           </div>
+
+          <textarea id="planEditor" class="plan-editor" rows="7" hidden></textarea>
+          <p id="planEditorMessage">완료한 일정은 그대로 두고, 남은 계획만 바꾸는 흐름으로 보여줍니다.</p>
         </section>
       </div>
 
