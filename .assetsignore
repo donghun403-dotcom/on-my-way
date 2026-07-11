@@ -1,0 +1,19 @@
+.git/
+.wrangler/
+node_modules/
+.agents/
+.claude/
+docs/
+tmp/
+On My Way 로고/
+.gitignore
+.assetsignore
+serve-local.cjs
+worker.mjs
+ai-goal-plan.mjs
+ai-companion-chat.mjs
+wrangler.jsonc
+*.pdf
+*.md
+</content>
+</invoke>
