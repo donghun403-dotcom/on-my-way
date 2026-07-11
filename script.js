@@ -1613,7 +1613,7 @@ function renderJourneyMap(overallProgress) {
         <span class="scene-cloud scene-cloud-two"></span>
         <span class="scene-landmark">${stop.icon}</span>
         <span class="scene-ground"></span>
-        ${index === currentIndex ? '<span class="journey-mori"><img src="assets/on-my-way-mascot.png" alt=""><b>여기!</b></span>' : ""}
+        ${index === currentIndex ? '<span class="journey-mori"><img src="assets/mori-celebrate.png" alt=""><b>여기!</b></span>' : ""}
       </div>
       <div class="journey-stop-copy">
         <small>STEP ${index + 1}</small>
@@ -1716,8 +1716,18 @@ function renderCompanionExperience({ plan, selectedCompletion, remainingTasks, c
   });
   const nextMilestone = [25, 50, 75, 100].find((value) => overallProgress < value) || 100;
 
+  const moriMoodImage =
+    companionState.mood === "happy"
+      ? "assets/mori-celebrate.png"
+      : companionState.mood === "caring" || companionState.energy === "tired"
+        ? "assets/mori-comfort.png"
+        : companionState.mood === "ready" || companionState.energy === "good"
+          ? "assets/mori-action.png"
+          : "assets/mori-thinking.png";
+
   if (companionName) companionName.textContent = companionState.name || "모리";
-  if (companionHomeImage) companionHomeImage.src = "assets/on-my-way-mascot.png";
+  if (companionHomeImage) companionHomeImage.src = moriMoodImage;
+  if (executionCompanion) executionCompanion.src = moriMoodImage;
   if (companionMoodLine) {
     companionMoodLine.textContent =
       companionState.energy === "tired" ? "오늘은 작게 줄이는 것도 실행이에요." : copy.line;
