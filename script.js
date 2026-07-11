@@ -47,6 +47,13 @@ const dashboardGoalPreview = document.querySelector("#dashboardGoalPreview");
 const dashboardProgressValue = document.querySelector("#dashboardProgressValue");
 const dashboardProgressBar = document.querySelector("#dashboardProgressBar");
 const dashboardPaceText = document.querySelector("#dashboardPaceText");
+const appFeatureCarousel = document.querySelector("#appFeatureCarousel");
+const appFeatureSlides = document.querySelectorAll(".app-feature-slide");
+const appFeatureDots = document.querySelectorAll("[data-feature-index]");
+const appFeaturePrev = document.querySelector("#appFeaturePrev");
+const appFeatureNext = document.querySelector("#appFeatureNext");
+const appFeatureTitle = document.querySelector("#appFeatureTitle");
+const appFeatureCounter = document.querySelector("#appFeatureCounter");
 const executionGoal = document.querySelector("#executionGoal");
 const executionStyle = document.querySelector("#executionStyle");
 const executionPeriod = document.querySelector("#executionPeriod");
@@ -229,6 +236,57 @@ goalSuggestionButtons.forEach((button) => {
 });
 
 renderDiagnosisStep();
+
+let appFeatureIndex = 0;
+let appFeatureScrollFrame = 0;
+
+function updateAppFeatureUi(index) {
+  if (!appFeatureSlides.length) return;
+  appFeatureIndex = Math.max(0, Math.min(index, appFeatureSlides.length - 1));
+  const activeSlide = appFeatureSlides[appFeatureIndex];
+  if (appFeatureTitle) appFeatureTitle.textContent = activeSlide?.dataset.featureTitle || "모리와 함께하는 앱";
+  if (appFeatureCounter) appFeatureCounter.textContent = `${appFeatureIndex + 1} / ${appFeatureSlides.length}`;
+  appFeatureDots.forEach((dot, dotIndex) => {
+    const isActive = dotIndex === appFeatureIndex;
+    dot.classList.toggle("active", isActive);
+    dot.setAttribute("aria-selected", String(isActive));
+  });
+}
+
+function showAppFeature(index, { animate = true } = {}) {
+  if (!appFeatureCarousel || !appFeatureSlides.length) return;
+  const nextIndex = (index + appFeatureSlides.length) % appFeatureSlides.length;
+  updateAppFeatureUi(nextIndex);
+  appFeatureCarousel.scrollTo({ left: appFeatureCarousel.clientWidth * nextIndex, behavior: animate ? "smooth" : "auto" });
+}
+
+appFeaturePrev?.addEventListener("click", () => showAppFeature(appFeatureIndex - 1));
+appFeatureNext?.addEventListener("click", () => showAppFeature(appFeatureIndex + 1));
+
+appFeatureDots.forEach((dot) => {
+  dot.addEventListener("click", () => showAppFeature(Number(dot.dataset.featureIndex || 0)));
+});
+
+appFeatureCarousel?.addEventListener("scroll", () => {
+  window.cancelAnimationFrame(appFeatureScrollFrame);
+  appFeatureScrollFrame = window.requestAnimationFrame(() => {
+    if (!appFeatureCarousel.clientWidth) return;
+    updateAppFeatureUi(Math.round(appFeatureCarousel.scrollLeft / appFeatureCarousel.clientWidth));
+  });
+});
+
+appFeatureCarousel?.addEventListener("keydown", (event) => {
+  if (event.key === "ArrowLeft") {
+    event.preventDefault();
+    showAppFeature(appFeatureIndex - 1);
+  }
+  if (event.key === "ArrowRight") {
+    event.preventDefault();
+    showAppFeature(appFeatureIndex + 1);
+  }
+});
+
+updateAppFeatureUi(0);
 
 menuButton?.addEventListener("click", () => {
   const isOpen = mainNav.classList.toggle("open");
