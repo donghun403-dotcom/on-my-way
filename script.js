@@ -365,6 +365,13 @@ const startFocusButton = document.querySelector("#startFocusButton");
 const companionMood = document.querySelector("#companionMood");
 const companionDays = document.querySelector("#companionDays");
 const companionNextGrowth = document.querySelector("#companionNextGrowth");
+const bondLevelName = document.querySelector("#bondLevelName");
+const bondXpText = document.querySelector("#bondXpText");
+const bondXpBar = document.querySelector("#bondXpBar");
+const bondNextUnlock = document.querySelector("#bondNextUnlock");
+const bondUnlockDescription = document.querySelector("#bondUnlockDescription");
+const bondReaction = document.querySelector("#bondReaction");
+const touchCompanionHint = document.querySelector("#touchCompanionHint");
 const journeyBadge = document.querySelector("#journeyBadge");
 const journeyMap = document.querySelector("#journeyMap");
 const journeyPlaceTitle = document.querySelector("#journeyPlaceTitle");
@@ -1485,6 +1492,22 @@ function getXpRequirement(level) {
   return 40 + Math.max(0, level - 1) * 18;
 }
 
+const companionBondLevels = [
+  { level: 1, name: "새싹 친구", next: "포근한 미소와 반가운 인사", detail: "한 단계 가까워지면 올리가 더 다정한 표정과 새 인사로 맞아줘요." },
+  { level: 2, name: "포근한 단짝", next: "별빛 언덕의 반짝 대사", detail: "올리가 실행을 기억하고 별빛 언덕에서만 들려주는 응원을 시작해요." },
+  { level: 3, name: "반짝 단짝", next: "올리의 별꽃 정원", detail: "관계가 더 자라면 둘만의 별꽃 정원과 특별한 대화가 열려요." },
+  { level: 4, name: "별꽃 메이트", next: "별꽃 정원의 계절 장식", detail: "이제 함께 쌓은 기록에 따라 정원의 꽃과 올리의 반응이 달라져요." },
+];
+
+function getCompanionBondInfo(state) {
+  const level = Math.max(1, Number(state.level) || 1);
+  return companionBondLevels.find((item) => item.level === Math.min(level, companionBondLevels.length)) || companionBondLevels[0];
+}
+
+function getTodayKey() {
+  return new Date().toLocaleDateString("en-CA");
+}
+
 function addCompanionXp(amount, mood = "happy") {
   const state = getCompanionState();
   let nextXp = Math.max(0, (state.xp || 0) + amount);
@@ -1549,6 +1572,23 @@ function pulseCompanion() {
     companionHomeImage.classList.add("is-celebrating");
     window.setTimeout(() => companionHomeImage.classList.remove("is-celebrating"), 900);
   });
+}
+
+function pulseBondCompanion(rewardText = "♥") {
+  if (executionCompanion) {
+    executionCompanion.classList.remove("is-petted");
+    window.requestAnimationFrame(() => {
+      executionCompanion.classList.add("is-petted");
+      window.setTimeout(() => executionCompanion.classList.remove("is-petted"), 900);
+    });
+  }
+  if (bondReaction) {
+    bondReaction.textContent = rewardText;
+    bondReaction.classList.remove("show");
+    void bondReaction.offsetWidth;
+    bondReaction.classList.add("show");
+    window.setTimeout(() => bondReaction.classList.remove("show"), 1200);
+  }
 }
 
 function showOllieReaction(message, headline) {
@@ -1835,7 +1875,7 @@ function getCompanionStage(overallProgress) {
     { threshold: 25, title: "집 앞 산책길", badge: "25%", level: 2 },
     { threshold: 50, title: "작은 숲", badge: "50%", level: 3 },
     { threshold: 75, title: "별빛 언덕", badge: "75%", level: 4 },
-    { threshold: 100, title: "목표의 정원", badge: "완주", level: 5 },
+    { threshold: 100, title: "올리의 별꽃 정원", badge: "완주", level: 5 },
   ];
 
   return stages.reduce((current, stage) => (overallProgress >= stage.threshold ? stage : current), stages[0]);
@@ -1931,7 +1971,7 @@ function renderJourneyMap(overallProgress) {
     { title: "집 앞 산책길", shortTitle: "산책길", threshold: 25, icon: "✿", theme: "path", story: "반복이 발걸음이 되어 올리와 천천히 밖으로 나왔어요." },
     { title: "작은 숲", shortTitle: "숲", threshold: 50, icon: "♧", theme: "forest", story: "절반을 지나며 루틴이 나무처럼 단단하게 자라고 있어요." },
     { title: "별빛 언덕", shortTitle: "언덕", threshold: 75, icon: "✦", theme: "hill", story: "쌓아 온 시간을 내려다보며 마지막 걸음을 준비하는 곳이에요." },
-    { title: "목표의 정원", shortTitle: "정원", threshold: 100, icon: "❀", theme: "garden", story: "목표를 이룬 마음이 꽃처럼 피어나 오래 기억되는 정원이에요." },
+    { title: "올리의 별꽃 정원", shortTitle: "별꽃 정원", threshold: 100, icon: "❀", theme: "garden", story: "올리와 함께 쌓은 작은 성공이 별꽃처럼 피어나 오래 기억되는 둘만의 정원이에요." },
   ];
 
   const currentIndex = stops.reduce((index, stop, stopIndex) => (overallProgress >= stop.threshold ? stopIndex : index), 0);
@@ -2050,6 +2090,8 @@ function renderCompanionExperience({ plan, selectedCompletion, remainingTasks, c
   const companionState = getCompanionState();
   const xpNeed = getXpRequirement(companionState.level || stage.level);
   const xpPercent = xpNeed ? Math.round(((companionState.xp || 0) / xpNeed) * 100) : overallProgress;
+  const bondInfo = getCompanionBondInfo(companionState);
+  const touchedToday = companionState.lastTouchedDate === getTodayKey();
   const copy = getCompanionCopy({
     selectedCompletion,
     remainingTasks,
@@ -2082,12 +2124,25 @@ function renderCompanionExperience({ plan, selectedCompletion, remainingTasks, c
   if (companionStage) companionStage.textContent = stage.title;
   if (companionLevel) companionLevel.textContent = `Lv. ${Math.max(stage.level, companionState.level || 1)}`;
   if (companionXpBar) companionXpBar.style.width = `${Math.max(6, xpPercent || overallProgress)}%`;
-  if (companionMood) companionMood.textContent = copy.mood;
+  if (companionMood) companionMood.textContent = touchedToday ? "포근함" : copy.mood;
   if (companionDays) companionDays.textContent = `${Math.max(1, completedDays || 1)}일`;
-  if (companionNextGrowth) companionNextGrowth.textContent = `${nextMilestone}%`;
-  if (executionCompanionText) executionCompanionText.textContent = copy.message;
-  if (executionCompanionTitle) executionCompanionTitle.textContent = "목표 메이트 올리";
-  if (executionCompanionPath) executionCompanionPath.textContent = "작은 방 → 산책길 → 숲 → 별빛 언덕";
+  if (companionNextGrowth) companionNextGrowth.textContent = bondInfo.name;
+  if (bondLevelName) bondLevelName.textContent = bondInfo.name;
+  if (bondXpText) bondXpText.textContent = `${companionState.xp || 0} / ${xpNeed} XP`;
+  if (bondXpBar) bondXpBar.style.width = `${Math.max(4, Math.min(100, xpPercent))}%`;
+  if (bondNextUnlock) bondNextUnlock.textContent = bondInfo.next;
+  if (bondUnlockDescription) bondUnlockDescription.textContent = bondInfo.detail;
+  if (touchCompanionButton) touchCompanionButton.textContent = touchedToday ? "한 번 더 쓰다듬기" : "오늘 쓰다듬기 · XP +5";
+  if (touchCompanionHint) {
+    touchCompanionHint.textContent = touchedToday
+      ? "오늘의 관계 XP를 받았어요. 다시 쓰다듬으면 올리의 귀여운 반응을 볼 수 있어요."
+      : "하루 첫 쓰다듬기는 관계 XP +5 · 단계마다 새 표정과 대화, 장소가 열려요.";
+  }
+  if (executionCompanionText) {
+    executionCompanionText.textContent = touchedToday ? "오늘의 쓰다듬기를 기억하고 있어요. 올리의 표정이 포근해지고 다음 관계 변화에 가까워졌어요." : copy.message;
+  }
+  if (executionCompanionTitle) executionCompanionTitle.textContent = `${bondInfo.name} 올리`;
+  if (executionCompanionPath) executionCompanionPath.textContent = "작은 방 → 산책길 → 숲 → 별빛 언덕 → 올리의 별꽃 정원";
 
   renderJourneyMap(overallProgress);
   renderMemoryCards({ selectedCompletion, completedDays, overallProgress });
@@ -2357,17 +2412,36 @@ energyPackButtons.forEach((button) => {
 
 touchCompanionButton?.addEventListener("click", () => {
   const state = getCompanionState();
+  const todayKey = getTodayKey();
+
+  if (state.lastTouchedDate === todayKey) {
+    pulseCompanion();
+    pulseBondCompanion("♥ 포근");
+    showToast("올리가 눈을 꼭 감고 좋아해요 · 오늘의 관계 XP는 이미 받았어요");
+    if (companionMessage) companionMessage.textContent = "한 번 더 쓰다듬어 줬네요. 올리가 포근한 기분을 오래 기억할게요.";
+    if (executionCompanionText) executionCompanionText.textContent = "올리가 눈을 꼭 감고 손길을 즐기고 있어요. XP와 관계없이 언제든 다시 쓰다듬을 수 있어요.";
+    trackCompanionEvent("companion_touched_again", { touched: state.touched || 0 });
+    return;
+  }
+
+  const previousLevel = state.level || 1;
   const nextState = {
     ...state,
     relationship: (state.relationship || 1) + 1,
     touched: (state.touched || 0) + 1,
     mood: "happy",
+    lastTouchedDate: todayKey,
   };
   saveCompanionState(nextState);
-  addCompanionXp(2, "happy");
+  const rewardedState = addCompanionXp(5, "happy");
   pulseCompanion();
-  showToast("올리와 가까워졌어요 · 관계 XP 2를 얻었어요");
-  if (companionMessage) companionMessage.textContent = "고마워요. 오늘은 아주 작은 행동부터 같이 해봐요.";
+  pulseBondCompanion(rewardedState.level > previousLevel ? "♥ LEVEL UP" : "♥ +5 XP");
+  showToast(
+    rewardedState.level > previousLevel
+      ? `올리와 한 단계 더 가까워졌어요 · ${getCompanionBondInfo(rewardedState).name}이 되었어요`
+      : "올리의 마음이 포근해졌어요 · 관계 XP 5를 얻었어요",
+  );
+  if (companionMessage) companionMessage.textContent = "고마워요. 오늘의 손길을 기억하고 더 다정한 표정으로 곁에 있을게요.";
   trackCompanionEvent("companion_touched", { touched: nextState.touched });
   renderExecutionPage(getPlanBundle());
 });
