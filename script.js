@@ -313,6 +313,14 @@ function consumeOllieEnergy(amount, label) {
   return true;
 }
 
+function refundOllieEnergy(amount) {
+  const state = readOllieEnergyState();
+  const refund = Math.max(0, Number(amount) || 0);
+  state.remaining = Math.min(Number(state.allocation) || 0, Number(state.remaining || 0) + refund);
+  saveOllieEnergyState(state);
+  renderOllieEnergy();
+}
+
 renderOllieEnergy();
 
 function needsLowFrictionStart(readiness = DEFAULT_ROUTINE_READINESS) {
@@ -879,6 +887,40 @@ async function requestAiPlan(payload) {
     return result.plan || result;
   } catch (error) {
     if (error.name === "AbortError") throw new Error("AI 응답 시간이 길어졌어요. 잠시 후 다시 시도해 주세요.");
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+async function requestCompanionReply(message) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 30000);
+
+  try {
+    const bundle = getPlanBundle();
+    const companionState = getCompanionState();
+    const response = await fetch("/api/ai/companion-chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message,
+        context: {
+          goal: bundle.plan?.goal || "",
+          energy: companionState.energy || "",
+          todayFocus: bundle.plan?.firstAction || "",
+        },
+      }),
+      signal: controller.signal,
+    });
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok) throw new Error(result.error || "올리가 답을 만들지 못했어요.");
+    const reply = String(result.reply || "").trim();
+    if (!reply) throw new Error("올리가 답을 만들지 못했어요.");
+    return reply;
+  } catch (error) {
+    if (error.name === "AbortError") throw new Error("올리의 답이 늦어지고 있어요. 잠시 후 다시 말 걸어주세요.");
     throw error;
   } finally {
     window.clearTimeout(timeoutId);
@@ -2291,37 +2333,77 @@ energyButtons.forEach((button) => {
   });
 });
 
+const encouragementLines = [
+  "여기까지 온 것만으로도 충분히 잘하고 있어요. 오늘은 딱 5분만 저와 같이 시작해봐요!",
+  "완벽하지 않아도 괜찮아요. 어제보다 한 걸음이면 우리는 앞으로 가고 있는 거예요.",
+  "잘할 수 있어요. 제일 작은 것 하나만 끝내고 저한테 자랑해 주세요. 기다리고 있을게요!",
+  "시작이 무거운 날일수록 기준을 작게 잡아요. 오늘의 한 걸음도 분명히 쌓이고 있어요.",
+];
+
 chatActionButtons.forEach((button) => {
   button.addEventListener("click", () => {
     const action = button.dataset.chatAction;
-    const request = {
-      shorten: "오늘 할 일을 5~10분 단위의 더 짧은 행동으로 나눠줘.",
-      "move-evening": "오늘 실행 시간을 저녁으로 옮기고, 늦은 시간에도 부담 없는 순서로 다시 짜줘.",
-      encourage: "오늘 계획 앞에 바로 시작할 수 있는 짧은 응원 문장을 추가해줘.",
-      "one-task": "오늘은 가장 중요한 한 가지 과제만 남기고 나머지는 내일 이후로 옮기는 제안을 해줘.",
+
+    if (action === "encourage") {
+      const line = encouragementLines[Math.floor(Math.random() * encouragementLines.length)];
+      if (companionChatResponse) companionChatResponse.textContent = line;
+      addCompanionXp(2, "happy");
+      showOllieReaction(line);
+      trackCompanionEvent("quick_adjustment_selected", { action });
+      return;
+    }
+
+    const preset = {
+      shorten: {
+        request: "오늘 할 일을 5~10분 단위의 더 짧은 행동으로 나눠줘.",
+        response: "좋아요, 오늘 할 일을 5~10분짜리 작은 조각으로 나누는 제안을 준비할게요. 부담부터 줄여봐요.",
+      },
+      "move-evening": {
+        request: "오늘 실행 시간을 저녁으로 옮기고, 늦은 시간에도 부담 없는 순서로 다시 짜줘.",
+        response: "알겠어요, 오늘 일정은 저녁 시간대로 옮기는 제안을 만들게요. 늦게 시작해도 전혀 늦지 않아요.",
+      },
+      "one-task": {
+        request: "오늘은 가장 중요한 한 가지 과제만 남기고 나머지는 내일 이후로 옮기는 제안을 해줘.",
+        response: "오늘은 가장 중요한 하나만 남기는 제안을 준비할게요. 하나를 끝내는 게 열 개를 계획하는 것보다 힘이 세요.",
+      },
     }[action];
 
-    if (!request) return;
-    appendRevisionRequest(request, "수정 요청에 담아뒀어요. 새 스케줄은 사용자가 확인한 뒤 적용됩니다.");
+    if (!preset) return;
+    appendRevisionRequest(preset.request, preset.response);
     showOllieReaction();
     trackCompanionEvent("quick_adjustment_selected", { action });
   });
 });
 
-sendCompanionMessage?.addEventListener("click", () => {
+sendCompanionMessage?.addEventListener("click", async () => {
   const message = companionChatInput?.value.trim() || "";
   if (!message) {
-    if (companionChatResponse) companionChatResponse.textContent = "바꾸고 싶은 조건을 한 줄만 적어도 충분해요.";
+    if (companionChatResponse) companionChatResponse.textContent = "하고 싶은 말을 한 줄만 적어도 충분해요.";
     return;
   }
 
-  if (!consumeOllieEnergy(1, "간단한 계획 수정")) return;
+  if (sendCompanionMessage.disabled) return;
+  if (!consumeOllieEnergy(1, "올리와 대화")) return;
 
-  appendRevisionRequest(`사용자 추가 요청: ${message}`, "좋아요. 이 내용을 참고해서 AI가 다시 짠 스케줄 미리보기를 만들 수 있어요.");
+  appendRevisionRequest(`사용자 추가 요청: ${message}`, "올리가 답을 생각하고 있어요…");
   companionChatInput.value = "";
   showOllieReaction();
   addCompanionXp(3, "thinking");
   trackCompanionEvent("custom_revision_requested", { length: message.length });
+
+  sendCompanionMessage.disabled = true;
+  try {
+    const reply = await requestCompanionReply(message);
+    if (companionChatResponse) companionChatResponse.textContent = reply;
+    showOllieReaction(reply);
+  } catch (error) {
+    refundOllieEnergy(1);
+    const fallback = "지금은 답을 만들지 못했어요. 방금 이야기는 계획 수정 요청에 담아뒀고, 에너지는 돌려드렸어요. 잠시 후 다시 말 걸어주세요.";
+    if (companionChatResponse) companionChatResponse.textContent = fallback;
+    showOllieReaction(fallback);
+  } finally {
+    sendCompanionMessage.disabled = false;
+  }
 });
 
 startFocusButton?.addEventListener("click", openFocusMode);

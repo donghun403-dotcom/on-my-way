@@ -1,4 +1,5 @@
 import { createAiGoalPlan } from "./ai-goal-plan.mjs";
+import { createCompanionReply } from "./ai-companion-chat.mjs";
 
 function json(body, status = 200) {
   return Response.json(body, {
@@ -33,6 +34,31 @@ export default {
       } catch (error) {
         console.error("AI goal plan request failed", error);
         return json({ error: error.message || "AI 계획을 만들지 못했어요." }, error.status || 500);
+      }
+    }
+
+    if (url.pathname === "/api/ai/companion-chat") {
+      if (request.method !== "POST") return json({ error: "POST 요청만 사용할 수 있어요." }, 405);
+
+      if (env.AI_RATE_LIMITER) {
+        const actor = request.headers.get("cf-connecting-ip") || "anonymous";
+        const { success } = await env.AI_RATE_LIMITER.limit({ key: `companion-chat:${actor}` });
+        if (!success) return json({ error: "올리가 잠시 바빠요. 1분 후 다시 말 걸어주세요." }, 429);
+      }
+
+      const contentLength = Number(request.headers.get("content-length") || 0);
+      if (contentLength > 5000) return json({ error: "메시지가 너무 길어요." }, 413);
+
+      try {
+        const input = await request.json();
+        const result = await createCompanionReply(input, {
+          apiKey: env.OPENAI_API_KEY,
+          model: env.OPENAI_MODEL || "gpt-5.4-mini",
+        });
+        return json(result);
+      } catch (error) {
+        console.error("Companion chat request failed", error);
+        return json({ error: error.message || "올리의 답을 만들지 못했어요." }, error.status || 500);
       }
     }
 
