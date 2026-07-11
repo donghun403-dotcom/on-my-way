@@ -9888,6 +9888,177 @@ body.sheet-open {
   min-height: 100%;
 }
 
+.execution-page .schedule-calendar-card {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 96% 4%, rgba(231, 216, 232, 0.62), transparent 28%),
+    radial-gradient(circle at 5% 96%, rgba(210, 235, 228, 0.7), transparent 31%),
+    rgba(255, 255, 255, 0.82);
+}
+
+.execution-page .schedule-calendar-card::after {
+  position: absolute;
+  z-index: 0;
+  top: 18px;
+  right: 96px;
+  width: 8px;
+  height: 8px;
+  content: "";
+  background: #f0c8d4;
+  border-radius: 50%;
+  box-shadow: 20px 14px 0 -2px #c7ded9, -16px 22px 0 -3px #d5d8ef;
+  opacity: 0.65;
+}
+
+.execution-page .schedule-calendar-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.execution-page .schedule-calendar-card .card-title {
+  align-items: flex-start;
+  padding-bottom: 4px;
+}
+
+.execution-page .calendar-kicker {
+  display: block;
+  margin-bottom: 5px;
+  color: #78978b;
+  font-size: 9px;
+  font-weight: 950;
+  letter-spacing: 0.11em;
+}
+
+.execution-page .calendar-progress-badge {
+  display: flex;
+  align-items: center;
+  padding: 5px 7px 5px 3px;
+  background: rgba(255, 255, 255, 0.76);
+  border: 1px solid rgba(107, 122, 166, 0.1);
+  border-radius: 16px;
+  box-shadow: 0 8px 18px rgba(91, 106, 151, 0.08);
+}
+
+.execution-page .calendar-progress-badge img {
+  width: 34px;
+  height: 38px;
+  margin-block: -7px;
+  object-fit: contain;
+  filter: drop-shadow(0 5px 6px rgba(91, 106, 151, 0.16));
+}
+
+.execution-page .calendar-progress-badge .soft-badge {
+  min-width: 42px;
+  padding: 7px 9px;
+  color: #677994;
+  background: #eef2f9;
+  text-align: center;
+}
+
+.execution-page .calendar-weekdays {
+  gap: 8px;
+  margin: 8px 0 2px;
+}
+
+.execution-page .calendar-weekdays > span {
+  display: grid;
+  min-width: 0;
+  min-height: 62px;
+  padding: 5px 2px 7px;
+  place-items: center;
+  gap: 2px;
+  background: rgba(255, 255, 255, 0.54);
+  border: 1px solid rgba(107, 122, 166, 0.08);
+  border-radius: 16px;
+}
+
+.execution-page .calendar-weekdays img {
+  width: 34px;
+  height: 38px;
+  margin-block: -4px -2px;
+  object-fit: contain;
+  filter: drop-shadow(0 5px 7px rgba(91, 106, 151, 0.14));
+}
+
+.execution-page .calendar-weekdays em {
+  color: #68758b;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 950;
+}
+
+.execution-page .schedule-calendar {
+  gap: 8px;
+}
+
+.execution-page .calendar-day {
+  min-height: 70px;
+  padding: 10px 7px 8px;
+  align-content: start;
+  gap: 7px;
+  color: #354057;
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(107, 122, 166, 0.14);
+  border-radius: 16px;
+  box-shadow: 0 7px 16px rgba(91, 106, 151, 0.045);
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.execution-page .calendar-day::before {
+  background: linear-gradient(180deg, rgba(171, 201, 194, 0.08), rgba(132, 148, 186, 0.17));
+}
+
+.execution-page .calendar-day:hover {
+  z-index: 2;
+  border-color: rgba(111, 157, 139, 0.38);
+  box-shadow: 0 11px 20px rgba(91, 106, 151, 0.09);
+  transform: translateY(-2px);
+}
+
+.execution-page .calendar-day strong {
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.execution-page .calendar-day > span {
+  color: #8a94a6;
+  font-size: 9px;
+}
+
+.execution-page .calendar-day.done {
+  color: #ffffff;
+  background: linear-gradient(145deg, #779d91, #7f8eae);
+  border-color: transparent;
+  box-shadow: 0 10px 20px rgba(91, 106, 151, 0.18);
+}
+
+.execution-page .calendar-day.done > span {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.execution-page .calendar-day.selected {
+  outline: none;
+  border-color: #d4a8b6;
+  box-shadow: 0 0 0 3px rgba(212, 168, 182, 0.14), 0 9px 18px rgba(91, 106, 151, 0.08);
+}
+
+.execution-page .calendar-day .calendar-ollie {
+  position: absolute;
+  z-index: 1;
+  right: 1px;
+  bottom: -2px;
+  width: 31px;
+  height: 36px;
+  object-fit: contain;
+  pointer-events: none;
+  filter: drop-shadow(0 5px 6px rgba(48, 57, 78, 0.16));
+}
+
+.execution-page .calendar-day .calendar-ollie[hidden] {
+  display: none;
+}
+
 .execution-page .plan-editor-card {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -10063,6 +10234,37 @@ body.sheet-open {
 
   .execution-page .today-ollie-stage span {
     display: none;
+  }
+
+  .execution-page .schedule-calendar-card {
+    padding-inline: 14px;
+  }
+
+  .execution-page .calendar-weekdays,
+  .execution-page .schedule-calendar {
+    gap: 4px;
+  }
+
+  .execution-page .calendar-weekdays > span {
+    min-height: 51px;
+    padding-inline: 1px;
+    border-radius: 12px;
+  }
+
+  .execution-page .calendar-weekdays img {
+    width: 26px;
+    height: 30px;
+  }
+
+  .execution-page .calendar-day {
+    min-height: 59px;
+    padding: 8px 4px 6px;
+    border-radius: 12px;
+  }
+
+  .execution-page .calendar-day .calendar-ollie {
+    width: 24px;
+    height: 29px;
   }
 
   .execution-page .execution-gauge {

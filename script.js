@@ -1759,6 +1759,7 @@ function renderCalendar(schedule, state) {
     const button = document.createElement("button");
     const day = document.createElement("strong");
     const percent = document.createElement("span");
+    const ollie = document.createElement("img");
 
     button.type = "button";
     button.className = "calendar-day";
@@ -1770,8 +1771,12 @@ function renderCalendar(schedule, state) {
 
     day.textContent = String(dayPlan.day);
     percent.textContent = `${completion.percent}%`;
+    ollie.className = "calendar-ollie";
+    ollie.src = completion.percent === 100 ? "assets/ollie-celebrate.png" : "assets/ollie-thinking.png";
+    ollie.alt = "";
+    ollie.hidden = completion.percent !== 100 && dayPlan.day !== state.selectedDay;
     button.setAttribute("aria-label", `${dayPlan.day}일차 ${completion.percent}% 완료`);
-    button.append(day, percent);
+    button.append(day, percent, ollie);
     scheduleCalendar.append(button);
   });
 }
