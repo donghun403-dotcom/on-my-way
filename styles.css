@@ -7654,3 +7654,289 @@ body.sheet-open {
   cursor: not-allowed;
   opacity: 0.45;
 }
+
+/* Mori-led problem story */
+.home-page .problem {
+  isolation: isolate;
+}
+
+.home-page .problem::before {
+  position: absolute;
+  z-index: -1;
+  top: 14%;
+  left: 50%;
+  width: min(820px, 82vw);
+  height: 72%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0) 70%);
+  content: "";
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.home-page .problem .section-heading {
+  max-width: 760px;
+  margin: 0 auto 36px;
+  text-align: center;
+}
+
+.home-page .problem .section-heading .eyebrow {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  margin-bottom: 14px;
+  padding: 0 13px;
+  color: #718ba2;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.92);
+  border-radius: 999px;
+  box-shadow: 0 8px 20px rgba(91, 106, 151, 0.08);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+}
+
+.home-page .problem .problem-lead {
+  max-width: 570px;
+  margin: 14px auto 0;
+  color: #737a8c;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.75;
+}
+
+.home-page .problem-scene {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.9fr) minmax(360px, 1.1fr);
+  align-items: center;
+  gap: clamp(30px, 6vw, 86px);
+  max-width: 1050px;
+  margin-inline: auto;
+  padding: clamp(24px, 5vw, 58px);
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 12% 18%, rgba(255, 255, 255, 0.95) 0 4px, transparent 5px),
+    radial-gradient(circle at 92% 82%, rgba(255, 255, 255, 0.82) 0 5px, transparent 6px),
+    linear-gradient(135deg, rgba(238, 248, 248, 0.9), rgba(248, 239, 244, 0.88));
+  border: 1px solid rgba(255, 255, 255, 0.88);
+  border-radius: clamp(30px, 5vw, 48px);
+  box-shadow: 0 28px 70px rgba(91, 106, 151, 0.14);
+}
+
+.home-page .problem-mori {
+  position: relative;
+  display: grid;
+  justify-items: center;
+}
+
+.home-page .mori-portrait {
+  position: relative;
+  display: grid;
+  width: min(100%, 310px);
+  aspect-ratio: 1 / 0.94;
+  place-items: center;
+}
+
+.home-page .mori-orbit {
+  position: absolute;
+  inset: 11% 3% 2%;
+  background: linear-gradient(145deg, #dceff1, #e3e5f3 58%, #f5dfe5);
+  border: 9px solid rgba(255, 255, 255, 0.56);
+  border-radius: 50% 46% 52% 48%;
+  transform: rotate(-5deg);
+}
+
+.home-page .problem-mori img.mascot-card {
+  position: relative;
+  z-index: 1;
+  width: 72%;
+  height: 94%;
+  margin: 0;
+  object-fit: contain;
+  filter: drop-shadow(0 22px 20px rgba(91, 106, 151, 0.2));
+}
+
+.home-page .mori-spark {
+  position: absolute;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  color: #90afba;
+}
+
+.home-page .mori-spark-one {
+  top: 8%;
+  left: 1%;
+  font-size: 25px;
+  transform: rotate(-12deg);
+}
+
+.home-page .mori-spark-two {
+  top: 28%;
+  right: 0;
+  color: #dc9ba7;
+  font-size: 10px;
+}
+
+.home-page .mori-talk {
+  position: relative;
+  z-index: 3;
+  width: min(100%, 330px);
+  margin-top: -26px;
+  padding: 17px 20px 18px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.96);
+  border-radius: 20px;
+  box-shadow: 0 16px 34px rgba(91, 106, 151, 0.13);
+  text-align: center;
+}
+
+.home-page .mori-talk::before {
+  position: absolute;
+  top: -8px;
+  left: calc(50% - 8px);
+  width: 16px;
+  height: 16px;
+  background: #ffffff;
+  content: "";
+  transform: rotate(45deg);
+}
+
+.home-page .mori-talk span {
+  position: relative;
+  color: #83a3af;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.home-page .mori-talk p,
+.home-page .problem-core p {
+  position: relative;
+  margin: 6px 0 0;
+  color: #3b4765;
+  font-size: clamp(14px, 1.5vw, 17px);
+  font-weight: 800;
+  line-height: 1.65;
+}
+
+.home-page .problem-reasons {
+  display: grid;
+  gap: 13px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: reason;
+}
+
+.home-page .problem-reasons li {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 42px;
+  align-items: center;
+  gap: 14px;
+  min-height: 104px;
+  padding: 17px 18px;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.95);
+  border-radius: 22px;
+  box-shadow: 0 12px 28px rgba(91, 106, 151, 0.08);
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.home-page .problem-reasons li:nth-child(2) {
+  transform: translateX(20px);
+}
+
+.home-page .problem-reasons li:hover {
+  transform: translateX(-5px);
+  box-shadow: 0 18px 36px rgba(91, 106, 151, 0.14);
+}
+
+.home-page .problem-reasons li:nth-child(2):hover {
+  transform: translateX(15px);
+}
+
+.home-page .reason-number {
+  color: #a7afc0;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.home-page .problem-reasons small {
+  display: block;
+  margin-bottom: 5px;
+  color: #9a8290;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.home-page .problem-reasons h3 {
+  margin: 0;
+  color: #39425b;
+  font-size: clamp(14px, 1.5vw, 17px);
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.home-page .reason-mark {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 14px;
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.home-page .reason-mark-blue {
+  color: #6f91a4;
+  background: #e5f2f4;
+}
+
+.home-page .reason-mark-peach {
+  color: #b17d6e;
+  background: #f9e7df;
+}
+
+.home-page .reason-mark-lilac {
+  color: #8b82a5;
+  background: #eee9f7;
+}
+
+@media (max-width: 759px) {
+  .home-page .problem .section-heading {
+    margin-bottom: 24px;
+  }
+
+  .home-page .problem-scene {
+    grid-template-columns: 1fr;
+    gap: 28px;
+    padding: 24px 16px 18px;
+    border-radius: 30px;
+  }
+
+  .home-page .mori-portrait {
+    width: min(78vw, 280px);
+  }
+
+  .home-page .mori-talk {
+    width: min(88%, 330px);
+  }
+
+  .home-page .problem-reasons {
+    width: 100%;
+  }
+
+  .home-page .problem-reasons li,
+  .home-page .problem-reasons li:nth-child(2),
+  .home-page .problem-reasons li:hover,
+  .home-page .problem-reasons li:nth-child(2):hover {
+    min-height: 92px;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-page .problem-reasons li {
+    transition: none;
+  }
+}
