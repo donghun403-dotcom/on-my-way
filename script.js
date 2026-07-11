@@ -398,6 +398,7 @@ const memoryCompletion = document.querySelector("#memoryCompletion");
 const memoryConversation = document.querySelector("#memoryConversation");
 const memoryMoodButtons = document.querySelectorAll("[data-memory-mood]");
 const memoryMoodEcho = document.querySelector("#memoryMoodEcho");
+const memoryCustomMood = document.querySelector("#memoryCustomMood");
 const memoryTitle = document.querySelector("#memoryTitle");
 const memoryNote = document.querySelector("#memoryNote");
 const memoryObstacle = document.querySelector("#memoryObstacle");
@@ -2432,6 +2433,7 @@ const memoryMoodMeta = {
   sad: { label: "슬픔", icon: "🌧️", echo: "슬펐던 마음도 올리가 함께 기억할게요. 천천히 적어보세요." },
   light: { label: "가벼움", icon: "😊", echo: "가벼운 마음으로 보낸 하루네요." },
   steady: { label: "보통", icon: "🌿", echo: "잔잔한 하루도 소중한 기록이 돼요." },
+  custom: { label: "나만의 마음", icon: "✏️", echo: "직접 적은 마음이 가장 정확해요. 올리가 그대로 기억할게요." },
 };
 
 const lowEnergyMoods = new Set(["tired", "heavy", "anxious", "sad"]);
@@ -2444,10 +2446,33 @@ function normalizeMemoryMood(mood) {
   return { light: "happy", steady: "calm" }[mood] || mood || "calm";
 }
 
-function updateMemoryMoodEcho(mood) {
+function updateMemoryMoodEcho(mood, customText) {
   if (!memoryMoodEcho) return;
+  if (customText) {
+    memoryMoodEcho.textContent = `「${customText}」 — 그 마음 그대로 올리가 소중히 기억할게요.`;
+    return;
+  }
   const meta = memoryMoodMeta[normalizeMemoryMood(mood)] || memoryMoodMeta.calm;
   memoryMoodEcho.textContent = meta.echo;
+}
+
+function getObjectParticle(word) {
+  const code = String(word || "").charCodeAt(String(word || "").length - 1);
+  if (code < 0xac00 || code > 0xd7a3) return "을";
+  return (code - 0xac00) % 28 ? "을" : "를";
+}
+
+function getMemoryMoodDisplay(memory) {
+  if (memory.mood === "custom" && memory.customMood) return { label: memory.customMood, icon: "✏️" };
+  return memoryMoodMeta[memory.mood] || memoryMoodMeta.steady;
+}
+
+function applyMoodSelectionToForm(memory) {
+  const isCustom = memory?.mood === "custom" && memory?.customMood;
+  const selectedMood = isCustom ? "" : normalizeMemoryMood(memory?.mood);
+  memoryMoodButtons.forEach((button) => button.classList.toggle("selected", button.dataset.memoryMood === selectedMood));
+  if (memoryCustomMood) memoryCustomMood.value = isCustom ? memory.customMood : "";
+  updateMemoryMoodEcho(selectedMood, isCustom ? memory.customMood : "");
 }
 
 const memoryObstacleMeta = {
@@ -2497,9 +2522,7 @@ function renderMemoryCards({ selectedCompletion }) {
 
   const isEditingMemory = memoryForm?.contains(document.activeElement);
   if (!isEditingMemory) {
-    const selectedMood = normalizeMemoryMood(todayMemory?.mood);
-    memoryMoodButtons.forEach((button) => button.classList.toggle("selected", button.dataset.memoryMood === selectedMood));
-    updateMemoryMoodEcho(selectedMood);
+    applyMoodSelectionToForm(todayMemory);
     if (memoryTitle) memoryTitle.value = todayMemory?.title || "";
     if (memoryNote) memoryNote.value = todayMemory?.note || "";
     if (memoryObstacle) memoryObstacle.value = todayMemory?.obstacle || "none";
@@ -2525,7 +2548,7 @@ function renderMemoryCards({ selectedCompletion }) {
     memoryList.append(empty);
   } else {
     memories.slice(0, 30).forEach((memory) => {
-      const mood = memoryMoodMeta[memory.mood] || memoryMoodMeta.steady;
+      const mood = getMemoryMoodDisplay(memory);
       const item = document.createElement("article");
       item.className = `daily-memory-item diary-entry mood-${normalizeMemoryMood(memory.mood)}`;
       item.dataset.mood = normalizeMemoryMood(memory.mood);
@@ -2546,7 +2569,7 @@ function renderMemoryCards({ selectedCompletion }) {
 
       const diaryTitle = document.createElement("h4");
       diaryTitle.className = "diary-entry-title";
-      diaryTitle.textContent = memory.title || `${mood.label}을 기억한 하루`;
+      diaryTitle.textContent = memory.title || `${mood.label}${getObjectParticle(mood.label)} 기억한 하루`;
 
       const metrics = document.createElement("div");
       metrics.className = "memory-metrics";
@@ -2652,8 +2675,20 @@ function renderPatternCards(state) {
 memoryMoodButtons.forEach((button) => {
   button.addEventListener("click", () => {
     memoryMoodButtons.forEach((item) => item.classList.toggle("selected", item === button));
+    if (memoryCustomMood) memoryCustomMood.value = "";
     updateMemoryMoodEcho(button.dataset.memoryMood);
   });
+});
+
+memoryCustomMood?.addEventListener("input", () => {
+  const text = memoryCustomMood.value.trim();
+  if (text) {
+    memoryMoodButtons.forEach((item) => item.classList.remove("selected"));
+    updateMemoryMoodEcho("", text);
+  } else {
+    memoryMoodButtons.forEach((item) => item.classList.toggle("selected", item.dataset.memoryMood === "calm"));
+    updateMemoryMoodEcho("calm");
+  }
 });
 
 memoryForm?.addEventListener("submit", (event) => {
@@ -2661,7 +2696,8 @@ memoryForm?.addEventListener("submit", (event) => {
   const bundle = getPlanBundle();
   const selectedDay = bundle.schedule[bundle.state.selectedDay - 1] || bundle.schedule[0];
   const completion = getDayCompletion(selectedDay, bundle.state.checkedByDay);
-  const mood = document.querySelector("[data-memory-mood].selected")?.dataset.memoryMood || "calm";
+  const customMoodText = memoryCustomMood?.value.trim() || "";
+  const mood = customMoodText ? "custom" : document.querySelector("[data-memory-mood].selected")?.dataset.memoryMood || "calm";
   const title = memoryTitle?.value.trim() || "오늘의 한 장";
   const obstacle = memoryObstacle?.value || "none";
   const note = memoryNote?.value.trim() || "";
@@ -2680,6 +2716,7 @@ memoryForm?.addEventListener("submit", (event) => {
     day: existing?.day || bundle.state.selectedDay,
     title,
     mood,
+    customMood: customMoodText,
     completion: recordedCompletion,
     obstacle,
     note,
@@ -2713,9 +2750,7 @@ memoryList?.addEventListener("click", (event) => {
     if (memoryNote) memoryNote.value = memory.note || "";
     if (memoryObstacle) memoryObstacle.value = memory.obstacle || "none";
     if (memoryNextStep) memoryNextStep.value = memory.nextStep || "";
-    const selectedMood = normalizeMemoryMood(memory.mood);
-    memoryMoodButtons.forEach((button) => button.classList.toggle("selected", button.dataset.memoryMood === selectedMood));
-    updateMemoryMoodEcho(selectedMood);
+    applyMoodSelectionToForm(memory);
     const saveLabel = memorySaveButton?.querySelector("span");
     if (saveLabel) saveLabel.textContent = "수정한 다이어리 저장하기";
     memoryForm.scrollIntoView({ behavior: "smooth", block: "center" });

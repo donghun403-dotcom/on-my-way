@@ -11095,7 +11095,7 @@ body.sheet-open {
 
 .execution-page .memory-mood-picker {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
   min-width: 0;
   margin: 0;
@@ -11127,6 +11127,50 @@ body.sheet-open {
   color: #4e6075;
   background: linear-gradient(145deg, #e9f5f0, #f1edf7);
   border-color: rgba(117, 161, 147, 0.48);
+  box-shadow: 0 8px 18px rgba(91, 106, 151, 0.1);
+}
+
+.execution-page .memory-custom-mood {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 13px;
+  background: #f8f9fc;
+  border: 1px dashed rgba(107, 122, 166, 0.28);
+  border-radius: 14px;
+  cursor: text;
+  transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.execution-page .memory-custom-mood > span {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.execution-page .memory-custom-mood input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  color: #4e6075;
+  background: transparent;
+  border: 0;
+  outline: none;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.execution-page .memory-custom-mood input::placeholder {
+  color: #9aa3b4;
+  font-weight: 700;
+}
+
+.execution-page .memory-custom-mood:focus-within,
+.execution-page .memory-custom-mood:has(input:not(:placeholder-shown)) {
+  background: linear-gradient(145deg, #e9f5f0, #f1edf7);
+  border: 1px solid rgba(117, 161, 147, 0.48);
   box-shadow: 0 8px 18px rgba(91, 106, 151, 0.1);
 }
 
@@ -11266,6 +11310,7 @@ body.sheet-open {
 .execution-page .memory-list article.daily-memory-item[data-mood="heavy"] { border-left-color: #8993ad; }
 .execution-page .memory-list article.daily-memory-item[data-mood="anxious"] { border-left-color: #a8a4c4; }
 .execution-page .memory-list article.daily-memory-item[data-mood="sad"] { border-left-color: #85a3c2; }
+.execution-page .memory-list article.daily-memory-item[data-mood="custom"] { border-left-color: #c2b089; }
 
 .execution-page .memory-list article.diary-entry {
   position: relative;
@@ -11687,6 +11732,36 @@ body.sheet-open {
 
   .execution-page .apply-memory-insight {
     width: 100%;
+  }
+
+  .execution-page .memory-mood-picker {
+    gap: 6px;
+  }
+
+  .execution-page .memory-mood-picker button {
+    min-height: 46px;
+    padding: 6px 2px;
+    border-radius: 12px;
+    font-size: 9px;
+  }
+
+  .execution-page .memory-mood-picker button span {
+    margin-bottom: 2px;
+    font-size: 14px;
+  }
+
+  .execution-page .memory-custom-mood {
+    min-height: 38px;
+    padding: 0 11px;
+    border-radius: 12px;
+  }
+
+  .execution-page .memory-custom-mood input {
+    font-size: 10px;
+  }
+
+  .execution-page .memory-custom-mood input::placeholder {
+    font-size: 9px;
   }
 }
 
