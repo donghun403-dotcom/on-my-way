@@ -1437,7 +1437,7 @@ function renderCompanionExperience({ plan, selectedCompletion, remainingTasks, c
   const nextMilestone = [25, 50, 75, 100].find((value) => overallProgress < value) || 100;
 
   if (companionName) companionName.textContent = companionState.name || "모리";
-  if (companionHomeImage) companionHomeImage.src = "assets/buddy.svg";
+  if (companionHomeImage) companionHomeImage.src = "assets/on-my-way-mascot.png";
   if (companionMoodLine) {
     companionMoodLine.textContent =
       companionState.energy === "tired" ? "오늘은 작게 줄이는 것도 실행이에요." : copy.line;
