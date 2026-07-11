@@ -424,25 +424,29 @@
           <div class="feature-showcase-head">
             <div>
               <span>올리와 함께하는 4가지 순간</span>
-              <strong id="appFeatureTitle">오늘, 부담 없이 시작하기</strong>
+              <strong id="appFeatureTitle">AI 스케줄로 오늘 시작하기</strong>
             </div>
             <span id="appFeatureCounter" aria-live="polite">1 / 4</span>
           </div>
 
           <div class="app-feature-carousel" id="appFeatureCarousel" tabindex="0" aria-label="On My Way 앱 기능 소개">
-            <article class="app-feature-slide feature-today" data-feature-title="오늘, 부담 없이 시작하기">
+            <article class="app-feature-slide feature-today" data-feature-title="AI 스케줄로 오늘 시작하기">
               <div class="feature-copy">
                 <span class="feature-number">01 · TODAY</span>
-                <h3>올리가 오늘 할 일을<br />딱 하나로 줄여줘요</h3>
-                <p>큰 목표 대신 지금 시작할 수 있는 가장 작은 행동을 보여주고, 지친 날에는 5분짜리 계획으로 다시 조정해요.</p>
-                <ul><li>오늘의 한 걸음 자동 추천</li><li>5분 집중 모드</li><li>현재 페이스 확인</li></ul>
+                <h3>AI가 목표를 쪼개<br />오늘의 스케줄로 만들어요</h3>
+                <p>목표와 기간만 넣으면 하루 단위 스케줄이 생겨요. 아침부터 마무리까지 시간 순서대로 하나씩 체크하면 돼요.</p>
+                <ul><li>시간대별 AI 스케줄 체크리스트</li><li>첫 일정부터 집중 타이머로 시작</li><li>난이도 피드백으로 다음 날 자동 조절</li></ul>
               </div>
               <div class="feature-phone-card">
                 <div class="feature-phone-top">
                   <div><span>오늘의 한 걸음</span><strong id="dashboardGoalPreview">영어 인터뷰 15분</strong></div>
                   <img src="assets/ollie-action.png" alt="" />
                 </div>
-                <div class="feature-ollie-bubble"><span>올리</span><strong>“5분만 해도 성공!”</strong><button type="button">집중 시작</button></div>
+                <div class="feature-schedule-mini" aria-hidden="true">
+                  <div class="mini-schedule-row current"><span>07:00</span><p>단어 40개 + LC 1세트</p><button type="button">집중 시작</button></div>
+                  <div class="mini-schedule-row"><span>12:30</span><p>오답 정리 20분</p><b>예상 20분</b></div>
+                  <div class="mini-schedule-row"><span>21:00</span><p>오늘 진행 상황 체크인</p><b>예상 15분</b></div>
+                </div>
                 <div class="feature-progress-card">
                   <div><span>목표 달성 게이지</span><strong id="dashboardProgressValue">42%</strong></div>
                   <div class="progress-track"><span id="dashboardProgressBar" style="width: 42%"></span></div>
@@ -455,14 +459,14 @@
               <div class="feature-copy">
                 <span class="feature-number">02 · ADJUST</span>
                 <h3>계획이 버거운 날엔<br />올리에게 말하면 돼요</h3>
-                <p>못 했다고 혼내는 대신 오늘의 에너지와 일정에 맞춰 계획을 짧게 줄이거나 다른 시간으로 옮겨줘요.</p>
-                <ul><li>대화형 계획 수정</li><li>컨디션별 실행 강도 조절</li><li>변경 전 확인 과정</li></ul>
+                <p>지친 날엔 상태만 알려주세요. 올리가 계획을 줄이거나 옮긴 변경안을 만들고, 확인 후에 직접 적용을 결정해요.</p>
+                <ul><li>오늘 상태별 빠른 계획 조정</li><li>AI 변경안, 확인한 뒤에만 적용</li><li>진행 달력에서 하루씩 되돌아보기</li></ul>
               </div>
               <div class="feature-chat-card">
-                <div class="chat-ollie-head"><img src="assets/ollie-comfort.png" alt="" /><div><span>올리</span><strong>오늘 상태는 어때요?</strong></div></div>
+                <div class="chat-ollie-head"><img src="assets/ollie-comfort.png" alt="" /><div><span>올리</span><strong>지금 상태를 알려주세요</strong></div></div>
                 <div class="chat-user-message">오늘 회의가 길어서 너무 지쳤어.</div>
-                <div class="chat-ollie-message">그럼 저녁 계획을 10분으로 줄일게요. 단어 20개만 함께 해볼까요?</div>
-                <div class="chat-choice-row"><span>10분으로 줄이기</span><span>내일로 옮기기</span></div>
+                <div class="chat-ollie-message">저녁 계획을 10분으로 줄인 변경안을 만들었어요. 확인해 보고 결정해 주세요.</div>
+                <div class="chat-choice-row"><span>적용하기</span><span>기존 유지</span></div>
               </div>
             </article>
 
@@ -470,29 +474,29 @@
               <div class="feature-copy">
                 <span class="feature-number">03 · GROW</span>
                 <h3>작은 실행이 쌓일수록<br />올리의 세상도 자라요</h3>
-                <p>완료율에 따라 작은 방에서 산책길, 숲, 별빛 언덕과 목표의 정원까지 새로운 장소가 열려요.</p>
-                <ul><li>완료율 연동 성장 지도</li><li>올리 레벨과 기분 변화</li><li>다음 장소 진행률</li></ul>
+                <p>완료율에 따라 작은 방에서 산책길, 숲, 별빛 언덕을 지나 올리의 별꽃 정원까지 새로운 장소가 열려요.</p>
+                <ul><li>완료율로 열리는 여정 지도</li><li>쓰다듬기·대화로 쌓는 관계 XP</li><li>단계마다 새 표정과 인사</li></ul>
               </div>
               <div class="feature-world-card">
                 <div class="world-sky-preview"><span></span><span></span></div>
                 <img src="assets/ollie-celebrate.png" alt="" />
-                <div class="world-stage-copy"><span>현재 장소</span><strong>작은 숲 · Lv. 3</strong><p>정원까지 가는 길의 절반을 넘었어요!</p></div>
+                <div class="world-stage-copy"><span>현재 장소</span><strong>작은 숲 · Lv. 3</strong><p>별꽃 정원까지 가는 길의 절반을 넘었어요!</p></div>
                 <div class="world-route"><span class="done">방</span><span class="done">길</span><span class="current">숲</span><span>언덕</span><span>정원</span></div>
               </div>
             </article>
 
-            <article class="app-feature-slide feature-memory" data-feature-title="성공의 기억을 모아 이어가기">
+            <article class="app-feature-slide feature-memory" data-feature-title="감정 다이어리로 내일 잇기">
               <div class="feature-copy">
-                <span class="feature-number">04 · REMEMBER</span>
-                <h3>잘한 순간을 올리가 기억해<br />다음 시작으로 이어줘요</h3>
-                <p>작은 체크인도 추억 카드로 남기고, 반복 패턴을 찾아 나에게 맞는 성공 방식을 알려줘요.</p>
-                <ul><li>실행 추억 카드</li><li>주간 패턴 발견</li><li>중단 후 다시 시작 안내</li></ul>
+                <span class="feature-number">04 · DIARY</span>
+                <h3>하루의 마음을 남기면<br />내일 계획이 따라와요</h3>
+                <p>열 가지 감정이나 나만의 단어로 오늘 마음을 적으면 올리가 공감해주고, 기록에서 찾은 패턴을 다음 계획에 반영해요.</p>
+                <ul><li>감정 다이어리와 올리의 공감 한 줄</li><li>내일의 가장 작은 행동 연결</li><li>기록 패턴에서 성공 단서 발견</li></ul>
               </div>
               <div class="feature-memory-board">
-                <div class="memory-board-head"><img src="assets/ollie-thinking.png" alt="" /><div><span>올리가 기억한 이번 주</span><strong>작은 성공 4개</strong></div></div>
-                <article><span>MON</span><p>퇴근 후 10분만 시작했어요</p><b>✓</b></article>
-                <article><span>WED</span><p>지친 날 계획을 절반으로 줄였어요</p><b>♡</b></article>
-                <article><span>FRI</span><p>같은 시간에 세 번째 반복했어요</p><b>✦</b></article>
+                <div class="memory-board-head"><img src="assets/ollie-thinking.png" alt="" /><div><span>차곡차곡 쌓인 다이어리</span><strong>이번 주 3장</strong></div></div>
+                <article><span>MON</span><p>😊 기쁨 · 망설였지만 시작한 날</p><b>✓</b></article>
+                <article><span>WED</span><p>🌙 지침 · 5분만 하고 쉬어간 날</p><b>♡</b></article>
+                <article><span>FRI</span><p>✏️ 홀가분함 · 내 단어로 남긴 날</p><b>✦</b></article>
               </div>
             </article>
           </div>
@@ -500,10 +504,10 @@
           <div class="feature-carousel-controls">
             <button type="button" id="appFeaturePrev" aria-label="이전 기능">←</button>
             <div class="feature-carousel-dots" role="tablist" aria-label="기능 선택">
-              <button class="active" type="button" role="tab" data-feature-index="0" aria-label="오늘 기능" aria-selected="true"></button>
+              <button class="active" type="button" role="tab" data-feature-index="0" aria-label="AI 스케줄 기능" aria-selected="true"></button>
               <button type="button" role="tab" data-feature-index="1" aria-label="계획 조정 기능" aria-selected="false"></button>
               <button type="button" role="tab" data-feature-index="2" aria-label="성장 여정 기능" aria-selected="false"></button>
-              <button type="button" role="tab" data-feature-index="3" aria-label="추억 기록 기능" aria-selected="false"></button>
+              <button type="button" role="tab" data-feature-index="3" aria-label="감정 다이어리 기능" aria-selected="false"></button>
             </div>
             <button type="button" id="appFeatureNext" aria-label="다음 기능">→</button>
           </div>
