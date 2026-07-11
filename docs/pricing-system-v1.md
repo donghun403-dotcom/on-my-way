@@ -6,21 +6,21 @@
 
 - 1-day free trial
 - 1 AI-generated goal plan
-- 10 Mori Energy for AI edits
+- 10 Ollie Energy for AI edits
 - Daily schedule
 - No payment method required
 
 ### PRO — KRW 2,900/month
 
 - Unlimited goals and schedules
-- 300 Mori Energy per month
+- 300 Ollie Energy per month
 - Weekly review
-- Mori growth
+- Ollie growth
 - Full history
 - Premium widgets
 - User-facing promise: “Generous monthly AI assistance”
 
-## Mori Energy costs
+## Ollie Energy costs
 
 | Action | Energy |
 | --- | ---: |

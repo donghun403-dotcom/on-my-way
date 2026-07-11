@@ -1948,13 +1948,13 @@ footer p {
   gap: 12px;
 }
 
-.mori-goal-card,
+.ollie-goal-card,
 .app-plan-preview {
   display: grid;
   gap: 12px;
 }
 
-.mori-message {
+.ollie-message {
   display: flex;
   gap: 12px;
   align-items: center;
@@ -1964,13 +1964,13 @@ footer p {
   border-radius: 18px;
 }
 
-.mori-message img {
+.ollie-message img {
   width: 72px;
   height: 72px;
 }
 
-.mori-message span,
-.mori-chat-preview span,
+.ollie-message span,
+.ollie-chat-preview span,
 .today-plan-card span,
 .tomorrow-card span {
   color: var(--app-mint);
@@ -1978,8 +1978,8 @@ footer p {
   font-weight: 900;
 }
 
-.mori-message p,
-.mori-chat-preview p {
+.ollie-message p,
+.ollie-chat-preview p {
   margin: 4px 0 0;
   color: var(--app-text);
   font-size: 20px;
@@ -1987,15 +1987,15 @@ footer p {
   line-height: 1.35;
 }
 
-.mori-goal-card input,
-.mori-goal-card select,
+.ollie-goal-card input,
+.ollie-goal-card select,
 .compact-fields label {
   width: 100%;
 }
 
-.mori-goal-card > #currentState,
-.mori-goal-card > #currentRoutine,
-.mori-goal-card > #routineTime {
+.ollie-goal-card > #currentState,
+.ollie-goal-card > #currentRoutine,
+.ollie-goal-card > #routineTime {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -2084,7 +2084,7 @@ footer p {
   color: var(--app-mint);
 }
 
-.mori-chat-preview,
+.ollie-chat-preview,
 .today-plan-card,
 .tomorrow-card,
 .compact-analysis article {
@@ -2094,7 +2094,7 @@ footer p {
   border-radius: 18px !important;
 }
 
-.mori-chat-preview p,
+.ollie-chat-preview p,
 .today-plan-card strong,
 .tomorrow-card strong {
   color: var(--routine-text);
@@ -4297,8 +4297,8 @@ body.sheet-open {
   box-shadow: 0 18px 44px rgba(107, 122, 166, 0.12);
 }
 
-.home-page .mori-goal-card input,
-.home-page .mori-goal-card select {
+.home-page .ollie-goal-card input,
+.home-page .ollie-goal-card select {
   min-height: 48px;
   padding: 0 14px;
   color: var(--routine-text);
@@ -4309,21 +4309,21 @@ body.sheet-open {
   font-weight: 800;
 }
 
-.home-page .mori-goal-card > button {
+.home-page .ollie-goal-card > button {
   min-height: 50px;
   color: #ffffff;
   background: var(--routine-green);
   border: 0;
 }
 
-.home-page .mori-chat-preview p,
+.home-page .ollie-chat-preview p,
 .home-page .tomorrow-card strong {
   display: -webkit-box;
   overflow: hidden;
   -webkit-box-orient: vertical;
 }
 
-.home-page .mori-chat-preview p {
+.home-page .ollie-chat-preview p {
   -webkit-line-clamp: 2;
 }
 
@@ -4910,7 +4910,7 @@ body.sheet-open {
 
 /* Landing app-preview contrast pass */
 .home-page .first-meeting-panel,
-.home-page .mori-goal-card,
+.home-page .ollie-goal-card,
 .home-page .app-plan-preview,
 .home-page .execution-preview-shell {
   color: var(--routine-text);
@@ -4926,13 +4926,13 @@ body.sheet-open {
   color: #ffffff !important;
 }
 
-.home-page .mori-goal-card {
+.home-page .ollie-goal-card {
   background: rgba(255, 255, 255, 0.96) !important;
   border-color: var(--routine-line) !important;
 }
 
-.home-page .mori-message span,
-.home-page .mori-chat-preview span,
+.home-page .ollie-message span,
+.home-page .ollie-chat-preview span,
 .home-page .today-plan-card span,
 .home-page .tomorrow-card span,
 .home-page .focus-preview-card span,
@@ -4940,11 +4940,11 @@ body.sheet-open {
   color: var(--routine-green-dark);
 }
 
-.home-page .mori-message span {
+.home-page .ollie-message span {
   color: #7d8cb4;
 }
 
-.home-page .mori-message p {
+.home-page .ollie-message p {
   color: #ffffff !important;
   text-shadow: none;
 }
@@ -4963,13 +4963,13 @@ body.sheet-open {
   color: var(--routine-green-dark) !important;
 }
 
-.home-page .mori-goal-card input,
-.home-page .mori-goal-card select,
+.home-page .ollie-goal-card input,
+.home-page .ollie-goal-card select,
 .home-page .personality-fields input,
 .home-page .personality-fields select,
 .home-page .today-plan-card,
 .home-page .tomorrow-card,
-.home-page .mori-chat-preview,
+.home-page .ollie-chat-preview,
 .home-page .focus-preview-card,
 .home-page .execution-preview-shell .progress-block {
   color: var(--routine-text) !important;
@@ -4977,7 +4977,7 @@ body.sheet-open {
   border-color: var(--routine-line) !important;
 }
 
-.home-page .mori-goal-card input::placeholder {
+.home-page .ollie-goal-card input::placeholder {
   color: #7a8391;
 }
 
@@ -5291,36 +5291,36 @@ body.sheet-open {
   box-shadow: 0 18px 44px rgba(107, 122, 166, 0.1);
 }
 
-.home-page .story-flow .mori-goal-card,
+.home-page .story-flow .ollie-goal-card,
 .home-page .story-flow .app-plan-preview {
   background: rgba(255, 255, 255, 0.96) !important;
   border-color: var(--routine-line) !important;
   box-shadow: 0 14px 34px rgba(107, 122, 166, 0.08);
 }
 
-.home-page .story-flow .mori-message {
+.home-page .story-flow .ollie-message {
   background:
     linear-gradient(135deg, rgba(237, 242, 255, 0.96), #ffffff) !important;
   border-color: rgba(107, 122, 166, 0.18) !important;
 }
 
-.home-page .story-flow .mori-message img {
+.home-page .story-flow .ollie-message img {
   padding: 6px;
   background: #ffffff;
   border: 1px solid rgba(107, 122, 166, 0.1);
   border-radius: 18px;
 }
 
-.home-page .story-flow .mori-message span,
-.home-page .story-flow .mori-chat-preview span,
+.home-page .story-flow .ollie-message span,
+.home-page .story-flow .ollie-chat-preview span,
 .home-page .story-flow .today-plan-card span,
 .home-page .story-flow .tomorrow-card span,
 .home-page .story-flow .compact-analysis span {
   color: var(--routine-green-dark) !important;
 }
 
-.home-page .story-flow .mori-message p,
-.home-page .story-flow .mori-chat-preview p,
+.home-page .story-flow .ollie-message p,
+.home-page .story-flow .ollie-chat-preview p,
 .home-page .story-flow .today-plan-card strong,
 .home-page .story-flow .tomorrow-card strong {
   color: var(--routine-text) !important;
@@ -5328,7 +5328,7 @@ body.sheet-open {
 }
 
 .home-page .story-flow .personality-fields,
-.home-page .story-flow .mori-chat-preview,
+.home-page .story-flow .ollie-chat-preview,
 .home-page .story-flow .today-plan-card,
 .home-page .story-flow .tomorrow-card,
 .home-page .story-flow .compact-analysis article {
@@ -5365,7 +5365,7 @@ body.sheet-open {
   box-shadow: 0 12px 26px rgba(107, 122, 166, 0.2);
 }
 
-.home-page .story-flow .mori-goal-card {
+.home-page .story-flow .ollie-goal-card {
   gap: 14px;
 }
 
@@ -5654,7 +5654,7 @@ body.sheet-open {
 
 /* ============================================================
    Tabbed app shell — split the long execution scroll into
-   focused views (오늘 / 계획 / 모리 / 기록) with a labeled tab bar.
+   focused views (오늘 / 계획 / 올리 / 기록) with a labeled tab bar.
    ============================================================ */
 .execution-page .app-view {
   display: none;
@@ -5779,7 +5779,7 @@ body.sheet-open {
   outline-offset: 2px;
 }
 
-/* 3D Mori mascot integration */
+/* 3D Ollie mascot integration */
 .mascot-art,
 .final-cta-mascot,
 .floating-payment-cta img {
@@ -5812,7 +5812,7 @@ body.sheet-open {
   grid-template-columns: 92px minmax(0, 1fr);
 }
 
-.home-page .story-flow .mori-message img.mascot-avatar,
+.home-page .story-flow .ollie-message img.mascot-avatar,
 .home-page .execution-preview-shell .dashboard-top img.mascot-avatar {
   padding: 0;
   background: transparent;
@@ -5977,7 +5977,7 @@ body.sheet-open {
   background: rgba(255, 255, 255, 0.2);
 }
 
-.home-page .goal-builder-shell .mori-goal-card {
+.home-page .goal-builder-shell .ollie-goal-card {
   display: grid;
   grid-template-rows: auto auto 1fr auto;
   gap: 0;
@@ -6060,7 +6060,7 @@ body.sheet-open {
   to { opacity: 1; transform: none; }
 }
 
-.home-page .compact-mori-message {
+.home-page .compact-ollie-message {
   display: grid;
   grid-template-columns: 62px minmax(0, 1fr);
   gap: 14px;
@@ -6070,7 +6070,7 @@ body.sheet-open {
   border-radius: 18px;
 }
 
-.home-page .compact-mori-message img {
+.home-page .compact-ollie-message img {
   width: 62px;
   height: 68px;
   padding: 0 !important;
@@ -6079,11 +6079,11 @@ body.sheet-open {
   filter: drop-shadow(0 10px 14px rgba(91, 106, 151, 0.18));
 }
 
-.home-page .compact-mori-message span {
+.home-page .compact-ollie-message span {
   color: #7388a4 !important;
 }
 
-.home-page .compact-mori-message p {
+.home-page .compact-ollie-message p {
   margin-top: 3px;
   color: #38445d !important;
   font-size: 15px;
@@ -6254,7 +6254,7 @@ body.sheet-open {
   white-space: nowrap;
 }
 
-.mori-final-note {
+.ollie-final-note {
   display: grid;
   grid-template-columns: 72px minmax(0, 1fr);
   gap: 14px;
@@ -6264,20 +6264,20 @@ body.sheet-open {
   border-radius: 18px;
 }
 
-.mori-final-note img {
+.ollie-final-note img {
   width: 72px;
   height: 86px;
   object-fit: contain;
 }
 
-.mori-final-note p {
+.ollie-final-note p {
   margin: 0;
   color: #647087;
   font-size: 12px;
   line-height: 1.55;
 }
 
-.mori-final-note strong {
+.ollie-final-note strong {
   display: block;
   margin-bottom: 3px;
   color: #344057;
@@ -6502,7 +6502,7 @@ body.sheet-open {
     border-radius: 9px;
   }
 
-  .home-page .goal-builder-shell .mori-goal-card {
+  .home-page .goal-builder-shell .ollie-goal-card {
     min-height: 590px;
     padding: 26px 20px 22px;
   }
@@ -6539,7 +6539,7 @@ body.sheet-open {
   }
 }
 
-/* Mori's visual journey world map */
+/* Ollie's visual journey world map */
 .journey-map-card {
   overflow: hidden;
   background:
@@ -6793,7 +6793,7 @@ body.sheet-open {
   transform: rotate(-3deg);
 }
 
-.journey-mori {
+.journey-ollie {
   position: absolute;
   bottom: 8px;
   left: 9px;
@@ -6801,17 +6801,17 @@ body.sheet-open {
   display: block;
   width: 66px;
   height: 88px;
-  animation: journey-mori-bounce 2.8s ease-in-out infinite;
+  animation: journey-ollie-bounce 2.8s ease-in-out infinite;
 }
 
-.journey-mori img {
+.journey-ollie img {
   width: 100%;
   height: 100%;
   object-fit: contain;
   filter: drop-shadow(0 10px 12px rgba(66, 81, 108, 0.22));
 }
 
-.journey-mori b {
+.journey-ollie b {
   position: absolute;
   top: -2px;
   left: 45px;
@@ -6858,7 +6858,7 @@ body.sheet-open {
   font-weight: 800;
 }
 
-@keyframes journey-mori-bounce {
+@keyframes journey-ollie-bounce {
   0%, 100% { transform: translateY(0) rotate(-1deg); }
   50% { transform: translateY(-5px) rotate(1deg); }
 }
@@ -6880,7 +6880,7 @@ body.sheet-open {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .journey-mori {
+  .journey-ollie {
     animation: none;
   }
 }
@@ -6992,7 +6992,7 @@ body.sheet-open {
   }
 }
 
-/* Mori-centered app feature carousel */
+/* Ollie-centered app feature carousel */
 .home-page .app-dashboard .section-heading > p:last-child {
   max-width: 660px;
   color: var(--routine-muted) !important;
@@ -7201,7 +7201,7 @@ body.sheet-open {
   filter: drop-shadow(0 10px 14px rgba(91, 106, 151, 0.17));
 }
 
-.feature-mori-bubble {
+.feature-ollie-bubble {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 5px 10px;
@@ -7210,19 +7210,19 @@ body.sheet-open {
   border-radius: 17px;
 }
 
-.feature-mori-bubble span {
+.feature-ollie-bubble span {
   color: #8b7182;
   font-size: 9px;
   font-weight: 900;
 }
 
-.feature-mori-bubble strong {
+.feature-ollie-bubble strong {
   grid-column: 1;
   color: #3c465c;
   font-size: 15px;
 }
 
-.feature-mori-bubble button {
+.feature-ollie-bubble button {
   grid-column: 2;
   grid-row: 1 / 3;
   padding: 0 13px;
@@ -7264,7 +7264,7 @@ body.sheet-open {
   gap: 12px;
 }
 
-.chat-mori-head,
+.chat-ollie-head,
 .memory-board-head {
   display: grid;
   grid-template-columns: 62px minmax(0, 1fr);
@@ -7274,34 +7274,34 @@ body.sheet-open {
   border-bottom: 1px solid #edf0f5;
 }
 
-.chat-mori-head img,
+.chat-ollie-head img,
 .memory-board-head img {
   width: 62px;
   height: 70px;
   object-fit: contain;
 }
 
-.chat-mori-head div,
+.chat-ollie-head div,
 .memory-board-head div {
   display: grid;
   gap: 4px;
 }
 
-.chat-mori-head span,
+.chat-ollie-head span,
 .memory-board-head span {
   color: #8c7889;
   font-size: 9px;
   font-weight: 850;
 }
 
-.chat-mori-head strong,
+.chat-ollie-head strong,
 .memory-board-head strong {
   color: #3d465c;
   font-size: 15px;
 }
 
 .chat-user-message,
-.chat-mori-message {
+.chat-ollie-message {
   max-width: 84%;
   padding: 11px 13px;
   border-radius: 15px;
@@ -7317,7 +7317,7 @@ body.sheet-open {
   border-bottom-right-radius: 4px;
 }
 
-.chat-mori-message {
+.chat-ollie-message {
   color: #59657b;
   background: #f1f3f7;
   border-bottom-left-radius: 4px;
@@ -7655,7 +7655,7 @@ body.sheet-open {
   opacity: 0.45;
 }
 
-/* Mori-led problem story */
+/* Ollie-led problem story */
 .home-page .problem {
   isolation: isolate;
 }
@@ -7721,13 +7721,13 @@ body.sheet-open {
   box-shadow: 0 28px 70px rgba(91, 106, 151, 0.14);
 }
 
-.home-page .problem-mori {
+.home-page .problem-ollie {
   position: relative;
   display: grid;
   justify-items: center;
 }
 
-.home-page .mori-portrait {
+.home-page .ollie-portrait {
   position: relative;
   display: grid;
   width: min(100%, 310px);
@@ -7735,7 +7735,7 @@ body.sheet-open {
   place-items: center;
 }
 
-.home-page .mori-orbit {
+.home-page .ollie-orbit {
   position: absolute;
   inset: 11% 3% 2%;
   background: linear-gradient(145deg, #dceff1, #e3e5f3 58%, #f5dfe5);
@@ -7744,7 +7744,7 @@ body.sheet-open {
   transform: rotate(-5deg);
 }
 
-.home-page .problem-mori img.mascot-card {
+.home-page .problem-ollie img.mascot-card {
   position: relative;
   z-index: 1;
   width: 72%;
@@ -7754,7 +7754,7 @@ body.sheet-open {
   filter: drop-shadow(0 22px 20px rgba(91, 106, 151, 0.2));
 }
 
-.home-page .mori-spark {
+.home-page .ollie-spark {
   position: absolute;
   z-index: 2;
   display: grid;
@@ -7762,21 +7762,21 @@ body.sheet-open {
   color: #90afba;
 }
 
-.home-page .mori-spark-one {
+.home-page .ollie-spark-one {
   top: 8%;
   left: 1%;
   font-size: 25px;
   transform: rotate(-12deg);
 }
 
-.home-page .mori-spark-two {
+.home-page .ollie-spark-two {
   top: 28%;
   right: 0;
   color: #dc9ba7;
   font-size: 10px;
 }
 
-.home-page .mori-talk {
+.home-page .ollie-talk {
   position: relative;
   z-index: 3;
   width: min(100%, 330px);
@@ -7789,7 +7789,7 @@ body.sheet-open {
   text-align: center;
 }
 
-.home-page .mori-talk::before {
+.home-page .ollie-talk::before {
   position: absolute;
   top: -8px;
   left: calc(50% - 8px);
@@ -7800,7 +7800,7 @@ body.sheet-open {
   transform: rotate(45deg);
 }
 
-.home-page .mori-talk span {
+.home-page .ollie-talk span {
   position: relative;
   color: #83a3af;
   font-size: 10px;
@@ -7808,7 +7808,7 @@ body.sheet-open {
   letter-spacing: 0.08em;
 }
 
-.home-page .mori-talk p,
+.home-page .ollie-talk p,
 .home-page .problem-core p {
   position: relative;
   margin: 6px 0 0;
@@ -7914,11 +7914,11 @@ body.sheet-open {
     border-radius: 30px;
   }
 
-  .home-page .mori-portrait {
+  .home-page .ollie-portrait {
     width: min(78vw, 280px);
   }
 
-  .home-page .mori-talk {
+  .home-page .ollie-talk {
     width: min(88%, 330px);
   }
 
@@ -7941,7 +7941,7 @@ body.sheet-open {
   }
 }
 
-/* Mori's tiny-step garden */
+/* Ollie's tiny-step garden */
 .home-page .product-pillars {
   position: relative;
   padding-top: clamp(58px, 8vw, 96px);
@@ -8137,7 +8137,7 @@ body.sheet-open {
   background: #f3eef9;
 }
 
-.home-page .pillar-mori {
+.home-page .pillar-ollie {
   position: relative;
   z-index: 3;
   display: grid;
@@ -8148,7 +8148,7 @@ body.sheet-open {
   min-height: 350px;
 }
 
-.home-page .pillar-mori-halo {
+.home-page .pillar-ollie-halo {
   position: absolute;
   width: 112%;
   aspect-ratio: 1;
@@ -8158,7 +8158,7 @@ body.sheet-open {
   transform: rotate(7deg);
 }
 
-.home-page .pillar-mori img {
+.home-page .pillar-ollie img {
   position: relative;
   z-index: 2;
   width: min(92%, 245px);
@@ -8167,7 +8167,7 @@ body.sheet-open {
   filter: drop-shadow(0 24px 22px rgba(91, 106, 151, 0.2));
 }
 
-.home-page .pillar-mori-bubble {
+.home-page .pillar-ollie-bubble {
   position: absolute;
   z-index: 4;
   bottom: 7%;
@@ -8187,7 +8187,7 @@ body.sheet-open {
   transform: translateX(-50%);
 }
 
-.home-page .pillar-mori-bubble span {
+.home-page .pillar-ollie-bubble span {
   color: #d99aa8;
   font-size: 11px;
 }
@@ -8246,18 +8246,18 @@ body.sheet-open {
     grid-template-rows: auto;
   }
 
-  .home-page .pillar-mori {
+  .home-page .pillar-ollie {
     grid-column: 1 / -1;
     grid-row: 1;
     min-height: 300px;
     margin-bottom: 6px;
   }
 
-  .home-page .pillar-mori-halo {
+  .home-page .pillar-ollie-halo {
     width: min(300px, 78%);
   }
 
-  .home-page .pillar-mori img {
+  .home-page .pillar-ollie img {
     width: min(215px, 60%);
   }
 
@@ -8282,7 +8282,7 @@ body.sheet-open {
     border-radius: 30px;
   }
 
-  .home-page .pillar-mori {
+  .home-page .pillar-ollie {
     grid-column: 1;
     min-height: 280px;
   }
@@ -8681,18 +8681,18 @@ body.sheet-open {
   }
 }
 
-/* Pricing System v1 — Mori Energy */
+/* Pricing System v1 — Ollie Energy */
 .home-page .pricing-offers {
   width: min(100%, 980px);
   max-width: 980px;
 }
 
-.home-page .mori-energy-system,
+.home-page .ollie-energy-system,
 .home-page .energy-packs {
   grid-column: 1 / -1;
 }
 
-.home-page .mori-energy-system {
+.home-page .ollie-energy-system {
   display: grid;
   gap: 18px;
   padding: clamp(22px, 4vw, 32px);
@@ -8855,7 +8855,7 @@ body.sheet-open {
   gap: 10px;
 }
 
-.mori-energy-meter {
+.ollie-energy-meter {
   display: grid;
   grid-template-columns: 24px auto;
   grid-template-rows: auto 4px;
@@ -8868,7 +8868,7 @@ body.sheet-open {
   border-radius: 14px;
 }
 
-.mori-energy-meter .energy-leaf {
+.ollie-energy-meter .energy-leaf {
   display: grid;
   grid-row: 1 / 3;
   width: 24px;
@@ -8881,31 +8881,31 @@ body.sheet-open {
   transform: rotate(-7deg);
 }
 
-.mori-energy-meter > div:first-of-type {
+.ollie-energy-meter > div:first-of-type {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 7px;
 }
 
-.mori-energy-meter small {
+.ollie-energy-meter small {
   color: #778193;
   font-size: 9px;
   font-weight: 800;
 }
 
-.mori-energy-meter strong {
+.ollie-energy-meter strong {
   color: #46526a;
   font-size: 11px;
 }
 
-.mori-energy-track {
+.ollie-energy-track {
   overflow: hidden;
   background: rgba(107, 122, 166, 0.12);
   border-radius: 999px;
 }
 
-.mori-energy-track span {
+.ollie-energy-track span {
   display: block;
   height: 100%;
   background: linear-gradient(90deg, #7aa39d, #8c97b1);
@@ -8913,17 +8913,17 @@ body.sheet-open {
   transition: width 180ms ease;
 }
 
-.mori-energy-meter.is-low {
+.ollie-energy-meter.is-low {
   background: #fff1ed;
   border-color: rgba(204, 129, 109, 0.28);
 }
 
-.mori-energy-meter.is-low .energy-leaf,
-.mori-energy-meter.is-low .mori-energy-track span {
+.ollie-energy-meter.is-low .energy-leaf,
+.ollie-energy-meter.is-low .ollie-energy-track span {
   background: linear-gradient(145deg, #d58d7a, #bd8394);
 }
 
-.mori-energy-warning {
+.ollie-energy-warning {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 10px;
@@ -8935,21 +8935,21 @@ body.sheet-open {
   font-size: 11px;
 }
 
-.mori-energy-warning[hidden] {
+.ollie-energy-warning[hidden] {
   display: none !important;
 }
 
-.mori-energy-warning > span {
+.ollie-energy-warning > span {
   color: #cf806f;
   font-size: 9px;
 }
 
-.mori-energy-warning p {
+.ollie-energy-warning p {
   margin: 0;
   line-height: 1.5;
 }
 
-.mori-energy-warning a {
+.ollie-energy-warning a {
   padding: 7px 10px;
   color: #ffffff;
   background: #bd7d76;
@@ -9020,15 +9020,15 @@ body.sheet-open {
     min-height: 92px;
   }
 
-  .mori-energy-meter {
+  .ollie-energy-meter {
     min-width: 130px;
   }
 
-  .mori-energy-warning {
+  .ollie-energy-warning {
     grid-template-columns: auto minmax(0, 1fr);
   }
 
-  .mori-energy-warning a {
+  .ollie-energy-warning a {
     grid-column: 2;
     justify-self: start;
   }
@@ -9040,13 +9040,13 @@ body.sheet-open {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .mori-energy-track span {
+  .ollie-energy-track span {
     transition: none;
   }
 }
 
 /* ============================================================
-   Unified Mori app — matches the pastel, character-led landing page
+   Unified Ollie app — matches the pastel, character-led landing page
    ============================================================ */
 .execution-page {
   --app-ink: #343e57;
@@ -9115,7 +9115,7 @@ body.sheet-open {
 }
 
 .execution-page .trial-status-banner,
-.execution-page .mori-energy-warning {
+.execution-page .ollie-energy-warning {
   width: min(calc(100% - 32px), 1120px);
   margin: 8px auto 0;
   border: 1px solid rgba(255, 255, 255, 0.84);
@@ -9209,7 +9209,7 @@ body.sheet-open {
   letter-spacing: -0.03em;
 }
 
-.execution-page .today-mori-stage {
+.execution-page .today-ollie-stage {
   position: relative;
   z-index: 2;
   display: grid;
@@ -9217,14 +9217,14 @@ body.sheet-open {
   place-items: center;
 }
 
-.execution-page .today-mori-stage img {
+.execution-page .today-ollie-stage img {
   width: 210px;
   height: 230px;
   object-fit: contain;
   filter: drop-shadow(0 22px 22px rgba(91, 106, 151, 0.2));
 }
 
-.execution-page .today-mori-stage span {
+.execution-page .today-ollie-stage span {
   position: absolute;
   right: -4px;
   bottom: 8px;
@@ -9522,7 +9522,7 @@ body.sheet-open {
     padding: 26px;
   }
 
-  .execution-page .today-mori-stage img {
+  .execution-page .today-ollie-stage img {
     width: 170px;
     height: 190px;
   }
@@ -9577,16 +9577,16 @@ body.sheet-open {
     font-size: clamp(30px, 10vw, 40px);
   }
 
-  .execution-page .today-mori-stage {
+  .execution-page .today-ollie-stage {
     align-self: end;
   }
 
-  .execution-page .today-mori-stage img {
+  .execution-page .today-ollie-stage img {
     width: 118px;
     height: 145px;
   }
 
-  .execution-page .today-mori-stage span {
+  .execution-page .today-ollie-stage span {
     display: none;
   }
 

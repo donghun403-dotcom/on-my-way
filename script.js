@@ -67,10 +67,10 @@ const trialPaywallKicker = document.querySelector("#trialPaywallKicker");
 const trialPaywallTitle = document.querySelector("#trialPaywallTitle");
 const trialPaywallCopy = document.querySelector("#trialPaywallCopy");
 const trialPaywallAction = document.querySelector("#trialPaywallAction");
-const moriEnergyMeter = document.querySelector("#moriEnergyMeter");
-const moriEnergyBalance = document.querySelector("#moriEnergyBalance");
-const moriEnergyBar = document.querySelector("#moriEnergyBar");
-const moriEnergyWarning = document.querySelector("#moriEnergyWarning");
+const ollieEnergyMeter = document.querySelector("#ollieEnergyMeter");
+const ollieEnergyBalance = document.querySelector("#ollieEnergyBalance");
+const ollieEnergyBar = document.querySelector("#ollieEnergyBar");
+const ollieEnergyWarning = document.querySelector("#ollieEnergyWarning");
 const weeklyOptimizeButton = document.querySelector("#weeklyOptimizeButton");
 const executionGoal = document.querySelector("#executionGoal");
 const executionStyle = document.querySelector("#executionStyle");
@@ -120,7 +120,7 @@ const DEFAULT_ROUTINE_READINESS = "계획이 있으면 실행해요";
 const TRIAL_ACCESS_KEY = "omwTrialAccess";
 const TRIAL_LEAD_KEY = "omwTrialLead";
 const TRIAL_DURATION_MS = 24 * 60 * 60 * 1000;
-const MORI_ENERGY_KEY = "omwMoriEnergy";
+const OLLIE_ENERGY_KEY = "omwOllieEnergy";
 const FREE_PLAN_GENERATED_KEY = "omwFreePlanGenerated";
 
 if (appTourSection && designFlowSection && appTourSection.nextElementSibling !== designFlowSection) {
@@ -237,16 +237,16 @@ function getMonthlyEnergyReset() {
   return reset.getTime();
 }
 
-function getMoriEnergyPlan() {
+function getOllieEnergyPlan() {
   const access = readTrialAccess();
   return access?.plan === "pro" ? { plan: "pro", allocation: 300 } : { plan: "trial", allocation: 10 };
 }
 
-function readMoriEnergyState() {
-  const energyPlan = getMoriEnergyPlan();
+function readOllieEnergyState() {
+  const energyPlan = getOllieEnergyPlan();
   let state = null;
   try {
-    state = JSON.parse(localStorage.getItem(MORI_ENERGY_KEY) || "null");
+    state = JSON.parse(localStorage.getItem(OLLIE_ENERGY_KEY) || "null");
   } catch (error) {
     state = null;
   }
@@ -264,52 +264,52 @@ function readMoriEnergyState() {
       remaining: energyPlan.allocation,
       resetAt: energyPlan.plan === "pro" ? getMonthlyEnergyReset() : Number(readTrialAccess()?.expiresAt || Date.now() + TRIAL_DURATION_MS),
     };
-    saveMoriEnergyState(state);
+    saveOllieEnergyState(state);
   }
 
   return state;
 }
 
-function saveMoriEnergyState(state) {
+function saveOllieEnergyState(state) {
   try {
-    localStorage.setItem(MORI_ENERGY_KEY, JSON.stringify(state));
+    localStorage.setItem(OLLIE_ENERGY_KEY, JSON.stringify(state));
   } catch (error) {
-    console.warn("Unable to save Mori Energy", error);
+    console.warn("Unable to save Ollie Energy", error);
   }
 }
 
-function renderMoriEnergy() {
-  if (!moriEnergyMeter) return;
-  const state = readMoriEnergyState();
+function renderOllieEnergy() {
+  if (!ollieEnergyMeter) return;
+  const state = readOllieEnergyState();
   const allocation = Math.max(1, Number(state.allocation) || 1);
   const remaining = Math.max(0, Number(state.remaining) || 0);
   const percent = Math.max(0, Math.min(100, (remaining / allocation) * 100));
   const isLow = percent <= 20;
 
-  if (moriEnergyBalance) moriEnergyBalance.textContent = `${remaining} / ${allocation}`;
-  if (moriEnergyBar) moriEnergyBar.style.width = `${percent}%`;
-  moriEnergyMeter.classList.toggle("is-low", isLow);
-  if (moriEnergyWarning) moriEnergyWarning.hidden = !isLow;
+  if (ollieEnergyBalance) ollieEnergyBalance.textContent = `${remaining} / ${allocation}`;
+  if (ollieEnergyBar) ollieEnergyBar.style.width = `${percent}%`;
+  ollieEnergyMeter.classList.toggle("is-low", isLow);
+  if (ollieEnergyWarning) ollieEnergyWarning.hidden = !isLow;
 }
 
-function consumeMoriEnergy(amount, label) {
-  const state = readMoriEnergyState();
+function consumeOllieEnergy(amount, label) {
+  const state = readOllieEnergyState();
   const cost = Math.max(0, Number(amount) || 0);
   if (Number(state.remaining) < cost) {
-    if (moriEnergyWarning) moriEnergyWarning.hidden = false;
-    showToast(`${label}에 필요한 모리 에너지가 부족해요`);
-    announce(`${label}에 필요한 모리 에너지가 부족합니다.`);
+    if (ollieEnergyWarning) ollieEnergyWarning.hidden = false;
+    showToast(`${label}에 필요한 올리 에너지가 부족해요`);
+    announce(`${label}에 필요한 올리 에너지가 부족합니다.`);
     return false;
   }
 
   state.remaining = Number(state.remaining) - cost;
-  saveMoriEnergyState(state);
-  renderMoriEnergy();
-  announce(`${label}에 모리 에너지 ${cost}를 사용했습니다. ${state.remaining} 남았습니다.`);
+  saveOllieEnergyState(state);
+  renderOllieEnergy();
+  announce(`${label}에 올리 에너지 ${cost}를 사용했습니다. ${state.remaining} 남았습니다.`);
   return true;
 }
 
-renderMoriEnergy();
+renderOllieEnergy();
 
 function needsLowFrictionStart(readiness = DEFAULT_ROUTINE_READINESS) {
   return ["준비", "미뤄", "중단"].some((keyword) => readiness.includes(keyword));
@@ -455,7 +455,7 @@ function updateAppFeatureUi(index) {
   if (!appFeatureSlides.length) return;
   appFeatureIndex = Math.max(0, Math.min(index, appFeatureSlides.length - 1));
   const activeSlide = appFeatureSlides[appFeatureIndex];
-  if (appFeatureTitle) appFeatureTitle.textContent = activeSlide?.dataset.featureTitle || "모리와 함께하는 앱";
+  if (appFeatureTitle) appFeatureTitle.textContent = activeSlide?.dataset.featureTitle || "올리와 함께하는 앱";
   if (appFeatureCounter) appFeatureCounter.textContent = `${appFeatureIndex + 1} / ${appFeatureSlides.length}`;
   appFeatureDots.forEach((dot, dotIndex) => {
     const isActive = dotIndex === appFeatureIndex;
@@ -806,7 +806,7 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
       if (localStorage.getItem(FREE_PLAN_GENERATED_KEY) === "true") {
         if (aiPreviewStatus) aiPreviewStatus.textContent = "무료 목표 계획 1개를 이미 만들었어요";
         planPreviewPanel?.classList.add("is-ready");
-        showToast("무료 플랜은 목표 계획 1개를 만들 수 있어요. 앱에서 모리 에너지로 수정해 보세요.");
+        showToast("무료 플랜은 목표 계획 1개를 만들 수 있어요. 앱에서 올리 에너지로 수정해 보세요.");
         return;
       }
     } catch (error) {
@@ -856,7 +856,7 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
   renderAiPreview(preview);
   if (showLoading) planPreviewPanel?.classList.add("is-ready");
 
-  if (aiPreviewStatus) aiPreviewStatus.textContent = "모리가 만든 오늘의 계획";
+  if (aiPreviewStatus) aiPreviewStatus.textContent = "올리가 만든 오늘의 계획";
   if (aiPreviewButton) {
     aiPreviewButton.disabled = false;
     aiPreviewButton.textContent = "내 계획 만들고 1일 체험 준비";
@@ -1246,7 +1246,7 @@ let activeFocusTaskIndex = 0;
 
 function getDefaultCompanionState() {
   return {
-    name: "모리",
+    name: "올리",
     level: 1,
     xp: 0,
     mood: "ready",
@@ -1354,7 +1354,7 @@ function appendRevisionRequest(text, response = "좋아요. 그 요청을 플랜
   planRevisionRequest.value = current ? `${current}\n${text}` : text;
   updateRevisionButtonState();
   if (planEditorMessage) {
-    planEditorMessage.textContent = "모리의 제안을 수정 요청에 담았습니다. 변경안 만들기를 누르면 적용 전 미리보기를 볼 수 있어요.";
+    planEditorMessage.textContent = "올리의 제안을 수정 요청에 담았습니다. 변경안 만들기를 누르면 적용 전 미리보기를 볼 수 있어요.";
   }
   if (companionChatResponse) companionChatResponse.textContent = response;
   if (companionMessage) companionMessage.textContent = response;
@@ -1460,7 +1460,7 @@ function completeFocusTask() {
   if (wasUnchecked) addCompanionXp(10, "happy");
   closeFocusMode();
   pulseCompanion();
-  showToast(wasUnchecked ? "오늘의 한 걸음 완료 · 모리가 10 XP를 얻었어요" : "이미 완료된 한 걸음이에요");
+  showToast(wasUnchecked ? "오늘의 한 걸음 완료 · 올리가 10 XP를 얻었어요" : "이미 완료된 한 걸음이에요");
   trackCompanionEvent("focus_completed", { day: dayPlan.day, taskIndex: activeFocusTaskIndex, rewarded: wasUnchecked });
   renderExecutionPage(bundle);
 }
@@ -1480,7 +1480,7 @@ function renderFocusTask(dayPlan, selectedCompletion) {
   if (focusProgressText) focusProgressText.textContent = `${selectedCompletion.completed}/${selectedCompletion.total} 완료`;
   if (startFocusButton) {
     startFocusButton.dataset.taskIndex = String(taskIndex);
-    startFocusButton.textContent = selectedCompletion.percent === 100 ? "다시 보기" : "모리와 시작하기";
+    startFocusButton.textContent = selectedCompletion.percent === 100 ? "다시 보기" : "올리와 시작하기";
   }
 }
 
@@ -1632,7 +1632,7 @@ function getCompanionCopy({ selectedCompletion, remainingTasks, completedDays, o
       {
         id: "complete-2",
         mood: "뿌듯함",
-        line: "오늘의 한 걸음이 모리의 여정에 남았어요.",
+        line: "오늘의 한 걸음이 올리의 여정에 남았어요.",
         message: "작은 완료도 다음 계획을 더 정확하게 만드는 단서가 됩니다.",
       },
     ]);
@@ -1644,7 +1644,7 @@ function getCompanionCopy({ selectedCompletion, remainingTasks, completedDays, o
         id: "overloaded-1",
         mood: "응원",
         line: "5분만 시작해도 오늘은 성공이에요.",
-        message: "계획이 컸다면 모리가 더 작은 단계로 나눠줄게요.",
+        message: "계획이 컸다면 올리가 더 작은 단계로 나눠줄게요.",
       },
       {
         id: "overloaded-2",
@@ -1683,7 +1683,7 @@ function getCompanionCopy({ selectedCompletion, remainingTasks, completedDays, o
       id: "ready-2",
       mood: completedDays > 0 ? "기대" : "기본",
       line: "계획보다 시작이 먼저예요.",
-      message: "모리와 시작하기를 누르면 오늘 할 한 가지만 꺼내볼게요.",
+      message: "올리와 시작하기를 누르면 오늘 할 한 가지만 꺼내볼게요.",
     },
   ]);
 }
@@ -1693,7 +1693,7 @@ function renderJourneyMap(overallProgress) {
   const stage = getCompanionStage(overallProgress);
   const stops = [
     { title: "작은 방", shortTitle: "방", threshold: 0, icon: "⌂", theme: "room", story: "첫 마음을 심고, 아주 작은 시작을 준비하는 포근한 공간이에요." },
-    { title: "집 앞 산책길", shortTitle: "산책길", threshold: 25, icon: "✿", theme: "path", story: "반복이 발걸음이 되어 모리와 천천히 밖으로 나왔어요." },
+    { title: "집 앞 산책길", shortTitle: "산책길", threshold: 25, icon: "✿", theme: "path", story: "반복이 발걸음이 되어 올리와 천천히 밖으로 나왔어요." },
     { title: "작은 숲", shortTitle: "숲", threshold: 50, icon: "♧", theme: "forest", story: "절반을 지나며 루틴이 나무처럼 단단하게 자라고 있어요." },
     { title: "별빛 언덕", shortTitle: "언덕", threshold: 75, icon: "✦", theme: "hill", story: "쌓아 온 시간을 내려다보며 마지막 걸음을 준비하는 곳이에요." },
     { title: "목표의 정원", shortTitle: "정원", threshold: 100, icon: "❀", theme: "garden", story: "목표를 이룬 마음이 꽃처럼 피어나 오래 기억되는 정원이에요." },
@@ -1721,7 +1721,7 @@ function renderJourneyMap(overallProgress) {
         <span class="scene-cloud scene-cloud-two"></span>
         <span class="scene-landmark">${stop.icon}</span>
         <span class="scene-ground"></span>
-        ${index === currentIndex ? '<span class="journey-mori"><img src="assets/mori-celebrate.png" alt=""><b>여기!</b></span>' : ""}
+        ${index === currentIndex ? '<span class="journey-ollie"><img src="assets/ollie-celebrate.png" alt=""><b>여기!</b></span>' : ""}
       </div>
       <div class="journey-stop-copy">
         <small>STEP ${index + 1}</small>
@@ -1743,14 +1743,14 @@ function renderJourneyMap(overallProgress) {
 function renderMemoryCards({ selectedCompletion, completedDays, overallProgress }) {
   if (!memoryList) return;
   const state = getExecutionState();
-  const memories = [
+  const meolliees = [
     completedDays > 0 ? `처음으로 ${completedDays}일의 실행 기록을 만들었어요.` : "오늘 첫 체크인을 준비하고 있어요.",
     selectedCompletion.percent > 0 ? `오늘 계획의 ${selectedCompletion.percent}%를 진행했어요.` : "아직 시작 전이어도, 계획은 여기서 기다리고 있어요.",
-    overallProgress >= 50 ? "목표의 절반을 넘어선 순간을 모리가 기억해요." : "작은 실행이 쌓이면 다음 장소가 열려요.",
+    overallProgress >= 50 ? "목표의 절반을 넘어선 순간을 올리가 기억해요." : "작은 실행이 쌓이면 다음 장소가 열려요.",
   ];
 
   memoryList.innerHTML = "";
-  memories.forEach((memory) => {
+  meolliees.forEach((memory) => {
     const item = document.createElement("article");
     item.textContent = memory;
     memoryList.append(item);
@@ -1769,14 +1769,14 @@ function renderPatternCards(state) {
   const recoveryCount = (state.recoveryActions || []).length;
   const patterns = [
     completedLog.length
-      ? `모리는 ${completedLog.length}개의 실행 기록을 기억하고 있어요.`
+      ? `올리는 ${completedLog.length}개의 실행 기록을 기억하고 있어요.`
       : "아직 패턴을 만들기 전이에요. 첫 완료가 기록의 시작입니다.",
     eveningCount >= 2
       ? "저녁 시간대 실행률이 높아요. 다음 변경안도 저녁 중심으로 제안할 수 있어요."
       : "완료 시간이 쌓이면 가장 잘 맞는 시간대를 찾아드릴게요.",
     hardCount
       ? `${hardCount}개의 과제가 어렵다고 표시됐어요. 다음 계획은 더 작게 나누는 편이 좋아요.`
-      : "난이도 피드백을 남기면 모리가 다음 계획의 무게를 맞출 수 있어요.",
+      : "난이도 피드백을 남기면 올리가 다음 계획의 무게를 맞출 수 있어요.",
     recoveryCount
       ? `놓친 일정 ${recoveryCount}개를 회복 흐름으로 연결했어요.`
       : "놓친 일정도 실패가 아니라 다음 선택지로 바꿀 수 있어요.",
@@ -1806,7 +1806,7 @@ function renderRecoveryPrompt(state, selectedCompletion) {
   const shouldShow = Boolean(notice && selectedCompletion.percent < 100);
   recoveryCard.hidden = !shouldShow;
   if (recoverySummary && notice) {
-    recoverySummary.textContent = `지난 접속에서 ${notice.missedCount}개가 남았어요. 모리가 다시 시작할 형태로 바꿔둘게요.`;
+    recoverySummary.textContent = `지난 접속에서 ${notice.missedCount}개가 남았어요. 올리가 다시 시작할 형태로 바꿔둘게요.`;
   }
 }
 
@@ -1824,25 +1824,25 @@ function renderCompanionExperience({ plan, selectedCompletion, remainingTasks, c
   });
   const nextMilestone = [25, 50, 75, 100].find((value) => overallProgress < value) || 100;
 
-  const moriMoodImage =
+  const ollieMoodImage =
     companionState.mood === "happy"
-      ? "assets/mori-celebrate.png"
+      ? "assets/ollie-celebrate.png"
       : companionState.mood === "caring" || companionState.energy === "tired"
-        ? "assets/mori-comfort.png"
+        ? "assets/ollie-comfort.png"
         : companionState.mood === "ready" || companionState.energy === "good"
-          ? "assets/mori-action.png"
-          : "assets/mori-thinking.png";
+          ? "assets/ollie-action.png"
+          : "assets/ollie-thinking.png";
 
-  if (companionName) companionName.textContent = companionState.name || "모리";
-  if (companionHomeImage) companionHomeImage.src = moriMoodImage;
-  if (executionCompanion) executionCompanion.src = moriMoodImage;
+  if (companionName) companionName.textContent = companionState.name || "올리";
+  if (companionHomeImage) companionHomeImage.src = ollieMoodImage;
+  if (executionCompanion) executionCompanion.src = ollieMoodImage;
   if (companionMoodLine) {
     companionMoodLine.textContent =
       companionState.energy === "tired" ? "오늘은 작게 줄이는 것도 실행이에요." : copy.line;
   }
   if (companionMessage) {
     companionMessage.textContent =
-      companionState.mood === "happy" ? "방금 만든 실행 기록을 모리가 기억했어요." : copy.message;
+      companionState.mood === "happy" ? "방금 만든 실행 기록을 올리가 기억했어요." : copy.message;
   }
   if (companionStage) companionStage.textContent = stage.title;
   if (companionLevel) companionLevel.textContent = `Lv. ${Math.max(stage.level, companionState.level || 1)}`;
@@ -1851,7 +1851,7 @@ function renderCompanionExperience({ plan, selectedCompletion, remainingTasks, c
   if (companionDays) companionDays.textContent = `${Math.max(1, completedDays || 1)}일`;
   if (companionNextGrowth) companionNextGrowth.textContent = `${nextMilestone}%`;
   if (executionCompanionText) executionCompanionText.textContent = copy.message;
-  if (executionCompanionTitle) executionCompanionTitle.textContent = "목표 메이트 모리";
+  if (executionCompanionTitle) executionCompanionTitle.textContent = "목표 메이트 올리";
   if (executionCompanionPath) executionCompanionPath.textContent = "작은 방 → 산책길 → 숲 → 별빛 언덕";
 
   renderJourneyMap(overallProgress);
@@ -1873,7 +1873,7 @@ function renderPlanPreview(planText, pendingPlanText = "") {
     const detail = document.createElement("p");
 
     label.textContent = "변경안";
-    title.textContent = "모리가 이렇게 바꿔봤어요";
+    title.textContent = "올리가 이렇게 바꿔봤어요";
     detail.textContent = pendingTasks.map((task) => task.replace(/^수정 요청 반영:\s*/, "")).slice(0, 3).join(" · ");
     summary.append(label, title, detail);
     planPreviewList.append(summary);
@@ -1957,7 +1957,7 @@ function renderExecutionPage(bundle) {
   if (executionMessage) {
     executionMessage.textContent =
       selectedCompletion.percent === 100
-        ? `${selectedDay.day}일차 계획을 모두 완료했어요. 모리와 다음 장소에 가까워졌습니다.`
+        ? `${selectedDay.day}일차 계획을 모두 완료했어요. 올리와 다음 장소에 가까워졌습니다.`
         : `${selectedDay.day}일차 계획 ${remainingTasks}개가 남았어요. 체크할 때마다 완성률이 바로 반영됩니다.`;
   }
 
@@ -2027,7 +2027,7 @@ executionChecklist?.addEventListener("change", (event) => {
     savePlanBundleState(bundle.state);
     addCompanionXp(10, "happy");
     pulseCompanion();
-    showToast("오늘의 한 걸음 완료 · 모리가 10 XP를 얻었어요");
+    showToast("오늘의 한 걸음 완료 · 올리가 10 XP를 얻었어요");
     trackCompanionEvent("task_completed", { day: dayPlan.day, taskIndex });
   }
   renderExecutionPage(bundle);
@@ -2047,7 +2047,7 @@ completeTodayButton?.addEventListener("click", () => {
   if (newlyCompleted > 0) {
     addCompanionXp(newlyCompleted * 10 + 8, "happy");
     pulseCompanion();
-    showToast(`오늘 계획 완료 · 모리가 ${newlyCompleted * 10 + 8} XP를 얻었어요`);
+    showToast(`오늘 계획 완료 · 올리가 ${newlyCompleted * 10 + 8} XP를 얻었어요`);
     trackCompanionEvent("all_day_completed", { day: dayPlan.day, newlyCompleted });
   }
   renderExecutionPage(bundle);
@@ -2089,7 +2089,7 @@ companionActionButtons.forEach((button) => {
     if (!actionText) return;
     const state = getCompanionState();
     saveCompanionState({ ...state, energy: action === "hard" ? "tired" : action === "light" ? "normal" : "good", mood: "thinking" });
-    appendRevisionRequest(actionText, "좋아요. 모리가 그 요청을 기준으로 새 스케줄 제안을 준비할게요.");
+    appendRevisionRequest(actionText, "좋아요. 올리가 그 요청을 기준으로 새 스케줄 제안을 준비할게요.");
     addCompanionXp(2, "thinking");
     trackCompanionEvent("energy_selected", { action });
   });
@@ -2113,7 +2113,7 @@ touchCompanionButton?.addEventListener("click", () => {
   saveCompanionState(nextState);
   addCompanionXp(2, "happy");
   pulseCompanion();
-  showToast("모리와 가까워졌어요 · 관계 XP 2를 얻었어요");
+  showToast("올리와 가까워졌어요 · 관계 XP 2를 얻었어요");
   if (companionMessage) companionMessage.textContent = "고마워요. 오늘은 아주 작은 행동부터 같이 해봐요.";
   trackCompanionEvent("companion_touched", { touched: nextState.touched });
   renderExecutionPage(getPlanBundle());
@@ -2161,7 +2161,7 @@ sendCompanionMessage?.addEventListener("click", () => {
     return;
   }
 
-  if (!consumeMoriEnergy(1, "간단한 계획 수정")) return;
+  if (!consumeOllieEnergy(1, "간단한 계획 수정")) return;
 
   appendRevisionRequest(`사용자 추가 요청: ${message}`, "좋아요. 이 내용을 참고해서 AI가 다시 짠 스케줄 미리보기를 만들 수 있어요.");
   companionChatInput.value = "";
@@ -2269,7 +2269,7 @@ regeneratePlanButton?.addEventListener("click", () => {
     updateRevisionButtonState();
     return;
   }
-  if (!consumeMoriEnergy(3, "오늘 일정 다시 만들기")) return;
+  if (!consumeOllieEnergy(3, "오늘 일정 다시 만들기")) return;
   const customText = buildRevisedPlanText(baseText, revisionRequest);
   const bundle = getPlanBundle();
   bundle.state.pendingPlanText = customText;
@@ -2277,18 +2277,18 @@ regeneratePlanButton?.addEventListener("click", () => {
   bundle.state.status = "변경안 대기";
   savePlanBundleState(bundle.state);
   if (planEditorMessage) {
-    planEditorMessage.textContent = "모리가 변경안을 만들었습니다. 아직 적용되지 않았고, 완료한 일정은 그대로 보호됩니다.";
+    planEditorMessage.textContent = "올리가 변경안을 만들었습니다. 아직 적용되지 않았고, 완료한 일정은 그대로 보호됩니다.";
   }
   renderExecutionPage(bundle);
 });
 
 weeklyOptimizeButton?.addEventListener("click", () => {
-  if (!consumeMoriEnergy(5, "주간 최적화")) return;
+  if (!consumeOllieEnergy(5, "주간 최적화")) return;
   appendRevisionRequest(
     "이번 주 완료율과 남은 일정을 기준으로 다음 7일의 실행 순서와 난이도를 최적화해줘.",
     "이번 주 흐름을 살펴보고, 무리 없이 이어갈 수 있는 변경안을 준비했어요.",
   );
-  showToast("주간 최적화 제안을 준비했어요 · 모리 에너지 5 사용");
+  showToast("주간 최적화 제안을 준비했어요 · 올리 에너지 5 사용");
   trackCompanionEvent("weekly_optimization_requested", { energy: 5 });
 });
 
