@@ -227,6 +227,16 @@
             <span><img src="assets/ollie-celebrate.png" alt="" /><em>일</em></span>
           </div>
           <div class="schedule-calendar" id="scheduleCalendar" aria-label="일별 플랜 완성률 달력"></div>
+          <div class="calendar-day-detail" id="calendarDayDetail" hidden>
+            <div class="calendar-day-detail-head">
+              <div>
+                <strong id="calendarDayDetailTitle">선택한 날의 스케줄</strong>
+                <span id="calendarDayDetailMeta">달력에서 날짜를 누르면 그날 계획이 보여요</span>
+              </div>
+              <button type="button" id="calendarDayDetailClose" aria-label="스케줄 상세 닫기">×</button>
+            </div>
+            <ul class="calendar-day-detail-list" id="calendarDayDetailList"></ul>
+          </div>
         </section>
 
         <!-- ③ 수정 -->

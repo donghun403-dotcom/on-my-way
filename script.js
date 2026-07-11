@@ -117,6 +117,11 @@ const monthlyCompletion = document.querySelector("#monthlyCompletion");
 const previousCalendarMonth = document.querySelector("#previousCalendarMonth");
 const currentCalendarMonth = document.querySelector("#currentCalendarMonth");
 const nextCalendarMonth = document.querySelector("#nextCalendarMonth");
+const calendarDayDetail = document.querySelector("#calendarDayDetail");
+const calendarDayDetailTitle = document.querySelector("#calendarDayDetailTitle");
+const calendarDayDetailMeta = document.querySelector("#calendarDayDetailMeta");
+const calendarDayDetailList = document.querySelector("#calendarDayDetailList");
+const calendarDayDetailClose = document.querySelector("#calendarDayDetailClose");
 const weeklyPlanList = document.querySelector("#weeklyPlanList");
 const dailyCoachImage = document.querySelector("#dailyCoachImage");
 const dailyCoachKicker = document.querySelector("#dailyCoachKicker");
@@ -1161,6 +1166,10 @@ const loginError = document.querySelector("#loginError");
 const TEMP_ADMIN_PASSWORD = "OMW-2026";
 const riskFilter = document.querySelector("#riskFilter");
 const goalFilter = document.querySelector("#goalFilter");
+const planFilter = document.querySelector("#planFilter");
+const adminUserSearch = document.querySelector("#adminUserSearch");
+const resetAdminFilters = document.querySelector("#resetAdminFilters");
+const adminVisibleCount = document.querySelector("#adminVisibleCount");
 const adminRows = document.querySelectorAll(".admin-table tbody tr[data-risk]");
 const adminEmptyRow = document.querySelector(".admin-empty-row");
 
@@ -1181,12 +1190,16 @@ function applyAdminTableFilters() {
 
   const risk = riskFilter?.value || "all";
   const goal = goalFilter?.value || "all";
+  const plan = planFilter?.value || "all";
+  const query = adminUserSearch?.value.trim().toLowerCase() || "";
   let visibleCount = 0;
 
   adminRows.forEach((row) => {
     const matchesRisk = risk === "all" || row.dataset.risk === risk;
     const matchesGoal = goal === "all" || row.dataset.goal === goal;
-    const visible = matchesRisk && matchesGoal;
+    const matchesPlan = plan === "all" || row.dataset.plan === plan;
+    const matchesQuery = !query || String(row.dataset.user || "").toLowerCase().includes(query);
+    const visible = matchesRisk && matchesGoal && matchesPlan && matchesQuery;
     row.hidden = !visible;
     if (visible) visibleCount += 1;
   });
@@ -1194,10 +1207,25 @@ function applyAdminTableFilters() {
   if (adminEmptyRow) {
     adminEmptyRow.hidden = visibleCount !== 0;
   }
+  if (adminVisibleCount) adminVisibleCount.textContent = `${visibleCount}명`;
 }
 
-[riskFilter, goalFilter].forEach((filter) => {
+[riskFilter, goalFilter, planFilter].forEach((filter) => {
   filter?.addEventListener("change", applyAdminTableFilters);
+});
+adminUserSearch?.addEventListener("input", applyAdminTableFilters);
+resetAdminFilters?.addEventListener("click", () => {
+  if (riskFilter) riskFilter.value = "all";
+  if (goalFilter) goalFilter.value = "all";
+  if (planFilter) planFilter.value = "all";
+  if (adminUserSearch) adminUserSearch.value = "";
+  applyAdminTableFilters();
+});
+
+document.querySelectorAll(".admin-sidebar nav a").forEach((link) => {
+  link.addEventListener("click", () => {
+    document.querySelectorAll(".admin-sidebar nav a").forEach((item) => item.classList.toggle("active", item === link));
+  });
 });
 
 applyAdminTableFilters();
@@ -1495,6 +1523,7 @@ const companionEventKey = "omwCompanionEvents";
 const focusSessionKey = "omwFocusSession";
 let activeFocusTaskIndex = 0;
 let calendarViewDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+let calendarDetailOpen = false;
 let focusTimerInterval = null;
 let focusSession = {
   taskKey: "",
@@ -2149,6 +2178,48 @@ function renderCalendar(schedule, state, plan) {
     calendarSummary.textContent = monthPlanDays.length
       ? `목표 일정 ${monthPlanDays.length}일 · 완료한 날 ${completedDays}일`
       : "이 달에는 연결된 목표 일정이 없어요";
+  }
+
+  renderCalendarDayDetail(schedule, state, plan);
+}
+
+function renderCalendarDayDetail(schedule, state, plan) {
+  if (!calendarDayDetail) return;
+
+  const dayPlan = schedule[state.selectedDay - 1];
+  if (!calendarDetailOpen || !dayPlan) {
+    calendarDayDetail.hidden = true;
+    return;
+  }
+
+  const planStartDate = getPlanStartDate(plan, state);
+  const actualDate = new Date(planStartDate.getFullYear(), planStartDate.getMonth(), planStartDate.getDate() + dayPlan.day - 1);
+  const isToday = isSameCalendarDate(actualDate, new Date());
+  const completion = getDayCompletion(dayPlan, state.checkedByDay);
+  const checked = state.checkedByDay[String(dayPlan.day)] || [];
+  const dateLabel = actualDate.toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" });
+
+  calendarDayDetail.hidden = false;
+  if (calendarDayDetailTitle) calendarDayDetailTitle.textContent = `${dateLabel} 스케줄`;
+  if (calendarDayDetailMeta) {
+    calendarDayDetailMeta.textContent = `${isToday ? "오늘" : `D${dayPlan.day}`} · 일정 ${dayPlan.tasks.length}개 · ${completion.percent}% 완료`;
+  }
+
+  if (calendarDayDetailList) {
+    calendarDayDetailList.replaceChildren();
+    dayPlan.tasks.forEach((task, index) => {
+      const item = document.createElement("li");
+      const status = document.createElement("i");
+      const time = document.createElement("strong");
+      const text = document.createElement("span");
+
+      item.classList.toggle("is-complete", Boolean(checked[index]));
+      status.textContent = checked[index] ? "✓" : "";
+      time.textContent = task.time;
+      text.textContent = task.text;
+      item.append(status, time, text);
+      calendarDayDetailList.append(item);
+    });
   }
 }
 
@@ -3011,8 +3082,15 @@ scheduleCalendar?.addEventListener("click", (event) => {
 
   const bundle = getPlanBundle();
   bundle.state.selectedDay = Number(button.dataset.day);
+  calendarDetailOpen = true;
   savePlanBundleState(bundle.state);
   renderExecutionPage(bundle);
+  calendarDayDetail?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+});
+
+calendarDayDetailClose?.addEventListener("click", () => {
+  calendarDetailOpen = false;
+  if (calendarDayDetail) calendarDayDetail.hidden = true;
 });
 
 previousCalendarMonth?.addEventListener("click", () => {
