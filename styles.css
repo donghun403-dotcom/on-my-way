@@ -7099,12 +7099,13 @@ body.sheet-open {
 .journey-ollie {
   position: absolute;
   bottom: 8px;
-  left: 9px;
+  left: clamp(9px, var(--ollie-position, 9px), calc(100% - 74px));
   z-index: 5;
   display: block;
   width: 66px;
   height: 88px;
   animation: journey-ollie-bounce 2.8s ease-in-out infinite;
+  transition: left 480ms cubic-bezier(0.22, 0.8, 0.3, 1);
 }
 
 .journey-ollie img {

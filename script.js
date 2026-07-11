@@ -2301,7 +2301,7 @@ function renderJourneyMap(overallProgress) {
     { title: "작은 방", shortTitle: "방", threshold: 0, icon: "⌂", theme: "room", story: "첫 마음을 심고, 아주 작은 시작을 준비하는 포근한 공간이에요." },
     { title: "집 앞 산책길", shortTitle: "산책길", threshold: 25, icon: "✿", theme: "path", story: "반복이 발걸음이 되어 올리와 천천히 밖으로 나왔어요." },
     { title: "작은 숲", shortTitle: "숲", threshold: 50, icon: "♧", theme: "forest", story: "절반을 지나며 루틴이 나무처럼 단단하게 자라고 있어요." },
-    { title: "별빛 언덕", shortTitle: "언덕", threshold: 75, icon: "✦", theme: "hill", story: "쌓아 온 시간을 내려다보며 마지막 걸음을 준비하는 곳이에요." },
+    { title: "별빛 언덕", shortTitle: "별빛 언덕", threshold: 75, icon: "✦", theme: "hill", story: "쌓아 온 시간을 내려다보며 마지막 걸음을 준비하는 곳이에요." },
     { title: "올리의 별꽃 정원", shortTitle: "별꽃 정원", threshold: 100, icon: "❀", theme: "garden", story: "올리와 함께 쌓은 작은 성공이 별꽃처럼 피어나 오래 기억되는 둘만의 정원이에요." },
   ];
 
@@ -2319,6 +2319,7 @@ function renderJourneyMap(overallProgress) {
     item.classList.toggle("done", overallProgress >= stop.threshold);
     item.classList.toggle("current", index === currentIndex);
     item.classList.toggle("locked", overallProgress < stop.threshold);
+    if (index === currentIndex) item.style.setProperty("--ollie-position", `${8 + segmentProgress * 0.58}%`);
     item.setAttribute("aria-label", `${stop.title}, ${index === currentIndex ? "현재 장소" : overallProgress >= stop.threshold ? "지나온 장소" : `${stop.threshold}%에 열림`}`);
     item.innerHTML = `
       <div class="journey-scene" aria-hidden="true">
