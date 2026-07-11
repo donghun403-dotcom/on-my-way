@@ -113,6 +113,10 @@ const companionDays = document.querySelector("#companionDays");
 const companionNextGrowth = document.querySelector("#companionNextGrowth");
 const journeyBadge = document.querySelector("#journeyBadge");
 const journeyMap = document.querySelector("#journeyMap");
+const journeyPlaceTitle = document.querySelector("#journeyPlaceTitle");
+const journeyPlaceStory = document.querySelector("#journeyPlaceStory");
+const journeyNextText = document.querySelector("#journeyNextText");
+const journeyNextBar = document.querySelector("#journeyNextBar");
 const memoryList = document.querySelector("#memoryList");
 const patternList = document.querySelector("#patternList");
 const chatOverlay = document.querySelector("#chatOverlay");
@@ -1397,23 +1401,52 @@ function renderJourneyMap(overallProgress) {
   if (!journeyMap) return;
   const stage = getCompanionStage(overallProgress);
   const stops = [
-    { title: "방", threshold: 0 },
-    { title: "산책길", threshold: 25 },
-    { title: "숲", threshold: 50 },
-    { title: "언덕", threshold: 75 },
-    { title: "정원", threshold: 100 },
+    { title: "작은 방", shortTitle: "방", threshold: 0, icon: "⌂", theme: "room", story: "첫 마음을 심고, 아주 작은 시작을 준비하는 포근한 공간이에요." },
+    { title: "집 앞 산책길", shortTitle: "산책길", threshold: 25, icon: "✿", theme: "path", story: "반복이 발걸음이 되어 모리와 천천히 밖으로 나왔어요." },
+    { title: "작은 숲", shortTitle: "숲", threshold: 50, icon: "♧", theme: "forest", story: "절반을 지나며 루틴이 나무처럼 단단하게 자라고 있어요." },
+    { title: "별빛 언덕", shortTitle: "언덕", threshold: 75, icon: "✦", theme: "hill", story: "쌓아 온 시간을 내려다보며 마지막 걸음을 준비하는 곳이에요." },
+    { title: "목표의 정원", shortTitle: "정원", threshold: 100, icon: "❀", theme: "garden", story: "목표를 이룬 마음이 꽃처럼 피어나 오래 기억되는 정원이에요." },
   ];
 
+  const currentIndex = stops.reduce((index, stop, stopIndex) => (overallProgress >= stop.threshold ? stopIndex : index), 0);
+  const currentStop = stops[currentIndex];
+  const nextStop = stops[currentIndex + 1];
+  const segmentStart = currentStop.threshold;
+  const segmentEnd = nextStop?.threshold ?? 100;
+  const segmentProgress = nextStop ? Math.min(100, Math.round(((overallProgress - segmentStart) / (segmentEnd - segmentStart)) * 100)) : 100;
+
   journeyMap.innerHTML = "";
-  stops.forEach((stop) => {
-    const item = document.createElement("span");
-    item.textContent = stop.title;
+  stops.forEach((stop, index) => {
+    const item = document.createElement("article");
+    item.className = `journey-stop journey-${stop.theme}`;
     item.classList.toggle("done", overallProgress >= stop.threshold);
-    item.classList.toggle("current", stage.title.includes(stop.title) || (stage.title === "작은 방" && stop.title === "방"));
+    item.classList.toggle("current", index === currentIndex);
+    item.classList.toggle("locked", overallProgress < stop.threshold);
+    item.setAttribute("aria-label", `${stop.title}, ${index === currentIndex ? "현재 장소" : overallProgress >= stop.threshold ? "지나온 장소" : `${stop.threshold}%에 열림`}`);
+    item.innerHTML = `
+      <div class="journey-scene" aria-hidden="true">
+        <span class="scene-sun"></span>
+        <span class="scene-cloud scene-cloud-one"></span>
+        <span class="scene-cloud scene-cloud-two"></span>
+        <span class="scene-landmark">${stop.icon}</span>
+        <span class="scene-ground"></span>
+        ${index === currentIndex ? '<span class="journey-mori"><img src="assets/on-my-way-mascot.png" alt=""><b>여기!</b></span>' : ""}
+      </div>
+      <div class="journey-stop-copy">
+        <small>STEP ${index + 1}</small>
+        <strong>${stop.shortTitle}</strong>
+        <em>${stop.threshold === 0 ? "출발" : `${stop.threshold}%`}</em>
+      </div>`;
     journeyMap.append(item);
   });
 
+  journeyMap.scrollLeft = Math.max(0, currentIndex * 148 - 12);
+
   if (journeyBadge) journeyBadge.textContent = stage.badge;
+  if (journeyPlaceTitle) journeyPlaceTitle.textContent = currentStop.title;
+  if (journeyPlaceStory) journeyPlaceStory.textContent = currentStop.story;
+  if (journeyNextText) journeyNextText.textContent = nextStop ? `${nextStop.shortTitle}까지 ${Math.max(0, nextStop.threshold - overallProgress)}% 남음` : "정원에 도착했어요!";
+  if (journeyNextBar) journeyNextBar.style.width = `${segmentProgress}%`;
 }
 
 function renderMemoryCards({ selectedCompletion, completedDays, overallProgress }) {

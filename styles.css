@@ -6540,6 +6540,352 @@ body.sheet-open {
   }
 }
 
+/* Mori's visual journey world map */
+.journey-map-card {
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 86% 8%, rgba(201, 141, 153, 0.12), transparent 28%),
+    linear-gradient(160deg, rgba(255, 255, 255, 0.96), rgba(237, 242, 255, 0.9));
+}
+
+.journey-story-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(132px, 0.75fr);
+  gap: 10px;
+  margin: 16px 0 14px;
+}
+
+.journey-story-panel > div {
+  min-width: 0;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(107, 122, 166, 0.11);
+  border-radius: 16px;
+}
+
+.journey-story-panel span {
+  color: var(--soft-muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.journey-story-panel strong {
+  display: block;
+  margin-top: 5px;
+  color: var(--soft-text);
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.journey-story-panel p {
+  margin: 5px 0 0;
+  color: var(--soft-muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.journey-next-place {
+  display: grid;
+  align-content: center;
+}
+
+.journey-next-place > div {
+  height: 7px;
+  margin-top: 10px;
+  overflow: hidden;
+  background: #e5e9f1;
+  border-radius: 999px;
+}
+
+.journey-next-place > div span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #7ea5bd, #c18f9b);
+  border-radius: inherit;
+  transition: width 360ms ease;
+}
+
+.journey-map {
+  position: relative;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(138px, 42%);
+  grid-template-columns: none;
+  gap: 10px;
+  margin: 0 -2px;
+  padding: 2px 2px 12px;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scroll-padding-inline: 2px;
+  scroll-snap-type: inline mandatory;
+  scrollbar-color: rgba(107, 122, 166, 0.25) transparent;
+  scrollbar-width: thin;
+}
+
+.journey-map::before {
+  display: none;
+}
+
+.journey-stop {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(107, 122, 166, 0.13);
+  border-radius: 18px;
+  box-shadow: 0 10px 24px rgba(107, 122, 166, 0.08);
+  scroll-snap-align: start;
+  transition: opacity 200ms ease, transform 200ms ease, box-shadow 200ms ease;
+}
+
+.journey-stop:not(:last-child)::after {
+  position: absolute;
+  top: 64px;
+  right: -8px;
+  z-index: 8;
+  width: 16px;
+  height: 16px;
+  content: "›";
+  color: #8295ad;
+  background: #ffffff;
+  border: 1px solid #dfe5ee;
+  border-radius: 50%;
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 14px;
+  text-align: center;
+}
+
+.journey-stop.current {
+  border-color: rgba(107, 122, 166, 0.4);
+  box-shadow: 0 15px 32px rgba(107, 122, 166, 0.18);
+  transform: translateY(-2px);
+}
+
+.journey-stop.locked {
+  opacity: 0.5;
+  filter: saturate(0.48);
+}
+
+.journey-stop.done:not(.current) .journey-scene::after {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  z-index: 6;
+  display: grid;
+  width: 22px;
+  height: 22px;
+  content: "✓";
+  place-items: center;
+  color: #ffffff;
+  background: #7f9cae;
+  border: 2px solid rgba(255, 255, 255, 0.86);
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.journey-scene {
+  position: relative;
+  min-height: 138px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #dcecf7 0%, #eef4fb 64%, #d9e6db 65%, #c8d9c9 100%);
+}
+
+.journey-path .journey-scene {
+  background: linear-gradient(180deg, #d9edf7 0%, #f4eef0 62%, #dae6cf 63%, #c7dab9 100%);
+}
+
+.journey-forest .journey-scene {
+  background: linear-gradient(180deg, #cfe6e7 0%, #e5eef0 56%, #b8d0bd 57%, #91b29c 100%);
+}
+
+.journey-hill .journey-scene {
+  background: linear-gradient(180deg, #c8cbe7 0%, #e4d9e6 57%, #c4cbb8 58%, #aeb69d 100%);
+}
+
+.journey-garden .journey-scene {
+  background: linear-gradient(180deg, #dcecf4 0%, #f7e9ed 58%, #d8e5c7 59%, #bed5ac 100%);
+}
+
+.scene-sun {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 25px;
+  height: 25px;
+  background: rgba(255, 238, 184, 0.9);
+  border-radius: 50%;
+  box-shadow: 0 0 0 7px rgba(255, 238, 184, 0.16);
+}
+
+.journey-hill .scene-sun {
+  background: #f7f2d9;
+  box-shadow: 0 0 0 7px rgba(247, 242, 217, 0.12), -10px 5px 0 -7px #ffffff;
+}
+
+.scene-cloud {
+  position: absolute;
+  width: 30px;
+  height: 9px;
+  background: rgba(255, 255, 255, 0.72);
+  border-radius: 999px;
+}
+
+.scene-cloud::before,
+.scene-cloud::after {
+  position: absolute;
+  bottom: 2px;
+  content: "";
+  background: inherit;
+  border-radius: 50%;
+}
+
+.scene-cloud::before { left: 5px; width: 11px; height: 11px; }
+.scene-cloud::after { right: 5px; width: 14px; height: 14px; }
+.scene-cloud-one { top: 24px; left: 10px; }
+.scene-cloud-two { top: 47px; right: 7px; transform: scale(0.7); }
+
+.scene-landmark {
+  position: absolute;
+  right: 10px;
+  bottom: 29px;
+  z-index: 2;
+  display: grid;
+  width: 56px;
+  height: 56px;
+  place-items: center;
+  color: #718aa1;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  border-radius: 20px 20px 12px 12px;
+  box-shadow: 0 10px 20px rgba(74, 99, 119, 0.12);
+  font-size: 30px;
+  font-weight: 500;
+}
+
+.journey-forest .scene-landmark {
+  color: #5e8874;
+  background: rgba(218, 236, 220, 0.84);
+  border-radius: 50% 50% 18px 18px;
+}
+
+.journey-hill .scene-landmark {
+  color: #7c779f;
+  background: rgba(230, 223, 238, 0.82);
+  border-radius: 50% 50% 15px 15px;
+}
+
+.journey-garden .scene-landmark {
+  color: #b17788;
+  background: rgba(255, 235, 239, 0.85);
+  border-radius: 50%;
+}
+
+.scene-ground {
+  position: absolute;
+  right: -18px;
+  bottom: 12px;
+  left: -18px;
+  height: 25px;
+  background: rgba(255, 255, 255, 0.26);
+  border-radius: 50%;
+  transform: rotate(-3deg);
+}
+
+.journey-mori {
+  position: absolute;
+  bottom: 8px;
+  left: 9px;
+  z-index: 5;
+  display: block;
+  width: 66px;
+  height: 88px;
+  animation: journey-mori-bounce 2.8s ease-in-out infinite;
+}
+
+.journey-mori img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 12px rgba(66, 81, 108, 0.22));
+}
+
+.journey-mori b {
+  position: absolute;
+  top: -2px;
+  left: 45px;
+  min-width: 36px;
+  padding: 5px 7px;
+  color: #657a96;
+  background: #ffffff;
+  border-radius: 10px 10px 10px 2px;
+  box-shadow: 0 5px 12px rgba(91, 106, 151, 0.14);
+  font-size: 9px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.journey-stop-copy {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 8px;
+  padding: 11px 12px 12px;
+}
+
+.journey-stop-copy small {
+  grid-column: 1 / -1;
+  color: #99a2b1;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.journey-stop-copy strong {
+  color: #3e485e;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.journey-stop-copy em {
+  align-self: center;
+  padding: 3px 6px;
+  color: #7287a0;
+  background: #edf2f7;
+  border-radius: 999px;
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+@keyframes journey-mori-bounce {
+  0%, 100% { transform: translateY(0) rotate(-1deg); }
+  50% { transform: translateY(-5px) rotate(1deg); }
+}
+
+@media (min-width: 760px) {
+  .journey-map {
+    grid-auto-columns: minmax(146px, 32%);
+  }
+}
+
+@media (max-width: 430px) {
+  .journey-story-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .journey-map {
+    grid-auto-columns: minmax(142px, 72%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .journey-mori {
+    animation: none;
+  }
+}
+
 /* ============================================================
    Plan tab — 확인 → 진행 → 수정 flow. Numbered edit steps and a
    folded-in routine strip replace the old flat 4-button editor.
