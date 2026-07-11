@@ -2117,7 +2117,7 @@ function renderCalendar(schedule, state, plan) {
 
     day.textContent = String(dayNumber);
     planLabel.textContent = isSameCalendarDate(actualDate, today) ? "오늘" : dayPlan ? `D${dayPlan.day}` : "";
-    percent.textContent = dayPlan ? `${completion.percent}%` : planDayNumber < 1 ? "시작 전" : "계획 밖";
+    percent.textContent = dayPlan ? `${completion.percent}%` : planDayNumber < 1 ? "올리 기다림" : "올리 쉬는 날";
     ollie.className = "calendar-ollie";
     ollie.src = completion.percent === 100 ? "assets/ollie-celebrate.png" : "assets/ollie-thinking.png";
     ollie.alt = "";
