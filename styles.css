@@ -9044,3 +9044,624 @@ body.sheet-open {
     transition: none;
   }
 }
+
+/* ============================================================
+   Unified Mori app — matches the pastel, character-led landing page
+   ============================================================ */
+.execution-page {
+  --app-ink: #343e57;
+  --app-muted: #747d8e;
+  --app-mint: #7fa7a2;
+  --app-mint-soft: #e8f3f1;
+  --app-rose: #c994a1;
+  --app-lilac: #8d91ad;
+  min-height: 100vh;
+  overflow-x: hidden;
+  background:
+    radial-gradient(90% 70% at 5% 3%, rgba(210, 229, 238, 0.92), transparent 60%),
+    radial-gradient(85% 75% at 100% 45%, rgba(246, 218, 224, 0.72), transparent 62%),
+    linear-gradient(145deg, #e8eef6 0%, #eeeaf3 50%, #f7e9ec 100%);
+  background-attachment: fixed;
+}
+
+.execution-page::before,
+.execution-page::after {
+  position: fixed;
+  z-index: -1;
+  width: 280px;
+  height: 280px;
+  content: "";
+  border-radius: 50%;
+  filter: blur(2px);
+  pointer-events: none;
+}
+
+.execution-page::before {
+  top: 18%;
+  left: -120px;
+  background: rgba(191, 222, 218, 0.28);
+}
+
+.execution-page::after {
+  right: -120px;
+  bottom: 10%;
+  background: rgba(226, 190, 204, 0.24);
+}
+
+.execution-page .execution-header {
+  position: sticky;
+  z-index: 40;
+  top: 14px;
+  width: min(calc(100% - 32px), 1160px);
+  min-height: 68px;
+  margin: 14px auto 0;
+  padding: 10px 14px 10px 20px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 22px;
+  box-shadow: 0 14px 36px rgba(91, 106, 151, 0.1);
+  backdrop-filter: blur(20px);
+}
+
+.execution-page .execution-header .brand-logo {
+  width: clamp(142px, 15vw, 178px);
+}
+
+.execution-page .ghost-link,
+.execution-page .text-button {
+  color: #52617c;
+  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid rgba(107, 122, 166, 0.14);
+}
+
+.execution-page .trial-status-banner,
+.execution-page .mori-energy-warning {
+  width: min(calc(100% - 32px), 1120px);
+  margin: 8px auto 0;
+  border: 1px solid rgba(255, 255, 255, 0.84);
+  border-radius: 16px;
+  box-shadow: 0 10px 24px rgba(91, 106, 151, 0.07);
+}
+
+.execution-page .execution-app {
+  display: block;
+  width: min(100%, 1180px);
+  max-width: 1180px;
+  margin-inline: auto;
+  padding: 28px 30px 120px;
+}
+
+.execution-page .app-view.is-active {
+  display: grid;
+  grid-template-columns: minmax(0, 1.04fr) minmax(360px, 0.96fr);
+  gap: 18px;
+}
+
+.execution-page .execution-card,
+.execution-page .execution-hero,
+.execution-page .companion-home-card {
+  color: var(--app-ink);
+  background: rgba(255, 255, 255, 0.76);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 26px;
+  box-shadow: 0 20px 48px rgba(91, 106, 151, 0.11);
+  backdrop-filter: blur(14px);
+}
+
+.execution-page .execution-card {
+  padding: 24px;
+}
+
+.execution-page .execution-hero {
+  position: relative;
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(0, 1fr) 260px 104px;
+  gap: 24px;
+  align-items: center;
+  min-height: 270px;
+  padding: 30px 34px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 68% 32%, rgba(207, 234, 230, 0.9), transparent 28%),
+    radial-gradient(circle at 92% 90%, rgba(241, 212, 220, 0.8), transparent 34%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(239, 238, 248, 0.88));
+  border-radius: 38px;
+}
+
+.execution-page .execution-hero::after {
+  position: absolute;
+  right: 7%;
+  bottom: -34px;
+  width: 330px;
+  height: 76px;
+  background: rgba(126, 168, 161, 0.16);
+  border-radius: 50%;
+  content: "";
+}
+
+.execution-page .execution-hero > div:first-child {
+  position: relative;
+  z-index: 2;
+}
+
+.execution-page .execution-hero .eyebrow {
+  display: inline-flex;
+  min-height: 27px;
+  align-items: center;
+  margin: 0;
+  padding: 0 10px;
+  color: #748f9b;
+  background: rgba(255, 255, 255, 0.72);
+  border-radius: 999px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.execution-page .execution-hero h1 {
+  max-width: 520px;
+  margin: 15px 0 10px;
+  color: var(--app-ink);
+  font-family: "Playfair Display", "Nanum Myeongjo", Georgia, serif;
+  font-size: clamp(34px, 4.7vw, 58px);
+  font-weight: 700;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+}
+
+.execution-page .today-mori-stage {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  align-self: stretch;
+  place-items: center;
+}
+
+.execution-page .today-mori-stage img {
+  width: 210px;
+  height: 230px;
+  object-fit: contain;
+  filter: drop-shadow(0 22px 22px rgba(91, 106, 151, 0.2));
+}
+
+.execution-page .today-mori-stage span {
+  position: absolute;
+  right: -4px;
+  bottom: 8px;
+  padding: 10px 13px;
+  color: #4f5d74;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.98);
+  border-radius: 15px 15px 15px 4px;
+  box-shadow: 0 10px 24px rgba(91, 106, 151, 0.12);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.execution-page .execution-gauge {
+  position: relative;
+  z-index: 2;
+  width: 100px;
+  height: 100px;
+  background: rgba(255, 255, 255, 0.8);
+  border: 8px solid rgba(127, 167, 162, 0.25);
+  box-shadow: inset 0 0 0 1px rgba(107, 122, 166, 0.1), 0 14px 28px rgba(91, 106, 151, 0.1);
+}
+
+.execution-page .execution-gauge strong {
+  color: #647895;
+  font-size: 29px;
+}
+
+.execution-page #view-today .focus-task-card {
+  grid-column: 1;
+}
+
+.execution-page #view-today .today-card {
+  grid-column: 2;
+  grid-row: 2 / span 3;
+}
+
+.execution-page #view-today .difficulty-card,
+.execution-page #view-today .recovery-card {
+  grid-column: 1 / -1;
+}
+
+.execution-page #view-today .progress-card,
+.execution-page #view-today .coach-card {
+  grid-column: 1;
+}
+
+.execution-page .focus-task-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 116px;
+  gap: 16px;
+  align-items: center;
+  padding: 27px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(216, 235, 232, 0.78), transparent 38%),
+    rgba(255, 255, 255, 0.84);
+}
+
+.execution-page .focus-task-copy > span {
+  color: #91a6a9;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.execution-page .focus-task-copy h2,
+.execution-page .card-title.compact h2 {
+  color: var(--app-ink);
+  font-size: clamp(18px, 2.1vw, 24px);
+}
+
+.execution-page .focus-task-goal {
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(107, 122, 166, 0.12);
+}
+
+.execution-page .focus-start-button {
+  background: linear-gradient(135deg, #789f9b, #8993ad);
+  box-shadow: 0 13px 28px rgba(91, 106, 151, 0.2);
+}
+
+.execution-page .today-card {
+  padding: 28px;
+}
+
+.execution-page .execution-checklist label {
+  padding: 18px 0;
+}
+
+.execution-page .execution-checklist strong {
+  color: #4f5c77;
+}
+
+.execution-page .progress-card {
+  background:
+    radial-gradient(circle at 92% 10%, rgba(238, 214, 224, 0.7), transparent 36%),
+    rgba(255, 255, 255, 0.78);
+}
+
+.execution-page .coach-card {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  gap: 18px;
+  align-items: center;
+  overflow: hidden;
+  background: linear-gradient(145deg, rgba(234, 245, 242, 0.92), rgba(245, 236, 242, 0.9));
+}
+
+.execution-page .coach-card > img {
+  width: 110px;
+  height: 130px;
+  margin-block: -20px;
+  object-fit: contain;
+  filter: drop-shadow(0 14px 16px rgba(91, 106, 151, 0.16));
+}
+
+.execution-page .coach-card h2 {
+  margin: 5px 0 7px;
+  color: #46516b;
+  font-size: 19px;
+}
+
+.execution-page .coach-card .eyebrow {
+  margin: 0;
+  color: #9a7e8d;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+}
+
+.execution-page .view-head {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(0, 1fr) 150px;
+  align-items: center;
+  min-height: 156px;
+  padding: 20px 28px;
+  overflow: hidden;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.78), rgba(235, 241, 247, 0.72));
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 28px;
+  box-shadow: 0 18px 42px rgba(91, 106, 151, 0.09);
+}
+
+.execution-page .view-head > div > span {
+  color: #8c829b;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.11em;
+}
+
+.execution-page .view-head h1 {
+  margin-top: 7px;
+  color: var(--app-ink);
+  font-family: "Playfair Display", "Nanum Myeongjo", Georgia, serif;
+  font-size: clamp(30px, 4vw, 44px);
+}
+
+.execution-page .view-head img {
+  justify-self: center;
+  width: 130px;
+  height: 150px;
+  margin-block: -22px;
+  object-fit: contain;
+  filter: drop-shadow(0 18px 18px rgba(91, 106, 151, 0.18));
+}
+
+.execution-page #view-plan .weekly-plan-card {
+  grid-column: 1;
+}
+
+.execution-page #view-plan .schedule-calendar-card {
+  grid-column: 2;
+}
+
+.execution-page #view-plan .plan-editor-card {
+  grid-column: 1 / -1;
+}
+
+.execution-page .weekly-plan li {
+  padding: 17px 0;
+}
+
+.execution-page .schedule-calendar-card,
+.execution-page .weekly-plan-card {
+  min-height: 100%;
+}
+
+.execution-page .plan-editor-card {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding: 28px;
+}
+
+.execution-page .plan-editor-card > .card-title,
+.execution-page .plan-editor-card > .edit-step:first-of-type,
+.execution-page .plan-editor-card > #planEditorMessage {
+  grid-column: 1 / -1;
+}
+
+.execution-page .plan-editor-card .edit-step {
+  background: rgba(255, 255, 255, 0.58);
+  border: 1px solid rgba(107, 122, 166, 0.1);
+  border-radius: 20px;
+}
+
+.execution-page #view-mate .companion-home-card {
+  grid-column: 1;
+}
+
+.execution-page #view-mate .companion-run-card {
+  grid-column: 2;
+}
+
+.execution-page #view-mate .journey-map-card,
+.execution-page #view-mate .memory-card {
+  grid-column: 1 / -1;
+}
+
+.execution-page .companion-home-card {
+  padding: 18px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.82), rgba(232, 242, 240, 0.84));
+}
+
+.execution-page .companion-world {
+  min-height: 330px;
+  background:
+    radial-gradient(circle at 50% 74%, rgba(126, 170, 162, 0.22), transparent 34%),
+    linear-gradient(180deg, rgba(230, 241, 243, 0.9), rgba(248, 235, 239, 0.72));
+  border-radius: 24px;
+}
+
+.execution-page .companion-world img {
+  width: 250px;
+  height: 285px;
+  margin-top: -28px;
+}
+
+.execution-page .companion-speech {
+  right: 18px;
+  bottom: 18px;
+  max-width: 240px;
+  border-radius: 18px 18px 18px 5px;
+}
+
+.execution-page .companion-run-card {
+  display: grid;
+  align-content: center;
+}
+
+.execution-page .companion-run-body img {
+  width: 138px;
+  height: 160px;
+}
+
+.execution-page .journey-story-panel {
+  border-radius: 20px;
+}
+
+.execution-page .execution-tabbar {
+  z-index: 45;
+  width: min(calc(100% - 28px), 520px);
+  min-height: 64px;
+  padding: 7px;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.94);
+  border-radius: 22px;
+  box-shadow: 0 18px 46px rgba(91, 106, 151, 0.18);
+  backdrop-filter: blur(22px);
+}
+
+.execution-page .execution-tabbar .tab {
+  min-height: 50px;
+  border-radius: 16px;
+}
+
+.execution-page .execution-tabbar .tab.active {
+  color: #576985;
+  background: linear-gradient(145deg, rgba(224, 240, 236, 0.92), rgba(234, 230, 243, 0.9));
+}
+
+@media (max-width: 880px) {
+  .execution-page .execution-app {
+    padding: 20px 18px 112px;
+  }
+
+  .execution-page .app-view.is-active {
+    grid-template-columns: 1fr;
+  }
+
+  .execution-page .execution-hero {
+    grid-template-columns: minmax(0, 1fr) 190px 90px;
+    min-height: 230px;
+    padding: 26px;
+  }
+
+  .execution-page .today-mori-stage img {
+    width: 170px;
+    height: 190px;
+  }
+
+  .execution-page #view-today .execution-hero,
+  .execution-page #view-today .focus-task-card,
+  .execution-page #view-today .today-card,
+  .execution-page #view-today .difficulty-card,
+  .execution-page #view-today .recovery-card,
+  .execution-page #view-today .progress-card,
+  .execution-page #view-today .coach-card,
+  .execution-page #view-plan .view-head,
+  .execution-page #view-plan .weekly-plan-card,
+  .execution-page #view-plan .schedule-calendar-card,
+  .execution-page #view-plan .plan-editor-card,
+  .execution-page #view-mate .view-head,
+  .execution-page #view-mate .companion-home-card,
+  .execution-page #view-mate .companion-run-card,
+  .execution-page #view-mate .journey-map-card,
+  .execution-page #view-mate .memory-card {
+    grid-column: 1;
+    grid-row: auto;
+  }
+}
+
+@media (max-width: 620px) {
+  .execution-page .execution-header {
+    top: 8px;
+    width: min(calc(100% - 20px), 520px);
+    min-height: 60px;
+    margin-top: 8px;
+    padding: 8px 10px 8px 14px;
+    border-radius: 18px;
+  }
+
+  .execution-page .execution-header .brand-logo {
+    width: 124px;
+  }
+
+  .execution-page .execution-app {
+    padding: 16px 12px 104px;
+  }
+
+  .execution-page .execution-hero {
+    grid-template-columns: minmax(0, 1fr) 94px;
+    min-height: 220px;
+    padding: 22px 18px;
+    border-radius: 28px;
+  }
+
+  .execution-page .execution-hero h1 {
+    font-size: clamp(30px, 10vw, 40px);
+  }
+
+  .execution-page .today-mori-stage {
+    align-self: end;
+  }
+
+  .execution-page .today-mori-stage img {
+    width: 118px;
+    height: 145px;
+  }
+
+  .execution-page .today-mori-stage span {
+    display: none;
+  }
+
+  .execution-page .execution-gauge {
+    position: absolute;
+    top: 18px;
+    right: 16px;
+    width: 72px;
+    height: 72px;
+    border-width: 6px;
+  }
+
+  .execution-page .execution-gauge strong {
+    font-size: 22px;
+  }
+
+  .execution-page .execution-hero > div:first-child {
+    grid-column: 1;
+    align-self: center;
+  }
+
+  .execution-page .focus-task-card,
+  .execution-page .execution-card {
+    padding: 19px;
+    border-radius: 21px;
+  }
+
+  .execution-page .focus-task-card {
+    grid-template-columns: minmax(0, 1fr) 94px;
+  }
+
+  .execution-page .coach-card {
+    grid-template-columns: 76px minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .execution-page .coach-card > img {
+    width: 84px;
+    height: 104px;
+  }
+
+  .execution-page .view-head {
+    grid-template-columns: minmax(0, 1fr) 98px;
+    min-height: 130px;
+    padding: 18px;
+    border-radius: 23px;
+  }
+
+  .execution-page .view-head img {
+    width: 96px;
+    height: 118px;
+  }
+
+  .execution-page .plan-editor-card {
+    grid-template-columns: 1fr;
+  }
+
+  .execution-page .plan-editor-card > .card-title,
+  .execution-page .plan-editor-card > .edit-step:first-of-type,
+  .execution-page .plan-editor-card > #planEditorMessage {
+    grid-column: 1;
+  }
+
+  .execution-page .companion-world {
+    min-height: 250px;
+  }
+
+  .execution-page .companion-world img {
+    width: 190px;
+    height: 215px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .execution-page .app-view.is-active {
+    animation: none;
+  }
+}
