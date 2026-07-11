@@ -65,12 +65,12 @@
           <h2>이런 목표도 오늘부터 시작할 수 있어요</h2>
         </div>
         <div class="use-grid">
-          <article><h3>시험</h3><p>토익, 자격증, 학교 공부</p></article>
-          <article><h3>운동</h3><p>다이어트, 체력, 걷기</p></article>
-          <article><h3>영어</h3><p>회화, 단어, 인터뷰</p></article>
-          <article><h3>독서</h3><p>매일 20분, 완독 습관</p></article>
-          <article><h3>창업</h3><p>첫 매출, MVP, 콘텐츠</p></article>
-          <article><h3>습관</h3><p>기상, 정리, 기록 루틴</p></article>
+          <article><button type="button" data-goal-category="exam" data-scroll-to-builder><h3>시험</h3><p>토익, 자격증, 학교 공부</p><span>이 목표로 시작하기</span></button></article>
+          <article><button type="button" data-goal-category="fitness" data-scroll-to-builder><h3>운동</h3><p>다이어트, 체력, 걷기</p><span>이 목표로 시작하기</span></button></article>
+          <article><button type="button" data-goal-category="english" data-scroll-to-builder><h3>영어</h3><p>회화, 단어, 인터뷰</p><span>이 목표로 시작하기</span></button></article>
+          <article><button type="button" data-goal-category="reading" data-scroll-to-builder><h3>독서</h3><p>매일 20분, 완독 습관</p><span>이 목표로 시작하기</span></button></article>
+          <article><button type="button" data-goal-category="startup" data-scroll-to-builder><h3>창업</h3><p>첫 매출, MVP, 콘텐츠</p><span>이 목표로 시작하기</span></button></article>
+          <article><button type="button" data-goal-category="habit" data-scroll-to-builder><h3>습관</h3><p>기상, 정리, 기록 루틴</p><span>이 목표로 시작하기</span></button></article>
         </div>
       </section>
 
@@ -224,13 +224,16 @@
                 </div>
               </div>
               <label class="builder-field builder-field-large" for="designGoal">
-                <span>나의 목표</span>
+                <span>나의 목표 <small class="editable-note">선택 후 자유롭게 수정할 수 있어요</small></span>
                 <input id="designGoal" type="text" value="3개월 안에 토익 900점 달성하기" placeholder="예: 3개월 안에 토익 900점 달성하기" required />
               </label>
               <div class="goal-suggestions" aria-label="목표 예시">
-                <button type="button" data-goal-suggestion="매일 20분씩 운동 습관 만들기">운동 습관</button>
-                <button type="button" data-goal-suggestion="3개월 안에 토익 900점 달성하기">시험 준비</button>
-                <button type="button" data-goal-suggestion="매일 자기 전 30분 독서하기">독서 루틴</button>
+                <button type="button" data-goal-category="exam">시험</button>
+                <button type="button" data-goal-category="fitness">운동</button>
+                <button type="button" data-goal-category="english">영어</button>
+                <button type="button" data-goal-category="reading">독서</button>
+                <button type="button" data-goal-category="startup">창업</button>
+                <button type="button" data-goal-category="habit">습관</button>
               </div>
               <p class="field-helper">완벽하게 적지 않아도 괜찮아요. 다음 단계에서 올리가 실행 가능한 크기로 다듬어 드려요.</p>
             </section>
@@ -239,7 +242,7 @@
               <div class="builder-field-grid">
                 <label class="builder-field" for="goalPeriod">
                   <span>목표 기간</span>
-                  <select id="goalPeriod">
+                  <select id="goalPeriod" required>
                     <option value="30">30일 · 빠르게 집중</option>
                     <option value="90" selected>90일 · 꾸준히 성장</option>
                     <option value="100">100일 · 습관으로 정착</option>
@@ -248,7 +251,7 @@
                 </label>
                 <label class="builder-field" for="routineTime">
                   <span>집중하기 좋은 시간</span>
-                  <select id="routineTime">
+                  <select id="routineTime" required>
                     <option selected>아침</option>
                     <option>점심</option>
                     <option>저녁</option>
@@ -257,7 +260,7 @@
                 </label>
                 <label class="builder-field builder-field-wide" for="routineReadiness">
                   <span>평소 실행 스타일</span>
-                  <select id="routineReadiness">
+                  <select id="routineReadiness" required>
                     <option>바로 실행하는 편이에요</option>
                     <option selected>계획이 있으면 실행해요</option>
                     <option>시작 전 준비가 필요해요</option>
@@ -267,26 +270,26 @@
                 </label>
                 <label class="builder-field builder-field-wide" for="currentState">
                   <span>현재 상황</span>
-                  <input id="currentState" type="text" value="토익 720점, 평일 하루 1시간 가능" placeholder="현재 수준과 사용할 수 있는 시간을 적어주세요" />
+                  <input id="currentState" type="text" value="토익 720점, 평일 하루 1시간 가능" placeholder="현재 수준과 사용할 수 있는 시간을 적어주세요" required />
                 </label>
                 <label class="builder-field builder-field-wide" for="currentRoutine">
                   <span>이미 하고 있는 작은 루틴</span>
-                  <input id="currentRoutine" type="text" value="아침 물 마시기, 저녁 산책" placeholder="예: 아침 커피, 퇴근 후 산책" />
+                  <input id="currentRoutine" type="text" value="아침 물 마시기, 저녁 산책" placeholder="예: 아침 커피, 퇴근 후 산책" required />
                 </label>
               </div>
             </section>
 
             <section class="diagnosis-step" data-step-title="나에게 맞는 응원 방식을 선택해요" hidden>
               <div class="profile-intro refined-profile-intro">
-                <span>선택 입력</span>
-                <p>성향 정보를 더하면 계획의 강도와 응원 방식이 세밀해져요. 원하지 않는 항목은 비워도 됩니다.</p>
+                <span>맞춤 입력</span>
+                <p>성향 정보를 바탕으로 계획의 강도, 실행 단위, 미루기 방지 장치와 올리의 응원 방식을 정밀하게 맞춰요.</p>
               </div>
               <div class="personality-fields" aria-label="성향 분석 입력">
-                <label for="birthDate">생년월일<input id="birthDate" type="date" value="1995-03-15" /></label>
-                <label for="birthTime">출생 시간<input id="birthTime" type="time" value="09:30" /></label>
-                <label for="birthPlace">출생지<input id="birthPlace" type="text" value="서울" /></label>
+                <label for="birthDate">생년월일<input id="birthDate" type="date" value="1995-03-15" required /></label>
+                <label for="birthTime">출생 시간<input id="birthTime" type="time" value="09:30" required /></label>
+                <label for="birthPlace">출생지<input id="birthPlace" type="text" value="서울" required /></label>
                 <label for="mbti">MBTI
-                  <select id="mbti">
+                  <select id="mbti" required>
                     <option>INTJ</option><option>INTP</option><option>ENTJ</option><option>ENTP</option>
                     <option>INFJ</option><option>INFP</option><option>ENFJ</option><option>ENFP</option>
                     <option>ISTJ</option><option selected>ISFJ</option><option>ESTJ</option><option>ESFJ</option>
@@ -303,6 +306,9 @@
                 <div><span>기간</span><strong id="reviewPeriod">90일</strong></div>
                 <div><span>실행 시간</span><strong id="reviewTime">아침</strong></div>
                 <div><span>계획 스타일</span><strong id="reviewReadiness">계획이 있으면 실행해요</strong></div>
+                <div><span>현재 상황</span><strong id="reviewCurrentState">토익 720점, 평일 하루 1시간 가능</strong></div>
+                <div><span>기존 루틴</span><strong id="reviewCurrentRoutine">아침 물 마시기, 저녁 산책</strong></div>
+                <div><span>성향</span><strong id="reviewPersonality">ISFJ · 생년월일 기반 실행 리듬</strong></div>
               </div>
               <div class="ollie-final-note">
                 <img src="assets/ollie-celebrate.png" alt="" />
@@ -329,7 +335,7 @@
             <footer class="builder-actions">
               <button class="builder-back" type="button" id="diagnosisBackButton" hidden>이전</button>
               <button class="builder-next" type="button" id="diagnosisNextButton">다음 단계</button>
-              <button type="submit" id="aiPreviewButton" hidden>내 계획 만들고 1일 체험 준비</button>
+              <button type="submit" id="aiPreviewButton" hidden>AI 맞춤 계획 만들고 1일 체험 준비</button>
             </footer>
           </form>
 

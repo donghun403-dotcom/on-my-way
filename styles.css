@@ -1785,10 +1785,46 @@ footer p {
 
 .quick-use-cases .use-grid article {
   min-height: 104px;
-  padding: 16px;
+  padding: 0;
   background: #ffffff;
   border-color: rgba(107, 122, 166, 0.14);
   box-shadow: 0 14px 30px rgba(107, 122, 166, 0.08);
+  overflow: hidden;
+}
+
+.quick-use-cases .use-grid article:has(button:focus-visible) {
+  outline: 3px solid rgba(111, 157, 139, 0.28);
+  outline-offset: 3px;
+}
+
+.quick-use-cases .use-grid button {
+  display: grid;
+  width: 100%;
+  min-height: 104px;
+  padding: 16px;
+  align-content: start;
+  gap: 6px;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.quick-use-cases .use-grid button > span {
+  margin-top: auto;
+  color: #6f9d8b;
+  font-size: 10px;
+  font-weight: 900;
+  opacity: 0.72;
+  transform: translateY(0);
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.quick-use-cases .use-grid article:hover button > span,
+.quick-use-cases .use-grid button:focus-visible > span {
+  opacity: 1;
+  transform: translateX(2px);
 }
 
 .quick-use-cases .use-grid h3 {
@@ -6174,6 +6210,13 @@ body.sheet-open {
   background: #7f99b4;
   border-color: #7f99b4;
   transform: translateY(-1px);
+}
+
+.editable-note {
+  margin-left: 6px;
+  color: #6f9d8b;
+  font-size: 10px;
+  font-weight: 850;
 }
 
 .field-helper {

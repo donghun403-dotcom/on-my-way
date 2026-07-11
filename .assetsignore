@@ -1,0 +1,14 @@
+.git/
+.agents/
+.claude/
+docs/
+tmp/
+On My Way 로고/
+.gitignore
+.assetsignore
+serve-local.cjs
+worker.mjs
+ai-goal-plan.mjs
+wrangler.jsonc
+*.pdf
+*.md

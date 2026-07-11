@@ -21,8 +21,11 @@ const reviewGoal = document.querySelector("#reviewGoal");
 const reviewPeriod = document.querySelector("#reviewPeriod");
 const reviewTime = document.querySelector("#reviewTime");
 const reviewReadiness = document.querySelector("#reviewReadiness");
+const reviewCurrentState = document.querySelector("#reviewCurrentState");
+const reviewCurrentRoutine = document.querySelector("#reviewCurrentRoutine");
+const reviewPersonality = document.querySelector("#reviewPersonality");
 const planPreviewPanel = document.querySelector("#planPreviewPanel");
-const goalSuggestionButtons = document.querySelectorAll("[data-goal-suggestion]");
+const goalSuggestionButtons = document.querySelectorAll("[data-goal-suggestion], [data-goal-category]");
 const birthDateInput = document.querySelector("#birthDate");
 const birthTimeInput = document.querySelector("#birthTime");
 const birthPlaceInput = document.querySelector("#birthPlace");
@@ -360,7 +363,10 @@ goalForm?.addEventListener("submit", (event) => {
   event.preventDefault();
   const value = goalInput.value.trim();
   if (designGoal) designGoal.value = value || designGoal.value;
+  diagnosisStepIndex = 0;
+  renderDiagnosisStep();
   document.querySelector("#designFlow")?.scrollIntoView({ behavior: "smooth" });
+  window.setTimeout(() => designGoal?.focus({ preventScroll: true }), 450);
 });
 
 goalInput?.addEventListener("input", () => {
@@ -370,6 +376,57 @@ goalInput?.addEventListener("input", () => {
 let diagnosisStepIndex = 0;
 
 const wizardStepLabels = ["목표 설정 중", "실행 리듬 설정 중", "성향 설정 중", "최종 확인"];
+
+const goalTemplates = {
+  exam: {
+    goal: "3개월 안에 토익 900점 달성하기",
+    period: "90",
+    time: "아침",
+    readiness: "계획이 있으면 실행해요",
+    state: "토익 720점, 평일 하루 1시간 가능",
+    routine: "아침 물 마신 뒤 단어 앱 열기",
+  },
+  fitness: {
+    goal: "12주 동안 주 4회 30분 운동 습관 만들기",
+    period: "90",
+    time: "저녁",
+    readiness: "시작 전 준비가 필요해요",
+    state: "최근 운동을 쉬었고 평일 30분 가능",
+    routine: "퇴근 후 편한 옷으로 갈아입기",
+  },
+  english: {
+    goal: "90일 동안 매일 20분 영어 회화 연습하기",
+    period: "90",
+    time: "아침",
+    readiness: "계획이 있으면 실행해요",
+    state: "간단한 문장은 가능하고 출근 전 20분 가능",
+    routine: "아침 커피를 마시며 영어 영상 1개 보기",
+  },
+  reading: {
+    goal: "30일 동안 매일 자기 전 20분 독서하기",
+    period: "30",
+    time: "자기 전",
+    readiness: "자주 미뤄요",
+    state: "한 달에 책 1권 미만, 자기 전 20분 가능",
+    routine: "침대에 눕기 전 휴대전화 충전하기",
+  },
+  startup: {
+    goal: "90일 안에 첫 유료 고객 10명 만들기",
+    period: "90",
+    time: "저녁",
+    readiness: "바로 실행하는 편이에요",
+    state: "아이디어만 있고 평일 1시간, 주말 3시간 가능",
+    routine: "저녁 식사 후 노트북 열기",
+  },
+  habit: {
+    goal: "30일 동안 매일 아침 10분 정리 루틴 만들기",
+    period: "30",
+    time: "아침",
+    readiness: "시작해도 쉽게 중단돼요",
+    state: "작심삼일이 잦고 출근 전 15분 가능",
+    routine: "일어나서 물 한 잔 마시기",
+  },
+};
 
 function updateWizardSummary() {
   const goal = designGoal?.value.trim() || "목표를 입력해 주세요";
@@ -383,12 +440,22 @@ function updateWizardSummary() {
   if (reviewPeriod) reviewPeriod.textContent = selectedPeriod;
   if (reviewTime) reviewTime.textContent = time;
   if (reviewReadiness) reviewReadiness.textContent = readiness;
+  if (reviewCurrentState) reviewCurrentState.textContent = currentStateInput?.value.trim() || "입력 전";
+  if (reviewCurrentRoutine) reviewCurrentRoutine.textContent = currentRoutineInput?.value.trim() || "입력 전";
+  if (reviewPersonality) reviewPersonality.textContent = `${mbtiInput?.value || "MBTI 미정"} · 생년월일 기반 실행 리듬`;
 }
 
 function canLeaveDiagnosisStep() {
-  if (diagnosisStepIndex !== 0 || designGoal?.value.trim()) return true;
-  designGoal?.focus();
-  designGoal?.reportValidity();
+  const fieldsByStep = [
+    [designGoal],
+    [goalPeriodInput, routineTimeInput, routineReadinessInput, currentStateInput, currentRoutineInput],
+    [birthDateInput, birthTimeInput, birthPlaceInput, mbtiInput],
+  ];
+  const invalidField = (fieldsByStep[diagnosisStepIndex] || []).find((field) => field && !field.checkValidity());
+
+  if (!invalidField) return true;
+  invalidField.focus();
+  invalidField.reportValidity();
   return false;
 }
 
@@ -440,9 +507,32 @@ diagnosisNextButton?.addEventListener("click", () => {
 goalSuggestionButtons.forEach((button) => {
   button.addEventListener("click", () => {
     if (!designGoal) return;
-    designGoal.value = button.dataset.goalSuggestion || "";
-    goalSuggestionButtons.forEach((item) => item.classList.toggle("selected", item === button));
+    const category = button.dataset.goalCategory;
+    const template = goalTemplates[category];
+
+    if (template) {
+      designGoal.value = template.goal;
+      if (goalPeriodInput) goalPeriodInput.value = template.period;
+      if (routineTimeInput) routineTimeInput.value = template.time;
+      if (routineReadinessInput) routineReadinessInput.value = template.readiness;
+      if (currentStateInput) currentStateInput.value = template.state;
+      if (currentRoutineInput) currentRoutineInput.value = template.routine;
+    } else {
+      designGoal.value = button.dataset.goalSuggestion || "";
+    }
+
+    goalSuggestionButtons.forEach((item) => item.classList.toggle("selected", Boolean(category) && item.dataset.goalCategory === category));
     updateWizardSummary();
+
+    if (button.hasAttribute("data-scroll-to-builder")) {
+      diagnosisStepIndex = 0;
+      renderDiagnosisStep();
+      document.querySelector("#designFlow")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      window.setTimeout(() => {
+        designGoal.focus({ preventScroll: true });
+        designGoal.select();
+      }, 500);
+    }
   });
 });
 
@@ -760,8 +850,29 @@ function buildLocalAiPreview(payload) {
 }
 
 async function requestAiPlan(payload) {
-  // 실제 서비스에서는 이 함수에서 서버 API를 호출하고, 화면에는 응답 결과만 노출합니다.
-  return buildLocalAiPreview(payload);
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 60000);
+
+  try {
+    const response = await fetch("/api/ai/goal-plan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload.input),
+      signal: controller.signal,
+    });
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(result.error || "AI 계획을 만드는 중 문제가 생겼어요.");
+    }
+
+    return result.plan || result;
+  } catch (error) {
+    if (error.name === "AbortError") throw new Error("AI 응답 시간이 길어졌어요. 잠시 후 다시 시도해 주세요.");
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 }
 
 async function playAnalysisLoading() {
@@ -786,7 +897,12 @@ function renderAiPreview(preview) {
   if (mbtiProfile) mbtiProfile.textContent = `${preview.planningStyle}으로 시작하고, 첫 행동은 "${preview.firstAction}"으로 잡습니다.`;
   if (aiPreviewTitle) aiPreviewTitle.textContent = preview.weekTitle;
   if (aiPreviewList) {
-    aiPreviewList.innerHTML = preview.weekPlan.map((item) => `<li>${item}</li>`).join("");
+    const items = (preview.weekPlan || []).map((item) => {
+      const listItem = document.createElement("li");
+      listItem.textContent = item;
+      return listItem;
+    });
+    aiPreviewList.replaceChildren(...items);
   }
   if (aiCoachMessage) aiCoachMessage.textContent = preview.coachMessage;
   if (previewPersonality) previewPersonality.textContent = preview.personalitySummary;
@@ -852,14 +968,26 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
     await playAnalysisLoading();
   }
 
-  const preview = await requestAiPlan(payload);
+  let preview;
+  try {
+    preview = showLoading ? await requestAiPlan(payload) : buildLocalAiPreview(payload);
+  } catch (error) {
+    console.error("Unable to generate AI goal plan", error);
+    if (aiPreviewStatus) aiPreviewStatus.textContent = error.message || "AI 연결을 확인해 주세요";
+    if (aiPreviewButton) {
+      aiPreviewButton.disabled = false;
+      aiPreviewButton.textContent = "다시 AI 맞춤 계획 만들기";
+    }
+    showToast(error.message || "AI 계획을 만들지 못했어요. 잠시 후 다시 시도해 주세요.");
+    return;
+  }
   renderAiPreview(preview);
   if (showLoading) planPreviewPanel?.classList.add("is-ready");
 
   if (aiPreviewStatus) aiPreviewStatus.textContent = "올리가 만든 오늘의 계획";
   if (aiPreviewButton) {
     aiPreviewButton.disabled = false;
-    aiPreviewButton.textContent = "내 계획 만들고 1일 체험 준비";
+    aiPreviewButton.textContent = "AI 맞춤 계획 만들고 1일 체험 준비";
   }
 
   try {
