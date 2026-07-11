@@ -3614,6 +3614,28 @@ footer p {
   line-height: 1.45;
 }
 
+.companion-speech.is-reacting {
+  animation: speech-react 1.5s ease;
+}
+
+@keyframes speech-react {
+  0% {
+    transform: translateY(10px) scale(0.94);
+    box-shadow: 0 0 0 0 rgba(91, 106, 151, 0.45);
+  }
+  22% {
+    transform: translateY(-3px) scale(1.03);
+  }
+  45% {
+    transform: translateY(0) scale(1);
+    box-shadow: 0 0 0 7px rgba(91, 106, 151, 0.18);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    box-shadow: 0 0 0 0 rgba(91, 106, 151, 0);
+  }
+}
+
 .companion-home-meta,
 .companion-stats {
   display: grid;

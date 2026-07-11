@@ -1485,6 +1485,22 @@ function pulseCompanion() {
   });
 }
 
+function showOllieReaction(message) {
+  if (message && companionMessage) companionMessage.textContent = message;
+  closeCompanionChat();
+  const speech = document.querySelector("#companionHome .companion-speech");
+  window.setTimeout(() => {
+    speech?.scrollIntoView({ behavior: "smooth", block: "center" });
+    pulseCompanion();
+    if (!speech) return;
+    speech.classList.remove("is-reacting");
+    window.requestAnimationFrame(() => {
+      speech.classList.add("is-reacting");
+      window.setTimeout(() => speech.classList.remove("is-reacting"), 1600);
+    });
+  }, 80);
+}
+
 function appendRevisionRequest(text, response = "좋아요. 그 요청을 플랜 수정 요청에 넣어둘게요.") {
   if (!text || !planRevisionRequest) return;
 
@@ -2270,7 +2286,7 @@ energyButtons.forEach((button) => {
     saveCompanionState({ ...state, energy, mood: energy === "tired" ? "caring" : "ready" });
     energyButtons.forEach((item) => item.classList.toggle("active", item === button));
     if (companionChatResponse) companionChatResponse.textContent = copy;
-    if (companionMessage) companionMessage.textContent = copy;
+    showOllieReaction(copy);
     addCompanionXp(2, "ready");
     trackCompanionEvent("chat_energy_selected", { energy });
   });
@@ -2288,6 +2304,7 @@ chatActionButtons.forEach((button) => {
 
     if (!request) return;
     appendRevisionRequest(request, "수정 요청에 담아뒀어요. 새 스케줄은 사용자가 확인한 뒤 적용됩니다.");
+    showOllieReaction();
     trackCompanionEvent("quick_adjustment_selected", { action });
   });
 });
@@ -2303,6 +2320,7 @@ sendCompanionMessage?.addEventListener("click", () => {
 
   appendRevisionRequest(`사용자 추가 요청: ${message}`, "좋아요. 이 내용을 참고해서 AI가 다시 짠 스케줄 미리보기를 만들 수 있어요.");
   companionChatInput.value = "";
+  showOllieReaction();
   addCompanionXp(3, "thinking");
   trackCompanionEvent("custom_revision_requested", { length: message.length });
 });
