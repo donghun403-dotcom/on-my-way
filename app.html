@@ -19,6 +19,12 @@
       <a class="ghost-link" href="index.html#designFlow">설계 수정</a>
     </header>
 
+    <div class="trial-status-banner" id="trialStatusBanner" role="status" hidden>
+      <span>무료 체험 이용 중</span>
+      <strong id="trialTimeRemaining">23시간 59분 남음</strong>
+      <a href="index.html#pricing">PRO 월 2,900원</a>
+    </div>
+
     <main class="execution-app" id="top">
       <!-- ============ 오늘 (Today) ============ -->
       <div class="app-view is-active" id="view-today" data-view="today" role="tabpanel" aria-labelledby="tab-today">
@@ -380,6 +386,19 @@
     </section>
 
     <div class="sr-only" id="appLiveRegion" aria-live="polite"></div>
+
+    <section class="trial-paywall" id="trialPaywall" role="dialog" aria-modal="true" aria-labelledby="trialPaywallTitle" hidden>
+      <div class="trial-paywall-card">
+        <img src="assets/on-my-way-mascot.png" alt="" aria-hidden="true" />
+        <span id="trialPaywallKicker">1일 무료 체험</span>
+        <h2 id="trialPaywallTitle">먼저 무료 체험을 시작해 주세요</h2>
+        <p id="trialPaywallCopy">내 목표와 휴대전화번호를 입력하면 결제정보 없이 24시간 동안 모리와 함께할 수 있어요.</p>
+        <div class="trial-paywall-price"><small>계속 이용하려면</small><strong>월 2,900원</strong></div>
+        <ul><li>체험에서 만든 계획 유지</li><li>무제한 AI 계획 수정</li><li>모리 성장과 전체 여정</li></ul>
+        <a id="trialPaywallAction" href="index.html#designFlow">1일 무료 체험 시작하기</a>
+        <small>자동 결제 없이, 원할 때만 PRO를 선택할 수 있어요.</small>
+      </div>
+    </section>
 
     <script src="script.js"></script>
     <script>

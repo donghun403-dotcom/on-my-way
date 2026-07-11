@@ -54,6 +54,19 @@ const appFeaturePrev = document.querySelector("#appFeaturePrev");
 const appFeatureNext = document.querySelector("#appFeatureNext");
 const appFeatureTitle = document.querySelector("#appFeatureTitle");
 const appFeatureCounter = document.querySelector("#appFeatureCounter");
+const appTourSection = document.querySelector("#appTour");
+const designFlowSection = document.querySelector("#designFlow");
+const trialPhoneInput = document.querySelector("#trialPhone");
+const trialServiceConsent = document.querySelector("#trialServiceConsent");
+const trialMarketingConsent = document.querySelector("#trialMarketingConsent");
+const trialStartLink = document.querySelector("#trialStartLink");
+const trialStatusBanner = document.querySelector("#trialStatusBanner");
+const trialTimeRemaining = document.querySelector("#trialTimeRemaining");
+const trialPaywall = document.querySelector("#trialPaywall");
+const trialPaywallKicker = document.querySelector("#trialPaywallKicker");
+const trialPaywallTitle = document.querySelector("#trialPaywallTitle");
+const trialPaywallCopy = document.querySelector("#trialPaywallCopy");
+const trialPaywallAction = document.querySelector("#trialPaywallAction");
 const executionGoal = document.querySelector("#executionGoal");
 const executionStyle = document.querySelector("#executionStyle");
 const executionPeriod = document.querySelector("#executionPeriod");
@@ -99,6 +112,116 @@ const companionMoodLine = document.querySelector("#companionMoodLine");
 const companionMessage = document.querySelector("#companionMessage");
 const companionName = document.querySelector("#companionName");
 const DEFAULT_ROUTINE_READINESS = "계획이 있으면 실행해요";
+const TRIAL_ACCESS_KEY = "omwTrialAccess";
+const TRIAL_LEAD_KEY = "omwTrialLead";
+const TRIAL_DURATION_MS = 24 * 60 * 60 * 1000;
+
+if (appTourSection && designFlowSection && appTourSection.nextElementSibling !== designFlowSection) {
+  designFlowSection.parentNode?.insertBefore(appTourSection, designFlowSection);
+}
+
+function readTrialAccess() {
+  try {
+    return JSON.parse(localStorage.getItem(TRIAL_ACCESS_KEY) || "null");
+  } catch (error) {
+    return null;
+  }
+}
+
+function saveTrialLead() {
+  if (!trialPhoneInput?.value.trim() || !trialServiceConsent?.checked) return;
+  const phoneDigits = trialPhoneInput.value.replace(/\D/g, "");
+  try {
+    localStorage.setItem(
+      TRIAL_LEAD_KEY,
+      JSON.stringify({
+        phoneLast4: phoneDigits.slice(-4),
+        serviceConsent: true,
+        marketingConsent: Boolean(trialMarketingConsent?.checked),
+        consentedAt: new Date().toISOString(),
+      }),
+    );
+  } catch (error) {
+    console.warn("Unable to save trial contact preferences", error);
+  }
+}
+
+function startTrialAccess() {
+  const startedAt = Date.now();
+  saveTrialLead();
+  try {
+    localStorage.setItem(
+      TRIAL_ACCESS_KEY,
+      JSON.stringify({ startedAt, expiresAt: startedAt + TRIAL_DURATION_MS, plan: "trial" }),
+    );
+  } catch (error) {
+    console.warn("Unable to save trial access", error);
+  }
+}
+
+function lockTrialExperience(mode) {
+  if (!trialPaywall) return;
+  trialPaywall.hidden = false;
+  document.body.classList.add("trial-locked");
+  const executionApp = document.querySelector(".execution-app");
+  const executionTabs = document.querySelector(".execution-tabbar");
+  if (executionApp) executionApp.inert = true;
+  if (executionTabs) executionTabs.inert = true;
+
+  if (mode === "expired") {
+    if (trialPaywallKicker) trialPaywallKicker.textContent = "체험이 종료되었어요";
+    if (trialPaywallTitle) trialPaywallTitle.textContent = "만든 계획을 그대로 이어갈까요?";
+    if (trialPaywallCopy) trialPaywallCopy.textContent = "24시간 무료 체험이 끝나 앱 이용이 잠시 멈췄어요. PRO를 시작하면 계획과 기록이 그대로 이어져요.";
+    if (trialPaywallAction) {
+      trialPaywallAction.textContent = "PRO 월 2,900원으로 계속하기";
+      trialPaywallAction.href = "index.html#pricing";
+    }
+  }
+}
+
+function updateTrialStatus(expiresAt) {
+  if (!trialStatusBanner || !trialTimeRemaining) return;
+  const remaining = Math.max(0, expiresAt - Date.now());
+  if (remaining <= 0) {
+    trialStatusBanner.hidden = true;
+    lockTrialExperience("expired");
+    return;
+  }
+  const hours = Math.floor(remaining / (60 * 60 * 1000));
+  const minutes = Math.floor((remaining % (60 * 60 * 1000)) / (60 * 1000));
+  trialStatusBanner.hidden = false;
+  trialTimeRemaining.textContent = `${hours}시간 ${minutes}분 남음`;
+}
+
+function initializeTrialAccess() {
+  if (!document.body.classList.contains("execution-page")) return;
+  const access = readTrialAccess();
+  if (!access?.expiresAt) {
+    lockTrialExperience("not-started");
+    return;
+  }
+  if (Date.now() >= Number(access.expiresAt)) {
+    lockTrialExperience("expired");
+    return;
+  }
+  updateTrialStatus(Number(access.expiresAt));
+  window.setInterval(() => updateTrialStatus(Number(access.expiresAt)), 60 * 1000);
+}
+
+trialStartLink?.addEventListener("click", startTrialAccess);
+
+trialPhoneInput?.addEventListener("input", () => {
+  const digits = trialPhoneInput.value.replace(/\D/g, "").slice(0, 11);
+  if (digits.length <= 3) {
+    trialPhoneInput.value = digits;
+  } else if (digits.length <= 7) {
+    trialPhoneInput.value = `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  } else {
+    trialPhoneInput.value = `${digits.slice(0, 3)}-${digits.slice(3, digits.length - 4)}-${digits.slice(-4)}`;
+  }
+});
+
+initializeTrialAccess();
 
 function needsLowFrictionStart(readiness = DEFAULT_ROUTINE_READINESS) {
   return ["준비", "미뤄", "중단"].some((keyword) => readiness.includes(keyword));
@@ -322,7 +445,7 @@ sectionNavLinks.forEach((link) => {
 
 setActiveSectionLink(window.location.hash || "#top");
 
-const sectionAnchors = ["#top", "#designFlow", "#pricing"]
+const sectionAnchors = ["#top", "#appTour", "#designFlow", "#pricing"]
   .map((hash) => ({ hash, element: document.querySelector(hash) }))
   .filter((item) => item.element);
 
@@ -635,7 +758,7 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
   if (aiPreviewStatus) aiPreviewStatus.textContent = "모리가 만든 오늘의 계획";
   if (aiPreviewButton) {
     aiPreviewButton.disabled = false;
-    aiPreviewButton.textContent = "오늘의 한 걸음 만들기";
+    aiPreviewButton.textContent = "내 계획 만들고 1일 체험 준비";
   }
 
   try {
@@ -661,6 +784,8 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
   } catch (error) {
     console.warn("Unable to save execution plan", error);
   }
+
+  if (showLoading) saveTrialLead();
 }
 
 personalityForm?.addEventListener("submit", (event) => {
