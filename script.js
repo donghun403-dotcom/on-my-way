@@ -26,6 +26,7 @@ const reviewCurrentRoutine = document.querySelector("#reviewCurrentRoutine");
 const reviewPersonality = document.querySelector("#reviewPersonality");
 const planPreviewPanel = document.querySelector("#planPreviewPanel");
 const goalSuggestionButtons = document.querySelectorAll("[data-goal-suggestion], [data-goal-category]");
+const customGoalButton = document.querySelector("#customGoalButton");
 const birthDateInput = document.querySelector("#birthDate");
 const birthTimeInput = document.querySelector("#birthTime");
 const birthPlaceInput = document.querySelector("#birthPlace");
@@ -522,6 +523,7 @@ goalSuggestionButtons.forEach((button) => {
     }
 
     goalSuggestionButtons.forEach((item) => item.classList.toggle("selected", Boolean(category) && item.dataset.goalCategory === category));
+    customGoalButton?.classList.remove("selected");
     updateWizardSummary();
 
     if (button.hasAttribute("data-scroll-to-builder")) {
@@ -534,6 +536,16 @@ goalSuggestionButtons.forEach((button) => {
       }, 500);
     }
   });
+});
+
+customGoalButton?.addEventListener("click", () => {
+  if (!designGoal) return;
+  designGoal.value = "";
+  goalSuggestionButtons.forEach((item) => item.classList.remove("selected"));
+  customGoalButton.classList.add("selected");
+  updateWizardSummary();
+  designGoal.focus({ preventScroll: true });
+  designGoal.scrollIntoView({ behavior: "smooth", block: "center" });
 });
 
 renderDiagnosisStep();

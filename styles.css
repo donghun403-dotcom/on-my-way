@@ -6218,6 +6218,50 @@ body.sheet-open {
   transform: translateY(-1px);
 }
 
+.goal-suggestions .custom-goal-button {
+  display: flex;
+  min-height: 54px;
+  grid-column: 1 / -1;
+  justify-content: center;
+  gap: 9px;
+  padding: 10px 16px;
+  color: #55776c;
+  background: linear-gradient(135deg, rgba(233, 248, 242, 0.96), rgba(241, 245, 252, 0.96));
+  border: 1px dashed rgba(111, 157, 139, 0.54);
+  border-radius: 16px;
+}
+
+.goal-suggestions .custom-goal-button > span {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  place-items: center;
+  color: #ffffff;
+  background: #76a28f;
+  border-radius: 8px;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.goal-suggestions .custom-goal-button strong {
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.goal-suggestions .custom-goal-button small {
+  color: #83918f;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.goal-suggestions .custom-goal-button:hover,
+.goal-suggestions .custom-goal-button.selected {
+  color: #426b5c;
+  background: linear-gradient(135deg, #def3ea, #e9eef8);
+  border-color: #76a28f;
+}
+
 .editable-note {
   margin-left: 6px;
   color: #6f9d8b;
@@ -6337,19 +6381,21 @@ body.sheet-open {
   display: flex;
   gap: 10px;
   align-items: center;
-  justify-content: flex-end;
-  margin-top: 28px;
-  padding-top: 20px;
-  border-top: 1px solid #edf0f4;
+  margin-top: 24px;
+  padding: 10px;
+  background: linear-gradient(135deg, rgba(237, 248, 244, 0.82), rgba(239, 243, 250, 0.9));
+  border: 1px solid rgba(214, 225, 228, 0.82);
+  border-radius: 18px;
 }
 
 .builder-actions button {
-  min-height: 50px;
+  min-height: 54px;
   padding: 0 22px;
-  border-radius: 12px;
+  border-radius: 14px;
   font-size: 13px;
   font-weight: 900;
   cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease;
 }
 
 .builder-back {
@@ -6361,10 +6407,33 @@ body.sheet-open {
 
 .builder-next,
 .home-page .goal-builder-shell #aiPreviewButton {
+  flex: 1;
   color: #ffffff;
-  background: linear-gradient(135deg, #77a3bd, #9d93aa) !important;
+  background: linear-gradient(135deg, #6f9f8b, #7f99b4 56%, #9d93aa) !important;
   border: 0;
-  box-shadow: 0 12px 24px rgba(91, 106, 151, 0.2);
+  box-shadow: 0 12px 24px rgba(91, 124, 124, 0.22);
+}
+
+.builder-next::after {
+  content: "→";
+  display: inline-block;
+  margin-left: 9px;
+  font-size: 16px;
+  transition: transform 160ms ease;
+}
+
+.builder-actions button:hover {
+  filter: brightness(1.03);
+  transform: translateY(-1px);
+}
+
+.builder-next:hover::after {
+  transform: translateX(3px);
+}
+
+.builder-actions button:focus-visible {
+  outline: 3px solid rgba(111, 157, 139, 0.28);
+  outline-offset: 3px;
 }
 
 .home-page .goal-builder-shell .app-plan-preview {
@@ -6578,6 +6647,15 @@ body.sheet-open {
     min-height: 46px;
     padding-inline: 3px;
     font-size: 11px;
+  }
+
+  .goal-suggestions .custom-goal-button {
+    flex-wrap: wrap;
+    gap: 5px 8px;
+  }
+
+  .goal-suggestions .custom-goal-button small {
+    flex-basis: 100%;
   }
 
   .home-page .goal-builder-shell .app-plan-preview {
