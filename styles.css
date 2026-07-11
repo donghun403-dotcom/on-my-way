@@ -6187,18 +6187,24 @@ body.sheet-open {
 }
 
 .goal-suggestions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .goal-suggestions button {
-  padding: 9px 12px;
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  padding: 9px 6px;
+  place-items: center;
   color: #697994;
   background: #f3f6fa;
   border: 1px solid #e2e7ef;
-  border-radius: 999px;
-  font-size: 11px;
+  border-radius: 14px;
+  font-size: 12px;
   font-weight: 850;
   cursor: pointer;
   transition: color 160ms ease, background 160ms ease, transform 160ms ease;
@@ -6562,6 +6568,16 @@ body.sheet-open {
 
   .builder-field-wide {
     grid-column: auto;
+  }
+
+  .goal-suggestions {
+    gap: 7px;
+  }
+
+  .goal-suggestions button {
+    min-height: 46px;
+    padding-inline: 3px;
+    font-size: 11px;
   }
 
   .home-page .goal-builder-shell .app-plan-preview {
