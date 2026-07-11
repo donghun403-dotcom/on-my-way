@@ -5140,8 +5140,7 @@ body.sheet-open {
 }
 
 @media (min-width: 760px) {
-  .home-page .bottom-tabbar,
-  .home-page .floating-payment-cta {
+  .home-page .bottom-tabbar {
     display: none;
   }
 
@@ -6883,6 +6882,113 @@ body.sheet-open {
 @media (prefers-reduced-motion: reduce) {
   .journey-mori {
     animation: none;
+  }
+}
+
+/* Company footer and persistent landing CTA */
+.home-page .site-footer {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(180px, 0.7fr) minmax(0, 1.3fr);
+  gap: 28px;
+  align-items: end;
+  min-height: 190px;
+  padding: 38px clamp(22px, 5vw, 56px) 132px;
+  color: var(--routine-text);
+  background:
+    radial-gradient(circle at 12% 22%, rgba(107, 122, 166, 0.13), transparent 34%),
+    radial-gradient(circle at 90% 78%, rgba(201, 141, 153, 0.12), transparent 38%),
+    rgba(255, 255, 255, 0.48);
+  border-top: 1px solid rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(16px);
+}
+
+.footer-brand-block {
+  display: grid;
+  gap: 5px;
+}
+
+.footer-brand-block strong {
+  color: #3d4862;
+  font-family: "Playfair Display", "Nanum Myeongjo", Georgia, serif;
+  font-size: clamp(24px, 3vw, 32px);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.footer-brand-block span {
+  color: #8d7180;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.footer-information {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+  text-align: right;
+}
+
+.home-page .site-footer .footer-information p {
+  margin: 0;
+  color: #566078;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.footer-information small {
+  max-width: 560px;
+  color: #81899a;
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1.6;
+}
+
+.home-page .floating-payment-cta {
+  right: 50%;
+  bottom: 24px;
+  z-index: 100;
+  display: grid !important;
+  width: min(420px, calc(100vw - 40px));
+  min-height: 62px;
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  box-shadow: 0 20px 48px rgba(75, 87, 125, 0.3);
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(50%);
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.home-page .floating-payment-cta:hover {
+  box-shadow: 0 24px 56px rgba(75, 87, 125, 0.38);
+  transform: translateX(50%) translateY(-2px);
+}
+
+.home-page .floating-payment-cta:focus-visible {
+  outline: 3px solid rgba(107, 122, 166, 0.34);
+  outline-offset: 4px;
+}
+
+@media (max-width: 759px) {
+  .home-page .site-footer {
+    grid-template-columns: 1fr;
+    gap: 20px;
+    align-items: start;
+    min-height: 250px;
+    padding: 34px 22px calc(172px + env(safe-area-inset-bottom));
+  }
+
+  .footer-information {
+    justify-items: start;
+    text-align: left;
+  }
+
+  .home-page .floating-payment-cta {
+    bottom: calc(76px + env(safe-area-inset-bottom));
+    width: min(390px, calc(100vw - 28px));
+    min-height: 58px;
   }
 }
 
