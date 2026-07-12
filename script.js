@@ -1010,11 +1010,17 @@ diagnosisBackButton?.addEventListener("click", () => {
 
 diagnosisNextButton?.addEventListener("click", () => advanceDiagnosisStep());
 
+// 단계별 선택형 입력: 전부 직접 확인해야 자동 진행 (하나만 고르고 넘어가지 않도록)
+const stepChoiceFieldIds = [[], ["goalPeriod", "routineTime", "routineReadiness"], []];
+const touchedChoiceFields = new Set();
+
 personalityForm?.addEventListener("change", (event) => {
   const step = event.target.closest?.(".diagnosis-step");
   if (!step || !step.classList.contains("active")) return;
-  // 확정형 입력(선택·날짜·시간)만 자동 진행을 예약하고, 자유 서술 입력은 버튼/Enter로 넘어간다
-  if (event.target.matches("select, input[type='date'], input[type='time']")) queueDiagnosisAutoAdvance();
+  if (!event.target.matches("select, input[type='date'], input[type='time']")) return;
+  touchedChoiceFields.add(event.target.id);
+  const requiredIds = stepChoiceFieldIds[diagnosisStepIndex] || [];
+  if (requiredIds.length && requiredIds.every((id) => touchedChoiceFields.has(id))) queueDiagnosisAutoAdvance();
 });
 
 personalityForm?.addEventListener("focusin", (event) => {
@@ -1373,6 +1379,9 @@ function buildLocalAiPreview(payload) {
 
   const firstAction = lowFriction ? `${routineTime} 10분 루틴: ${template.firstAction}` : `${routineTime} 루틴: ${template.firstAction}`;
   const firstDuration = lowFriction ? 10 : 20;
+  // 단계 구간을 기간에 비례해 계산 (7일 같은 짧은 목표에서도 구간이 겹치지 않게)
+  const phaseStartEnd = Math.min(7, Math.max(2, Math.round(period * 0.2)));
+  const phaseGrowEnd = Math.min(period - 1, Math.max(phaseStartEnd + 1, Math.round(period * 0.7)));
   const weekPlan = [
     routineAdvice,
     ...template.weekPlan,
@@ -1398,9 +1407,9 @@ function buildLocalAiPreview(payload) {
       { time: "하루 마무리", durationMinutes: 5, task: "내일 시작할 첫 행동을 눈에 보이게 준비", completionRule: "도구나 자료를 미리 꺼내두면 완료" },
     ],
     fullSchedule: [
-      { phase: "시작", days: "1–7일", focus: "실행 시간과 최소 행동을 고정합니다.", successMetric: "7일 중 4일 이상 실행" },
-      { phase: "성장", days: `8–${Math.max(14, Math.round(period * 0.7))}일`, focus: "주간 결과를 확인하며 분량과 난이도를 조금씩 높입니다.", successMetric: "주간 계획의 70% 이상 완료" },
-      { phase: "완성", days: `${Math.max(15, Math.round(period * 0.7) + 1)}–${period}일`, focus: "실전 점검과 약한 구간 보완에 집중합니다.", successMetric: "목표 지표 최종 점검 완료" },
+      { phase: "시작", days: `1–${phaseStartEnd}일`, focus: "실행 시간과 최소 행동을 고정합니다.", successMetric: `${phaseStartEnd}일 중 ${Math.max(1, Math.round(phaseStartEnd * 0.6))}일 이상 실행` },
+      { phase: "성장", days: `${phaseStartEnd + 1}–${phaseGrowEnd}일`, focus: "주간 결과를 확인하며 분량과 난이도를 조금씩 높입니다.", successMetric: "주간 계획의 70% 이상 완료" },
+      { phase: "완성", days: `${phaseGrowEnd + 1}–${period}일`, focus: "실전 점검과 약한 구간 보완에 집중합니다.", successMetric: "목표 지표 최종 점검 완료" },
     ],
     checkInRules: ["실행 직후 완료 여부 체크", "못한 날은 5분 최소 행동으로 재시작", "7일마다 다음 주 난이도 조정"],
     fallbackPlan: `계획대로 하기 어려운 날에는 ${template.firstAction}을 5분만 실행합니다.`,
