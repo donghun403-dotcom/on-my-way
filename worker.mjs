@@ -25,6 +25,27 @@ function accountResultToResponse(result) {
   return new Response(JSON.stringify(result.json ?? {}), { status: result.status || 200, headers });
 }
 
+export async function createGoalPlanForUser({ input, env, userStore, user, generatePlan = createAiGoalPlan, now = Date.now() }) {
+  const hasTrialLimit = user && user.role !== "admin" && user.plan !== "pro";
+  if (hasTrialLimit && user.goalPlanGeneratedAt) {
+    const error = new Error("무료 체험에서는 AI 목표 계획을 1개 만들 수 있어요. 기존 계획을 앱에서 이어가 주세요.");
+    error.status = 409;
+    error.code = "GOAL_PLAN_LIMIT_REACHED";
+    throw error;
+  }
+
+  const result = await generatePlan(input, {
+    apiKey: env.OPENAI_API_KEY,
+    model: env.OPENAI_MODEL || "gpt-5.4-mini",
+  });
+
+  if (hasTrialLimit) {
+    user.goalPlanGeneratedAt = now;
+    await userStore.putUser(user);
+  }
+  return result;
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -85,15 +106,14 @@ export default {
 
       try {
         const input = await request.json();
-        const result = await createAiGoalPlan(input, {
-          apiKey: env.OPENAI_API_KEY,
-          model: env.OPENAI_MODEL || "gpt-5.4-mini",
-        });
+        const userStore = createKvStore(env.USERS_KV);
+        const user = await currentSessionUser({ ...accountContext, store: userStore });
+        const result = await createGoalPlanForUser({ input, env, userStore, user });
         return json(result);
       } catch (error) {
         console.error("AI goal plan request failed", error);
         const message = error.status === 503 ? "올리가 계획을 준비하는 동안 연결이 지연되고 있어요." : error.message || "AI 계획을 만들지 못했어요.";
-        return json({ error: message }, error.status || 500);
+        return json({ error: message, code: error.code || undefined }, error.status || 500);
       }
     }
 

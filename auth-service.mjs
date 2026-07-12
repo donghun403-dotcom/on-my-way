@@ -187,6 +187,7 @@ function publicUser(user) {
     proSince: user.proSince || null,
     subscriptionStatus: user.subscriptionStatus || null,
     currentPeriodEnd: user.currentPeriodEnd || null,
+    goalPlanGeneratedAt: user.goalPlanGeneratedAt || null,
     createdAt: user.createdAt,
     lastLoginAt: user.lastLoginAt,
   };

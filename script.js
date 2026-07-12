@@ -320,7 +320,16 @@ async function accountRequest(url, options = {}) {
 
 function syncServerPlanToLocal() {
   const user = authUiState.user;
-  if (!user || !document.body.classList.contains("execution-page")) return;
+  if (!user) return;
+
+  try {
+    if (user.plan === "pro" || user.goalPlanGeneratedAt) localStorage.setItem(FREE_PLAN_GENERATED_KEY, "true");
+    else localStorage.removeItem(FREE_PLAN_GENERATED_KEY);
+  } catch (error) {
+    console.warn("Unable to sync goal plan allowance", error);
+  }
+
+  if (!document.body.classList.contains("execution-page")) return;
 
   if (user.plan === "pro") {
     try {
@@ -1330,7 +1339,10 @@ async function requestAiPlan(payload) {
     const result = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      throw new Error(result.error || "AI 계획을 만드는 중 문제가 생겼어요.");
+      const error = new Error(result.error || "AI 계획을 만드는 중 문제가 생겼어요.");
+      error.status = response.status;
+      error.code = result.code || "";
+      throw error;
     }
 
     return result.plan || result;
@@ -1464,7 +1476,9 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
 
   if (showLoading && readTrialAccess()?.plan !== "pro") {
     try {
-      if (localStorage.getItem(FREE_PLAN_GENERATED_KEY) === "true") {
+      const serverSaysGenerated = authUiState.user?.plan !== "pro" && Boolean(authUiState.user?.goalPlanGeneratedAt);
+      const guestDeviceSaysGenerated = !authUiState.user && localStorage.getItem(FREE_PLAN_GENERATED_KEY) === "true";
+      if (serverSaysGenerated || guestDeviceSaysGenerated) {
         if (aiPreviewStatus) aiPreviewStatus.textContent = "무료 목표 계획 1개를 이미 만들었어요";
         planPreviewPanel?.classList.add("is-ready");
         showToast("무료 플랜은 목표 계획 1개를 만들 수 있어요. 앱에서 올리 에너지로 수정해 보세요.");
@@ -1518,6 +1532,16 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
   try {
     preview = showLoading ? await requestAiPlan(payload) : buildLocalAiPreview(payload);
   } catch (error) {
+    if (error.code === "GOAL_PLAN_LIMIT_REACHED") {
+      if (aiPreviewStatus) aiPreviewStatus.textContent = "무료 목표 계획 1개를 이미 만들었어요";
+      if (aiPreviewButton) {
+        aiPreviewButton.disabled = false;
+        aiPreviewButton.textContent = "AI 맞춤 계획 만들고 1일 체험 준비";
+      }
+      planPreviewPanel?.classList.add("is-ready");
+      showToast(error.message);
+      return;
+    }
     console.error("Unable to generate AI goal plan", error);
     preview = buildLocalAiPreview(payload);
     usedFallback = true;
@@ -1569,6 +1593,7 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
   if (showLoading && readTrialAccess()?.plan !== "pro") {
     try {
       localStorage.setItem(FREE_PLAN_GENERATED_KEY, "true");
+      if (authUiState.user) authUiState.user.goalPlanGeneratedAt = Date.now();
     } catch (error) {
       /* storage unavailable — ignore */
     }

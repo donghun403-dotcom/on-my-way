@@ -7,6 +7,7 @@ import {
   parseCookies,
   renewDueSubscriptions,
 } from "./auth-service.mjs";
+import { createGoalPlanForUser } from "./worker.mjs";
 
 function memoryStore(seed = []) {
   const users = new Map(seed.map((user) => [user.id, user]));
@@ -133,6 +134,42 @@ test("관리자는 임시 비밀번호를 안전하게 교체할 수 있다", as
     path: "/api/admin/login", method: "POST", env, store, body: { password: "MyNewAdminPass1!" },
   }));
   assert.equal(newLogin.status, 200);
+});
+
+test("무료 체험 회원의 첫 계획 생성은 서버 회원 기록에 저장된다", async () => {
+  const store = memoryStore();
+  const user = { id: "google:first-plan", role: "member", plan: "trial" };
+  await store.putUser(user);
+  const result = await createGoalPlanForUser({
+    input: { goal: "영어 공부" },
+    env: {},
+    userStore: store,
+    user,
+    generatePlan: async () => ({ plan: { goal: "영어 공부" } }),
+    now: 123456,
+  });
+  assert.equal(result.plan.goal, "영어 공부");
+  assert.equal((await store.getUser(user.id)).goalPlanGeneratedAt, 123456);
+});
+
+test("계획을 만든 무료 체험 회원은 다른 브라우저에서도 추가 생성할 수 없다", async () => {
+  const store = memoryStore();
+  const user = { id: "google:limited", role: "member", plan: "trial", goalPlanGeneratedAt: 123456 };
+  let generated = false;
+  await assert.rejects(
+    createGoalPlanForUser({
+      input: { goal: "다시 만들기" },
+      env: {},
+      userStore: store,
+      user,
+      generatePlan: async () => {
+        generated = true;
+        return { plan: {} };
+      },
+    }),
+    (error) => error.status === 409 && error.code === "GOAL_PLAN_LIMIT_REACHED",
+  );
+  assert.equal(generated, false);
 });
 
 test("해지된 구독은 결제 기간 종료 후 체험 상태로 내려간다", async () => {
