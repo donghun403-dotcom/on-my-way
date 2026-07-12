@@ -25,10 +25,8 @@ const birthTimeInput = document.querySelector("#birthTime");
 const birthPlaceInput = document.querySelector("#birthPlace");
 const mbtiInput = document.querySelector("#mbti");
 const goalPeriodInput = document.querySelector("#goalPeriod");
-const currentStateInput = document.querySelector("#currentState");
 const routineReadinessInput = document.querySelector("#routineReadiness");
 const routineTimeInput = document.querySelector("#routineTime");
-const currentRoutineInput = document.querySelector("#currentRoutine");
 const manseProfile = document.querySelector("#manseProfile");
 const mbtiProfile = document.querySelector("#mbtiProfile");
 const planningStyle = document.querySelector("#planningStyle");
@@ -1017,7 +1015,7 @@ function updateWizardSummary() {
 function getInvalidDiagnosisField() {
   const fieldsByStep = [
     [designGoal],
-    [goalPeriodInput, routineTimeInput, routineReadinessInput, currentStateInput, currentRoutineInput],
+    [goalPeriodInput, routineTimeInput, routineReadinessInput],
     [birthDateInput, birthTimeInput, birthPlaceInput, mbtiInput],
   ];
   return (fieldsByStep[diagnosisStepIndex] || []).find((field) => field && !field.checkValidity()) || null;
@@ -1142,8 +1140,6 @@ goalSuggestionButtons.forEach((button) => {
       if (goalPeriodInput) goalPeriodInput.value = template.period;
       if (routineTimeInput) routineTimeInput.value = template.time;
       if (routineReadinessInput) routineReadinessInput.value = template.readiness;
-      if (currentStateInput) currentStateInput.value = template.state;
-      if (currentRoutineInput) currentRoutineInput.value = template.routine;
     } else {
       designGoal.value = button.dataset.goalSuggestion || "";
     }
@@ -1685,10 +1681,10 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
 
   const goal = designGoal.value.trim() || goalInput?.value.trim() || "목표 미입력";
   const period = goalPeriodInput.value;
-  const currentState = currentStateInput.value.trim();
+  const currentState = "";
   const routineReadiness = routineReadinessInput?.value || DEFAULT_ROUTINE_READINESS;
   const routineTime = routineTimeInput?.value || "아침";
-  const currentRoutine = currentRoutineInput?.value.trim() || "이미 하는 작은 행동";
+  const currentRoutine = "";
   const birthDate = birthDateInput?.value || "";
   const birthTime = birthTimeInput?.value || "";
   const birthPlace = birthPlaceInput?.value.trim() || "";
@@ -1815,7 +1811,7 @@ personalityForm?.addEventListener("submit", (event) => {
   runPersonalityAnalysis({ showLoading: true });
 });
 
-[birthDateInput, birthTimeInput, birthPlaceInput, mbtiInput, goalPeriodInput, currentStateInput, routineReadinessInput, routineTimeInput, currentRoutineInput, designGoal].forEach(
+[birthDateInput, birthTimeInput, birthPlaceInput, mbtiInput, goalPeriodInput, routineReadinessInput, routineTimeInput, designGoal].forEach(
   (field) => {
     field?.addEventListener("change", runPersonalityAnalysis);
     field?.addEventListener("input", updateWizardSummary);
