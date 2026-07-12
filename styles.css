@@ -5457,6 +5457,9 @@ body.sheet-open {
   backdrop-filter: blur(10px) saturate(115%);
 }
 
+.execution-page.account-auth-open #accountSheetOverlay { z-index: 145; }
+.execution-page.account-auth-open #authSheet { z-index: 150; }
+
 .execution-page .account-sheet {
   right: auto;
   bottom: max(14px, env(safe-area-inset-bottom));
@@ -5583,6 +5586,18 @@ body.sheet-open {
 .auth-trust-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; padding: 4px 24px 12px; }
 .auth-trust-list span { display: inline-flex; align-items: center; gap: 4px; padding: 6px 9px; color: #71847d; background: #f0f6f3; border-radius: 999px; font-size: 10px; font-weight: 700; }
 .auth-trust-list span::before { content: "✓"; color: #6d9989; font-weight: 900; }
+.admin-password-form { display: grid; gap: 11px; margin: 22px 24px 14px; padding: 18px; background: linear-gradient(145deg, #eef6f2, #f6f0f2); border: 1px solid rgba(103, 139, 126, 0.14); border-radius: 18px; }
+.admin-password-form > div:first-child { display: grid; gap: 3px; }
+.admin-password-form > div:first-child span { color: #719186; font-size: 8px; font-weight: 950; letter-spacing: .12em; }
+.admin-password-form > div:first-child strong { color: #344a43; font-size: 15px; }
+.admin-password-form > div:first-child small { color: #82908c; font-size: 9px; font-weight: 650; }
+.admin-password-form > label { color: #61736d; font-size: 10px; font-weight: 800; }
+.admin-password-control { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; }
+.admin-password-control input { min-width: 0; height: 44px; padding: 0 12px; color: #334942; background: #fff; border: 1px solid #d9e4df; border-radius: 12px; font: inherit; font-size: 13px; outline: 0; }
+.admin-password-control input:focus { border-color: #7fa394; box-shadow: 0 0 0 3px rgba(127, 163, 148, .14); }
+.admin-password-control button { min-height: 44px; padding: 0 13px; color: #fff; background: #688f81; border: 0; border-radius: 12px; font: inherit; font-size: 11px; font-weight: 850; cursor: pointer; }
+.admin-password-control button:disabled { opacity: .6; cursor: wait; }
+.admin-password-form > p { min-height: 14px; margin: 0; color: #b35e70; font-size: 9px; font-weight: 750; }
 .execution-page .auth-sheet-terms { margin: 0; padding: 0 28px 22px; color: #929d99; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; font-size: 10px; font-weight: 500; line-height: 1.6; text-align: center; word-break: keep-all; }
 .execution-page .auth-sheet-terms u { color: #667a73; text-underline-offset: 2px; }
 

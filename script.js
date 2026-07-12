@@ -278,6 +278,12 @@ const drawerUpgrade = document.querySelector("#drawerUpgrade");
 const drawerAdminLink = document.querySelector("#drawerAdminLink");
 const drawerLogout = document.querySelector("#drawerLogout");
 const authSheet = document.querySelector("#authSheet");
+const authSheetTitle = document.querySelector("#authSheetTitle");
+const authSheetCopy = document.querySelector("#authSheetCopy");
+const authProviderList = document.querySelector("#authProviderList");
+const adminPasswordForm = document.querySelector("#adminPasswordForm");
+const adminAccessPassword = document.querySelector("#adminAccessPassword");
+const adminPasswordError = document.querySelector("#adminPasswordError");
 const accountSheetOverlay = document.querySelector("#accountSheetOverlay");
 const closeAuthSheetButton = document.querySelector("#closeAuthSheet");
 const authProviderButtons = document.querySelectorAll("[data-auth-provider]");
@@ -459,6 +465,15 @@ async function startSubscription() {
   }
 }
 
+function configureAdminLoginMode(enabled) {
+  if (adminPasswordForm) adminPasswordForm.hidden = !enabled;
+  if (authProviderList) authProviderList.hidden = enabled;
+  if (enabled) {
+    if (authSheetTitle) authSheetTitle.textContent = "관리자 페이지에 로그인하세요";
+    if (authSheetCopy) authSheetCopy.textContent = "관리자 인증 후 회원과 구독 현황을 안전하게 확인할 수 있어요.";
+  }
+}
+
 async function cancelProSubscription() {
   const confirmed = window.confirm("PRO 구독을 해지할까요? 이미 결제한 이용 기간이 끝날 때까지 PRO를 이용할 수 있어요.");
   if (!confirmed) return;
@@ -488,18 +503,24 @@ async function logoutAccount() {
 function handleAuthQueryParams() {
   const params = new URLSearchParams(location.search);
   const authParam = params.get("auth");
-  if (!authParam) return;
+  const redirectToAdmin = params.get("redirect") === "admin";
+  const adminDenied = params.get("admin") === "denied";
 
   if (authParam === "success") showToast("로그인되었어요 · 올리가 기억할게요!");
   if (authParam === "error") showToast("로그인에 실패했어요. 다시 시도해 주세요.");
-  if (params.get("admin") === "denied") showToast("관리자 권한이 있는 계정만 접근할 수 있어요.");
-  if (authParam === "login" && !authUiState.user) openAuthSheet();
+  if (adminDenied) showToast("관리자 권한이 있는 계정만 접근할 수 있어요.");
+  if (redirectToAdmin && authUiState.user?.role === "admin") {
+    location.replace("/admin.html");
+    return;
+  }
+  configureAdminLoginMode(redirectToAdmin && !authUiState.user);
+  if ((authParam === "login" || redirectToAdmin) && !authUiState.user) openAuthSheet();
   if (authParam === "my" || (authParam === "login" && authUiState.user)) {
     if (authUiState.user) openMyPageSheet();
   }
 
-  params.delete("auth");
-  params.delete("admin");
+  if (authParam) params.delete("auth");
+  if (adminDenied) params.delete("admin");
   const query = params.toString();
   window.history.replaceState(null, "", `${location.pathname}${query ? `?${query}` : ""}`);
 }
@@ -531,6 +552,11 @@ async function handleBillingQueryParams() {
 }
 
 async function initAccountExperience() {
+  const initialParams = new URLSearchParams(location.search);
+  const accountOnlyRoute =
+    initialParams.get("redirect") === "admin" ||
+    initialParams.get("admin") === "denied" ||
+    ["login", "my"].includes(initialParams.get("auth"));
   try {
     const data = await accountRequest("/api/auth/me");
     authUiState.user = data.user || null;
@@ -541,10 +567,10 @@ async function initAccountExperience() {
 
   syncServerPlanToLocal();
   renderAccountUi();
-  initializeTrialAccess();
   initializeAdminGate();
   await handleBillingQueryParams();
   handleAuthQueryParams();
+  if (!accountOnlyRoute) initializeTrialAccess();
 }
 
 menuToggle?.addEventListener("click", () => setDrawerOpen(appMenuDrawer?.hidden !== false));
@@ -1630,6 +1656,20 @@ memberTableBody?.addEventListener("click", async (event) => {
   }
 });
 
+adminPasswordForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (adminPasswordError) adminPasswordError.textContent = "";
+  const submitButton = adminPasswordForm.querySelector("button[type='submit']");
+  if (submitButton) submitButton.disabled = true;
+  try {
+    await accountRequest("/api/admin/login", { method: "POST", body: JSON.stringify({ password: adminAccessPassword?.value || "" }) });
+    location.href = "/admin.html";
+  } catch (error) {
+    if (adminPasswordError) adminPasswordError.textContent = error.message;
+    if (submitButton) submitButton.disabled = false;
+  }
+});
+
 function applyAdminTableFilters() {
   if (!adminRows.length) return;
 
@@ -2204,6 +2244,7 @@ function setSheetOpen(sheet, overlay, open) {
   sheet.hidden = !open;
   overlay.hidden = !open;
   document.body.classList.toggle("sheet-open", open);
+  if (sheet === authSheet) document.body.classList.toggle("account-auth-open", open);
   if (open) {
     previousFocusElement = document.activeElement;
     activeSheet = sheet;

@@ -11,6 +11,12 @@
   "vars": {
     "OPENAI_MODEL": "gpt-5.4-mini"
   },
+  "kv_namespaces": [
+    {
+      "binding": "USERS_KV",
+      "id": "04d136e6bcef4de7bb8a515856dd48f6"
+    }
+  ],
   "ratelimits": [
     {
       "name": "AI_RATE_LIMITER",

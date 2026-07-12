@@ -211,6 +211,10 @@ export async function currentSessionUser(ctx) {
   const payload = await verifySessionToken(token, sessionSecret(ctx.env));
   if (!payload) return null;
 
+  if (payload.uid === "admin:password") {
+    return { id: "admin:password", provider: "password", name: "관리자", email: "", role: "admin", plan: "pro", createdAt: 0, lastLoginAt: Date.now() };
+  }
+
   const user = await store(ctx).getUser(payload.uid);
   return user || null;
 }
@@ -456,6 +460,25 @@ export async function handleAccountApi(ctx) {
 
   if (path === "/api/auth/logout" && method === "POST") {
     return { status: 200, json: { ok: true }, cookies: [cookie(SESSION_COOKIE, "", { maxAgeSeconds: 0, secure: ctx.secure })] };
+  }
+
+  if (path === "/api/admin/login" && method === "POST") {
+    const expected = String(ctx.env.ADMIN_PASSWORD || "");
+    if (!expected) return { status: 503, json: { error: "관리자 로그인이 아직 설정되지 않았습니다." } };
+    const body = await ctx.readJson();
+    const supplied = String(body.password || "");
+    const expectedBytes = textEncoder.encode(expected);
+    const suppliedBytes = textEncoder.encode(supplied);
+    let difference = expectedBytes.length ^ suppliedBytes.length;
+    const length = Math.max(expectedBytes.length, suppliedBytes.length);
+    for (let index = 0; index < length; index += 1) difference |= (expectedBytes[index] || 0) ^ (suppliedBytes[index] || 0);
+    if (difference !== 0) return { status: 401, json: { error: "관리자 비밀번호가 올바르지 않습니다." } };
+    const adminUser = { id: "admin:password", role: "admin" };
+    return {
+      status: 200,
+      json: { user: { id: adminUser.id, name: "관리자", role: "admin", plan: "pro", provider: "password" } },
+      cookies: [await issueSession(ctx, adminUser)],
+    };
   }
 
   if (path === "/api/billing/subscribe" && method === "POST") {

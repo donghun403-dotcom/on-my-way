@@ -57,6 +57,11 @@ export default {
     if (url.pathname.startsWith("/api/auth/") || url.pathname.startsWith("/api/billing/") || url.pathname.startsWith("/api/admin/")) {
       if (!env.USERS_KV && url.pathname !== "/api/auth/providers") return json({ error: "회원 저장소 설정이 필요합니다." }, 503);
       try {
+        if (url.pathname === "/api/admin/login" && request.method === "POST" && env.AI_RATE_LIMITER) {
+          const actor = request.headers.get("cf-connecting-ip") || "anonymous";
+          const { success } = await env.AI_RATE_LIMITER.limit({ key: `admin-login:${actor}` });
+          if (!success) return json({ error: "로그인 시도가 잠시 많습니다. 1분 후 다시 시도해 주세요." }, 429);
+        }
         const result = await handleAccountApi(accountContext);
         if (result) return accountResultToResponse(result);
         return json({ error: "요청을 처리할 수 없어요." }, 404);
