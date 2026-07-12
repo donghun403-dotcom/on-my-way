@@ -177,7 +177,8 @@ const server = http.createServer(async (request, response) => {
       sendJson(response, 200, result);
     } catch (error) {
       console.error("AI goal plan request failed", error);
-      sendJson(response, error.status || 500, { error: error.message || "AI 계획을 만들지 못했어요." });
+      const message = error.status === 503 ? "올리가 계획을 준비하는 동안 연결이 지연되고 있어요." : error.message || "AI 계획을 만들지 못했어요.";
+      sendJson(response, error.status || 500, { error: message });
     }
     return;
   }

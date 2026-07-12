@@ -82,17 +82,34 @@
 
     <div class="sheet-overlay" id="accountSheetOverlay" hidden></div>
     <aside class="companion-chat-sheet account-sheet" id="authSheet" role="dialog" aria-modal="true" aria-labelledby="authSheetTitle" tabindex="-1" hidden>
-      <header>
-        <div><span>3초 만에 시작</span><h2 id="authSheetTitle">간편하게 로그인하세요</h2></div>
-        <button type="button" id="closeAuthSheet" aria-label="로그인 닫기">×</button>
-      </header>
-      <p class="auth-sheet-copy">따로 아이디와 비밀번호를 만들 필요 없어요. 쓰던 계정으로 로그인하면 바로 회원가입까지 끝나요.</p>
-      <div class="auth-provider-list">
-        <button class="auth-provider kakao" type="button" data-auth-provider="kakao"><i>💬</i>카카오로 계속하기</button>
-        <button class="auth-provider naver" type="button" data-auth-provider="naver"><i>N</i>네이버로 계속하기</button>
-        <button class="auth-provider google" type="button" data-auth-provider="google"><i>G</i>구글로 계속하기</button>
+      <div class="auth-sheet-hero">
+        <div class="auth-sheet-heading">
+          <span class="auth-sheet-kicker"><i aria-hidden="true"></i>3초 만에 시작</span>
+          <h2 id="authSheetTitle">올리와 함께<br />가볍게 시작해요</h2>
+          <p class="auth-sheet-copy">새 비밀번호 없이, 쓰던 계정 하나면 가입과 로그인이 한 번에 끝나요.</p>
+        </div>
+        <div class="auth-ollie-visual" aria-hidden="true">
+          <span>반가워요!</span>
+          <img src="assets/ollie-comfort.png" alt="" />
+        </div>
+        <button class="account-sheet-close" type="button" id="closeAuthSheet" aria-label="로그인 닫기">×</button>
       </div>
-      <p class="auth-sheet-terms">로그인하면 서비스 이용약관과 개인정보 처리방침에 동의하게 됩니다.<br />1일 무료 체험은 로그인 없이도 이용할 수 있어요.</p>
+      <div class="auth-provider-list">
+        <button class="auth-provider kakao" type="button" data-auth-provider="kakao">
+          <span class="provider-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3C6.48 3 2 6.52 2 10.86c0 2.79 1.85 5.24 4.64 6.64l-.95 3.48a.42.42 0 0 0 .62.46l4.13-2.72c.51.06 1.03.09 1.56.09 5.52 0 10-3.52 10-7.95S17.52 3 12 3Z" /></svg></span>
+          <span>카카오로 계속하기</span><span class="provider-arrow" aria-hidden="true">›</span>
+        </button>
+        <button class="auth-provider naver" type="button" data-auth-provider="naver">
+          <span class="provider-mark naver-mark" aria-hidden="true">N</span>
+          <span>네이버로 계속하기</span><span class="provider-arrow" aria-hidden="true">›</span>
+        </button>
+        <button class="auth-provider google" type="button" data-auth-provider="google">
+          <span class="provider-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path fill="#4285F4" d="M21.6 12.23c0-.71-.06-1.4-.18-2.05H12v3.88h5.38a4.6 4.6 0 0 1-2 3.02v2.52h3.24c1.9-1.75 2.98-4.33 2.98-7.37Z"/><path fill="#34A853" d="M12 22c2.7 0 4.97-.9 6.62-2.4l-3.24-2.52c-.9.6-2.05.96-3.38.96-2.61 0-4.82-1.76-5.61-4.13H3.04v2.6A10 10 0 0 0 12 22Z"/><path fill="#FBBC05" d="M6.39 13.91A6.02 6.02 0 0 1 6.07 12c0-.66.11-1.31.32-1.91v-2.6H3.04A10 10 0 0 0 2 12c0 1.61.39 3.14 1.04 4.51l3.35-2.6Z"/><path fill="#EA4335" d="M12 5.96c1.47 0 2.79.5 3.83 1.5l2.87-2.87A9.63 9.63 0 0 0 12 2a10 10 0 0 0-8.96 5.49l3.35 2.6C7.18 7.72 9.39 5.96 12 5.96Z"/></svg></span>
+          <span>Google로 계속하기</span><span class="provider-arrow" aria-hidden="true">›</span>
+        </button>
+      </div>
+      <div class="auth-trust-list" aria-label="로그인 안내"><span>결제정보 없음</span><span>24시간 무료 체험</span><span>언제든 PRO 전환</span></div>
+      <p class="auth-sheet-terms">계속하면 <u>서비스 이용약관</u>과 <u>개인정보 처리방침</u>에 동의하게 됩니다.<br />로그인 없이도 1일 무료 체험을 먼저 이용할 수 있어요.</p>
     </aside>
 
     <aside class="companion-chat-sheet account-sheet" id="myPageSheet" role="dialog" aria-modal="true" aria-labelledby="myPageTitle" tabindex="-1" hidden>
@@ -125,7 +142,7 @@
         <button type="button" id="myPageCancelPro" hidden>구독 해지</button>
         <button type="button" id="myPageLogout">로그아웃</button>
       </div>
-      <p class="auth-sheet-terms" id="myPagePaymentNote">결제는 데모로 처리돼요. 실제 PG(결제) 연동 전까지 카드 정보는 받지 않습니다.</p>
+      <p class="auth-sheet-terms" id="myPagePaymentNote">PRO는 월 2,900원 정기결제이며, 해지해도 결제한 이용 기간까지 계속 사용할 수 있어요.</p>
     </aside>
 
     <div class="ollie-energy-warning" id="ollieEnergyWarning" role="status" aria-live="polite" hidden>

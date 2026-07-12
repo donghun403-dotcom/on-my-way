@@ -5451,6 +5451,202 @@ body.sheet-open {
   }
 }
 
+/* Ollie account experience */
+.execution-page .sheet-overlay {
+  background: rgba(35, 49, 58, 0.42);
+  backdrop-filter: blur(10px) saturate(115%);
+}
+
+.execution-page .account-sheet {
+  right: auto;
+  bottom: max(14px, env(safe-area-inset-bottom));
+  left: 50%;
+  width: min(calc(100% - 24px), 448px);
+  max-height: min(760px, calc(100dvh - 28px));
+  gap: 0;
+  padding: 0;
+  overflow-x: hidden;
+  color: #263a36;
+  background: rgba(252, 253, 251, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.92);
+  border-radius: 30px;
+  box-shadow: 0 28px 80px rgba(46, 68, 63, 0.25), 0 4px 18px rgba(69, 88, 84, 0.08);
+  transform: translateX(-50%);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  letter-spacing: -0.018em;
+}
+
+.execution-page #authSheet::before {
+  position: absolute;
+  top: -100px;
+  right: -70px;
+  width: 250px;
+  height: 250px;
+  content: "";
+  background: radial-gradient(circle, rgba(190, 221, 209, 0.55), rgba(224, 239, 232, 0) 68%);
+  pointer-events: none;
+}
+
+.auth-sheet-hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 118px;
+  gap: 10px;
+  min-height: 210px;
+  padding: 30px 26px 20px;
+  overflow: hidden;
+  background: linear-gradient(145deg, #f2f8f4 0%, #f8f7f1 62%, #f6edf0 100%);
+  border-bottom: 1px solid rgba(91, 122, 113, 0.08);
+}
+
+.auth-sheet-heading { position: relative; z-index: 2; align-self: center; }
+.auth-sheet-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 10px;
+  color: #668178;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.auth-sheet-kicker i { width: 7px; height: 7px; background: #82a899; border-radius: 50%; box-shadow: 0 0 0 5px rgba(130, 168, 153, 0.13); }
+.execution-page .auth-sheet-heading h2 {
+  margin: 0;
+  color: #2e443e;
+  font-family: "Jalnan", "Apple SD Gothic Neo", sans-serif;
+  font-size: clamp(24px, 7vw, 31px);
+  font-weight: 700;
+  line-height: 1.22;
+  letter-spacing: -0.045em;
+}
+.execution-page .auth-sheet-copy { max-width: 250px; margin: 13px 0 0; color: #73837e; font-size: 13px; font-weight: 600; line-height: 1.58; word-break: keep-all; }
+
+.auth-ollie-visual { position: relative; z-index: 1; display: flex; align-items: flex-end; justify-content: center; min-width: 0; }
+.auth-ollie-visual img { position: relative; z-index: 1; display: block; width: 126px; height: 150px; object-fit: contain; object-position: center bottom; filter: drop-shadow(0 14px 16px rgba(74, 104, 93, 0.14)); }
+.auth-ollie-visual span { position: absolute; top: 26px; left: -4px; z-index: 2; padding: 7px 10px; color: #607a71; background: rgba(255, 255, 255, 0.92); border: 1px solid rgba(114, 150, 137, 0.14); border-radius: 13px 13px 3px 13px; box-shadow: 0 7px 18px rgba(70, 98, 88, 0.09); font-size: 10px; font-weight: 800; white-space: nowrap; transform: rotate(-3deg); }
+
+.account-sheet-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 5;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  place-items: center;
+  color: #72847e;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(93, 126, 115, 0.12);
+  border-radius: 50%;
+  font-size: 22px;
+  font-weight: 400;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform 160ms ease, background 160ms ease;
+}
+.account-sheet-close:hover { background: #fff; transform: rotate(4deg) scale(1.04); }
+.account-sheet-close:focus-visible, .auth-provider:focus-visible { outline: 3px solid rgba(91, 136, 121, 0.28); outline-offset: 3px; }
+
+.auth-provider-list { display: grid; gap: 10px; padding: 22px 24px 12px; }
+.auth-provider {
+  position: relative;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 18px;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  min-height: 54px;
+  padding: 0 16px;
+  border-radius: 15px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-align: center;
+  cursor: pointer;
+  transition: transform 150ms ease, box-shadow 150ms ease, filter 150ms ease;
+}
+.auth-provider:hover { transform: translateY(-1px); filter: brightness(0.985); }
+.auth-provider:active { transform: translateY(0) scale(0.992); }
+.auth-provider .provider-mark { display: grid; width: 24px; height: 24px; place-items: center; justify-self: start; }
+.auth-provider .provider-mark svg { display: block; width: 22px; height: 22px; }
+.auth-provider .provider-arrow { justify-self: end; font-family: Arial, sans-serif; font-size: 24px; font-weight: 400; line-height: 1; opacity: 0.48; }
+.auth-provider.kakao { color: rgba(0, 0, 0, 0.85); background: #fee500; border: 1px solid #fee500; box-shadow: 0 7px 16px rgba(181, 159, 0, 0.12); }
+.auth-provider.kakao svg { fill: #191919; }
+.auth-provider.naver { color: #fff; background: #03c75a; border: 1px solid #03c75a; box-shadow: 0 7px 16px rgba(3, 159, 75, 0.13); }
+.auth-provider .naver-mark { color: #fff; font-family: Arial, sans-serif; font-size: 18px; font-weight: 900; letter-spacing: -0.12em; }
+.auth-provider.google { color: #1f1f1f; background: #fff; border: 1px solid #747775; box-shadow: 0 6px 14px rgba(60, 64, 67, 0.08); }
+.auth-provider.google { font-family: "Google Sans", Roboto, Arial, sans-serif; font-weight: 500; }
+
+.auth-trust-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; padding: 4px 24px 12px; }
+.auth-trust-list span { display: inline-flex; align-items: center; gap: 4px; padding: 6px 9px; color: #71847d; background: #f0f6f3; border-radius: 999px; font-size: 10px; font-weight: 700; }
+.auth-trust-list span::before { content: "✓"; color: #6d9989; font-weight: 900; }
+.execution-page .auth-sheet-terms { margin: 0; padding: 0 28px 22px; color: #929d99; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; font-size: 10px; font-weight: 500; line-height: 1.6; text-align: center; word-break: keep-all; }
+.execution-page .auth-sheet-terms u { color: #667a73; text-underline-offset: 2px; }
+
+/* Account drawer */
+.execution-page .app-menu-backdrop { position: fixed; inset: 0; z-index: 68; background: rgba(31, 44, 51, 0.26); backdrop-filter: blur(5px); }
+.execution-page .app-menu-drawer { position: fixed; top: 88px; right: max(14px, calc((100vw - 1120px) / 2)); z-index: 70; width: min(calc(100% - 28px), 342px); padding: 18px; color: #354943; background: rgba(253, 254, 252, 0.97); border: 1px solid rgba(255, 255, 255, 0.9); border-radius: 24px; box-shadow: 0 24px 64px rgba(54, 76, 70, 0.2); backdrop-filter: blur(20px); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+.drawer-guest { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 12px; align-items: center; }
+.drawer-guest img { width: 58px; height: 66px; object-fit: contain; }
+.drawer-guest strong, .drawer-member strong { display: block; color: #334942; font-size: 15px; }
+.drawer-guest p { margin: 4px 0 0; color: #84918d; font-size: 11px; font-weight: 600; line-height: 1.45; }
+.drawer-login-button { grid-column: 1 / -1; min-height: 43px; color: #fff; background: #688f81; border: 0; border-radius: 13px; font-size: 13px; font-weight: 800; cursor: pointer; }
+.drawer-member { display: flex; gap: 12px; align-items: center; padding: 4px; }
+.drawer-avatar { display: grid; width: 44px; height: 44px; flex: 0 0 auto; place-items: center; color: #52766a; background: linear-gradient(145deg, #dcece6, #f0e7ea); border-radius: 15px; font-size: 18px; font-weight: 800; }
+.drawer-plan-badge { display: inline-block; margin-top: 5px; padding: 4px 7px; color: #698479; background: #edf5f1; border-radius: 999px; font-size: 9px; font-weight: 800; }
+.drawer-plan-badge.pro { color: #8e6671; background: #f8e9ed; }
+.drawer-nav { display: grid; gap: 5px; margin-top: 16px; padding-top: 12px; border-top: 1px solid #edf0ed; }
+.drawer-nav a, .drawer-nav button { display: flex; align-items: center; width: 100%; min-height: 41px; padding: 0 11px; color: #596b65; background: transparent; border: 0; border-radius: 11px; font: inherit; font-size: 12px; font-weight: 700; text-align: left; cursor: pointer; }
+.drawer-nav a:hover, .drawer-nav button:hover { background: #f0f5f2; }
+.drawer-footnote { margin: 12px 0 0; color: #a0aaa6; font-size: 9px; text-align: center; }
+
+/* My page shares the same calm Ollie surface */
+.execution-page #myPageSheet { padding: 24px; }
+.execution-page #myPageSheet > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.execution-page #myPageSheet > header span { color: #759187; font-size: 10px; font-weight: 900; letter-spacing: 0.08em; }
+.execution-page #myPageSheet > header h2 { margin: 4px 0 0; color: #31463f; font-size: 25px; }
+.execution-page #myPageSheet > header button { width: 34px; height: 34px; color: #72847e; background: #f1f5f3; border: 0; border-radius: 50%; font-size: 21px; cursor: pointer; }
+.mypage-profile { display: flex; gap: 12px; align-items: center; padding: 15px; background: #f3f7f4; border-radius: 17px; }
+.mypage-profile strong, .mypage-profile small { display: block; }
+.mypage-profile strong { color: #344a43; font-size: 15px; }
+.mypage-profile small { margin-top: 3px; color: #8a9692; font-size: 10px; }
+.mypage-provider { display: inline-block; margin-top: 6px; color: #6f887f; font-size: 9px; font-weight: 800; }
+.mypage-plan-card { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 12px; padding: 17px; background: linear-gradient(145deg, #eaf4ef, #f6eef0); border-radius: 18px; }
+.mypage-plan-card span { color: #7b8e87; font-size: 9px; font-weight: 800; }
+.mypage-plan-card strong { display: block; margin-top: 4px; color: #395149; font-size: 16px; }
+.mypage-plan-card p { margin: 4px 0 0; color: #84928e; font-size: 9px; }
+.mypage-plan-card button { flex: 0 0 auto; min-height: 43px; padding: 0 13px; color: #fff; background: #6c8e83; border: 0; border-radius: 13px; font-size: 11px; font-weight: 800; cursor: pointer; }
+.mypage-plan-card button em { display: block; margin-top: 2px; font-size: 8px; font-style: normal; opacity: 0.75; }
+.mypage-benefit-list { display: grid; gap: 8px; margin: 14px 0; padding: 0; list-style: none; }
+.mypage-benefit-list li { color: #6f7f7a; font-size: 11px; font-weight: 650; }
+.mypage-benefit-list li::before { margin-right: 8px; content: "✓"; color: #719989; font-weight: 900; }
+.mypage-actions { display: flex; justify-content: flex-end; gap: 7px; }
+.mypage-actions button { min-height: 36px; padding: 0 11px; color: #77857f; background: #f3f5f4; border: 0; border-radius: 10px; font-size: 10px; font-weight: 700; cursor: pointer; }
+.execution-page #myPageSheet .auth-sheet-terms { padding: 14px 4px 0; }
+
+@media (max-width: 480px) {
+  .execution-page .account-sheet { bottom: max(8px, env(safe-area-inset-bottom)); width: calc(100% - 16px); max-height: calc(100dvh - 16px); border-radius: 26px; }
+  .auth-sheet-hero { grid-template-columns: minmax(0, 1fr) 96px; min-height: 190px; padding: 26px 20px 18px; }
+  .auth-ollie-visual img { width: 108px; height: 132px; }
+  .auth-ollie-visual span { top: 25px; left: -12px; font-size: 9px; }
+  .execution-page .auth-sheet-heading h2 { font-size: 25px; }
+  .execution-page .auth-sheet-copy { font-size: 12px; }
+  .auth-provider-list { padding: 18px 18px 10px; }
+  .auth-provider { min-height: 52px; border-radius: 14px; font-size: 14px; }
+  .execution-page .auth-sheet-terms { padding: 0 20px 19px; }
+  .execution-page .app-menu-drawer { top: 78px; right: 10px; width: calc(100% - 20px); }
+  .mypage-plan-card { align-items: stretch; flex-direction: column; }
+  .execution-page #myPageSheet { padding: 20px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .account-sheet-close,
+  .auth-provider { transition: none; }
+}
+
 /* Keep the personality-design experience aligned with the bright landing palette. */
 .home-page .story-flow {
   color: var(--routine-text);
@@ -6867,6 +7063,100 @@ body.sheet-open {
   font-size: 10px;
   line-height: 1.55;
 }
+
+.result-schedule-card,
+.result-week-card,
+.result-roadmap-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.76);
+  border: 1px solid rgba(126, 151, 142, 0.14);
+  border-radius: 18px;
+}
+
+.result-section-head {
+  display: grid;
+  gap: 3px;
+}
+
+.result-section-head > span {
+  color: #7b9b8f;
+  font-size: 8px;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+}
+
+.result-section-head > strong {
+  color: #344a43;
+  font-size: 13px;
+}
+
+.result-schedule-list,
+.result-week-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.result-schedule-list li {
+  display: grid;
+  grid-template-columns: 86px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 10px 0;
+  border-top: 1px solid rgba(126, 151, 142, 0.12);
+}
+
+.result-schedule-list time {
+  color: #6f8c81;
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1.45;
+}
+
+.result-schedule-list li > div { display: grid; gap: 4px; }
+.result-schedule-list strong { color: #495d57; font-size: 10px; line-height: 1.45; }
+.result-schedule-list small { color: #8a9692; font-size: 8px; font-weight: 700; line-height: 1.45; }
+
+.result-week-list { counter-reset: result-week; }
+.result-week-list li {
+  position: relative;
+  min-height: 30px;
+  padding: 7px 8px 7px 38px;
+  color: #60716c;
+  background: #f4f8f5;
+  border-radius: 10px;
+  font-size: 9px;
+  font-weight: 750;
+  line-height: 1.5;
+  counter-increment: result-week;
+}
+.result-week-list li::before {
+  position: absolute;
+  top: 7px;
+  left: 9px;
+  display: grid;
+  width: 21px;
+  height: 21px;
+  place-items: center;
+  content: counter(result-week);
+  color: #fff;
+  background: #79988d;
+  border-radius: 7px;
+  font-size: 8px;
+  font-weight: 900;
+}
+
+.result-roadmap-card { background: linear-gradient(145deg, rgba(237, 247, 242, 0.9), rgba(247, 242, 244, 0.86)); }
+.result-roadmap-list { display: grid; gap: 8px; }
+.result-roadmap-list > div { display: grid; grid-template-columns: 60px minmax(0, 1fr); gap: 10px; align-items: center; }
+.result-roadmap-list > div > b { padding: 7px 5px; color: #668277; background: rgba(255, 255, 255, 0.8); border-radius: 9px; font-size: 8px; text-align: center; }
+.result-roadmap-list > div > span { display: grid; gap: 3px; }
+.result-roadmap-list strong { color: #485d56; font-size: 9px; line-height: 1.45; }
+.result-roadmap-list small { color: #84938e; font-size: 8px; font-weight: 700; }
 
 .result-trial-cta {
   position: relative;

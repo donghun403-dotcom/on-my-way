@@ -87,7 +87,8 @@ export default {
         return json(result);
       } catch (error) {
         console.error("AI goal plan request failed", error);
-        return json({ error: error.message || "AI 계획을 만들지 못했어요." }, error.status || 500);
+        const message = error.status === 503 ? "올리가 계획을 준비하는 동안 연결이 지연되고 있어요." : error.message || "AI 계획을 만들지 못했어요.";
+        return json({ error: message }, error.status || 500);
       }
     }
 

@@ -43,10 +43,15 @@ const aiPreviewButton = document.querySelector("#aiPreviewButton");
 const aiPreviewStatus = document.querySelector("#aiPreviewStatus");
 const aiPreviewTitle = document.querySelector("#aiPreviewTitle");
 const aiPreviewList = document.querySelector("#aiPreviewList");
+const aiTodaySchedule = document.querySelector("#aiTodaySchedule");
+const aiVisibleWeekPlan = document.querySelector("#aiVisibleWeekPlan");
+const aiGoalRoadmap = document.querySelector("#aiGoalRoadmap");
 const aiCoachMessage = document.querySelector("#aiCoachMessage");
 const previewPersonality = document.querySelector("#previewPersonality");
 const previewStyle = document.querySelector("#previewStyle");
 const previewAction = document.querySelector("#previewAction");
+const previewDuration = document.querySelector("#previewDuration");
+const previewCompletionRule = document.querySelector("#previewCompletionRule");
 const dashboardGoalPreview = document.querySelector("#dashboardGoalPreview");
 const dashboardProgressValue = document.querySelector("#dashboardProgressValue");
 const dashboardProgressBar = document.querySelector("#dashboardProgressBar");
@@ -178,16 +183,17 @@ function saveTrialLead() {
 }
 
 function startTrialAccess() {
+  const currentAccess = readTrialAccess();
+  if (currentAccess?.plan === "pro" || Number(currentAccess?.expiresAt || 0) > Date.now()) return currentAccess;
   const startedAt = Date.now();
   saveTrialLead();
+  const access = { startedAt, expiresAt: startedAt + TRIAL_DURATION_MS, plan: "trial" };
   try {
-    localStorage.setItem(
-      TRIAL_ACCESS_KEY,
-      JSON.stringify({ startedAt, expiresAt: startedAt + TRIAL_DURATION_MS, plan: "trial" }),
-    );
+    localStorage.setItem(TRIAL_ACCESS_KEY, JSON.stringify(access));
   } catch (error) {
     console.warn("Unable to save trial access", error);
   }
+  return access;
 }
 
 function lockTrialExperience(mode) {
@@ -1227,18 +1233,39 @@ function buildLocalAiPreview(payload) {
     : `${routineTime}에 ${existingRoutine}와 새 목표를 붙여 바로 실행 흐름을 만듭니다.`;
   const personalitySummary = `${manseoryeok.dayMaster.trait} 성향과 ${mbti}의 유지 방식을 함께 보면, 처음부터 큰 계획을 밀어붙이기보다 오늘 실행할 단위를 선명하게 두는 편이 좋습니다.`;
 
+  const firstAction = lowFriction ? `${routineTime} 10분 루틴: ${template.firstAction}` : `${routineTime} 루틴: ${template.firstAction}`;
+  const firstDuration = lowFriction ? 10 : 20;
+  const weekPlan = [
+    routineAdvice,
+    ...template.weekPlan,
+    "놓친 날에는 분량을 보충하지 않고 5분 최소 행동으로 바로 다시 시작합니다.",
+    "7일째에는 완료 횟수와 어려웠던 구간을 확인해 다음 주 분량을 조정합니다.",
+  ].slice(0, 7);
+
   return {
     personalitySummary,
     planningStyle: `${recommendedPlanningStyle} 계획`,
-    firstAction: lowFriction ? `${routineTime} 10분 루틴: ${template.firstAction}` : `${routineTime} 루틴: ${template.firstAction}`,
+    firstAction,
     weekTitle: template.weekTitle,
-    weekPlan: [routineAdvice, ...template.weekPlan.slice(0, 2)],
+    weekPlan,
     coachMessage: `${currentState || "현재 상태"}를 기준으로 보면, 이번 주는 완성보다 흐름을 만드는 것이 우선입니다. ${routineAdvice}`,
     dashboard: {
       goal: goal.replace("하기", ""),
       progress,
       pace: template.pace,
     },
+    todaySchedule: [
+      { time: `${routineTime} · ${existingRoutine} 직후`, durationMinutes: firstDuration, task: firstAction, completionRule: "타이머를 켜고 정한 분량까지만 끝내면 완료" },
+      { time: "실행 직후", durationMinutes: 5, task: "오늘 실행 여부와 어려웠던 점 한 줄 기록", completionRule: "완료 체크와 한 줄 기록을 남기면 완료" },
+      { time: "하루 마무리", durationMinutes: 5, task: "내일 시작할 첫 행동을 눈에 보이게 준비", completionRule: "도구나 자료를 미리 꺼내두면 완료" },
+    ],
+    fullSchedule: [
+      { phase: "시작", days: "1–7일", focus: "실행 시간과 최소 행동을 고정합니다.", successMetric: "7일 중 4일 이상 실행" },
+      { phase: "성장", days: `8–${Math.max(14, Math.round(period * 0.7))}일`, focus: "주간 결과를 확인하며 분량과 난이도를 조금씩 높입니다.", successMetric: "주간 계획의 70% 이상 완료" },
+      { phase: "완성", days: `${Math.max(15, Math.round(period * 0.7) + 1)}–${period}일`, focus: "실전 점검과 약한 구간 보완에 집중합니다.", successMetric: "목표 지표 최종 점검 완료" },
+    ],
+    checkInRules: ["실행 직후 완료 여부 체크", "못한 날은 5분 최소 행동으로 재시작", "7일마다 다음 주 난이도 조정"],
+    fallbackPlan: `계획대로 하기 어려운 날에는 ${template.firstAction}을 5분만 실행합니다.`,
   };
 }
 
@@ -1335,6 +1362,50 @@ function renderAiPreview(preview) {
   if (previewPersonality) previewPersonality.textContent = preview.personalitySummary;
   if (previewStyle) previewStyle.textContent = preview.planningStyle;
   if (previewAction) previewAction.textContent = preview.firstAction;
+  const todayItems = Array.isArray(preview.todaySchedule) ? preview.todaySchedule : [];
+  if (previewDuration) previewDuration.textContent = todayItems[0]?.durationMinutes ? `${todayItems[0].durationMinutes}분` : "15분";
+  if (previewCompletionRule) previewCompletionRule.textContent = todayItems[0]?.completionRule || "작게 시작하고 완료 표시까지 남겨요.";
+  if (aiTodaySchedule) {
+    const items = todayItems.map((item) => {
+      const row = document.createElement("li");
+      const time = document.createElement("time");
+      const copy = document.createElement("div");
+      const task = document.createElement("strong");
+      const rule = document.createElement("small");
+      time.textContent = item.time || "오늘";
+      task.textContent = item.task || "작은 행동 시작하기";
+      rule.textContent = `${Number(item.durationMinutes) || 5}분 · ${item.completionRule || "완료 체크 남기기"}`;
+      copy.append(task, rule);
+      row.append(time, copy);
+      return row;
+    });
+    aiTodaySchedule.replaceChildren(...items);
+  }
+  if (aiVisibleWeekPlan) {
+    const items = (preview.weekPlan || []).map((item, index) => {
+      const row = document.createElement("li");
+      row.dataset.day = String(index + 1);
+      row.textContent = item;
+      return row;
+    });
+    aiVisibleWeekPlan.replaceChildren(...items);
+  }
+  if (aiGoalRoadmap) {
+    const items = (preview.fullSchedule || []).map((item, index) => {
+      const row = document.createElement("div");
+      const badge = document.createElement("b");
+      const copy = document.createElement("span");
+      const title = document.createElement("strong");
+      const detail = document.createElement("small");
+      badge.textContent = item.days || `${index + 1}단계`;
+      title.textContent = `${item.phase || `${index + 1}단계`} · ${item.focus || "실행 흐름 만들기"}`;
+      detail.textContent = item.successMetric || "완료 여부를 확인해요.";
+      copy.append(title, detail);
+      row.append(badge, copy);
+      return row;
+    });
+    aiGoalRoadmap.replaceChildren(...items);
+  }
   if (dashboardGoalPreview) dashboardGoalPreview.textContent = preview.dashboard.goal;
   if (dashboardProgressValue) dashboardProgressValue.textContent = `${preview.dashboard.progress}%`;
   if (dashboardProgressBar) dashboardProgressBar.style.width = `${preview.dashboard.progress}%`;
@@ -1396,22 +1467,18 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
   }
 
   let preview;
+  let usedFallback = false;
   try {
     preview = showLoading ? await requestAiPlan(payload) : buildLocalAiPreview(payload);
   } catch (error) {
     console.error("Unable to generate AI goal plan", error);
-    if (aiPreviewStatus) aiPreviewStatus.textContent = error.message || "AI 연결을 확인해 주세요";
-    if (aiPreviewButton) {
-      aiPreviewButton.disabled = false;
-      aiPreviewButton.textContent = "다시 AI 맞춤 계획 만들기";
-    }
-    showToast(error.message || "AI 계획을 만들지 못했어요. 잠시 후 다시 시도해 주세요.");
-    return;
+    preview = buildLocalAiPreview(payload);
+    usedFallback = true;
   }
   renderAiPreview(preview);
   if (showLoading) planPreviewPanel?.classList.add("is-ready");
 
-  if (aiPreviewStatus) aiPreviewStatus.textContent = "올리가 만든 오늘의 계획";
+  if (aiPreviewStatus) aiPreviewStatus.textContent = usedFallback ? "올리가 입력 내용을 바탕으로 준비한 계획" : "올리가 AI로 만든 맞춤 계획";
   if (aiPreviewButton) {
     aiPreviewButton.disabled = false;
     aiPreviewButton.textContent = "AI 맞춤 계획 만들고 1일 체험 준비";
@@ -1441,7 +1508,17 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
     console.warn("Unable to save execution plan", error);
   }
 
-  if (showLoading) saveTrialLead();
+  if (showLoading) {
+    saveTrialLead();
+    startTrialAccess();
+  }
+  if (showLoading && usedFallback) showToast("연결이 잠시 느려 입력 내용을 바탕으로 맞춤 계획을 완성했어요.");
+  if (showLoading) {
+    window.setTimeout(() => {
+      planPreviewPanel?.scrollIntoView({ behavior: "smooth", block: "start" });
+      planPreviewPanel?.focus({ preventScroll: true });
+    }, 80);
+  }
   if (showLoading && readTrialAccess()?.plan !== "pro") {
     try {
       localStorage.setItem(FREE_PLAN_GENERATED_KEY, "true");
