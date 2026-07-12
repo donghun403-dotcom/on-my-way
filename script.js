@@ -2077,6 +2077,7 @@ function savePlanBundleState(state) {
 const companionStateKey = "omwCompanionState";
 const companionEventKey = "omwCompanionEvents";
 const focusSessionKey = "omwFocusSession";
+const legacyOllieStorageKeys = [companionStateKey, companionEventKey, "omwExecutionPlan", "omwExecutionState"];
 let activeFocusTaskIndex = 0;
 let calendarViewDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let calendarDetailOpen = false;
@@ -2088,6 +2089,37 @@ let focusSession = {
   remainingSeconds: 15 * 60,
   endAt: null,
 };
+
+function replaceLegacyCompanionName(value) {
+  if (typeof value === "string") {
+    return value
+      .replace(/(^|[^가-힣])모리(?=$|[\s.,!?…"'()[\]{}]|가|는|를|와|의|에게|랑|도|만|야|로|라고|였|예)/g, "$1올리")
+      .replace(/\bMori\b/gi, "Ollie");
+  }
+  if (Array.isArray(value)) return value.map(replaceLegacyCompanionName);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, replaceLegacyCompanionName(item)]));
+  }
+  return value;
+}
+
+function migrateLegacyCompanionNames() {
+  legacyOllieStorageKeys.forEach((key) => {
+    try {
+      const stored = localStorage.getItem(key);
+      if (!stored) return;
+      const parsed = JSON.parse(stored);
+      const migrated = replaceLegacyCompanionName(parsed);
+      if (key === companionStateKey && migrated && typeof migrated === "object") migrated.name = "올리";
+      const serialized = JSON.stringify(migrated);
+      if (serialized !== stored) localStorage.setItem(key, serialized);
+    } catch (error) {
+      console.warn(`Unable to migrate legacy companion name in ${key}`, error);
+    }
+  });
+}
+
+migrateLegacyCompanionNames();
 
 function getDefaultCompanionState() {
   return {
@@ -2105,10 +2137,12 @@ function getDefaultCompanionState() {
 
 function getCompanionState() {
   try {
-    return {
+    const state = {
       ...getDefaultCompanionState(),
       ...(JSON.parse(localStorage.getItem(companionStateKey)) || {}),
+      name: "올리",
     };
+    return replaceLegacyCompanionName(state);
   } catch (error) {
     return getDefaultCompanionState();
   }
