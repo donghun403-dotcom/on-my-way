@@ -12440,3 +12440,269 @@ body.sheet-open {
     padding: 20px;
   }
 }
+
+/* Detailed AI plan revision workspace */
+.execution-page .plan-editor-card > .edit-step {
+  grid-column: 1 / -1;
+}
+
+.execution-page .revision-detail-intro {
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+  color: #47536c;
+  background: linear-gradient(135deg, rgba(232, 243, 241, 0.92), rgba(238, 239, 248, 0.92));
+  border: 1px solid rgba(107, 122, 166, 0.12);
+  border-radius: 15px;
+}
+
+.execution-page .revision-detail-intro strong {
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.execution-page .revision-detail-intro p {
+  margin: 0;
+  color: #748092;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.execution-page .revision-detail-section {
+  display: grid;
+  gap: 11px;
+  padding: 15px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(107, 122, 166, 0.12);
+  border-radius: 16px;
+}
+
+.execution-page .revision-detail-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.execution-page .revision-detail-heading span {
+  color: #3f4b63;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.execution-page .revision-detail-heading small {
+  color: #8992a2;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.execution-page .revision-field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.execution-page .revision-time-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.execution-page .revision-field {
+  display: grid;
+  gap: 6px;
+  color: #5b667b;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.execution-page .revision-field-wide {
+  grid-column: 1 / -1;
+}
+
+.execution-page .revision-field input,
+.execution-page .revision-field textarea,
+.execution-page .revision-field select {
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 12px;
+  color: #354057;
+  background: #f8fafc;
+  border: 1px solid #dde3ec;
+  border-radius: 11px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.5;
+  outline: none;
+}
+
+.execution-page .revision-field textarea {
+  resize: vertical;
+}
+
+.execution-page .revision-field input:focus,
+.execution-page .revision-field textarea:focus,
+.execution-page .revision-field select:focus {
+  border-color: #88aaa0;
+  box-shadow: 0 0 0 3px rgba(136, 170, 160, 0.14);
+}
+
+.execution-page .revision-number-field {
+  position: relative;
+}
+
+.execution-page .revision-number-field input {
+  padding-right: 36px;
+}
+
+.execution-page .revision-number-field em {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  color: #8791a1;
+  font-size: 10px;
+  font-style: normal;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.execution-page .revision-days {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.execution-page .revision-days legend {
+  color: #5b667b;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.execution-page .revision-days > div {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.execution-page .revision-days label {
+  position: relative;
+  cursor: pointer;
+}
+
+.execution-page .revision-days input {
+  position: absolute;
+  opacity: 0;
+}
+
+.execution-page .revision-days span {
+  display: grid;
+  min-height: 34px;
+  place-items: center;
+  color: #68748a;
+  background: #f4f7fa;
+  border: 1px solid #dfe4ec;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.execution-page .revision-days input:checked + span {
+  color: #ffffff;
+  background: linear-gradient(145deg, #789f94, #7d8ead);
+  border-color: transparent;
+}
+
+.execution-page .revision-days input:focus-visible + span {
+  outline: 3px solid rgba(121, 156, 145, 0.2);
+  outline-offset: 2px;
+}
+
+.execution-page .revision-request-caption {
+  margin-top: 2px;
+  color: #5b667b;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.execution-page .revision-quick-actions {
+  flex-wrap: wrap;
+  overflow: visible;
+}
+
+.execution-page .proposal-summary {
+  align-items: start;
+}
+
+.execution-page .proposal-detail-grid {
+  grid-column: 2;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  margin: 7px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.execution-page .proposal-detail-grid li {
+  display: grid;
+  gap: 3px;
+  padding: 8px 10px;
+  background: rgba(239, 244, 247, 0.86);
+  border-radius: 10px;
+}
+
+.execution-page .proposal-detail-grid small {
+  color: #809087;
+  font-size: 8px;
+  font-weight: 900;
+}
+
+.execution-page .proposal-detail-grid b {
+  color: #465269;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.execution-page .plan-rest-day {
+  display: grid;
+  gap: 5px;
+  padding: 20px;
+  text-align: center;
+  background: linear-gradient(145deg, rgba(237, 244, 242, 0.9), rgba(241, 240, 248, 0.9));
+  border: 1px dashed rgba(107, 122, 166, 0.22);
+  border-radius: 16px;
+}
+
+.execution-page .plan-rest-day strong {
+  color: #536079;
+  font-size: 13px;
+}
+
+.execution-page .plan-rest-day span {
+  color: #818a9b;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+@media (max-width: 680px) {
+  .execution-page .revision-field-grid,
+  .execution-page .revision-time-grid,
+  .execution-page .proposal-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .execution-page .revision-field-wide {
+    grid-column: 1;
+  }
+
+  .execution-page .revision-detail-heading {
+    display: grid;
+    gap: 3px;
+  }
+
+  .execution-page .revision-days > div {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

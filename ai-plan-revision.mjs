@@ -1,10 +1,52 @@
 const REVISION_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["summary", "revisedTasks", "changes", "ollieMessage"],
+  required: ["summary", "revisionSummary", "weeklySchedule", "revisedTasks", "changes", "ollieMessage"],
   properties: {
     summary: { type: "string" },
-    revisedTasks: { type: "array", items: { type: "string" }, minItems: 3, maxItems: 10 },
+    revisionSummary: {
+      type: "object",
+      additionalProperties: false,
+      required: ["goalAlignment", "materialPlan", "timePlan", "weeklyRule", "assumptions"],
+      properties: {
+        goalAlignment: { type: "string" },
+        materialPlan: { type: "string" },
+        timePlan: { type: "string" },
+        weeklyRule: { type: "string" },
+        assumptions: { type: "array", items: { type: "string" }, minItems: 0, maxItems: 4 },
+      },
+    },
+    weeklySchedule: {
+      type: "array",
+      minItems: 7,
+      maxItems: 7,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["day", "isRestDay", "tasks"],
+        properties: {
+          day: { type: "string", enum: ["월", "화", "수", "목", "금", "토", "일"] },
+          isRestDay: { type: "boolean" },
+          tasks: {
+            type: "array",
+            minItems: 0,
+            maxItems: 5,
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["time", "durationMinutes", "task", "completionRule"],
+              properties: {
+                time: { type: "string" },
+                durationMinutes: { type: "integer", minimum: 5, maximum: 360 },
+                task: { type: "string" },
+                completionRule: { type: "string" },
+              },
+            },
+          },
+        },
+      },
+    },
+    revisedTasks: { type: "array", items: { type: "string" }, minItems: 4, maxItems: 14 },
     changes: { type: "array", items: { type: "string" }, minItems: 1, maxItems: 5 },
     ollieMessage: { type: "string" },
   },
@@ -15,6 +57,13 @@ function cleanText(value, maxLength) {
 }
 
 function normalizeRevisionInput(input = {}) {
+  const details = input.revisionDetails || {};
+  const schedule = details.schedule || {};
+  const focus = details.focusAdjustment || {};
+  const normalizeMinutes = (value) => {
+    const minutes = Number(value);
+    return Number.isFinite(minutes) && minutes > 0 ? Math.max(10, Math.min(720, Math.round(minutes))) : null;
+  };
   return {
     goal: cleanText(input.goal, 300),
     periodDays: Math.max(7, Math.min(3650, Number(input.periodDays) || 30)),
@@ -27,10 +76,45 @@ function normalizeRevisionInput(input = {}) {
     },
     currentPlanText: cleanText(input.currentPlanText, 5000),
     revisionRequest: cleanText(input.revisionRequest, 1600),
+    revisionDetails: {
+      materials: cleanText(details.materials, 1200),
+      targetCoverage: cleanText(details.targetCoverage, 1200),
+      schedule: {
+        weekdayMinutes: normalizeMinutes(schedule.weekdayMinutes),
+        weekendMinutes: normalizeMinutes(schedule.weekendMinutes),
+        preferredTime: cleanText(schedule.preferredTime, 80),
+        availableDays: Array.isArray(schedule.availableDays)
+          ? schedule.availableDays.slice(0, 7).map((day) => cleanText(day, 10)).filter(Boolean)
+          : [],
+      },
+      focusAdjustment: {
+        increase: cleanText(focus.increase, 600),
+        decrease: cleanText(focus.decrease, 600),
+        keepRules: cleanText(focus.keepRules, 900),
+      },
+      constraints: cleanText(details.constraints, 1000),
+    },
     completedTasks: Array.isArray(input.completedTasks)
       ? input.completedTasks.slice(-30).map((task) => cleanText(task, 240)).filter(Boolean)
       : [],
   };
+}
+
+function hasRevisionIntent(input) {
+  const details = input.revisionDetails;
+  return Boolean(
+    input.revisionRequest ||
+      details.materials ||
+      details.targetCoverage ||
+      details.schedule.weekdayMinutes ||
+      details.schedule.weekendMinutes ||
+      details.schedule.preferredTime ||
+      details.schedule.availableDays.length ||
+      details.focusAdjustment.increase ||
+      details.focusAdjustment.decrease ||
+      details.focusAdjustment.keepRules ||
+      details.constraints,
+  );
 }
 
 function extractOutputText(response) {
@@ -51,8 +135,8 @@ export async function createAiPlanRevision(input, { apiKey, model = "gpt-5.4-min
   }
 
   const normalized = normalizeRevisionInput(input);
-  if (!normalized.goal || !normalized.currentPlanText || !normalized.revisionRequest) {
-    const error = new Error("목표, 현재 계획과 수정 요청을 모두 확인해 주세요.");
+  if (!normalized.goal || !normalized.currentPlanText || !hasRevisionIntent(normalized)) {
+    const error = new Error("목표, 현재 계획과 한 가지 이상의 상세 수정 조건을 확인해 주세요.");
     error.status = 400;
     throw error;
   }
@@ -71,12 +155,17 @@ export async function createAiPlanRevision(input, { apiKey, model = "gpt-5.4-min
         "당신은 행동과학 기반 목표 계획 수정 코치이며, 모든 답변은 자연스러운 한국어로 작성합니다.",
         "사용자가 요청한 수정 조건을 가장 우선하고, 목표 달성에 직접 도움이 되는 구체적인 행동만 남기세요.",
         "완료한 태스크는 성취 기록으로 보호하고 다시 수행하도록 요구하지 마세요.",
-        "각 revisedTasks 항목은 시간, 빈도 또는 분량 중 하나 이상의 완료 기준을 포함한 한 문장이어야 합니다.",
+        "사용자가 입력한 교재·강의·자료와 완주 범위는 최우선 제약입니다. 제공하지 않은 교재의 목차나 페이지는 지어내지 말고 필요한 경우 assumptions에 가정을 명시하세요.",
+        "평일·주말 가용 시간과 선택 요일을 넘지 않게 총분량을 배치하고, 시간이 부족하면 우선순위를 정해 범위 또는 빈도 조정안을 changes와 assumptions에 분명히 쓰세요.",
+        "늘릴 공부, 줄일 공부, 반드시 유지할 조건을 서로 상쇄하지 말고 실제 시간 배분과 주간 빈도에 수치로 반영하세요.",
+        "각 revisedTasks 항목은 교재 또는 학습 영역, 구체적인 분량, 소요 시간, 빈도나 요일, 완료 기준 중 관련 정보를 포함한 실행 가능한 한 문장이어야 합니다.",
+        "weeklySchedule은 월요일부터 일요일까지 정확히 7개를 순서대로 반환하세요. 선택하지 않은 요일은 isRestDay=true, tasks=[]로 두고, 학습일의 tasks 소요 시간 합계는 사용자의 평일·주말 가용 시간을 넘지 마세요.",
         "부담이 크다고 기록된 경우 첫 행동을 더 쉽게 시작할 수 있도록 나누되 '작게' 같은 모호한 표현만 쓰지 마세요.",
         "현재 계획의 장점은 보존하고 수정 요청과 충돌하는 부분만 바꾸세요.",
+        "revisionSummary에는 목표 연결, 교재 완주 방식, 평일·주말 시간 배분, 주간 운영 규칙을 각각 한눈에 검토할 수 있도록 구체적으로 요약하세요.",
       ].join("\n"),
       input: `다음 기록을 바탕으로 적용 전 확인할 계획 변경안을 만드세요.\n${JSON.stringify(normalized, null, 2)}`,
-      max_output_tokens: 1800,
+      max_output_tokens: 2800,
       text: {
         verbosity: "medium",
         format: {

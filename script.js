@@ -90,6 +90,17 @@ const planStatusBadge = document.querySelector("#planStatusBadge");
 const planEditor = document.querySelector("#planEditor");
 const planPreviewList = document.querySelector("#planPreviewList");
 const planRevisionRequest = document.querySelector("#planRevisionRequest");
+const revisionMaterials = document.querySelector("#revisionMaterials");
+const revisionCoverage = document.querySelector("#revisionCoverage");
+const revisionWeekdayMinutes = document.querySelector("#revisionWeekdayMinutes");
+const revisionWeekendMinutes = document.querySelector("#revisionWeekendMinutes");
+const revisionPreferredTime = document.querySelector("#revisionPreferredTime");
+const revisionIncreaseFocus = document.querySelector("#revisionIncreaseFocus");
+const revisionDecreaseFocus = document.querySelector("#revisionDecreaseFocus");
+const revisionKeepRules = document.querySelector("#revisionKeepRules");
+const revisionConstraints = document.querySelector("#revisionConstraints");
+const revisionDetailInputs = document.querySelectorAll("[data-revision-detail]");
+const revisionDayInputs = document.querySelectorAll("[data-revision-day]");
 const acceptPlanButton = document.querySelector("#acceptPlanButton");
 const regeneratePlanButton = document.querySelector("#regeneratePlanButton");
 const reviseAgainButton = document.querySelector("#reviseAgainButton");
@@ -2035,8 +2046,13 @@ function migrateExecutionState(rawState) {
     scheduleKey: state.scheduleKey || "",
     planText: typeof state.planText === "string" ? state.planText : "",
     revisionRequest: typeof state.revisionRequest === "string" ? state.revisionRequest : "",
+    revisionDetails: state.revisionDetails && typeof state.revisionDetails === "object" ? state.revisionDetails : {},
+    weeklySchedule: Array.isArray(state.weeklySchedule) ? state.weeklySchedule.slice(0, 7) : [],
     pendingPlanText: typeof state.pendingPlanText === "string" ? state.pendingPlanText : "",
     pendingRevisionRequest: typeof state.pendingRevisionRequest === "string" ? state.pendingRevisionRequest : "",
+    pendingRevisionDetails: state.pendingRevisionDetails && typeof state.pendingRevisionDetails === "object" ? state.pendingRevisionDetails : {},
+    pendingRevisionSummary: state.pendingRevisionSummary && typeof state.pendingRevisionSummary === "object" ? state.pendingRevisionSummary : {},
+    pendingWeeklySchedule: Array.isArray(state.pendingWeeklySchedule) ? state.pendingWeeklySchedule.slice(0, 7) : [],
     status: state.status || "AI 제안",
     selectedDay: Math.max(1, Number(state.selectedDay) || 1),
     checkedByDay,
@@ -2165,15 +2181,39 @@ function getRoutineTimes(plan, revisionRequest = "") {
   return timeSet[plan.routineTime] || timeSet["아침"];
 }
 
-function buildSchedule(plan, planText, revisionRequest = "") {
+function buildSchedule(plan, planText, revisionRequest = "", weeklySchedule = []) {
   const period = Math.max(7, Math.min(Number(plan.period) || 30, 100));
   const baseTasks = parsePlanText(planText, plan.firstAction);
   const times = getRoutineTimes(plan, revisionRequest);
   const hints = getScheduleHints(revisionRequest);
   const weeklyFocus = ["루틴 고정", "기초 반복", "중간 점검", "약점 보완", "실전 적용", "가벼운 복습", "주간 리포트"];
+  const structuredWeek = Array.isArray(weeklySchedule) ? weeklySchedule.filter((item) => item && typeof item === "object") : [];
+  const structuredByDay = new Map(structuredWeek.map((item) => [String(item.day || ""), item]));
+  const dayNames = ["일", "월", "화", "수", "목", "금", "토"];
+  const planStart = getPlanStartDate(plan, {});
 
   return Array.from({ length: period }, (_, index) => {
     const day = index + 1;
+    if (structuredByDay.size) {
+      const actualDate = new Date(planStart.getFullYear(), planStart.getMonth(), planStart.getDate() + index);
+      const dayName = dayNames[actualDate.getDay()];
+      const template = structuredByDay.get(dayName);
+      const isRestDay = !template || template.isRestDay;
+      const tasks = isRestDay
+        ? []
+        : (Array.isArray(template.tasks) ? template.tasks : []).slice(0, 5).map((task) => ({
+            time: String(task.time || "오늘"),
+            durationMinutes: Math.max(5, Math.min(360, Number(task.durationMinutes) || 15)),
+            text: String(task.task || "목표 행동 실행하기"),
+            completionRule: String(task.completionRule || "정한 분량을 끝내면 완료"),
+          }));
+      return {
+        day,
+        title: isRestDay ? `Day ${day} · 계획된 휴식` : `Day ${day} · ${dayName}요일 맞춤 계획`,
+        isRestDay,
+        tasks,
+      };
+    }
     const focus = weeklyFocus[index % weeklyFocus.length];
     const isWeekend = day % 7 === 6 || day % 7 === 0;
     const tasks =
@@ -2205,33 +2245,58 @@ function getScheduleCompletion(schedule, checkedByDay) {
   const totalTasks = schedule.reduce((sum, day) => sum + day.tasks.length, 0);
   const completedTasks = schedule.reduce((sum, day) => {
     const checked = checkedByDay[String(day.day)] || [];
-    return sum + checked.filter(Boolean).length;
+    return sum + checked.slice(0, day.tasks.length).filter(Boolean).length;
   }, 0);
   return totalTasks ? Math.round((completedTasks / totalTasks) * 100) : 0;
 }
 
 function getDayCompletion(dayPlan, checkedByDay) {
   const checked = checkedByDay[String(dayPlan.day)] || [];
-  const completed = checked.filter(Boolean).length;
-  const total = dayPlan.tasks.length || 1;
+  const completed = checked.slice(0, dayPlan.tasks.length).filter(Boolean).length;
+  const total = dayPlan.tasks.length;
   return {
     completed,
     total,
-    percent: Math.round((completed / total) * 100),
+    percent: total ? Math.round((completed / total) * 100) : 100,
   };
 }
 
 function getCompletedDayCount(schedule, checkedByDay) {
-  return schedule.filter((dayPlan) => getDayCompletion(dayPlan, checkedByDay).percent === 100).length;
+  return schedule.filter((dayPlan) => dayPlan.tasks.length > 0 && getDayCompletion(dayPlan, checkedByDay).percent === 100).length;
 }
 
-function getPlanBundle({ reset = false, customText, revisionRequest } = {}) {
+function remapCompletedChecks(previousSchedule, nextSchedule, checkedByDay) {
+  const completedTaskTexts = new Set();
+  previousSchedule.forEach((dayPlan) => {
+    const checked = checkedByDay[String(dayPlan.day)] || [];
+    dayPlan.tasks.forEach((task, index) => {
+      if (checked[index]) completedTaskTexts.add(`${dayPlan.day}|${String(task.text || "").trim()}`);
+    });
+  });
+
+  const remapped = {};
+  nextSchedule.forEach((dayPlan) => {
+    const checks = dayPlan.tasks.map((task) => completedTaskTexts.has(`${dayPlan.day}|${String(task.text || "").trim()}`));
+    if (checks.some(Boolean)) remapped[String(dayPlan.day)] = checks;
+  });
+  return remapped;
+}
+
+function getPlanBundle({ reset = false, customText, revisionRequest, revisionDetails, weeklySchedule } = {}) {
   const plan = readExecutionPlan();
   const previous = getExecutionState();
   const planText = customText ?? previous.planText ?? getDefaultPlanText(plan);
   const requestText = revisionRequest ?? previous.revisionRequest ?? "";
-  const schedule = buildSchedule(plan, planText, requestText);
-  const scheduleKey = hashText(`${plan.goal || ""}|${plan.period || ""}|${planText}|${requestText}`);
+  const detailConfig = revisionDetails ?? previous.revisionDetails ?? {};
+  const weekConfig = weeklySchedule ?? previous.weeklySchedule ?? [];
+  const schedule = buildSchedule(plan, planText, requestText, weekConfig);
+  const previousSchedule = reset
+    ? buildSchedule(plan, previous.planText || getDefaultPlanText(plan), previous.revisionRequest || "", previous.weeklySchedule || [])
+    : schedule;
+  const checkedForSchedule = reset
+    ? remapCompletedChecks(previousSchedule, schedule, previous.checkedByDay || {})
+    : previous.checkedByDay || {};
+  const scheduleKey = hashText(`${plan.goal || ""}|${plan.period || ""}|${planText}|${requestText}|${JSON.stringify(detailConfig)}|${JSON.stringify(weekConfig)}`);
   const canReuse = !reset && previous.scheduleKey === scheduleKey;
   const state = canReuse
     ? previous
@@ -2240,11 +2305,16 @@ function getPlanBundle({ reset = false, customText, revisionRequest } = {}) {
         scheduleKey,
         planText,
         revisionRequest: requestText,
+        revisionDetails: detailConfig,
+        weeklySchedule: weekConfig,
         pendingPlanText: previous.pendingPlanText || "",
         pendingRevisionRequest: previous.pendingRevisionRequest || "",
+        pendingRevisionDetails: previous.pendingRevisionDetails || {},
+        pendingRevisionSummary: previous.pendingRevisionSummary || {},
+        pendingWeeklySchedule: previous.pendingWeeklySchedule || [],
         status: previous.status || "AI 제안",
         selectedDay: previous.selectedDay || 1,
-        checkedByDay: previous.checkedByDay || {},
+        checkedByDay: checkedForSchedule,
         difficultyByTask: previous.difficultyByTask || {},
         recoveryActions: previous.recoveryActions || [],
         completedLog: previous.completedLog || [],
@@ -2259,6 +2329,8 @@ function getPlanBundle({ reset = false, customText, revisionRequest } = {}) {
   state.version = appStateVersion;
   state.planText = planText;
   state.revisionRequest = requestText;
+  state.revisionDetails = detailConfig;
+  state.weeklySchedule = weekConfig;
   state.scheduleKey = scheduleKey;
   state.selectedDay = Math.max(1, Math.min(Number(state.selectedDay) || 1, schedule.length));
   state.planStartDate = state.planStartDate || getLocalDateKey(plan.createdAt);
@@ -2532,6 +2604,66 @@ function appendRevisionRequest(text, response = "좋아요. 그 요청을 플랜
   announce(response);
 }
 
+let revisionDetailDraftLoaded = false;
+
+function normalizeRevisionMinutes(value) {
+  const minutes = Number(value);
+  if (!Number.isFinite(minutes) || minutes <= 0) return null;
+  return Math.max(10, Math.min(720, Math.round(minutes / 10) * 10));
+}
+
+function collectRevisionDetails() {
+  return {
+    materials: revisionMaterials?.value.trim() || "",
+    targetCoverage: revisionCoverage?.value.trim() || "",
+    schedule: {
+      weekdayMinutes: normalizeRevisionMinutes(revisionWeekdayMinutes?.value),
+      weekendMinutes: normalizeRevisionMinutes(revisionWeekendMinutes?.value),
+      preferredTime: revisionPreferredTime?.value || "",
+      availableDays: [...revisionDayInputs].filter((input) => input.checked).map((input) => input.value),
+    },
+    focusAdjustment: {
+      increase: revisionIncreaseFocus?.value.trim() || "",
+      decrease: revisionDecreaseFocus?.value.trim() || "",
+      keepRules: revisionKeepRules?.value.trim() || "",
+    },
+    constraints: revisionConstraints?.value.trim() || "",
+  };
+}
+
+function hasRevisionDetails(details = collectRevisionDetails()) {
+  return Boolean(
+    details.materials ||
+      details.targetCoverage ||
+      details.schedule?.weekdayMinutes ||
+      details.schedule?.weekendMinutes ||
+      details.schedule?.preferredTime ||
+      details.schedule?.availableDays?.length ||
+      details.focusAdjustment?.increase ||
+      details.focusAdjustment?.decrease ||
+      details.focusAdjustment?.keepRules ||
+      details.constraints,
+  );
+}
+
+function populateRevisionDetails(details = {}) {
+  const schedule = details.schedule || {};
+  const focus = details.focusAdjustment || {};
+  if (revisionMaterials) revisionMaterials.value = details.materials || "";
+  if (revisionCoverage) revisionCoverage.value = details.targetCoverage || "";
+  if (revisionWeekdayMinutes) revisionWeekdayMinutes.value = schedule.weekdayMinutes || "";
+  if (revisionWeekendMinutes) revisionWeekendMinutes.value = schedule.weekendMinutes || "";
+  if (revisionPreferredTime) revisionPreferredTime.value = schedule.preferredTime || "";
+  if (revisionIncreaseFocus) revisionIncreaseFocus.value = focus.increase || "";
+  if (revisionDecreaseFocus) revisionDecreaseFocus.value = focus.decrease || "";
+  if (revisionKeepRules) revisionKeepRules.value = focus.keepRules || "";
+  if (revisionConstraints) revisionConstraints.value = details.constraints || "";
+  const selectedDays = new Set(Array.isArray(schedule.availableDays) ? schedule.availableDays : []);
+  revisionDayInputs.forEach((input) => {
+    input.checked = selectedDays.has(input.value);
+  });
+}
+
 let activeSheet = null;
 let previousFocusElement = null;
 
@@ -2711,6 +2843,10 @@ function openFocusMode() {
   const nextIndex = dayPlan.tasks.findIndex((_, index) => !checked[index]);
   const taskIndex = nextIndex === -1 ? 0 : nextIndex;
   const task = dayPlan.tasks[taskIndex];
+  if (!task) {
+    showToast("오늘은 계획된 휴식일이에요 · 다음 학습일에 이어가요");
+    return;
+  }
   const taskKey = getTaskKey(dayPlan.day, taskIndex);
   const suggestedMinutes = getSuggestedFocusMinutes(task);
 
@@ -2803,6 +2939,18 @@ function completeFocusTask() {
 function renderFocusTask(dayPlan, selectedCompletion) {
   if (!focusTaskTitle || !dayPlan) return;
 
+  if (!dayPlan.tasks.length) {
+    focusTaskTitle.textContent = "오늘은 계획된 휴식일이에요";
+    if (focusTaskMeta) focusTaskMeta.textContent = "입력한 가능 요일을 기준으로 학습을 비워두었어요";
+    if (minimumGoalText) minimumGoalText.textContent = "충분히 쉬고 다음 학습일 준비";
+    if (focusProgressText) focusProgressText.textContent = "휴식일";
+    if (startFocusButton) {
+      startFocusButton.disabled = true;
+      startFocusButton.textContent = "계획된 휴식일";
+    }
+    return;
+  }
+
   const bundle = getPlanBundle();
   const checked = bundle.state.checkedByDay[String(dayPlan.day)] || [];
   const nextIndex = dayPlan.tasks.findIndex((_, index) => !checked[index]);
@@ -2815,6 +2963,7 @@ function renderFocusTask(dayPlan, selectedCompletion) {
   if (minimumGoalText) minimumGoalText.textContent = selectedCompletion.percent === 100 ? "오늘 일정 모두 완료" : `집중 시간 ${suggestedMinutes}분`;
   if (focusProgressText) focusProgressText.textContent = `${selectedCompletion.completed}/${selectedCompletion.total} 완료`;
   if (startFocusButton) {
+    startFocusButton.disabled = false;
     startFocusButton.dataset.taskIndex = String(taskIndex);
     startFocusButton.textContent = selectedCompletion.percent === 100 ? "오늘 일정 다시 보기" : "이 일정 시작하기";
   }
@@ -2833,6 +2982,14 @@ function renderChecklist(dayPlan, state) {
 
   executionChecklist.innerHTML = "";
   const checked = state.checkedByDay[String(dayPlan.day)] || [];
+
+  if (!dayPlan.tasks.length) {
+    const rest = document.createElement("div");
+    rest.className = "plan-rest-day";
+    rest.innerHTML = "<strong>오늘은 계획된 휴식일이에요</strong><span>선택한 학습 가능 요일에 맞춰 일정이 비워져 있습니다.</span>";
+    executionChecklist.append(rest);
+    return;
+  }
 
   dayPlan.tasks.forEach((task, index) => {
     const period = getTaskPeriod(task.time);
@@ -2862,7 +3019,9 @@ function renderChecklist(dayPlan, state) {
 
     const minimum = document.createElement("small");
     minimum.className = "minimum-action";
-    minimum.textContent = `예상 ${getSuggestedFocusMinutes(task)}분`;
+    minimum.textContent = task.completionRule
+      ? `예상 ${getSuggestedFocusMinutes(task)}분 · 완료: ${task.completionRule}`
+      : `예상 ${getSuggestedFocusMinutes(task)}분`;
 
     head.append(periodBadge);
     content.append(head, text, minimum);
@@ -2962,7 +3121,7 @@ function renderCalendar(schedule, state, plan) {
   }
 
   const monthProgress = monthPlanDays.length ? getScheduleCompletion(monthPlanDays, state.checkedByDay) : 0;
-  const completedDays = monthPlanDays.filter((dayPlan) => getDayCompletion(dayPlan, state.checkedByDay).percent === 100).length;
+  const completedDays = monthPlanDays.filter((dayPlan) => dayPlan.tasks.length > 0 && getDayCompletion(dayPlan, state.checkedByDay).percent === 100).length;
   if (monthlyCompletion) monthlyCompletion.textContent = `${monthProgress}%`;
   if (calendarSummary) {
     calendarSummary.textContent = monthPlanDays.length
@@ -2992,7 +3151,9 @@ function renderCalendarDayDetail(schedule, state, plan) {
   calendarDayDetail.hidden = false;
   if (calendarDayDetailTitle) calendarDayDetailTitle.textContent = `${dateLabel} 스케줄`;
   if (calendarDayDetailMeta) {
-    calendarDayDetailMeta.textContent = `${isToday ? "오늘" : `D${dayPlan.day}`} · 일정 ${dayPlan.tasks.length}개 · ${completion.percent}% 완료`;
+    calendarDayDetailMeta.textContent = dayPlan.tasks.length
+      ? `${isToday ? "오늘" : `D${dayPlan.day}`} · 일정 ${dayPlan.tasks.length}개 · ${completion.percent}% 완료`
+      : `${isToday ? "오늘" : `D${dayPlan.day}`} · 계획된 휴식일`;
   }
 
   if (calendarDayDetailList) {
@@ -3027,7 +3188,7 @@ function renderWeeklyPlan(schedule) {
 
     day.textContent = labels[index] || `D${dayPlan.day}`;
     title.textContent = dayPlan.title.replace(/^Day \d+ · /, "");
-    detail.textContent = dayPlan.tasks.map((task) => task.text).slice(0, 2).join(" · ");
+    detail.textContent = dayPlan.tasks.length ? dayPlan.tasks.map((task) => task.text).slice(0, 2).join(" · ") : "계획된 휴식일";
     item.append(day, title, detail);
     weeklyPlanList.append(item);
   });
@@ -3658,11 +3819,11 @@ function renderCompanionExperience({ plan, selectedCompletion, remainingTasks, c
   renderMemoryCards({ selectedCompletion, completedDays, overallProgress });
 }
 
-function renderPlanPreview(planText, pendingPlanText = "") {
+function renderPlanPreview(planText, pendingPlanText = "", pendingRevisionSummary = {}) {
   if (!planPreviewList) return;
 
   const tasks = parsePlanText(planText, "오늘 첫 행동 정하기").slice(0, 6);
-  const pendingTasks = pendingPlanText ? parsePlanText(pendingPlanText, "오늘 첫 행동 정하기").slice(0, 4) : [];
+  const pendingTasks = pendingPlanText ? parsePlanText(pendingPlanText, "오늘 첫 행동 정하기").slice(0, 10) : [];
   planPreviewList.innerHTML = "";
 
   if (pendingTasks.length) {
@@ -3676,19 +3837,41 @@ function renderPlanPreview(planText, pendingPlanText = "") {
     title.textContent = "올리가 이렇게 바꿔봤어요";
     detail.textContent = pendingTasks.map((task) => task.replace(/^수정 요청 반영:\s*/, "")).slice(0, 3).join(" · ");
     summary.append(label, title, detail);
+
+    const summaryItems = [
+      ["목표 연결", pendingRevisionSummary.goalAlignment],
+      ["교재·범위", pendingRevisionSummary.materialPlan],
+      ["시간 배분", pendingRevisionSummary.timePlan],
+      ["주간 리듬", pendingRevisionSummary.weeklyRule],
+    ].filter(([, value]) => String(value || "").trim());
+    if (summaryItems.length) {
+      const list = document.createElement("ul");
+      list.className = "proposal-detail-grid";
+      summaryItems.forEach(([itemLabel, value]) => {
+        const item = document.createElement("li");
+        const small = document.createElement("small");
+        const copy = document.createElement("b");
+        small.textContent = itemLabel;
+        copy.textContent = value;
+        item.append(small, copy);
+        list.append(item);
+      });
+      summary.append(list);
+    }
     planPreviewList.append(summary);
   }
 
-  tasks.forEach((task, index) => {
+  const displayedTasks = pendingTasks.length ? pendingTasks : tasks;
+  displayedTasks.forEach((task, index) => {
     const item = document.createElement("article");
     const day = document.createElement("span");
     const title = document.createElement("strong");
     const detail = document.createElement("p");
 
-    day.textContent = `D${index + 1}`;
+    day.textContent = pendingTasks.length ? `새 ${index + 1}` : `D${index + 1}`;
     title.textContent = task.replace(/^수정 요청 반영:\s*/, "요청 반영");
     detail.textContent = pendingTasks.length
-      ? "현재 적용 중인 계획입니다. 변경안 적용 전까지 유지됩니다."
+      ? "적용 예정 항목입니다. 아래 적용하기를 누르기 전까지 현재 계획은 바뀌지 않아요."
       : index === 0
         ? "AI가 가장 먼저 반영할 실행 기준입니다."
         : "완료 기준과 최소 성공 기준을 함께 잡습니다.";
@@ -3700,14 +3883,14 @@ function renderPlanPreview(planText, pendingPlanText = "") {
 function updateRevisionButtonState() {
   if (!regeneratePlanButton || !planRevisionRequest) return;
 
-  const hasRequest = planRevisionRequest.value.trim().length > 0;
+  const hasRequest = planRevisionRequest.value.trim().length > 0 || hasRevisionDetails();
   regeneratePlanButton.disabled = !hasRequest;
   if (planEditorMessage && !hasRequest) {
     planEditorMessage.textContent = "바꾸고 싶은 내용을 한 가지 이상 적으면 적용 전 변경안을 만들 수 있어요.";
   }
 }
 
-function renderDailyCoach(state, selectedCompletion) {
+function renderDailyCoach(state, selectedCompletion, dayPlan) {
   if (!dailyCoachTitle || !dailyCoachMessage) return;
 
   const yesterday = new Date();
@@ -3755,7 +3938,10 @@ function renderDailyCoach(state, selectedCompletion) {
     }
   }
 
-  if (selectedCompletion.percent === 100) {
+  if (!dayPlan?.tasks?.length) {
+    kicker = "OLLIE COACH · 계획된 휴식일";
+    copy = { title: "오늘은 쉬어도 계획대로 가고 있어요.", message: "선택한 학습 가능 요일에 맞춰 비워둔 날이에요. 다음 학습일에 사용할 교재만 확인해 두세요.", image: "assets/ollie-comfort.png" };
+  } else if (selectedCompletion.percent === 100) {
     kicker = "OLLIE COACH · 오늘 일정 완료";
     copy = { title: "오늘 스케줄을 모두 해냈어요. 이 흐름을 올리가 기억할게요!", message: "오늘의 기분과 잘된 점을 추억 카드에 남기면 내일 계획을 더 정확하게 맞출 수 있어요.", image: "assets/ollie-celebrate.png" };
   }
@@ -3778,9 +3964,14 @@ function renderExecutionPage(bundle) {
   const remainingTasks = selectedCompletion.total - selectedCompletion.completed;
 
   if (planEditor && planEditor.value !== planText) planEditor.value = planText;
-  renderPlanPreview(planText, state.pendingPlanText || "");
-  if (planRevisionRequest && document.activeElement !== planRevisionRequest && planRevisionRequest.value !== (state.revisionRequest || "")) {
-    planRevisionRequest.value = state.revisionRequest || "";
+  renderPlanPreview(planText, state.pendingPlanText || "", state.pendingRevisionSummary || {});
+  const visibleRevisionRequest = state.pendingRevisionRequest || state.revisionRequest || "";
+  if (planRevisionRequest && document.activeElement !== planRevisionRequest && planRevisionRequest.value !== visibleRevisionRequest) {
+    planRevisionRequest.value = visibleRevisionRequest;
+  }
+  if (!revisionDetailDraftLoaded) {
+    populateRevisionDetails(Object.keys(state.pendingRevisionDetails || {}).length ? state.pendingRevisionDetails : state.revisionDetails);
+    revisionDetailDraftLoaded = true;
   }
   updateRevisionButtonState();
   if (planStatusBadge) planStatusBadge.textContent = state.pendingPlanText ? "변경안 대기" : state.status || "AI 제안";
@@ -3789,13 +3980,14 @@ function renderExecutionPage(bundle) {
   if (reviseAgainButton) reviseAgainButton.disabled = false;
   if (todayDateLabel) todayDateLabel.textContent = "Today";
   executionGoal.textContent = "오늘의 한 걸음";
+  const isRestDay = selectedDay.tasks.length === 0;
   if (executionStyle) {
     const todayLabel = new Date().toLocaleDateString("ko-KR", {
       month: "long",
       day: "numeric",
       weekday: "long",
     });
-    executionStyle.textContent = `${todayLabel} · ${selectedCompletion.completed}/${selectedCompletion.total} 완료`;
+    executionStyle.textContent = isRestDay ? `${todayLabel} · 계획된 휴식일` : `${todayLabel} · ${selectedCompletion.completed}/${selectedCompletion.total} 완료`;
   }
   if (executionPeriod) executionPeriod.textContent = plan.goal || `${period}일 목표`;
   if (executionDay) executionDay.textContent = `Day ${selectedDay.day} / ${period}`;
@@ -3805,12 +3997,18 @@ function renderExecutionPage(bundle) {
     executionProgressBar.style.width = `${overallProgress}%`;
     executionProgressBar.parentElement?.style.setProperty("--journey-dot", `${overallProgress}%`);
   }
-  if (selectedScheduleTitle) selectedScheduleTitle.textContent = `${selectedDay.day}일차 AI 스케줄`;
-  if (selectedScheduleMeta) selectedScheduleMeta.textContent = `${selectedCompletion.percent}% 완료 · ${remainingTasks}개 남음`;
+  if (selectedScheduleTitle) selectedScheduleTitle.textContent = isRestDay ? `${selectedDay.day}일차 · 계획된 휴식` : `${selectedDay.day}일차 AI 스케줄`;
+  if (selectedScheduleMeta) selectedScheduleMeta.textContent = isRestDay ? "선택한 가능 요일에 맞춰 학습을 비워두었어요" : `${selectedCompletion.percent}% 완료 · ${remainingTasks}개 남음`;
+  if (completeTodayButton) {
+    completeTodayButton.disabled = isRestDay;
+    completeTodayButton.textContent = isRestDay ? "오늘은 계획된 휴식일" : "오늘 계획 한 번에 완료";
+  }
 
   if (executionMessage) {
     executionMessage.textContent =
-      selectedCompletion.percent === 100
+      isRestDay
+        ? "쉬는 날도 계획의 일부예요. 다음 학습일에 이어서 시작합니다."
+        : selectedCompletion.percent === 100
         ? `${selectedDay.day}일차 계획을 모두 완료했어요. 올리와 다음 장소에 가까워졌습니다.`
         : `${selectedDay.day}일차 계획 ${remainingTasks}개가 남았어요. 체크할 때마다 완성률이 바로 반영됩니다.`;
   }
@@ -3820,7 +4018,7 @@ function renderExecutionPage(bundle) {
   renderWeeklyPlan(schedule);
   renderRoutineInsight(plan);
   renderFocusTask(selectedDay, selectedCompletion);
-  renderDailyCoach(state, selectedCompletion);
+  renderDailyCoach(state, selectedCompletion, selectedDay);
   renderRecoveryPrompt(state, selectedCompletion);
   renderCompanionExperience({ plan, selectedCompletion, remainingTasks, completedDays, overallProgress });
 }
@@ -3975,6 +4173,10 @@ revisionChipButtons.forEach((button) => {
 });
 
 planRevisionRequest?.addEventListener("input", updateRevisionButtonState);
+[...revisionDetailInputs, ...revisionDayInputs].forEach((input) => {
+  input.addEventListener("input", updateRevisionButtonState);
+  input.addEventListener("change", updateRevisionButtonState);
+});
 
 companionActionButtons.forEach((button) => {
   button.addEventListener("click", () => {
@@ -4237,9 +4439,14 @@ acceptPlanButton?.addEventListener("click", () => {
     reset: true,
     customText: current.state.pendingPlanText,
     revisionRequest: current.state.pendingRevisionRequest || planRevisionRequest?.value.trim() || "",
+    revisionDetails: Object.keys(current.state.pendingRevisionDetails || {}).length ? current.state.pendingRevisionDetails : collectRevisionDetails(),
+    weeklySchedule: current.state.pendingWeeklySchedule || [],
   });
   bundle.state.pendingPlanText = "";
   bundle.state.pendingRevisionRequest = "";
+  bundle.state.pendingRevisionDetails = {};
+  bundle.state.pendingRevisionSummary = {};
+  bundle.state.pendingWeeklySchedule = [];
   bundle.state.status = "적용 완료";
   savePlanBundleState(bundle.state);
   if (planEditorMessage) planEditorMessage.textContent = "변경안을 적용했어요. 오늘 일정도 함께 업데이트했습니다.";
@@ -4251,7 +4458,8 @@ regeneratePlanButton?.addEventListener("click", async () => {
   const currentBundle = getPlanBundle();
   const baseText = planEditor?.value.trim() || currentBundle.state.planText || getDefaultPlanText(readExecutionPlan());
   const revisionRequest = planRevisionRequest?.value.trim() || "";
-  if (!revisionRequest) {
+  const revisionDetails = collectRevisionDetails();
+  if (!revisionRequest && !hasRevisionDetails(revisionDetails)) {
     updateRevisionButtonState();
     return;
   }
@@ -4265,7 +4473,12 @@ regeneratePlanButton?.addEventListener("click", async () => {
   regeneratePlanButton.disabled = true;
   regeneratePlanButton.textContent = "올리가 AI 변경안을 만들고 있어요…";
   if (planEditorMessage) planEditorMessage.textContent = "추억과 실행 기록을 읽고 목표에 맞는 변경안을 설계하고 있어요.";
-  trackCompanionEvent("ai_plan_revision_requested", { energy: 3, requestLength: revisionRequest.length });
+  trackCompanionEvent("ai_plan_revision_requested", {
+    energy: 3,
+    requestLength: revisionRequest.length,
+    hasMaterials: Boolean(revisionDetails.materials),
+    hasSchedule: Boolean(revisionDetails.schedule.weekdayMinutes || revisionDetails.schedule.weekendMinutes || revisionDetails.schedule.availableDays.length),
+  });
 
   try {
     const revision = await requestAiPlanRevision({
@@ -4280,21 +4493,31 @@ regeneratePlanButton?.addEventListener("click", async () => {
       },
       currentPlanText: baseText,
       revisionRequest,
+      revisionDetails,
       completedTasks: (currentBundle.state.completedLog || []).map((item) => item.text),
     });
 
     const revisedTasks = Array.isArray(revision.revisedTasks) ? revision.revisedTasks.map((task) => String(task).trim()).filter(Boolean) : [];
     if (revisedTasks.length < 3) throw new Error("AI 변경안의 실행 항목이 충분하지 않아요. 다시 시도해 주세요.");
+    if (!Array.isArray(revision.weeklySchedule) || revision.weeklySchedule.length !== 7) {
+      throw new Error("요일별 변경안을 모두 확인하지 못했어요. 다시 시도해 주세요.");
+    }
 
     const customText = revisedTasks.map((task) => `- ${task}`).join("\n");
     const bundle = getPlanBundle();
     bundle.state.pendingPlanText = customText;
     bundle.state.pendingRevisionRequest = revisionRequest;
+    bundle.state.pendingRevisionDetails = revisionDetails;
+    bundle.state.pendingRevisionSummary = revision.revisionSummary || {};
+    bundle.state.pendingWeeklySchedule = Array.isArray(revision.weeklySchedule) ? revision.weeklySchedule.slice(0, 7) : [];
     bundle.state.status = "AI 변경안 대기";
     savePlanBundleState(bundle.state);
     if (planEditorMessage) {
       const changes = Array.isArray(revision.changes) ? revision.changes.slice(0, 2).join(" · ") : "요청한 조건을 반영했어요.";
-      planEditorMessage.textContent = `${revision.ollieMessage || "올리가 AI 변경안을 만들었어요."} ${changes} 아직 적용 전이며, 아래에서 확인 후 승인할 수 있어요.`;
+      const assumptions = Array.isArray(revision.revisionSummary?.assumptions) && revision.revisionSummary.assumptions.length
+        ? ` 가정: ${revision.revisionSummary.assumptions.slice(0, 2).join(" · ")}`
+        : "";
+      planEditorMessage.textContent = `${revision.ollieMessage || "올리가 AI 변경안을 만들었어요."} ${changes}${assumptions} 아직 적용 전이며, 아래에서 확인 후 승인할 수 있어요.`;
     }
     showToast("AI 변경안이 준비됐어요 · 확인 후 적용하기를 눌러 주세요");
     trackCompanionEvent("ai_plan_revision_ready", { energy: 3, taskCount: revisedTasks.length });
@@ -4329,6 +4552,9 @@ keepPlanButton?.addEventListener("click", () => {
   const bundle = getPlanBundle();
   bundle.state.pendingPlanText = "";
   bundle.state.pendingRevisionRequest = "";
+  bundle.state.pendingRevisionDetails = {};
+  bundle.state.pendingRevisionSummary = {};
+  bundle.state.pendingWeeklySchedule = [];
   bundle.state.status = "기존 계획 유지";
   savePlanBundleState(bundle.state);
   if (planEditorMessage) planEditorMessage.textContent = "기존 계획을 유지했어요. 변경안은 적용하지 않았습니다.";
