@@ -3523,43 +3523,6 @@ footer p {
   font-size: 17px;
 }
 
-.floating-payment-cta {
-  position: fixed;
-  right: 50%;
-  bottom: 76px;
-  z-index: 30;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: center;
-  width: min(390px, calc(100vw - 32px));
-  min-height: 58px;
-  padding: 12px 22px;
-  color: #ffffff;
-  background: linear-gradient(135deg, var(--routine-green), #8494ba);
-  border-radius: 999px;
-  box-shadow: 0 18px 44px rgba(107, 122, 166, 0.28);
-  transform: translateX(50%);
-}
-
-.floating-payment-cta span,
-.floating-payment-cta strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.floating-payment-cta span {
-  font-size: 18px;
-  font-weight: 950;
-  text-align: center;
-}
-
-.floating-payment-cta strong {
-  font-size: 13px;
-  opacity: 0.9;
-}
-
 .app-payment-cta {
   bottom: 72px;
   grid-template-columns: 1fr;
@@ -3747,10 +3710,6 @@ footer p {
 
   .routine-cue-list {
     grid-template-columns: 1fr;
-  }
-
-  .floating-payment-cta {
-    width: calc(100vw - 28px);
   }
 
   .app-payment-cta {
@@ -6231,8 +6190,7 @@ body.sheet-open {
 
 /* 3D Ollie mascot integration */
 .mascot-art,
-.final-cta-mascot,
-.floating-payment-cta img {
+.final-cta-mascot {
   object-fit: contain;
   user-select: none;
   -webkit-user-drag: none;
@@ -6285,18 +6243,6 @@ body.sheet-open {
   animation: mascot-float 5.2s ease-in-out infinite reverse;
 }
 
-.floating-payment-cta {
-  grid-template-columns: 42px minmax(0, 1fr) auto;
-  padding-left: 10px;
-}
-
-.floating-payment-cta img {
-  width: 42px;
-  height: 52px;
-  margin-block: -8px;
-  filter: drop-shadow(0 8px 10px rgba(35, 44, 76, 0.25));
-}
-
 @keyframes mascot-float {
   0%,
   100% {
@@ -6333,16 +6279,6 @@ body.sheet-open {
     animation: none;
   }
 
-  .floating-payment-cta {
-    grid-template-columns: 36px minmax(0, 1fr) auto;
-    gap: 7px;
-    padding-right: 14px;
-  }
-
-  .floating-payment-cta img {
-    width: 36px;
-    height: 46px;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -7890,31 +7826,6 @@ body.sheet-open {
   line-height: 1.6;
 }
 
-.home-page .floating-payment-cta {
-  right: 50%;
-  bottom: 24px;
-  z-index: 100;
-  display: grid !important;
-  width: min(420px, calc(100vw - 40px));
-  min-height: 62px;
-  border: 1px solid rgba(255, 255, 255, 0.34);
-  box-shadow: 0 20px 48px rgba(75, 87, 125, 0.3);
-  opacity: 1;
-  visibility: visible;
-  transform: translateX(50%);
-  transition: transform 180ms ease, box-shadow 180ms ease;
-}
-
-.home-page .floating-payment-cta:hover {
-  box-shadow: 0 24px 56px rgba(75, 87, 125, 0.38);
-  transform: translateX(50%) translateY(-2px);
-}
-
-.home-page .floating-payment-cta:focus-visible {
-  outline: 3px solid rgba(107, 122, 166, 0.34);
-  outline-offset: 4px;
-}
-
 @media (max-width: 759px) {
   .site-footer {
     grid-template-columns: 1fr;
@@ -7929,11 +7840,6 @@ body.sheet-open {
     text-align: left;
   }
 
-  .home-page .floating-payment-cta {
-    bottom: calc(76px + env(safe-area-inset-bottom));
-    width: min(390px, calc(100vw - 28px));
-    min-height: 58px;
-  }
 }
 
 /* Ollie-centered app feature carousel */
