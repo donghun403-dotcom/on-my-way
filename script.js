@@ -929,14 +929,17 @@ function updateWizardSummary() {
   }
 }
 
-function canLeaveDiagnosisStep() {
+function getInvalidDiagnosisField() {
   const fieldsByStep = [
     [designGoal],
     [goalPeriodInput, routineTimeInput, routineReadinessInput, currentStateInput, currentRoutineInput],
     [birthDateInput, birthTimeInput, birthPlaceInput, mbtiInput],
   ];
-  const invalidField = (fieldsByStep[diagnosisStepIndex] || []).find((field) => field && !field.checkValidity());
+  return (fieldsByStep[diagnosisStepIndex] || []).find((field) => field && !field.checkValidity()) || null;
+}
 
+function canLeaveDiagnosisStep() {
+  const invalidField = getInvalidDiagnosisField();
   if (!invalidField) return true;
   invalidField.focus();
   invalidField.reportValidity();
@@ -992,17 +995,49 @@ function revealActiveDiagnosisStep() {
   });
 }
 
+let diagnosisAutoAdvanceTimer = 0;
+
+function cancelDiagnosisAutoAdvance() {
+  if (!diagnosisAutoAdvanceTimer) return;
+  window.clearTimeout(diagnosisAutoAdvanceTimer);
+  diagnosisAutoAdvanceTimer = 0;
+}
+
+function advanceDiagnosisStep({ auto = false } = {}) {
+  cancelDiagnosisAutoAdvance();
+  if (diagnosisStepIndex >= diagnosisSteps.length - 1) return;
+  if (auto ? getInvalidDiagnosisField() : !canLeaveDiagnosisStep()) return;
+  diagnosisStepIndex += 1;
+  renderDiagnosisStep();
+  revealActiveDiagnosisStep();
+}
+
+// 입력이 끝나면 잠시 뒤 자동으로 다음 단계로 넘어간다 (추가 입력 시 타이머 리셋)
+function queueDiagnosisAutoAdvance(delay = 1100) {
+  cancelDiagnosisAutoAdvance();
+  if (diagnosisStepIndex >= diagnosisSteps.length - 1) return;
+  diagnosisAutoAdvanceTimer = window.setTimeout(() => advanceDiagnosisStep({ auto: true }), delay);
+}
+
 diagnosisBackButton?.addEventListener("click", () => {
+  cancelDiagnosisAutoAdvance();
   diagnosisStepIndex = Math.max(0, diagnosisStepIndex - 1);
   renderDiagnosisStep();
   revealActiveDiagnosisStep();
 });
 
-diagnosisNextButton?.addEventListener("click", () => {
-  if (!canLeaveDiagnosisStep()) return;
-  diagnosisStepIndex = Math.min(diagnosisSteps.length - 1, diagnosisStepIndex + 1);
-  renderDiagnosisStep();
-  revealActiveDiagnosisStep();
+diagnosisNextButton?.addEventListener("click", () => advanceDiagnosisStep());
+
+personalityForm?.addEventListener("change", (event) => {
+  const step = event.target.closest?.(".diagnosis-step");
+  if (!step || !step.classList.contains("active")) return;
+  // 확정형 입력(선택·날짜·시간)만 자동 진행을 예약하고, 자유 서술 입력은 버튼/Enter로 넘어간다
+  if (event.target.matches("select, input[type='date'], input[type='time']")) queueDiagnosisAutoAdvance();
+});
+
+personalityForm?.addEventListener("focusin", (event) => {
+  // 다른 입력을 만지기 시작하면 예약된 자동 진행을 취소한다 (change가 다시 예약)
+  if (event.target.matches("input, select, textarea")) cancelDiagnosisAutoAdvance();
 });
 
 goalSuggestionButtons.forEach((button) => {
@@ -1034,12 +1069,16 @@ goalSuggestionButtons.forEach((button) => {
         designGoal.focus({ preventScroll: true });
         designGoal.select();
       }, 500);
+    } else if (diagnosisStepIndex === 0) {
+      // 빌더 안에서 목표 칩을 고르면 곧바로 다음 단계로
+      queueDiagnosisAutoAdvance(600);
     }
   });
 });
 
 customGoalButton?.addEventListener("click", () => {
   if (!designGoal) return;
+  cancelDiagnosisAutoAdvance();
   designGoal.value = "";
   goalSuggestionButtons.forEach((item) => item.classList.remove("selected"));
   customGoalButton.classList.add("selected");

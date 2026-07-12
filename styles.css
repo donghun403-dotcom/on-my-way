@@ -12324,3 +12324,19 @@ body.sheet-open {
 .execution-page .required-consent {
   border-color: rgba(125, 157, 155, 0.28);
 }
+
+/* 목표 칩: .personality-form button 전체 폭 규칙을 무효화해 콤팩트 그리드로 */
+.personality-form .goal-suggestions button {
+  grid-column: auto;
+}
+
+.personality-form .goal-suggestions .custom-goal-button {
+  min-height: 44px;
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 640px) {
+  .goal-suggestions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
