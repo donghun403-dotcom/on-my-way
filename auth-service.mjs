@@ -66,14 +66,10 @@ function constantTimeEqual(left, right) {
   return difference === 0;
 }
 
-async function deriveAdminPasswordHash(password, salt) {
-  const key = await crypto.subtle.importKey("raw", textEncoder.encode(password), "PBKDF2", false, ["deriveBits"]);
-  const bits = await crypto.subtle.deriveBits(
-    { name: "PBKDF2", hash: "SHA-256", salt: textEncoder.encode(salt), iterations: 210000 },
-    key,
-    256,
-  );
-  return base64UrlEncode(new Uint8Array(bits));
+async function deriveAdminPasswordHash(ctx, password, salt) {
+  // Workers Free의 10ms CPU 한도 안에서 처리되도록, KV에는 salt와 해시만 저장하고
+  // Worker Secret인 SESSION_SECRET을 서버 측 pepper로 사용한다.
+  return hmacSign(`${salt}:${String(password || "")}`, sessionSecret(ctx.env));
 }
 
 async function adminPasswordSetting(ctx) {
@@ -83,7 +79,7 @@ async function adminPasswordSetting(ctx) {
 async function verifyAdminPassword(ctx, supplied) {
   const setting = await adminPasswordSetting(ctx);
   if (setting?.salt && setting?.hash) {
-    return constantTimeEqual(await deriveAdminPasswordHash(String(supplied || ""), setting.salt), setting.hash);
+    return constantTimeEqual(await deriveAdminPasswordHash(ctx, supplied, setting.salt), setting.hash);
   }
   const temporaryPassword = String(ctx.env.ADMIN_PASSWORD || "");
   return temporaryPassword ? constantTimeEqual(supplied, temporaryPassword) : false;
@@ -522,10 +518,9 @@ export async function handleAccountApi(ctx) {
     }
     const salt = randomId(32);
     await store(ctx).putSetting("admin_password", {
-      algorithm: "PBKDF2-SHA256",
-      iterations: 210000,
+      algorithm: "HMAC-SHA256-PEPPERED",
       salt,
-      hash: await deriveAdminPasswordHash(newPassword, salt),
+      hash: await deriveAdminPasswordHash(ctx, newPassword, salt),
       updatedAt: Date.now(),
     });
     return { status: 200, json: { ok: true } };

@@ -121,8 +121,9 @@ test("관리자는 임시 비밀번호를 안전하게 교체할 수 있다", as
     body: { currentPassword: "Temporary1!Pass", newPassword: "MyNewAdminPass1!" },
   }));
   assert.equal(changed.status, 200);
-  assert.equal(store.settings.get("admin_password").algorithm, "PBKDF2-SHA256");
+  assert.equal(store.settings.get("admin_password").algorithm, "HMAC-SHA256-PEPPERED");
   assert.equal("password" in store.settings.get("admin_password"), false);
+  assert.notEqual(store.settings.get("admin_password").hash, "MyNewAdminPass1!");
 
   const oldLogin = await handleAccountApi(context({
     path: "/api/admin/login", method: "POST", env, store, body: { password: "Temporary1!Pass" },
