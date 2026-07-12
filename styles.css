@@ -12469,6 +12469,25 @@ body.sheet-open {
   line-height: 1.5;
 }
 
+.execution-page .revision-goal-type-row {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.75fr) minmax(0, 1.25fr);
+  gap: 12px;
+  align-items: end;
+  padding: 12px 14px;
+  background: rgba(245, 248, 250, 0.92);
+  border: 1px solid rgba(107, 122, 166, 0.12);
+  border-radius: 15px;
+}
+
+.execution-page .revision-goal-type-hint {
+  margin: 0 0 5px;
+  color: #68758a;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.5;
+}
+
 .execution-page .revision-detail-section {
   display: grid;
   gap: 11px;
@@ -12687,6 +12706,7 @@ body.sheet-open {
 }
 
 @media (max-width: 680px) {
+  .execution-page .revision-goal-type-row,
   .execution-page .revision-field-grid,
   .execution-page .revision-time-grid,
   .execution-page .proposal-detail-grid {

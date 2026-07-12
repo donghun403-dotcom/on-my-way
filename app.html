@@ -421,20 +421,38 @@
           <div class="edit-step">
             <label class="edit-step-label" for="planRevisionRequest"><i>2</i>바꾸고 싶은 점</label>
             <div class="revision-detail-intro">
-              <strong>무엇을, 얼마나, 언제 할지 알려주세요</strong>
-              <p>교재와 완주 범위, 가능한 시간까지 적을수록 올리가 실제로 지킬 수 있는 계획으로 바꿔드려요.</p>
+              <strong id="revisionIntroTitle">목표에 맞는 조정 기준을 알려주세요</strong>
+              <p id="revisionIntroDescription">원하는 결과와 쓸 수 있는 자원, 가능한 시간을 적을수록 올리가 실제로 실행할 수 있는 계획으로 바꿔드려요.</p>
+            </div>
+
+            <div class="revision-goal-type-row">
+              <label class="revision-field" for="revisionGoalType">
+                <span>어떤 종류의 목표인가요?</span>
+                <select id="revisionGoalType" data-revision-detail>
+                  <option value="auto">목표 문장에서 자동 판단</option>
+                  <option value="study">시험·학습</option>
+                  <option value="startup">창업·사업</option>
+                  <option value="career">취업·커리어</option>
+                  <option value="fitness">운동·건강</option>
+                  <option value="habit">습관·생활</option>
+                  <option value="creative">콘텐츠·프로젝트</option>
+                  <option value="finance">재무·저축</option>
+                  <option value="general">기타 목표</option>
+                </select>
+              </label>
+              <p class="revision-goal-type-hint" id="revisionGoalTypeHint" aria-live="polite"></p>
             </div>
 
             <div class="revision-detail-section">
-              <div class="revision-detail-heading"><span>완주 목표</span><small>끝내고 싶은 자료와 범위</small></div>
+              <div class="revision-detail-heading"><span id="revisionOutcomeSectionTitle">완료 모습</span><small id="revisionOutcomeSectionHint">결과와 활용 자원</small></div>
               <div class="revision-field-grid">
-                <label class="revision-field revision-field-wide" for="revisionMaterials">
-                  <span>사용 중인 교재·강의·자료</span>
-                  <textarea id="revisionMaterials" rows="2" data-revision-detail placeholder="예: ETS 토익 정기시험 기출문제집 4 LC·RC, 해커스 노랭이 단어장"></textarea>
+                <label class="revision-field revision-field-wide" for="revisionResources">
+                  <span id="revisionResourcesLabel">활용할 자료·도구·사람·예산</span>
+                  <textarea id="revisionResources" rows="2" data-revision-detail placeholder="예: 이미 가진 자료, 사용할 도구, 도움받을 사람, 쓸 수 있는 예산"></textarea>
                 </label>
-                <label class="revision-field revision-field-wide" for="revisionCoverage">
-                  <span>어디까지 끝내고 싶나요?</span>
-                  <textarea id="revisionCoverage" rows="2" data-revision-detail placeholder="예: 시험 전까지 기출 10회분 전체 풀이, 오답 2회 복습, 단어장 3회독"></textarea>
+                <label class="revision-field revision-field-wide" for="revisionOutcome">
+                  <span id="revisionOutcomeLabel">언제까지 어떤 상태가 되면 완료인가요?</span>
+                  <textarea id="revisionOutcome" rows="2" data-revision-detail placeholder="예: 4주 안에 눈으로 확인할 수 있는 결과와 수치"></textarea>
                 </label>
               </div>
             </div>
@@ -443,11 +461,11 @@
               <div class="revision-detail-heading"><span>시간과 리듬</span><small>지킬 수 있는 상한선을 기준으로 배치</small></div>
               <div class="revision-field-grid revision-time-grid">
                 <label class="revision-field" for="revisionWeekdayMinutes">
-                  <span>평일 하루 공부 시간</span>
+                  <span>평일 하루 실행 가능 시간</span>
                   <div class="revision-number-field"><input id="revisionWeekdayMinutes" type="number" min="10" max="720" step="10" inputmode="numeric" data-revision-detail placeholder="90" /><em>분</em></div>
                 </label>
                 <label class="revision-field" for="revisionWeekendMinutes">
-                  <span>주말 하루 공부 시간</span>
+                  <span>주말 하루 실행 가능 시간</span>
                   <div class="revision-number-field"><input id="revisionWeekendMinutes" type="number" min="10" max="720" step="10" inputmode="numeric" data-revision-detail placeholder="180" /><em>분</em></div>
                 </label>
                 <label class="revision-field" for="revisionPreferredTime">
@@ -459,7 +477,7 @@
                 </label>
               </div>
               <fieldset class="revision-days">
-                <legend>공부 가능한 요일</legend>
+                <legend>실행 가능한 요일</legend>
                 <div>
                   <label><input type="checkbox" value="월" data-revision-day /><span>월</span></label>
                   <label><input type="checkbox" value="화" data-revision-day /><span>화</span></label>
@@ -473,27 +491,27 @@
             </div>
 
             <div class="revision-detail-section">
-              <div class="revision-detail-heading"><span>분량 조절</span><small>늘리고, 줄이고, 반드시 지킬 것</small></div>
+              <div class="revision-detail-heading"><span>우선순위 조절</span><small>더 할 것, 덜 할 것, 반드시 지킬 것</small></div>
               <div class="revision-field-grid">
-                <label class="revision-field" for="revisionIncreaseFocus"><span>더 늘리고 싶은 공부</span><input id="revisionIncreaseFocus" type="text" maxlength="300" data-revision-detail placeholder="예: 단어 암기 20분 → 40분" /></label>
-                <label class="revision-field" for="revisionDecreaseFocus"><span>줄이고 싶은 공부</span><input id="revisionDecreaseFocus" type="text" maxlength="300" data-revision-detail placeholder="예: LC 쉐도잉은 주 5회 → 3회" /></label>
-                <label class="revision-field revision-field-wide" for="revisionKeepRules"><span>반드시 유지할 조건</span><textarea id="revisionKeepRules" rows="2" data-revision-detail placeholder="예: 매일 단어 40개는 유지하고, 이미 푼 기출은 오답만 다시 보기"></textarea></label>
-                <label class="revision-field revision-field-wide" for="revisionConstraints"><span>피해야 할 시간·현실적인 제약</span><textarea id="revisionConstraints" rows="2" data-revision-detail placeholder="예: 화·목은 야근으로 30분만 가능, 출근 전에는 듣기 공부 불가"></textarea></label>
+                <label class="revision-field" for="revisionIncreaseFocus"><span id="revisionIncreaseLabel">더 비중을 둘 일</span><input id="revisionIncreaseFocus" type="text" maxlength="300" data-revision-detail placeholder="예: 결과에 가장 직접 연결되는 행동" /></label>
+                <label class="revision-field" for="revisionDecreaseFocus"><span id="revisionDecreaseLabel">줄이거나 제외할 일</span><input id="revisionDecreaseFocus" type="text" maxlength="300" data-revision-detail placeholder="예: 지금은 미뤄도 되는 준비 작업" /></label>
+                <label class="revision-field revision-field-wide" for="revisionKeepRules"><span id="revisionKeepLabel">반드시 유지할 조건</span><textarea id="revisionKeepRules" rows="2" data-revision-detail placeholder="예: 매주 확인할 핵심 수치나 절대 빼면 안 되는 행동"></textarea></label>
+                <label class="revision-field revision-field-wide" for="revisionConstraints"><span>피해야 할 시간·현실적인 제약</span><textarea id="revisionConstraints" rows="2" data-revision-detail placeholder="예: 가능한 시간, 예산, 장소, 체력, 함께할 사람의 일정"></textarea></label>
               </div>
             </div>
 
-            <div class="revision-quick-actions" aria-label="빠른 수정 요청">
-              <button type="button" data-revision-chip="시간을 10분 단위로 더 짧게 나눠줘.">시간을 줄이고 싶어요</button>
-              <button type="button" data-revision-chip="평일은 저녁 위주로 배치해줘.">저녁 위주로 바꿔주세요</button>
-              <button type="button" data-revision-chip="주말에는 복습만 가볍게 하고 싶어.">주말은 가볍게 해주세요</button>
-              <button type="button" data-revision-chip="오늘은 가장 중요한 한 가지 과제만 남겨줘.">하루 한 가지만 하고 싶어요</button>
+            <div class="revision-quick-actions" id="revisionQuickActions" aria-label="목표에 맞는 빠른 수정 요청">
+              <button type="button" data-revision-chip="가장 중요한 결과에 직접 연결되는 행동부터 배치해줘.">핵심 결과에 집중</button>
+              <button type="button" data-revision-chip="하루 실행 시간을 줄이고도 이어갈 수 있게 다시 나눠줘.">부담 줄이기</button>
+              <button type="button" data-revision-chip="지금 막혀 있는 단계부터 해결하도록 순서를 바꿔줘.">막힌 단계 먼저</button>
+              <button type="button" data-revision-chip="이번 주에는 가장 중요한 한 가지 결과에 집중하게 해줘.">이번 주 한 가지</button>
             </div>
             <span class="revision-request-caption">추가로 설명할 내용</span>
             <textarea
               id="planRevisionRequest"
               class="plan-editor plan-revision-request"
               rows="4"
-              placeholder="예: 토익 900점이 목표예요. Part 7 속도가 느려서 독해 비중을 높이고, 매주 일요일에는 실전 모의고사 1회를 풀고 싶어요."
+              placeholder="예: 지금 가장 중요한 결과, 바꾸고 싶은 순서나 비중, 꼭 지켜야 할 조건을 자유롭게 적어주세요."
             ></textarea>
             <button class="plan-cta" id="regeneratePlanButton" type="button">AI 변경안 만들기 <span class="button-energy-cost">올리 에너지 3</span></button>
           </div>

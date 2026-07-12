@@ -91,14 +91,25 @@ const planStatusBadge = document.querySelector("#planStatusBadge");
 const planEditor = document.querySelector("#planEditor");
 const planPreviewList = document.querySelector("#planPreviewList");
 const planRevisionRequest = document.querySelector("#planRevisionRequest");
-const revisionMaterials = document.querySelector("#revisionMaterials");
-const revisionCoverage = document.querySelector("#revisionCoverage");
+const revisionGoalType = document.querySelector("#revisionGoalType");
+const revisionGoalTypeHint = document.querySelector("#revisionGoalTypeHint");
+const revisionIntroTitle = document.querySelector("#revisionIntroTitle");
+const revisionIntroDescription = document.querySelector("#revisionIntroDescription");
+const revisionOutcomeSectionTitle = document.querySelector("#revisionOutcomeSectionTitle");
+const revisionOutcomeSectionHint = document.querySelector("#revisionOutcomeSectionHint");
+const revisionResources = document.querySelector("#revisionResources");
+const revisionResourcesLabel = document.querySelector("#revisionResourcesLabel");
+const revisionOutcome = document.querySelector("#revisionOutcome");
+const revisionOutcomeLabel = document.querySelector("#revisionOutcomeLabel");
 const revisionWeekdayMinutes = document.querySelector("#revisionWeekdayMinutes");
 const revisionWeekendMinutes = document.querySelector("#revisionWeekendMinutes");
 const revisionPreferredTime = document.querySelector("#revisionPreferredTime");
 const revisionIncreaseFocus = document.querySelector("#revisionIncreaseFocus");
+const revisionIncreaseLabel = document.querySelector("#revisionIncreaseLabel");
 const revisionDecreaseFocus = document.querySelector("#revisionDecreaseFocus");
+const revisionDecreaseLabel = document.querySelector("#revisionDecreaseLabel");
 const revisionKeepRules = document.querySelector("#revisionKeepRules");
+const revisionKeepLabel = document.querySelector("#revisionKeepLabel");
 const revisionConstraints = document.querySelector("#revisionConstraints");
 const revisionDetailInputs = document.querySelectorAll("[data-revision-detail]");
 const revisionDayInputs = document.querySelectorAll("[data-revision-day]");
@@ -2614,17 +2625,147 @@ function normalizeRevisionMinutes(value) {
   return Math.max(10, Math.min(720, Math.round(minutes / 10) * 10));
 }
 
+const REVISION_GOAL_PROFILES = {
+  general: {
+    label: "기타 목표",
+    intro: "원하는 결과와 쓸 수 있는 자원, 가능한 시간을 알려주세요.",
+    sectionTitle: "완료 모습",
+    sectionHint: "결과와 활용 자원",
+    resourcesLabel: "활용할 자료·도구·사람·예산",
+    resourcesPlaceholder: "예: 이미 가진 자료, 사용할 도구, 도움받을 사람, 쓸 수 있는 예산",
+    outcomeLabel: "언제까지 어떤 상태가 되면 완료인가요?",
+    outcomePlaceholder: "예: 4주 안에 눈으로 확인할 수 있는 결과와 수치",
+    increaseLabel: "더 비중을 둘 일",
+    increasePlaceholder: "예: 결과에 가장 직접 연결되는 행동",
+    decreaseLabel: "줄이거나 제외할 일",
+    decreasePlaceholder: "예: 지금은 미뤄도 되는 준비 작업",
+    keepPlaceholder: "예: 매주 확인할 핵심 수치나 절대 빼면 안 되는 행동",
+    constraintsPlaceholder: "예: 가능한 시간, 예산, 장소, 체력, 함께할 사람의 일정",
+    requestPlaceholder: "예: 지금 가장 중요한 결과, 바꾸고 싶은 순서나 비중, 꼭 지켜야 할 조건을 자유롭게 적어주세요.",
+    chips: [["핵심 결과에 집중", "가장 중요한 결과에 직접 연결되는 행동부터 배치해줘."], ["부담 줄이기", "하루 실행 시간을 줄이고도 이어갈 수 있게 다시 나눠줘."], ["막힌 단계 먼저", "지금 막혀 있는 단계부터 해결하도록 순서를 바꿔줘."], ["이번 주 한 가지", "이번 주에는 가장 중요한 한 가지 결과에 집중하게 해줘."]],
+  },
+  study: {
+    label: "시험·학습", intro: "교재, 목표 범위, 점수와 가능한 시간을 알려주세요.", sectionTitle: "학습 완료 기준", sectionHint: "교재·범위·점수",
+    resourcesLabel: "사용할 교재·강의·학습 자료", resourcesPlaceholder: "예: ETS 기출문제집 LC·RC, 단어장, 온라인 강의 20강",
+    outcomeLabel: "시험일까지 어디까지, 어느 수준으로 끝낼까요?", outcomePlaceholder: "예: 8주 안에 기출 10회분과 오답 2회 복습, 모의고사 900점",
+    increaseLabel: "더 늘릴 학습", increasePlaceholder: "예: Part 7 독해를 주 3회에서 5회로", decreaseLabel: "줄일 학습", decreasePlaceholder: "예: LC 쉐도잉을 주 5회에서 3회로",
+    keepPlaceholder: "예: 매일 단어 40개와 일요일 모의고사 1회는 유지", constraintsPlaceholder: "예: 화·목 야근, 출근 전 듣기 불가",
+    requestPlaceholder: "예: Part 7 속도가 느려 독해 비중을 높이고, 이미 푼 기출은 오답만 다시 보고 싶어요.",
+    chips: [["취약 영역 늘리기", "현재 가장 취약한 영역의 학습 빈도와 시간을 늘려줘."], ["교재 완주 우선", "새 자료를 추가하지 말고 가지고 있는 교재를 끝내는 순서로 배치해줘."], ["복습 비중 높이기", "새 진도보다 오답과 복습 비중을 높여줘."], ["실전 점검 추가", "매주 한 번 실제 시험과 같은 완료 기준으로 점검하게 해줘."]],
+  },
+  startup: {
+    label: "창업·사업", intro: "고객, 검증할 가설, 보유 자원과 사업 성과 기준을 알려주세요.", sectionTitle: "사업 검증 기준", sectionHint: "고객·MVP·매출",
+    resourcesLabel: "활용할 자원·채널·사람·예산", resourcesPlaceholder: "예: 노션 사업계획서, 인터뷰 후보 20명, 개발자 1명, 광고비 50만원",
+    outcomeLabel: "언제까지 무엇을 검증하거나 만들어낼까요?", outcomePlaceholder: "예: 4주 안에 고객 인터뷰 20건, MVP 공개, 첫 유료 고객 3명",
+    increaseLabel: "더 집중할 사업 활동", increasePlaceholder: "예: 고객 인터뷰와 유료 전환 검증", decreaseLabel: "줄이거나 미룰 활동", decreasePlaceholder: "예: 로고 수정과 경쟁사 자료 조사",
+    keepPlaceholder: "예: 매주 금요일 핵심 지표 확인, 기능 개발 전 고객 5명 확인", constraintsPlaceholder: "예: 예산 50만원, 평일 저녁만 가능, 개발 도움은 주말에만 가능",
+    requestPlaceholder: "예: 기능 개발보다 고객 문제 검증을 먼저 하고, 이번 달에는 인터뷰 20건과 첫 결제 3건에 집중하고 싶어요.",
+    chips: [["고객 검증 먼저", "기능 제작 전에 고객 인터뷰와 문제 검증부터 배치해줘."], ["첫 매출에 집중", "브랜딩보다 첫 유료 고객을 만드는 행동에 시간을 집중해줘."], ["MVP 범위 줄이기", "핵심 가설 하나만 검증하도록 MVP 기능과 일정을 줄여줘."], ["핵심 지표로 점검", "매주 고객 수, 전환, 매출 중 목표에 맞는 핵심 지표로 점검하게 해줘."]],
+  },
+  career: {
+    label: "취업·커리어", intro: "지원할 역할, 준비 자산과 합격에 가까워지는 결과를 알려주세요.", sectionTitle: "합격 준비 기준", sectionHint: "지원·포트폴리오·면접",
+    resourcesLabel: "활용할 이력서·포트폴리오·채용 정보", resourcesPlaceholder: "예: 기존 이력서, 프로젝트 3개, 관심 기업 15곳, 현직자 피드백",
+    outcomeLabel: "언제까지 어떤 지원 결과를 만들까요?", outcomePlaceholder: "예: 6주 안에 포트폴리오 완성, 맞춤 지원 20건, 면접 3회",
+    increaseLabel: "더 집중할 준비", increasePlaceholder: "예: 포트폴리오 사례 설명과 모의 면접", decreaseLabel: "줄이거나 미룰 준비", decreasePlaceholder: "예: 자격증 추가 공부",
+    keepPlaceholder: "예: 주 3건 맞춤 지원과 주 1회 피드백", constraintsPlaceholder: "예: 현 직장 퇴근 후 1시간, 공개할 수 없는 업무 자료",
+    requestPlaceholder: "예: 자격증보다 포트폴리오와 실제 지원을 늘리고, 매주 면접 답변을 한 번 점검하고 싶어요.",
+    chips: [["지원 행동 늘리기", "준비만 하지 않도록 실제 지원과 네트워킹 행동을 늘려줘."], ["포트폴리오 우선", "합격 가능성을 보여주는 포트폴리오 사례부터 완성하게 해줘."], ["면접 대비 추가", "예상 질문과 모의 면접을 주간 계획에 넣어줘."], ["목표 직무에 맞춤", "목표 직무의 채용 요건에 직접 연결되는 경험부터 강조해줘."]],
+  },
+  fitness: {
+    label: "운동·건강", intro: "현재 상태, 가능한 운동 환경과 측정할 변화를 알려주세요.", sectionTitle: "건강 변화 기준", sectionHint: "운동·회복·측정",
+    resourcesLabel: "활용할 장소·기구·프로그램·도움", resourcesPlaceholder: "예: 집 근처 헬스장, 덤벨, 러닝 앱, 주 1회 PT",
+    outcomeLabel: "언제까지 어떤 변화를 만들까요?", outcomePlaceholder: "예: 12주 안에 5km 30분 완주, 허리둘레 5cm 감소",
+    increaseLabel: "더 늘릴 활동", increasePlaceholder: "예: 주 2회 하체 근력과 수면 7시간", decreaseLabel: "줄이거나 피할 활동", decreasePlaceholder: "예: 무릎 통증을 만드는 점프 동작",
+    keepPlaceholder: "예: 수요일 휴식, 운동 전 10분 준비 운동", constraintsPlaceholder: "예: 무릎 통증, 평일 40분, 헬스장 휴무일",
+    requestPlaceholder: "예: 체중보다 체력 향상에 집중하고, 무릎에 부담 없는 운동으로 주 4회 구성하고 싶어요.",
+    chips: [["회복일 확보", "운동 성과를 해치지 않도록 회복일과 수면 점검을 포함해줘."], ["부상 위험 낮추기", "현재 통증과 운동 경험을 고려해 강도와 동작을 안전하게 낮춰줘."], ["측정 기준 추가", "매주 확인할 수 있는 체력이나 신체 변화 기준을 넣어줘."], ["짧은 운동으로", "바쁜 날에도 할 수 있는 최소 운동과 정상 운동을 나눠줘."]],
+  },
+  habit: {
+    label: "습관·생활", intro: "습관을 시작할 신호, 최소 행동과 유지 기준을 알려주세요.", sectionTitle: "습관 정착 기준", sectionHint: "신호·행동·반복",
+    resourcesLabel: "활용할 환경·도구·도움을 주는 사람", resourcesPlaceholder: "예: 침대 옆 책, 습관 앱, 가족 알림, 미리 준비한 운동복",
+    outcomeLabel: "언제까지 어떤 빈도로 정착시키고 싶나요?", outcomePlaceholder: "예: 30일 동안 주 6일, 자기 전 10분 독서",
+    increaseLabel: "더 강화할 행동", increasePlaceholder: "예: 시작 신호와 완료 기록", decreaseLabel: "줄이거나 없앨 방해", decreasePlaceholder: "예: 침대에서 휴대폰 보기",
+    keepPlaceholder: "예: 힘든 날에도 2분 최소 행동은 유지", constraintsPlaceholder: "예: 야근일, 여행, 가족 일정처럼 루틴이 깨지는 상황",
+    requestPlaceholder: "예: 아침 루틴은 부담스러워서 자기 전으로 옮기고, 힘든 날에는 2분만 해도 성공으로 보고 싶어요.",
+    chips: [["최소 행동 만들기", "의욕이 낮은 날에도 성공할 수 있는 최소 행동을 정해줘."], ["시작 신호 붙이기", "기존 일상 행동 직후 자연스럽게 시작하도록 신호를 연결해줘."], ["방해 환경 줄이기", "습관을 막는 환경을 미리 없애는 준비 행동을 넣어줘."], ["놓친 날 복귀", "하루 놓쳐도 다음 날 바로 복귀할 수 있는 규칙을 만들어줘."]],
+  },
+  creative: {
+    label: "콘텐츠·프로젝트", intro: "완성할 결과물, 필요한 자산과 공개 기준을 알려주세요.", sectionTitle: "결과물 완성 기준", sectionHint: "범위·마일스톤·공개",
+    resourcesLabel: "활용할 초안·자료·도구·협업자", resourcesPlaceholder: "예: 기존 원고 20쪽, 촬영 장비, 디자인 템플릿, 편집 도움 1명",
+    outcomeLabel: "언제까지 무엇을 어느 수준으로 공개할까요?", outcomePlaceholder: "예: 6주 안에 10분 영상 4편 제작·공개, 뉴스레터 구독자 100명",
+    increaseLabel: "더 집중할 제작 단계", increasePlaceholder: "예: 초안 작성과 실제 공개", decreaseLabel: "줄이거나 미룰 단계", decreasePlaceholder: "예: 완벽한 디자인 수정과 장비 조사",
+    keepPlaceholder: "예: 매주 1회 공개, 공개 전 체크리스트 5개", constraintsPlaceholder: "예: 촬영은 주말만 가능, 외부 공개 전 검토 필요",
+    requestPlaceholder: "예: 자료 조사보다 초안과 공개 횟수를 늘리고, 매주 금요일에는 결과물 하나를 반드시 내보내고 싶어요.",
+    chips: [["완성본 먼저", "자료 조사보다 공개 가능한 첫 완성본을 먼저 만들게 해줘."], ["범위 줄이기", "마감 안에 완성할 수 있도록 결과물의 범위를 줄여줘."], ["피드백 주기 추가", "초안, 피드백, 수정, 공개가 반복되도록 계획해줘."], ["공개 일정 고정", "완벽하지 않아도 정해진 날에 공개하도록 마감 기준을 넣어줘."]],
+  },
+  finance: {
+    label: "재무·저축", intro: "현재 금액, 현금 흐름과 달성할 재무 수치를 알려주세요.", sectionTitle: "재무 달성 기준", sectionHint: "금액·기간·점검",
+    resourcesLabel: "활용할 계좌·예산표·수입원·상환 계획", resourcesPlaceholder: "예: 월급 계좌, 비상금 100만원, 부수입, 대출 상환표",
+    outcomeLabel: "언제까지 어떤 금액 또는 비율을 달성할까요?", outcomePlaceholder: "예: 6개월 안에 비상금 300만원, 카드빚 200만원 상환",
+    increaseLabel: "더 늘릴 재무 행동", increasePlaceholder: "예: 자동저축과 부수입 만들기", decreaseLabel: "줄이거나 중단할 지출", decreasePlaceholder: "예: 배달비와 사용하지 않는 구독",
+    keepPlaceholder: "예: 월급날 자동이체, 매주 일요일 지출 확인", constraintsPlaceholder: "예: 고정생활비, 변동 수입, 중도상환 수수료",
+    requestPlaceholder: "예: 무리한 절약보다 자동저축을 우선하고, 매주 실제 지출을 확인해 다음 주 한도를 조정하고 싶어요.",
+    chips: [["자동화 먼저", "의지에 기대지 않도록 저축과 상환을 자동화하는 행동부터 넣어줘."], ["고정비부터 점검", "작은 소비보다 반복되는 고정비를 먼저 검토하게 해줘."], ["주간 한도 설정", "월 목표를 지킬 수 있도록 주간 지출 한도와 점검일을 정해줘."], ["비상금 우선", "위험한 투자보다 목표 비상금을 먼저 확보하는 순서로 바꿔줘."]],
+  },
+};
+
+function detectRevisionGoalType(goalText = "") {
+  const goal = String(goalText).toLowerCase();
+  const patterns = [
+    ["startup", /창업|사업|고객|매출|판매|mvp|서비스|브랜드|스토어|마케팅|사업자/],
+    ["study", /시험|토익|토플|자격증|공부|학습|점수|수능|공무원|교재|회독/],
+    ["career", /취업|이직|면접|이력서|포트폴리오|채용|직무|커리어/],
+    ["fitness", /운동|건강|다이어트|체중|근육|러닝|마라톤|헬스|수면|통증/],
+    ["finance", /저축|투자|재무|대출|상환|비상금|지출|자산/],
+    ["creative", /콘텐츠|유튜브|영상|글쓰기|출간|작품|프로젝트|개발|앱 만들|뉴스레터/],
+    ["habit", /습관|루틴|매일|생활|정리|일기|독서/],
+  ];
+  return patterns.find(([, pattern]) => pattern.test(goal))?.[0] || "general";
+}
+
+let activeRevisionGoalType = "general";
+
+function applyRevisionGoalProfile(selection = "auto", goalText = "") {
+  const detectedType = detectRevisionGoalType(goalText);
+  const effectiveType = selection === "auto" ? detectedType : selection;
+  const profile = REVISION_GOAL_PROFILES[effectiveType] || REVISION_GOAL_PROFILES.general;
+  activeRevisionGoalType = effectiveType;
+  if (revisionGoalTypeHint) revisionGoalTypeHint.textContent = selection === "auto" ? `현재 목표를 ‘${profile.label}’ 유형으로 판단했어요. 다르면 직접 바꿔주세요.` : `‘${profile.label}’에 맞는 질문과 예시로 바꿨어요.`;
+  if (revisionIntroTitle) revisionIntroTitle.textContent = `${profile.label} 계획을 더 정확하게 조정해요`;
+  if (revisionIntroDescription) revisionIntroDescription.textContent = profile.intro;
+  if (revisionOutcomeSectionTitle) revisionOutcomeSectionTitle.textContent = profile.sectionTitle;
+  if (revisionOutcomeSectionHint) revisionOutcomeSectionHint.textContent = profile.sectionHint;
+  if (revisionResourcesLabel) revisionResourcesLabel.textContent = profile.resourcesLabel;
+  if (revisionResources) revisionResources.placeholder = profile.resourcesPlaceholder;
+  if (revisionOutcomeLabel) revisionOutcomeLabel.textContent = profile.outcomeLabel;
+  if (revisionOutcome) revisionOutcome.placeholder = profile.outcomePlaceholder;
+  if (revisionIncreaseLabel) revisionIncreaseLabel.textContent = profile.increaseLabel;
+  if (revisionIncreaseFocus) revisionIncreaseFocus.placeholder = profile.increasePlaceholder;
+  if (revisionDecreaseLabel) revisionDecreaseLabel.textContent = profile.decreaseLabel;
+  if (revisionDecreaseFocus) revisionDecreaseFocus.placeholder = profile.decreasePlaceholder;
+  if (revisionKeepRules) revisionKeepRules.placeholder = profile.keepPlaceholder;
+  if (revisionConstraints) revisionConstraints.placeholder = profile.constraintsPlaceholder;
+  if (planRevisionRequest) planRevisionRequest.placeholder = profile.requestPlaceholder;
+  revisionChipButtons.forEach((button, index) => {
+    const chip = profile.chips[index] || REVISION_GOAL_PROFILES.general.chips[index];
+    button.textContent = chip[0];
+    button.dataset.revisionChip = chip[1];
+  });
+}
+
 function collectRevisionDetails() {
   return {
-    materials: revisionMaterials?.value.trim() || "",
-    targetCoverage: revisionCoverage?.value.trim() || "",
+    goalType: activeRevisionGoalType,
+    goalTypeSelection: revisionGoalType?.value || "auto",
+    resources: revisionResources?.value.trim() || "",
+    targetOutcome: revisionOutcome?.value.trim() || "",
     schedule: {
       weekdayMinutes: normalizeRevisionMinutes(revisionWeekdayMinutes?.value),
       weekendMinutes: normalizeRevisionMinutes(revisionWeekendMinutes?.value),
       preferredTime: revisionPreferredTime?.value || "",
       availableDays: [...revisionDayInputs].filter((input) => input.checked).map((input) => input.value),
     },
-    focusAdjustment: {
+    priorityAdjustment: {
       increase: revisionIncreaseFocus?.value.trim() || "",
       decrease: revisionDecreaseFocus?.value.trim() || "",
       keepRules: revisionKeepRules?.value.trim() || "",
@@ -2635,30 +2776,33 @@ function collectRevisionDetails() {
 
 function hasRevisionDetails(details = collectRevisionDetails()) {
   return Boolean(
-    details.materials ||
-      details.targetCoverage ||
+    details.resources ||
+      details.targetOutcome ||
       details.schedule?.weekdayMinutes ||
       details.schedule?.weekendMinutes ||
       details.schedule?.preferredTime ||
       details.schedule?.availableDays?.length ||
-      details.focusAdjustment?.increase ||
-      details.focusAdjustment?.decrease ||
-      details.focusAdjustment?.keepRules ||
+      details.priorityAdjustment?.increase ||
+      details.priorityAdjustment?.decrease ||
+      details.priorityAdjustment?.keepRules ||
       details.constraints,
   );
 }
 
-function populateRevisionDetails(details = {}) {
+function populateRevisionDetails(details = {}, goalText = "") {
   const schedule = details.schedule || {};
-  const focus = details.focusAdjustment || {};
-  if (revisionMaterials) revisionMaterials.value = details.materials || "";
-  if (revisionCoverage) revisionCoverage.value = details.targetCoverage || "";
+  const priority = details.priorityAdjustment || details.focusAdjustment || {};
+  const selection = details.goalTypeSelection || (details.goalType ? details.goalType : "auto");
+  if (revisionGoalType) revisionGoalType.value = selection === "auto" || REVISION_GOAL_PROFILES[selection] ? selection : "auto";
+  applyRevisionGoalProfile(revisionGoalType?.value || "auto", goalText);
+  if (revisionResources) revisionResources.value = details.resources || details.materials || "";
+  if (revisionOutcome) revisionOutcome.value = details.targetOutcome || details.targetCoverage || "";
   if (revisionWeekdayMinutes) revisionWeekdayMinutes.value = schedule.weekdayMinutes || "";
   if (revisionWeekendMinutes) revisionWeekendMinutes.value = schedule.weekendMinutes || "";
   if (revisionPreferredTime) revisionPreferredTime.value = schedule.preferredTime || "";
-  if (revisionIncreaseFocus) revisionIncreaseFocus.value = focus.increase || "";
-  if (revisionDecreaseFocus) revisionDecreaseFocus.value = focus.decrease || "";
-  if (revisionKeepRules) revisionKeepRules.value = focus.keepRules || "";
+  if (revisionIncreaseFocus) revisionIncreaseFocus.value = priority.increase || "";
+  if (revisionDecreaseFocus) revisionDecreaseFocus.value = priority.decrease || "";
+  if (revisionKeepRules) revisionKeepRules.value = priority.keepRules || "";
   if (revisionConstraints) revisionConstraints.value = details.constraints || "";
   const selectedDays = new Set(Array.isArray(schedule.availableDays) ? schedule.availableDays : []);
   revisionDayInputs.forEach((input) => {
@@ -3842,7 +3986,7 @@ function renderPlanPreview(planText, pendingPlanText = "", pendingRevisionSummar
 
     const summaryItems = [
       ["목표 연결", pendingRevisionSummary.goalAlignment],
-      ["교재·범위", pendingRevisionSummary.materialPlan],
+      ["자원·진행", pendingRevisionSummary.resourcePlan || pendingRevisionSummary.materialPlan],
       ["시간 배분", pendingRevisionSummary.timePlan],
       ["주간 리듬", pendingRevisionSummary.weeklyRule],
     ].filter(([, value]) => String(value || "").trim());
@@ -3972,7 +4116,7 @@ function renderExecutionPage(bundle) {
     planRevisionRequest.value = visibleRevisionRequest;
   }
   if (!revisionDetailDraftLoaded) {
-    populateRevisionDetails(Object.keys(state.pendingRevisionDetails || {}).length ? state.pendingRevisionDetails : state.revisionDetails);
+    populateRevisionDetails(Object.keys(state.pendingRevisionDetails || {}).length ? state.pendingRevisionDetails : state.revisionDetails, plan.goal);
     revisionDetailDraftLoaded = true;
   }
   updateRevisionButtonState();
@@ -4175,6 +4319,11 @@ revisionChipButtons.forEach((button) => {
 });
 
 planRevisionRequest?.addEventListener("input", updateRevisionButtonState);
+revisionGoalType?.addEventListener("change", () => {
+  const goalText = readExecutionPlan()?.goal || "";
+  applyRevisionGoalProfile(revisionGoalType.value, goalText);
+  updateRevisionButtonState();
+});
 [...revisionDetailInputs, ...revisionDayInputs].forEach((input) => {
   input.addEventListener("input", updateRevisionButtonState);
   input.addEventListener("change", updateRevisionButtonState);
@@ -4478,7 +4627,8 @@ regeneratePlanButton?.addEventListener("click", async () => {
   trackCompanionEvent("ai_plan_revision_requested", {
     energy: 3,
     requestLength: revisionRequest.length,
-    hasMaterials: Boolean(revisionDetails.materials),
+    goalType: revisionDetails.goalType,
+    hasResources: Boolean(revisionDetails.resources),
     hasSchedule: Boolean(revisionDetails.schedule.weekdayMinutes || revisionDetails.schedule.weekendMinutes || revisionDetails.schedule.availableDays.length),
   });
 
