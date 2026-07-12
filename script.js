@@ -83,6 +83,10 @@ const executionGoal = document.querySelector("#executionGoal");
 const executionStyle = document.querySelector("#executionStyle");
 const executionPeriod = document.querySelector("#executionPeriod");
 const todayDateLabel = document.querySelector("#todayDateLabel");
+const todayGreeting = document.querySelector("#todayGreeting");
+const todayNotificationButton = document.querySelector("#todayNotificationButton");
+const todayGoalProgress = document.querySelector("#todayGoalProgress");
+const todayGoalProgressBar = document.querySelector("#todayGoalProgressBar");
 const executionDay = document.querySelector("#executionDay");
 const executionStreak = document.querySelector("#executionStreak");
 const executionProgress = document.querySelector("#executionProgress");
@@ -149,6 +153,15 @@ const routineModeTitle = document.querySelector("#routineModeTitle");
 const routineModeMeta = document.querySelector("#routineModeMeta");
 const routineCueList = document.querySelector("#routineCueList");
 const completeTodayButton = document.querySelector("#completeTodayButton");
+const addTodayScheduleButton = document.querySelector("#addTodayScheduleButton");
+const addScheduleOverlay = document.querySelector("#addScheduleOverlay");
+const addScheduleSheet = document.querySelector("#addScheduleSheet");
+const closeAddScheduleButton = document.querySelector("#closeAddSchedule");
+const addScheduleForm = document.querySelector("#addScheduleForm");
+const newScheduleName = document.querySelector("#newScheduleName");
+const newScheduleTime = document.querySelector("#newScheduleTime");
+const newScheduleDuration = document.querySelector("#newScheduleDuration");
+const newScheduleMemo = document.querySelector("#newScheduleMemo");
 const executionThemeButtons = document.querySelectorAll(".execution-theme-button");
 const executionCompanion = document.querySelector("#executionCompanion");
 const executionCompanionTitle = document.querySelector("#executionCompanionTitle");
@@ -2094,6 +2107,10 @@ function migrateExecutionState(rawState) {
     status: state.status || "AI 제안",
     selectedDay: Math.max(1, Number(state.selectedDay) || 1),
     checkedByDay,
+    customTasksByDay:
+      state.customTasksByDay && typeof state.customTasksByDay === "object" && !Array.isArray(state.customTasksByDay)
+        ? state.customTasksByDay
+        : {},
     difficultyByTask:
       state.difficultyByTask && typeof state.difficultyByTask === "object" && !Array.isArray(state.difficultyByTask)
         ? state.difficultyByTask
@@ -2328,6 +2345,13 @@ function getPlanBundle({ reset = false, customText, revisionRequest, revisionDet
   const detailConfig = revisionDetails ?? previous.revisionDetails ?? {};
   const weekConfig = weeklySchedule ?? previous.weeklySchedule ?? [];
   const schedule = buildSchedule(plan, planText, requestText, weekConfig);
+  const customTasksByDay = previous.customTasksByDay || {};
+  schedule.forEach((dayPlan) => {
+    const customTasks = Array.isArray(customTasksByDay[String(dayPlan.day)]) ? customTasksByDay[String(dayPlan.day)] : [];
+    if (!customTasks.length) return;
+    dayPlan.tasks = [...dayPlan.tasks, ...customTasks].sort((first, second) => String(first.time || "").localeCompare(String(second.time || "")));
+    dayPlan.isRestDay = false;
+  });
   const previousSchedule = reset
     ? buildSchedule(plan, previous.planText || getDefaultPlanText(plan), previous.revisionRequest || "", previous.weeklySchedule || [])
     : schedule;
@@ -2353,6 +2377,7 @@ function getPlanBundle({ reset = false, customText, revisionRequest, revisionDet
         status: previous.status || "AI 제안",
         selectedDay: previous.selectedDay || 1,
         checkedByDay: checkedForSchedule,
+        customTasksByDay,
         difficultyByTask: previous.difficultyByTask || {},
         recoveryActions: previous.recoveryActions || [],
         completedLog: previous.completedLog || [],
@@ -2372,6 +2397,7 @@ function getPlanBundle({ reset = false, customText, revisionRequest, revisionDet
   state.scheduleKey = scheduleKey;
   state.selectedDay = Math.max(1, Math.min(Number(state.selectedDay) || 1, schedule.length));
   state.planStartDate = state.planStartDate || getLocalDateKey(plan.createdAt);
+  state.customTasksByDay = state.customTasksByDay || customTasksByDay;
 
   return { plan, planText, schedule, state };
 }
@@ -2886,6 +2912,14 @@ function closeEnergyCharge() {
   setSheetOpen(energyChargeSheet, energyChargeOverlay, false);
 }
 
+function openAddSchedule() {
+  setSheetOpen(addScheduleSheet, addScheduleOverlay, true);
+}
+
+function closeAddSchedule() {
+  setSheetOpen(addScheduleSheet, addScheduleOverlay, false);
+}
+
 function getSuggestedFocusMinutes(task) {
   const explicitDuration = Number(task?.durationMinutes);
   if (Number.isFinite(explicitDuration) && explicitDuration > 0) return Math.max(1, Math.min(180, explicitDuration));
@@ -3148,6 +3182,15 @@ function getTaskPeriod(time) {
   return { label: "마무리", icon: "✦", theme: "night" };
 }
 
+function getTaskEndTime(time, durationMinutes) {
+  const match = String(time || "").match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return "";
+  const totalMinutes = Number(match[1]) * 60 + Number(match[2]) + getSuggestedFocusMinutes({ durationMinutes });
+  const hours = Math.floor((totalMinutes % 1440) / 60);
+  const minutes = totalMinutes % 60;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
 function renderChecklist(dayPlan, state) {
   if (!executionChecklist) return;
 
@@ -3167,7 +3210,9 @@ function renderChecklist(dayPlan, state) {
     const label = document.createElement("label");
     const input = document.createElement("input");
     const content = document.createElement("span");
-    const time = document.createElement("strong");
+    const time = document.createElement("span");
+    const startTime = document.createElement("strong");
+    const endTime = document.createElement("small");
     const text = document.createElement("span");
     const head = document.createElement("span");
     const periodBadge = document.createElement("span");
@@ -3180,11 +3225,14 @@ function renderChecklist(dayPlan, state) {
     input.checked = Boolean(checked[index]);
     label.classList.toggle("is-complete", input.checked);
     content.className = "task-content";
+    time.className = "task-time";
     head.className = "task-row-head";
     periodBadge.className = "task-period";
     timelineNode.className = "task-timeline-node";
 
-    time.textContent = task.time;
+    startTime.textContent = task.time;
+    endTime.textContent = getTaskEndTime(task.time, task.durationMinutes);
+    time.append(startTime, endTime);
     periodBadge.textContent = `${period.icon} ${period.label}`;
     text.textContent = task.text;
 
@@ -3196,7 +3244,7 @@ function renderChecklist(dayPlan, state) {
 
     head.append(periodBadge);
     content.append(head, text, minimum);
-    label.append(time, input, timelineNode, content);
+    label.append(time, timelineNode, content, input);
     executionChecklist.append(label);
   });
 }
@@ -4149,8 +4197,13 @@ function renderExecutionPage(bundle) {
   if (acceptPlanButton) acceptPlanButton.disabled = !state.pendingPlanText;
   if (keepPlanButton) keepPlanButton.disabled = !state.pendingPlanText;
   if (reviseAgainButton) reviseAgainButton.disabled = false;
-  if (todayDateLabel) todayDateLabel.textContent = "Today";
-  executionGoal.textContent = "오늘의 한 걸음";
+  const now = new Date();
+  const hour = now.getHours();
+  if (todayGreeting) todayGreeting.textContent = hour < 12 ? "좋은 아침이에요!" : hour < 18 ? "좋은 오후예요!" : "좋은 저녁이에요!";
+  if (todayDateLabel) {
+    todayDateLabel.textContent = `${now.toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "long" })} · 오늘도 멋진 하루를 만들어봐요.`;
+  }
+  executionGoal.textContent = plan.goal || "오늘의 한 걸음";
   const isRestDay = selectedDay.tasks.length === 0;
   if (executionStyle) {
     const todayLabel = new Date().toLocaleDateString("ko-KR", {
@@ -4161,14 +4214,16 @@ function renderExecutionPage(bundle) {
     executionStyle.textContent = isRestDay ? `${todayLabel} · 계획된 휴식일` : `${todayLabel} · ${selectedCompletion.completed}/${selectedCompletion.total} 완료`;
   }
   if (executionPeriod) executionPeriod.textContent = plan.goal || `${period}일 목표`;
-  if (executionDay) executionDay.textContent = `Day ${selectedDay.day} / ${period}`;
-  if (executionStreak) executionStreak.textContent = `${completedDays}일 완료`;
-  if (executionProgress) executionProgress.textContent = `${overallProgress}%`;
+  if (executionDay) executionDay.textContent = `완료한 일정 ${selectedCompletion.completed} / ${selectedCompletion.total}`;
+  if (executionStreak) executionStreak.textContent = remainingTasks > 0 ? `${remainingTasks}개 남음` : "오늘 일정 완료";
+  if (executionProgress) executionProgress.textContent = `${selectedCompletion.percent}%`;
   if (executionProgressBar) {
-    executionProgressBar.style.width = `${overallProgress}%`;
-    executionProgressBar.parentElement?.style.setProperty("--journey-dot", `${overallProgress}%`);
+    executionProgressBar.style.width = `${selectedCompletion.percent}%`;
+    executionProgressBar.parentElement?.style.setProperty("--journey-dot", `${selectedCompletion.percent}%`);
   }
-  if (selectedScheduleTitle) selectedScheduleTitle.textContent = isRestDay ? `${selectedDay.day}일차 · 계획된 휴식` : `${selectedDay.day}일차 AI 스케줄`;
+  if (todayGoalProgress) todayGoalProgress.textContent = `${selectedCompletion.completed} / ${selectedCompletion.total} 완료`;
+  if (todayGoalProgressBar) todayGoalProgressBar.style.width = `${selectedCompletion.percent}%`;
+  if (selectedScheduleTitle) selectedScheduleTitle.textContent = isRestDay ? "오늘은 계획된 휴식일" : "오늘의 일정";
   if (selectedScheduleMeta) selectedScheduleMeta.textContent = isRestDay ? "선택한 가능 요일에 맞춰 학습을 비워두었어요" : `${selectedCompletion.percent}% 완료 · ${remainingTasks}개 남음`;
   if (completeTodayButton) {
     completeTodayButton.disabled = isRestDay;
@@ -4193,6 +4248,16 @@ function renderExecutionPage(bundle) {
   renderRecoveryPrompt(state, selectedCompletion);
   renderCompanionExperience({ plan, selectedCompletion, remainingTasks, completedDays, overallProgress });
 }
+
+const themes = {
+  buddy: {
+    title: "목표 메이트 올리",
+    path: "작은 방 → 산책길 → 숲 → 별빛 언덕",
+    text: "올리는 계획이 커졌을 때 다시 시작할 수 있는 크기로 줄여주는 여정 파트너입니다.",
+    image: "assets/ollie-action.png",
+    alt: "목표 메이트 올리",
+  },
+};
 
 function applyExecutionTheme(themeName) {
   const theme = themes[themeName] || themes.buddy;
@@ -4290,6 +4355,46 @@ completeTodayButton?.addEventListener("click", () => {
     trackCompanionEvent("all_day_completed", { day: dayPlan.day, newlyCompleted });
   }
   renderExecutionPage(bundle);
+});
+
+todayNotificationButton?.addEventListener("click", () => {
+  showToast("새 알림이 없어요 · 오늘 일정에 집중해볼까요?");
+});
+
+addTodayScheduleButton?.addEventListener("click", openAddSchedule);
+closeAddScheduleButton?.addEventListener("click", closeAddSchedule);
+addScheduleOverlay?.addEventListener("click", closeAddSchedule);
+
+addScheduleForm?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  if (!addScheduleForm.reportValidity()) return;
+
+  const bundle = getPlanBundle();
+  const dayKey = String(bundle.state.selectedDay);
+  const customTasksByDay = { ...(bundle.state.customTasksByDay || {}) };
+  const tasks = Array.isArray(customTasksByDay[dayKey]) ? [...customTasksByDay[dayKey]] : [];
+  const newTask = {
+    id: `custom-${Date.now()}`,
+    time: newScheduleTime?.value || "18:00",
+    durationMinutes: Math.max(5, Number(newScheduleDuration?.value) || 20),
+    text: newScheduleName?.value.trim() || "새 일정",
+    completionRule: newScheduleMemo?.value.trim() || "정한 시간만큼 실행하면 완료",
+    custom: true,
+  };
+  const currentDayPlan = bundle.schedule[bundle.state.selectedDay - 1];
+  const insertionIndex = currentDayPlan.tasks.findIndex((task) => String(task.time || "").localeCompare(newTask.time) > 0);
+  const safeInsertionIndex = insertionIndex === -1 ? currentDayPlan.tasks.length : insertionIndex;
+  const checked = [...(bundle.state.checkedByDay[dayKey] || Array(currentDayPlan.tasks.length).fill(false))];
+  checked.splice(safeInsertionIndex, 0, false);
+  bundle.state.checkedByDay[dayKey] = checked;
+  tasks.push(newTask);
+  customTasksByDay[dayKey] = tasks;
+  bundle.state.customTasksByDay = customTasksByDay;
+  savePlanBundleState(bundle.state);
+  closeAddSchedule();
+  addScheduleForm.reset();
+  renderExecutionPage(getPlanBundle());
+  showToast("오늘 일정에 새 항목을 추가했어요");
 });
 
 scheduleCalendar?.addEventListener("click", (event) => {

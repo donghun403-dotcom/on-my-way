@@ -12176,6 +12176,270 @@ body.sheet-open {
   }
 }
 
+/* Today tab wireframe: preserve the existing palette and typography while simplifying hierarchy. */
+.execution-page #view-today.app-view.is-active {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  width: min(100%, 760px);
+  margin-inline: auto;
+}
+
+.execution-page #view-today.app-view.is-active > * {
+  grid-column: 1 !important;
+  grid-row: auto !important;
+}
+
+.execution-page .today-welcome {
+  display: flex;
+  order: 1;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 10px 4px 2px;
+}
+
+.execution-page .today-welcome h1 {
+  margin: 0;
+  color: var(--app-ink);
+  font-family: "Jalnan", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  font-size: clamp(26px, 4vw, 38px);
+  line-height: 1.18;
+  letter-spacing: -0.03em;
+}
+
+.execution-page .today-welcome p {
+  margin: 7px 0 0;
+  color: var(--app-muted);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.execution-page .today-alert-button {
+  position: relative;
+  display: grid;
+  flex: 0 0 auto;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  place-items: center;
+  color: #5c6982;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(107, 122, 166, 0.12);
+  border-radius: 50%;
+  box-shadow: 0 12px 28px rgba(91, 106, 151, 0.1);
+  cursor: pointer;
+}
+
+.execution-page .today-alert-button > span { font-size: 25px; transform: rotate(-10deg); }
+.execution-page .today-alert-button > i {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 8px;
+  height: 8px;
+  background: #c98d99;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+}
+
+.execution-page #view-today .today-goal-card {
+  order: 2;
+  grid-template-columns: minmax(0, 1fr) 180px;
+  min-height: 190px;
+  padding: 25px 28px;
+  background:
+    radial-gradient(circle at 84% 18%, rgba(207, 234, 230, 0.78), transparent 32%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(239, 238, 248, 0.88));
+  border-radius: 26px;
+}
+
+.execution-page #view-today .today-goal-card::after { display: none; }
+.execution-page #view-today .today-goal-copy { align-self: center; }
+.execution-page #view-today .today-goal-card .eyebrow {
+  min-height: 0;
+  padding: 0;
+  color: #748f9b;
+  background: transparent;
+}
+.execution-page #view-today .today-goal-card h2 {
+  max-width: 500px;
+  margin: 10px 0 8px;
+  color: var(--app-ink);
+  font-family: "Jalnan", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  font-size: clamp(22px, 3.5vw, 34px);
+  line-height: 1.25;
+  letter-spacing: -0.03em;
+}
+.execution-page #view-today .today-goal-card .today-goal-copy > p:last-of-type {
+  margin: 0;
+  color: var(--app-muted);
+  font-size: 10px;
+  font-weight: 750;
+}
+.execution-page #view-today .today-ollie-stage { min-height: 145px; }
+.execution-page #view-today .today-ollie-stage img { width: 150px; height: 165px; }
+.execution-page #view-today .today-ollie-stage span { right: -2px; bottom: 3px; padding: 7px 10px; font-size: 9px; }
+
+.execution-page .today-goal-progress {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  margin-top: 18px;
+}
+.execution-page .today-goal-progress > div {
+  height: 6px;
+  overflow: hidden;
+  background: rgba(107, 122, 166, 0.12);
+  border-radius: 999px;
+}
+.execution-page .today-goal-progress > div > span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #789f9b, #8993ad);
+  border-radius: inherit;
+  transition: width 220ms ease;
+}
+.execution-page .today-goal-progress > strong { color: #65738c; font-size: 10px; white-space: nowrap; }
+
+.execution-page #view-today .today-card { order: 3; padding: 26px; }
+.execution-page .today-schedule-actions { display: flex; align-items: center; gap: 8px; }
+.execution-page .today-schedule-actions > span { color: var(--app-muted); font-size: 9px; font-weight: 850; }
+.execution-page .today-schedule-actions .text-button { min-height: 34px; padding: 0 11px; font-size: 9px; }
+
+.execution-page .today-next-action {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+  margin-top: 18px;
+  padding: 15px 16px;
+  background: linear-gradient(145deg, rgba(237, 247, 243, 0.92), rgba(248, 247, 251, 0.94));
+  border: 1px solid rgba(119, 161, 149, 0.12);
+  border-radius: 18px;
+}
+.execution-page .today-next-action > div:first-child { min-width: 0; }
+.execution-page .today-next-action > div:first-child > span { color: #78988f; font-size: 8px; font-weight: 950; letter-spacing: 0.06em; }
+.execution-page .today-next-action h3 { margin: 4px 0 2px; color: var(--app-ink); font-size: 13px; line-height: 1.35; }
+.execution-page .today-next-action p { margin: 0; color: var(--app-muted); font-size: 8px; font-weight: 700; }
+.execution-page .today-next-action .focus-task-goal { min-width: 92px; padding: 9px 10px; border-radius: 13px; }
+.execution-page .today-next-action .focus-task-goal strong { font-size: 9px; }
+.execution-page .today-next-action .focus-task-goal span { font-size: 8px; }
+.execution-page .today-next-action .focus-start-button { width: auto; min-height: 42px; padding: 0 17px; font-size: 10px; }
+
+.execution-page #view-today .execution-checklist { gap: 9px; margin-top: 12px; }
+.execution-page #view-today .execution-checklist .task-row {
+  grid-template-columns: 48px 10px minmax(0, 1fr) 34px;
+  gap: 11px;
+  min-height: 76px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(107, 122, 166, 0.09);
+  border-radius: 17px;
+  box-shadow: 0 9px 22px rgba(91, 106, 151, 0.06);
+}
+.execution-page #view-today .task-time { display: grid; gap: 3px; align-self: center; text-align: left; }
+.execution-page #view-today .task-time strong { color: #53617b; font-size: 11px; }
+.execution-page #view-today .task-time small { color: #a0a8b6; font-size: 9px; font-weight: 700; }
+.execution-page #view-today .task-timeline-node {
+  position: static;
+  display: block;
+  width: 8px;
+  height: 8px;
+  background: #75ad9a;
+  border-radius: 50%;
+}
+.execution-page #view-today .task-afternoon .task-timeline-node { background: #d8a44f; }
+.execution-page #view-today .task-evening .task-timeline-node { background: #7da7bd; }
+.execution-page #view-today .task-night .task-timeline-node { background: #927eb5; }
+.execution-page #view-today .task-content {
+  gap: 4px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+.execution-page #view-today .task-row:hover .task-content { transform: none; box-shadow: none; }
+.execution-page #view-today .task-row-head { display: none; }
+.execution-page #view-today .task-content > span:not(.task-row-head) { font-size: 11px; }
+.execution-page #view-today .task-content .minimum-action { font-size: 8px; line-height: 1.45; }
+.execution-page #view-today .execution-checklist .execution-check { width: 30px; height: 30px; border-radius: 9px; }
+
+.execution-page .today-order-hint { margin: 12px 0 0; color: #929aaa; font-size: 8px; font-weight: 700; text-align: center; }
+.execution-page .today-order-hint span { margin-right: 4px; color: #8f82ad; }
+.execution-page #view-today .today-card > .focus-adjust-link { margin-top: 8px; }
+.execution-page #view-today .today-card > .view-jump-link { display: none; }
+
+.execution-page #view-today .progress-card { order: 4; }
+.execution-page .today-progress-body { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 16px; align-items: center; margin-top: 17px; }
+.execution-page .today-progress-body > strong { color: #647895; font-family: "Jalnan", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; font-size: 34px; }
+.execution-page .today-progress-body .progress-track { margin: 0; }
+.execution-page #view-today .progress-card > p { margin-bottom: 0; }
+
+.execution-page #view-today .coach-card {
+  order: 5;
+  grid-template-columns: 86px minmax(0, 1fr) 76px;
+  min-height: 132px;
+  padding-right: 22px;
+}
+.execution-page #view-today .coach-card > img { width: 88px; height: 108px; }
+.execution-page .today-add-button {
+  display: grid;
+  width: 66px;
+  height: 66px;
+  padding: 0;
+  place-items: center;
+  align-content: center;
+  color: #ffffff;
+  background: linear-gradient(145deg, #789f9b, #8993ad);
+  border: 0;
+  border-radius: 50%;
+  box-shadow: 0 14px 28px rgba(91, 106, 151, 0.22);
+  cursor: pointer;
+}
+.execution-page .today-add-button span { font-size: 26px; line-height: 0.8; }
+.execution-page .today-add-button strong { margin-top: 4px; font-size: 8px; }
+
+.execution-page #view-today .trial-reminder-card,
+.execution-page #view-today .personality-nudge-card,
+.execution-page #view-today .difficulty-card,
+.execution-page #view-today .recovery-card { order: 6; }
+
+.execution-page .add-schedule-sheet { width: min(460px, calc(100vw - 24px)); }
+.execution-page .add-schedule-form { display: grid; gap: 12px; }
+.execution-page .add-schedule-form > div { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.execution-page .add-schedule-form label { display: grid; gap: 7px; color: #68758b; font-size: 10px; font-weight: 850; }
+.execution-page .add-schedule-form input,
+.execution-page .add-schedule-form select,
+.execution-page .add-schedule-form textarea {
+  width: 100%;
+  padding: 12px 13px;
+  color: var(--app-ink);
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(107, 122, 166, 0.14);
+  border-radius: 13px;
+  outline: 0;
+  resize: vertical;
+}
+.execution-page .add-schedule-form input:focus,
+.execution-page .add-schedule-form select:focus,
+.execution-page .add-schedule-form textarea:focus { border-color: rgba(107, 122, 166, 0.42); box-shadow: 0 0 0 3px rgba(107, 122, 166, 0.09); }
+
+@media (max-width: 620px) {
+  .execution-page #view-today .today-goal-card { grid-template-columns: minmax(0, 1fr) 112px; min-height: 168px; padding: 20px; }
+  .execution-page #view-today .today-ollie-stage { display: grid; min-height: 125px; }
+  .execution-page #view-today .today-ollie-stage img { width: 116px; height: 132px; }
+  .execution-page #view-today .today-ollie-stage span { display: none; }
+  .execution-page .today-next-action { grid-template-columns: minmax(0, 1fr) auto; }
+  .execution-page .today-next-action .focus-task-goal { display: none; }
+  .execution-page #view-today .execution-checklist .task-row { grid-template-columns: 43px 8px minmax(0, 1fr) 30px; gap: 8px; padding: 11px 10px; }
+  .execution-page #view-today .coach-card { grid-template-columns: 70px minmax(0, 1fr) 58px; gap: 10px; padding: 18px 14px; }
+  .execution-page #view-today .coach-card > img { width: 72px; height: 90px; }
+  .execution-page .today-add-button { width: 54px; height: 54px; }
+  .execution-page .today-add-button strong { display: none; }
+  .execution-page .add-schedule-form > div { grid-template-columns: 1fr; }
+}
+
 /* Shared footer across landing, app, and admin pages */
 .home-page .site-footer {
   padding-bottom: 132px;
