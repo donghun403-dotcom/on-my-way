@@ -211,6 +211,30 @@
           <button class="view-jump-link" data-goto-view="plan" type="button">이번 주 계획 다듬기 →</button>
         </section>
 
+        <section class="execution-card trial-reminder-card" id="trialReminderCard" hidden>
+          <div class="card-title compact">
+            <div>
+              <h2>체험 종료 전에 알림 받기</h2>
+              <span>번호를 남기면 체험이 끝나기 전에 알려드려요</span>
+            </div>
+            <button class="text-button" id="trialReminderDismiss" type="button">나중에</button>
+          </div>
+          <label class="builder-field" for="trialPhone">
+            <span>휴대전화번호</span>
+            <input id="trialPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="010-1234-5678" pattern="01[016789]-?[0-9]{3,4}-?[0-9]{4}" required />
+          </label>
+          <p class="trial-reminder-note">체험 계정 확인과 시작·종료 안내에 사용해요.</p>
+          <label class="consent-row required-consent" for="trialServiceConsent">
+            <input id="trialServiceConsent" type="checkbox" required />
+            <span><strong>[필수]</strong> 휴대전화번호 수집·이용 동의 <small>목적: 체험 계정 확인 및 운영 안내 · 보관: 체험 종료 후 7일 또는 회원 탈퇴 시까지</small></span>
+          </label>
+          <label class="consent-row" for="trialMarketingConsent">
+            <input id="trialMarketingConsent" type="checkbox" />
+            <span><strong>[선택]</strong> (광고) 카카오톡으로 PRO 혜택과 할인 안내 받기 <small>동의하지 않아도 1일 무료 체험을 이용할 수 있으며 언제든 철회할 수 있어요.</small></span>
+          </label>
+          <button class="focus-start-button" id="trialReminderSave" type="button">알림 받기</button>
+        </section>
+
         <section class="execution-card difficulty-card" id="difficultyCard" hidden>
           <div class="card-title compact">
             <div>

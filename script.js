@@ -246,6 +246,7 @@ function initializeTrialAccess() {
     return;
   }
   updateTrialStatus(Number(access.expiresAt));
+  initializeTrialReminderCard(access);
   window.setInterval(() => updateTrialStatus(Number(access.expiresAt)), 60 * 1000);
 }
 
@@ -260,6 +261,43 @@ trialPhoneInput?.addEventListener("input", () => {
   } else {
     trialPhoneInput.value = `${digits.slice(0, 3)}-${digits.slice(3, digits.length - 4)}-${digits.slice(-4)}`;
   }
+});
+
+const trialReminderCard = document.querySelector("#trialReminderCard");
+const trialReminderSave = document.querySelector("#trialReminderSave");
+const trialReminderDismiss = document.querySelector("#trialReminderDismiss");
+const TRIAL_REMINDER_DISMISSED_KEY = "omwTrialReminderDismissed";
+
+function readTrialLead() {
+  try {
+    return JSON.parse(localStorage.getItem(TRIAL_LEAD_KEY) || "null");
+  } catch (error) {
+    return null;
+  }
+}
+
+function initializeTrialReminderCard(access) {
+  if (!trialReminderCard) return;
+  const dismissed = localStorage.getItem(TRIAL_REMINDER_DISMISSED_KEY) === "true";
+  if (access?.plan !== "trial" || dismissed || readTrialLead()?.serviceConsent) return;
+  trialReminderCard.hidden = false;
+}
+
+trialReminderSave?.addEventListener("click", () => {
+  if (!trialPhoneInput?.reportValidity()) return;
+  if (!trialServiceConsent?.reportValidity()) return;
+  saveTrialLead();
+  if (trialReminderCard) trialReminderCard.hidden = true;
+  showToast("좋아요! 체험이 끝나기 전에 알려드릴게요.");
+});
+
+trialReminderDismiss?.addEventListener("click", () => {
+  try {
+    localStorage.setItem(TRIAL_REMINDER_DISMISSED_KEY, "true");
+  } catch (error) {
+    /* storage unavailable — ignore */
+  }
+  if (trialReminderCard) trialReminderCard.hidden = true;
 });
 
 // ===== 회원 · 인증 =====
@@ -869,9 +907,12 @@ function updateWizardSummary() {
   if (reviewPeriod) reviewPeriod.textContent = selectedPeriod;
   if (reviewTime) reviewTime.textContent = time;
   if (reviewReadiness) reviewReadiness.textContent = readiness;
-  if (reviewCurrentState) reviewCurrentState.textContent = currentStateInput?.value.trim() || "입력 전";
-  if (reviewCurrentRoutine) reviewCurrentRoutine.textContent = currentRoutineInput?.value.trim() || "입력 전";
-  if (reviewPersonality) reviewPersonality.textContent = `${mbtiInput?.value || "MBTI 미정"} · 생년월일 기반 실행 리듬`;
+  if (reviewCurrentState) reviewCurrentState.textContent = currentStateInput?.value.trim() || "건너뜀";
+  if (reviewCurrentRoutine) reviewCurrentRoutine.textContent = currentRoutineInput?.value.trim() || "건너뜀";
+  if (reviewPersonality) {
+    const personalityBits = [mbtiInput?.value, birthDateInput?.value ? "생년월일 기반 실행 리듬" : ""].filter(Boolean);
+    reviewPersonality.textContent = personalityBits.length ? personalityBits.join(" · ") : "건너뜀 — 나중에 입력할 수 있어요";
+  }
 }
 
 function canLeaveDiagnosisStep() {
@@ -1287,7 +1328,12 @@ function buildLocalAiPreview(payload) {
   const routineAdvice = lowFriction
     ? `${routineTime}에 ${existingRoutine} 직후 10분만 시작하고, 알림으로 다시 불러옵니다.`
     : `${routineTime}에 ${existingRoutine}와 새 목표를 붙여 바로 실행 흐름을 만듭니다.`;
-  const personalitySummary = `${manseoryeok.dayMaster.trait} 성향과 ${mbti}의 유지 방식을 함께 보면, 처음부터 큰 계획을 밀어붙이기보다 오늘 실행할 단위를 선명하게 두는 편이 좋습니다.`;
+  const personalityBits = [];
+  if (payload.input.birth?.date) personalityBits.push(`${manseoryeok.dayMaster.trait} 성향`);
+  if (mbti) personalityBits.push(`${mbti}의 유지 방식`);
+  const personalitySummary = personalityBits.length
+    ? `${personalityBits.join("과 ")}을 함께 보면, 처음부터 큰 계획을 밀어붙이기보다 오늘 실행할 단위를 선명하게 두는 편이 좋습니다.`
+    : "성향 정보는 건너뛰었어요. 목표와 기간을 기준으로, 처음부터 큰 계획보다 오늘 실행할 단위를 선명하게 두는 계획으로 시작합니다.";
 
   const firstAction = lowFriction ? `${routineTime} 10분 루틴: ${template.firstAction}` : `${routineTime} 루틴: ${template.firstAction}`;
   const firstDuration = lowFriction ? 10 : 20;
@@ -1495,16 +1541,18 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
   const routineReadiness = routineReadinessInput?.value || DEFAULT_ROUTINE_READINESS;
   const routineTime = routineTimeInput?.value || "아침";
   const currentRoutine = currentRoutineInput?.value.trim() || "이미 하는 작은 행동";
-  const birthDate = birthDateInput.value;
-  const birthTime = birthTimeInput.value;
-  const birthPlace = birthPlaceInput.value.trim();
-  const mbti = mbtiInput.value || "ISFJ";
+  const birthDate = birthDateInput?.value || "";
+  const birthTime = birthTimeInput?.value || "";
+  const birthPlace = birthPlaceInput?.value.trim() || "";
+  const mbti = mbtiInput?.value || "";
+  const hasBirthInfo = Boolean(birthDate);
   const safeBirthDate = birthDate || "1995-01-01";
   const safeBirthTime = birthTime || "12:00";
 
-  const manse = calculateSimpleManse(safeBirthDate, safeBirthTime);
-  const mbtiSummary = analyzeMbti(mbti);
-  const style = decidePlanningStyle(manse, mbti);
+  const rawManse = calculateSimpleManse(safeBirthDate, safeBirthTime);
+  const manse = hasBirthInfo ? rawManse : { ...rawManse, summary: "" };
+  const mbtiSummary = mbti ? analyzeMbti(mbti) : "성향 정보 없이 목표와 실행 스타일을 기준으로 계획합니다.";
+  const style = decidePlanningStyle(rawManse, mbti);
   const payload = buildAiPlanPayload({
     goal,
     period,

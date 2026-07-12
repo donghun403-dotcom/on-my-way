@@ -98,9 +98,7 @@ function normalizeGoalInput(input = {}) {
 
 function validateGoalInput(input) {
   if (!input.goal) return "목표를 입력해 주세요.";
-  if (!input.currentState) return "현재 상황을 입력해 주세요.";
-  if (!input.routine.readiness || !input.routine.preferredTime || !input.routine.existingRoutine) return "루틴 정보를 모두 입력해 주세요.";
-  if (!input.birth.date || !input.birth.time || !input.birth.place || !input.mbti) return "성향 정보를 모두 입력해 주세요.";
+  if (!input.routine.readiness || !input.routine.preferredTime) return "목표 기간과 시간대를 입력해 주세요.";
   return "";
 }
 
@@ -143,6 +141,7 @@ export async function createAiGoalPlan(input, { apiKey, model = "gpt-5.4-mini", 
         "당신은 행동과학 기반 목표 설계 코치입니다. 모든 답변은 자연스러운 한국어로 작성하세요.",
         "사용자의 목표, 현재 수준, 사용 가능 시간, 기존 루틴, 실행 성향을 최우선 근거로 사용하세요.",
         "MBTI와 생년월일 기반 성향 신호는 사용자가 제공한 선호 정보로만 참고하고 사실이나 운명처럼 단정하지 마세요.",
+        "현재 상황, 기존 루틴, MBTI, 생년월일 값이 비어 있으면 임의로 추정하지 말고 목표와 기간, 선호 시간을 중심으로 일반적인 계획을 세우세요.",
         "전체 기간을 측정 가능한 단계로 나누고, 첫 7일은 실제로 실행 가능한 분량과 완료 기준을 제시하세요.",
         "오늘 일정은 선호 시간과 기존 루틴에 연결하고, 실패한 날을 위한 최소 행동과 재시작 규칙을 포함하세요.",
         "과도한 자신감, 의료·재정적 단정, 불필요하게 긴 설명은 피하세요.",
