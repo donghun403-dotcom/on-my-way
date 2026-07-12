@@ -284,6 +284,11 @@ const authProviderList = document.querySelector("#authProviderList");
 const adminPasswordForm = document.querySelector("#adminPasswordForm");
 const adminAccessPassword = document.querySelector("#adminAccessPassword");
 const adminPasswordError = document.querySelector("#adminPasswordError");
+const adminPasswordChangeForm = document.querySelector("#adminPasswordChangeForm");
+const currentAdminPassword = document.querySelector("#currentAdminPassword");
+const newAdminPassword = document.querySelector("#newAdminPassword");
+const confirmAdminPassword = document.querySelector("#confirmAdminPassword");
+const adminPasswordChangeMessage = document.querySelector("#adminPasswordChangeMessage");
 const accountSheetOverlay = document.querySelector("#accountSheetOverlay");
 const closeAuthSheetButton = document.querySelector("#closeAuthSheet");
 const authProviderButtons = document.querySelectorAll("[data-auth-provider]");
@@ -1683,6 +1688,30 @@ adminPasswordForm?.addEventListener("submit", async (event) => {
     location.href = "/admin.html";
   } catch (error) {
     if (adminPasswordError) adminPasswordError.textContent = error.message;
+    if (submitButton) submitButton.disabled = false;
+  }
+});
+
+adminPasswordChangeForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const submitButton = adminPasswordChangeForm.querySelector("button[type='submit']");
+  const nextPassword = newAdminPassword?.value || "";
+  if (adminPasswordChangeMessage) adminPasswordChangeMessage.textContent = "";
+  if (nextPassword !== (confirmAdminPassword?.value || "")) {
+    if (adminPasswordChangeMessage) adminPasswordChangeMessage.textContent = "새 비밀번호 확인이 일치하지 않습니다.";
+    return;
+  }
+  if (submitButton) submitButton.disabled = true;
+  try {
+    await accountRequest("/api/admin/password", {
+      method: "POST",
+      body: JSON.stringify({ currentPassword: currentAdminPassword?.value || "", newPassword: nextPassword }),
+    });
+    adminPasswordChangeForm.reset();
+    if (adminPasswordChangeMessage) adminPasswordChangeMessage.textContent = "비밀번호를 변경했습니다. 이제 새 비밀번호로 로그인해 주세요.";
+  } catch (error) {
+    if (adminPasswordChangeMessage) adminPasswordChangeMessage.textContent = error.message;
+  } finally {
     if (submitButton) submitButton.disabled = false;
   }
 });

@@ -17,6 +17,7 @@ const localEnv = {
 
 // 로컬 개발용 회원 저장소: tmp/dev-users.json (git에 올라가지 않음)
 const devUsersFile = path.join(root, "tmp", "dev-users.json");
+const devSettingsFile = path.join(root, "tmp", "dev-settings.json");
 
 function readDevUsers() {
   try {
@@ -31,6 +32,19 @@ function writeDevUsers(users) {
   fs.writeFileSync(devUsersFile, JSON.stringify(users, null, 2), "utf8");
 }
 
+function readDevSettings() {
+  try {
+    return JSON.parse(fs.readFileSync(devSettingsFile, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function writeDevSettings(settings) {
+  fs.mkdirSync(path.dirname(devSettingsFile), { recursive: true });
+  fs.writeFileSync(devSettingsFile, JSON.stringify(settings, null, 2), "utf8");
+}
+
 const localUserStore = {
   async getUser(id) {
     return readDevUsers()[id] || null;
@@ -42,6 +56,14 @@ const localUserStore = {
   },
   async listUsers() {
     return Object.values(readDevUsers());
+  },
+  async getSetting(name) {
+    return readDevSettings()[name] || null;
+  },
+  async putSetting(name, value) {
+    const settings = readDevSettings();
+    settings[name] = value;
+    writeDevSettings(settings);
   },
 };
 

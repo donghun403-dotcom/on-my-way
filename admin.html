@@ -20,6 +20,7 @@
           <a href="#costs">AI 비용</a>
           <a href="#members">회원 관리</a>
           <a href="#users">유저 운영 큐</a>
+          <a href="#security">보안 설정</a>
         </nav>
         <div class="admin-sidebar-note"><strong>오늘 확인할 것</strong><span>체험 이탈 126명</span><span>3일 미접속 42명</span><span>AI 비용 정상</span></div>
       </aside>
@@ -171,6 +172,21 @@
             </table>
           </div>
           <p class="admin-table-note">위험 신호 권장 기준: 3일 미접속, 최근 7일 실행률 30% 미만, 체험 시작 후 핵심 행동 0회, 에너지 80% 이상 사용 후 재방문 없음.</p>
+        </section>
+
+        <section class="admin-table-section admin-security-section" id="security">
+          <div class="card-title admin-user-title">
+            <div><h2>관리자 보안 설정</h2><span>임시 비밀번호로 로그인한 뒤 내 비밀번호로 바로 교체할 수 있습니다.</span></div>
+            <span class="card-tag good">관리자 전용</span>
+          </div>
+          <form class="admin-password-change-form" id="adminPasswordChangeForm">
+            <label>현재 비밀번호<input id="currentAdminPassword" type="password" autocomplete="current-password" required /></label>
+            <label>새 비밀번호<input id="newAdminPassword" type="password" autocomplete="new-password" minlength="16" maxlength="128" required /></label>
+            <label>새 비밀번호 확인<input id="confirmAdminPassword" type="password" autocomplete="new-password" minlength="16" maxlength="128" required /></label>
+            <button type="submit">관리자 비밀번호 변경</button>
+          </form>
+          <p class="admin-password-guidance">16자 이상이며 영문 대문자·소문자, 숫자, 특수문자를 각각 1개 이상 포함해 주세요.</p>
+          <p class="admin-password-change-message" id="adminPasswordChangeMessage" role="status" aria-live="polite"></p>
         </section>
       </section>
     </main>

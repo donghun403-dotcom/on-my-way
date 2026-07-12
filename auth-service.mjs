@@ -57,6 +57,38 @@ function randomId(length = 24) {
   return base64UrlEncode(bytes).slice(0, length);
 }
 
+function constantTimeEqual(left, right) {
+  const leftBytes = textEncoder.encode(String(left || ""));
+  const rightBytes = textEncoder.encode(String(right || ""));
+  let difference = leftBytes.length ^ rightBytes.length;
+  const length = Math.max(leftBytes.length, rightBytes.length);
+  for (let index = 0; index < length; index += 1) difference |= (leftBytes[index] || 0) ^ (rightBytes[index] || 0);
+  return difference === 0;
+}
+
+async function deriveAdminPasswordHash(password, salt) {
+  const key = await crypto.subtle.importKey("raw", textEncoder.encode(password), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits(
+    { name: "PBKDF2", hash: "SHA-256", salt: textEncoder.encode(salt), iterations: 210000 },
+    key,
+    256,
+  );
+  return base64UrlEncode(new Uint8Array(bits));
+}
+
+async function adminPasswordSetting(ctx) {
+  return typeof store(ctx).getSetting === "function" ? store(ctx).getSetting("admin_password") : null;
+}
+
+async function verifyAdminPassword(ctx, supplied) {
+  const setting = await adminPasswordSetting(ctx);
+  if (setting?.salt && setting?.hash) {
+    return constantTimeEqual(await deriveAdminPasswordHash(String(supplied || ""), setting.salt), setting.hash);
+  }
+  const temporaryPassword = String(ctx.env.ADMIN_PASSWORD || "");
+  return temporaryPassword ? constantTimeEqual(supplied, temporaryPassword) : false;
+}
+
 const PROVIDERS = {
   kakao: {
     label: "카카오",
@@ -463,22 +495,40 @@ export async function handleAccountApi(ctx) {
   }
 
   if (path === "/api/admin/login" && method === "POST") {
-    const expected = String(ctx.env.ADMIN_PASSWORD || "");
-    if (!expected) return { status: 503, json: { error: "관리자 로그인이 아직 설정되지 않았습니다." } };
+    const setting = await adminPasswordSetting(ctx);
+    if (!setting && !ctx.env.ADMIN_PASSWORD) return { status: 503, json: { error: "관리자 로그인이 아직 설정되지 않았습니다." } };
     const body = await ctx.readJson();
     const supplied = String(body.password || "");
-    const expectedBytes = textEncoder.encode(expected);
-    const suppliedBytes = textEncoder.encode(supplied);
-    let difference = expectedBytes.length ^ suppliedBytes.length;
-    const length = Math.max(expectedBytes.length, suppliedBytes.length);
-    for (let index = 0; index < length; index += 1) difference |= (expectedBytes[index] || 0) ^ (suppliedBytes[index] || 0);
-    if (difference !== 0) return { status: 401, json: { error: "관리자 비밀번호가 올바르지 않습니다." } };
+    if (!(await verifyAdminPassword(ctx, supplied))) return { status: 401, json: { error: "관리자 비밀번호가 올바르지 않습니다." } };
     const adminUser = { id: "admin:password", role: "admin" };
     return {
       status: 200,
       json: { user: { id: adminUser.id, name: "관리자", role: "admin", plan: "pro", provider: "password" } },
       cookies: [await issueSession(ctx, adminUser)],
     };
+  }
+
+  if (path === "/api/admin/password" && method === "POST") {
+    const admin = await currentSessionUser(ctx);
+    if (admin?.role !== "admin") return { status: 403, json: { error: "관리자만 비밀번호를 변경할 수 있습니다." } };
+    if (typeof store(ctx).putSetting !== "function") return { status: 503, json: { error: "비밀번호 저장소가 준비되지 않았습니다." } };
+    const body = await ctx.readJson();
+    const currentPassword = String(body.currentPassword || "");
+    const newPassword = String(body.newPassword || "");
+    if (!(await verifyAdminPassword(ctx, currentPassword))) return { status: 401, json: { error: "현재 비밀번호가 올바르지 않습니다." } };
+    if (newPassword.length < 16 || newPassword.length > 128) return { status: 400, json: { error: "새 비밀번호는 16자 이상 128자 이하로 설정해 주세요." } };
+    if (!/[a-z]/.test(newPassword) || !/[A-Z]/.test(newPassword) || !/[0-9]/.test(newPassword) || !/[^A-Za-z0-9]/.test(newPassword)) {
+      return { status: 400, json: { error: "영문 대문자·소문자, 숫자, 특수문자를 각각 1개 이상 포함해 주세요." } };
+    }
+    const salt = randomId(32);
+    await store(ctx).putSetting("admin_password", {
+      algorithm: "PBKDF2-SHA256",
+      iterations: 210000,
+      salt,
+      hash: await deriveAdminPasswordHash(newPassword, salt),
+      updatedAt: Date.now(),
+    });
+    return { status: 200, json: { ok: true } };
   }
 
   if (path === "/api/billing/subscribe" && method === "POST") {
@@ -639,6 +689,7 @@ export function parseCookies(header) {
 
 // Cloudflare KV 저장소 (없으면 인메모리 폴백 — 배포 전 KV 바인딩 권장)
 const memoryUsers = new Map();
+const memorySettings = new Map();
 
 export function createKvStore(kv) {
   if (!kv) {
@@ -651,6 +702,12 @@ export function createKvStore(kv) {
       },
       async listUsers() {
         return [...memoryUsers.values()];
+      },
+      async getSetting(name) {
+        return memorySettings.get(name) || null;
+      },
+      async putSetting(name, value) {
+        memorySettings.set(name, value);
       },
     };
   }
@@ -673,6 +730,12 @@ export function createKvStore(kv) {
         cursor = page.list_complete ? undefined : page.cursor;
       } while (cursor);
       return users;
+    },
+    async getSetting(name) {
+      return kv.get(`setting:${name}`, "json");
+    },
+    async putSetting(name, value) {
+      await kv.put(`setting:${name}`, JSON.stringify(value));
     },
   };
 }

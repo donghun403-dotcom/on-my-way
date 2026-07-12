@@ -10,11 +10,15 @@ import {
 
 function memoryStore(seed = []) {
   const users = new Map(seed.map((user) => [user.id, user]));
+  const settings = new Map();
   return {
     users,
+    settings,
     async getUser(id) { return users.get(id) || null; },
     async putUser(user) { users.set(user.id, user); },
     async listUsers() { return [...users.values()]; },
+    async getSetting(name) { return settings.get(name) || null; },
+    async putSetting(name, value) { settings.set(name, value); },
   };
 }
 
@@ -99,6 +103,35 @@ test("서버 비밀번호 인증은 관리자 세션을 발급한다", async () 
   const sessionCookie = login.cookies[0].split(";")[0];
   const me = await handleAccountApi(context({ path: "/api/auth/me", env, store, cookie: sessionCookie }));
   assert.equal(me.json.user.role, "admin");
+});
+
+test("관리자는 임시 비밀번호를 안전하게 교체할 수 있다", async () => {
+  const store = memoryStore();
+  const env = { SESSION_SECRET: "secret", ALLOW_DEV_LOGIN: "true", ADMIN_PASSWORD: "Temporary1!Pass" };
+  const login = await handleAccountApi(context({
+    path: "/api/admin/login", method: "POST", env, store, body: { password: "Temporary1!Pass" },
+  }));
+  const sessionCookie = login.cookies[0].split(";")[0];
+  const changed = await handleAccountApi(context({
+    path: "/api/admin/password",
+    method: "POST",
+    env,
+    store,
+    cookie: sessionCookie,
+    body: { currentPassword: "Temporary1!Pass", newPassword: "MyNewAdminPass1!" },
+  }));
+  assert.equal(changed.status, 200);
+  assert.equal(store.settings.get("admin_password").algorithm, "PBKDF2-SHA256");
+  assert.equal("password" in store.settings.get("admin_password"), false);
+
+  const oldLogin = await handleAccountApi(context({
+    path: "/api/admin/login", method: "POST", env, store, body: { password: "Temporary1!Pass" },
+  }));
+  assert.equal(oldLogin.status, 401);
+  const newLogin = await handleAccountApi(context({
+    path: "/api/admin/login", method: "POST", env, store, body: { password: "MyNewAdminPass1!" },
+  }));
+  assert.equal(newLogin.status, 200);
 });
 
 test("해지된 구독은 결제 기간 종료 후 체험 상태로 내려간다", async () => {
