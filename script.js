@@ -58,6 +58,7 @@ const trialPhoneInput = document.querySelector("#trialPhone");
 const trialServiceConsent = document.querySelector("#trialServiceConsent");
 const trialMarketingConsent = document.querySelector("#trialMarketingConsent");
 const trialStartLink = document.querySelector("#trialStartLink");
+const trialStartInlineLink = document.querySelector("#trialStartInlineLink");
 const trialStatusBanner = document.querySelector("#trialStatusBanner");
 const trialTimeRemaining = document.querySelector("#trialTimeRemaining");
 const trialPaywall = document.querySelector("#trialPaywall");
@@ -269,6 +270,7 @@ function initializeTrialAccess() {
 }
 
 trialStartLink?.addEventListener("click", startTrialAccess);
+trialStartInlineLink?.addEventListener("click", startTrialAccess);
 
 trialPhoneInput?.addEventListener("input", () => {
   const digits = trialPhoneInput.value.replace(/\D/g, "").slice(0, 11);

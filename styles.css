@@ -12706,3 +12706,89 @@ body.sheet-open {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
+
+/* Result-to-trial bridge: visible before the long AI plan details */
+.result-inline-start {
+  z-index: 6;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 13px 14px;
+  background: linear-gradient(135deg, rgba(238, 248, 244, 0.98), rgba(240, 241, 249, 0.98));
+  border: 1px solid rgba(111, 157, 139, 0.22);
+  border-radius: 16px;
+  box-shadow: 0 12px 26px rgba(91, 106, 151, 0.12);
+}
+
+.result-inline-start > div {
+  display: grid;
+  gap: 3px;
+}
+
+.result-inline-start > div span {
+  color: #6c9481;
+  font-size: 9px;
+  font-weight: 950;
+  letter-spacing: 0.04em;
+}
+
+.result-inline-start > div strong {
+  color: #3d485e;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.home-page .story-flow .result-inline-start > a {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  gap: 10px;
+  padding: 0 13px;
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #6f9f8b, #7f99b4 58%, #9d93aa) !important;
+  border-radius: 12px;
+  box-shadow: 0 10px 20px rgba(91, 124, 124, 0.2);
+  font-size: 10px;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
+.result-inline-start > a b {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.17);
+  border-radius: 7px;
+  font-size: 13px;
+}
+
+.result-inline-start > a:focus-visible {
+  outline: 3px solid rgba(111, 157, 139, 0.3);
+  outline-offset: 3px;
+}
+
+@media (max-width: 640px) {
+  .result-inline-start {
+    position: sticky;
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    grid-template-columns: 1fr;
+    padding: 12px;
+    background: rgba(248, 250, 252, 0.96);
+    border-color: rgba(111, 157, 139, 0.28);
+    box-shadow: 0 16px 36px rgba(67, 79, 107, 0.2);
+    backdrop-filter: blur(16px);
+  }
+
+  .result-inline-start > div strong {
+    font-size: 10px;
+  }
+
+  .home-page .story-flow .result-inline-start > a {
+    min-height: 48px;
+    justify-content: space-between;
+    padding-inline: 15px;
+    font-size: 12px;
+  }
+}
