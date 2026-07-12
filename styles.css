@@ -1560,6 +1560,7 @@ footer p {
 }
 
 .home-page[data-page-view="app"] #appTour,
+.home-page[data-page-view="trial"] #designFlow,
 .home-page[data-page-view="pricing"] #pricing,
 .home-page[data-page-view="pricing"] .final-cta {
   animation: home-view-enter 240ms ease-out both;

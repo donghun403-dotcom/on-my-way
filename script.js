@@ -1282,6 +1282,7 @@ function setActiveSectionLink(hash) {
 function getPageView(hash) {
   if (hash === "#appTour") return "app";
   if (hash === "#pricing") return "pricing";
+  if (hash === "#designFlow") return "trial";
   return "home";
 }
 
