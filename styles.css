@@ -12340,3 +12340,62 @@ body.sheet-open {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+/* 성향 설정 시트와 안내 카드 */
+.personality-sheet-copy {
+  margin: 0;
+  color: #7a8191;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.app-personality-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.app-personality-fields label {
+  display: grid;
+  gap: 7px;
+  color: #3a4357;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.app-personality-fields input,
+.app-personality-fields select {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 14px;
+  color: #30394e;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid #dbe1eb;
+  border-radius: 12px;
+  outline: none;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.app-personality-fields input:focus,
+.app-personality-fields select:focus {
+  border-color: #8daac2;
+  box-shadow: 0 0 0 4px rgba(117, 163, 191, 0.12);
+}
+
+.personality-sheet {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+
+.personality-nudge-card {
+  display: grid;
+  gap: 10px;
+}
+
+@media (max-width: 640px) {
+  .app-personality-fields {
+    grid-template-columns: 1fr;
+  }
+}

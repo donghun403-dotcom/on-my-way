@@ -72,6 +72,7 @@
       <nav class="drawer-nav" aria-label="계정 이동">
         <button type="button" id="drawerMyPage" data-requires-auth hidden>👤 마이페이지</button>
         <button type="button" id="drawerUpgrade" hidden>⭐ PRO 시작하기 · 월 2,900원</button>
+        <button type="button" id="drawerPersonality">🧭 성향 설정</button>
         <a href="index.html">🏠 홈으로</a>
         <a href="index.html#designFlow">🛠 목표 설계 수정</a>
         <a href="admin.html" id="drawerAdminLink" hidden>🔐 관리자 대시보드</a>
@@ -149,6 +150,30 @@
         <button type="button" id="myPageLogout">로그아웃</button>
       </div>
       <p class="auth-sheet-terms" id="myPagePaymentNote">PRO는 월 2,900원 정기결제이며, 해지해도 결제한 이용 기간까지 계속 사용할 수 있어요.</p>
+    </aside>
+
+    <aside class="companion-chat-sheet account-sheet personality-sheet" id="personalitySheet" role="dialog" aria-modal="true" aria-labelledby="personalitySheetTitle" tabindex="-1" hidden>
+      <header>
+        <div><span>MY PROFILE</span><h2 id="personalitySheetTitle">성향 설정</h2></div>
+        <button type="button" id="closePersonalitySheet" aria-label="성향 설정 닫기">×</button>
+      </header>
+      <p class="personality-sheet-copy">입력하면 올리의 계획 조정과 응원 방식이 더 정교해져요. 언제든 다시 바꿀 수 있어요.</p>
+      <div class="app-personality-fields" aria-label="성향 정보 입력">
+        <label for="profileBirthDate">생년월일<input id="profileBirthDate" type="date" /></label>
+        <label for="profileBirthTime">출생 시간<input id="profileBirthTime" type="time" /></label>
+        <label for="profileBirthPlace">출생지<input id="profileBirthPlace" type="text" placeholder="예: 서울" /></label>
+        <label for="profileMbti">MBTI
+          <select id="profileMbti">
+            <option value="" selected>나중에 입력</option>
+            <option>INTJ</option><option>INTP</option><option>ENTJ</option><option>ENTP</option>
+            <option>INFJ</option><option>INFP</option><option>ENFJ</option><option>ENFP</option>
+            <option>ISTJ</option><option>ISFJ</option><option>ESTJ</option><option>ESFJ</option>
+            <option>ISTP</option><option>ISFP</option><option>ESTP</option><option>ESFP</option>
+          </select>
+        </label>
+      </div>
+      <button class="focus-start-button" id="savePersonalityButton" type="button">저장하기</button>
+      <p class="auth-sheet-terms">저장하면 다음 계획 조정과 올리의 코칭부터 반영돼요. 무료 체험의 목표 계획 1개는 그대로 유지되고, PRO에서는 새 성향으로 계획을 다시 만들 수 있어요.</p>
     </aside>
 
     <div class="ollie-energy-warning" id="ollieEnergyWarning" role="status" aria-live="polite" hidden>
@@ -233,6 +258,17 @@
             <span><strong>[선택]</strong> (광고) 카카오톡으로 PRO 혜택과 할인 안내 받기 <small>동의하지 않아도 1일 무료 체험을 이용할 수 있으며 언제든 철회할 수 있어요.</small></span>
           </label>
           <button class="focus-start-button" id="trialReminderSave" type="button">알림 받기</button>
+        </section>
+
+        <section class="execution-card personality-nudge-card" id="personalityNudgeCard" hidden>
+          <div class="card-title compact">
+            <div>
+              <h2>성향을 입력하면 계획이 더 정교해져요</h2>
+              <span>건너뛴 생년월일·MBTI를 언제든 여기서 입력할 수 있어요</span>
+            </div>
+            <button class="text-button" id="personalityNudgeDismiss" type="button">나중에</button>
+          </div>
+          <button class="focus-start-button" id="personalityNudgeOpen" type="button">1분 만에 성향 입력하기</button>
         </section>
 
         <section class="execution-card difficulty-card" id="difficultyCard" hidden>

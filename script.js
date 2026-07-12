@@ -242,6 +242,7 @@ function initializeTrialAccess() {
   const access = readTrialAccess();
   if (access?.plan === "pro") {
     if (trialStatusBanner) trialStatusBanner.hidden = true;
+    initializePersonalityNudge();
     return;
   }
   if (!access?.expiresAt) {
@@ -254,6 +255,7 @@ function initializeTrialAccess() {
   }
   updateTrialStatus(Number(access.expiresAt));
   initializeTrialReminderCard(access);
+  initializePersonalityNudge();
   window.setInterval(() => updateTrialStatus(Number(access.expiresAt)), 60 * 1000);
 }
 
@@ -306,6 +308,106 @@ trialReminderDismiss?.addEventListener("click", () => {
   }
   if (trialReminderCard) trialReminderCard.hidden = true;
 });
+
+// ===== 성향 프로필: 앱 안에서 언제든 입력·수정 =====
+const PERSONALITY_PROFILE_KEY = "omwPersonalityProfile";
+const PERSONALITY_NUDGE_DISMISSED_KEY = "omwPersonalityNudgeDismissed";
+const personalitySheet = document.querySelector("#personalitySheet");
+const closePersonalitySheetButton = document.querySelector("#closePersonalitySheet");
+const savePersonalityButton = document.querySelector("#savePersonalityButton");
+const profileBirthDateInput = document.querySelector("#profileBirthDate");
+const profileBirthTimeInput = document.querySelector("#profileBirthTime");
+const profileBirthPlaceInput = document.querySelector("#profileBirthPlace");
+const profileMbtiInput = document.querySelector("#profileMbti");
+const drawerPersonalityButton = document.querySelector("#drawerPersonality");
+const personalityNudgeCard = document.querySelector("#personalityNudgeCard");
+const personalityNudgeOpenButton = document.querySelector("#personalityNudgeOpen");
+const personalityNudgeDismissButton = document.querySelector("#personalityNudgeDismiss");
+
+function readPersonalityProfile() {
+  try {
+    return JSON.parse(localStorage.getItem(PERSONALITY_PROFILE_KEY) || "null");
+  } catch (error) {
+    return null;
+  }
+}
+
+function hasPersonalityInfo() {
+  const profile = readPersonalityProfile();
+  if (profile && (profile.birthDate || profile.mbti)) return true;
+  const plan = readExecutionPlan();
+  return Boolean(plan.mbti || plan.manseSummary);
+}
+
+function openPersonalitySheet() {
+  if (!personalitySheet) return;
+  const profile = readPersonalityProfile() || {};
+  const plan = readExecutionPlan();
+  if (profileBirthDateInput) profileBirthDateInput.value = profile.birthDate || "";
+  if (profileBirthTimeInput) profileBirthTimeInput.value = profile.birthTime || "";
+  if (profileBirthPlaceInput) profileBirthPlaceInput.value = profile.birthPlace || "";
+  if (profileMbtiInput) profileMbtiInput.value = profile.mbti || plan.mbti || "";
+  setDrawerOpen(false);
+  setSheetOpen(personalitySheet, accountSheetOverlay, true);
+}
+
+function savePersonalityProfileFromSheet() {
+  const profile = {
+    birthDate: profileBirthDateInput?.value || "",
+    birthTime: profileBirthTimeInput?.value || "",
+    birthPlace: profileBirthPlaceInput?.value.trim() || "",
+    mbti: profileMbtiInput?.value || "",
+    updatedAt: new Date().toISOString(),
+  };
+  try {
+    localStorage.setItem(PERSONALITY_PROFILE_KEY, JSON.stringify(profile));
+    // 기존 계획은 유지하면서 이후 AI 조정·코칭에 쓰이는 성향 값만 갱신한다
+    const plan = readExecutionPlan();
+    if (plan.goal) {
+      const manse = calculateSimpleManse(profile.birthDate || "1995-01-01", profile.birthTime || "12:00");
+      plan.mbti = profile.mbti;
+      plan.mbtiSummary = profile.mbti ? analyzeMbti(profile.mbti) : "성향 정보 없이 목표와 실행 스타일을 기준으로 계획합니다.";
+      plan.manseSummary = profile.birthDate ? manse.summary : "";
+      plan.style = decidePlanningStyle(manse, profile.mbti || "");
+      localStorage.setItem("omwExecutionPlan", JSON.stringify(plan));
+    }
+  } catch (error) {
+    console.warn("Unable to save personality profile", error);
+  }
+  if (personalityNudgeCard) personalityNudgeCard.hidden = true;
+  setSheetOpen(personalitySheet, accountSheetOverlay, false);
+  showToast("성향을 저장했어요 · 다음 계획 조정부터 반영돼요");
+}
+
+function initializePersonalityNudge() {
+  if (!personalityNudgeCard) return;
+  if (localStorage.getItem(PERSONALITY_NUDGE_DISMISSED_KEY) === "true") return;
+  if (hasPersonalityInfo() || !readExecutionPlan().goal) return;
+  personalityNudgeCard.hidden = false;
+}
+
+drawerPersonalityButton?.addEventListener("click", openPersonalitySheet);
+closePersonalitySheetButton?.addEventListener("click", () => setSheetOpen(personalitySheet, accountSheetOverlay, false));
+savePersonalityButton?.addEventListener("click", savePersonalityProfileFromSheet);
+personalityNudgeOpenButton?.addEventListener("click", openPersonalitySheet);
+personalityNudgeDismissButton?.addEventListener("click", () => {
+  try {
+    localStorage.setItem(PERSONALITY_NUDGE_DISMISSED_KEY, "true");
+  } catch (error) {
+    /* storage unavailable — ignore */
+  }
+  personalityNudgeCard.hidden = true;
+});
+
+// 홈 빌더의 성향 입력을 저장된 프로필로 미리 채운다 (다시 방문했을 때)
+(() => {
+  const profile = readPersonalityProfile();
+  if (!profile) return;
+  if (birthDateInput && !birthDateInput.value && profile.birthDate) birthDateInput.value = profile.birthDate;
+  if (birthTimeInput && !birthTimeInput.value && profile.birthTime) birthTimeInput.value = profile.birthTime;
+  if (birthPlaceInput && !birthPlaceInput.value && profile.birthPlace) birthPlaceInput.value = profile.birthPlace;
+  if (mbtiInput && !mbtiInput.value && profile.mbti) mbtiInput.value = profile.mbti;
+})();
 
 // ===== 회원 · 인증 =====
 const authUiState = { user: null, loaded: false };
@@ -641,7 +743,8 @@ drawerLogout?.addEventListener("click", logoutAccount);
 closeAuthSheetButton?.addEventListener("click", () => setSheetOpen(authSheet, accountSheetOverlay, false));
 closeMyPageSheetButton?.addEventListener("click", () => setSheetOpen(myPageSheet, accountSheetOverlay, false));
 accountSheetOverlay?.addEventListener("click", () => {
-  setSheetOpen(authSheet?.hidden === false ? authSheet : myPageSheet, accountSheetOverlay, false);
+  const openSheetElement = [authSheet, myPageSheet, personalitySheet].find((sheet) => sheet && sheet.hidden === false);
+  if (openSheetElement) setSheetOpen(openSheetElement, accountSheetOverlay, false);
 });
 myPageSubscribeButton?.addEventListener("click", startSubscription);
 myPageCancelProButton?.addEventListener("click", cancelProSubscription);
@@ -1675,6 +1778,13 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
   if (showLoading) {
     saveTrialLead();
     startTrialAccess();
+    if (birthDate || birthPlace || mbti) {
+      try {
+        localStorage.setItem(PERSONALITY_PROFILE_KEY, JSON.stringify({ birthDate, birthTime, birthPlace, mbti, updatedAt: new Date().toISOString() }));
+      } catch (error) {
+        /* storage unavailable — ignore */
+      }
+    }
   }
   if (showLoading && usedFallback) showToast("연결이 잠시 느려 입력 내용을 바탕으로 맞춤 계획을 완성했어요.");
   if (showLoading) {
