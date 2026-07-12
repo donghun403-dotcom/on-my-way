@@ -18,7 +18,7 @@ const wizardStepLabel = document.querySelector("#wizardStepLabel");
 const wizardProgressValue = document.querySelector("#wizardProgressValue");
 const wizardLiveGoal = document.querySelector("#wizardLiveGoal");
 const wizardLiveTiming = document.querySelector("#wizardLiveTiming");
-const planPreviewPanel = document.querySelector("#planPreviewPanel");
+const planPreviewPanel = document.querySelector("#firstStep");
 const goalSuggestionButtons = document.querySelectorAll("[data-goal-suggestion], [data-goal-category]");
 const customGoalButton = document.querySelector("#customGoalButton");
 const birthDateInput = document.querySelector("#birthDate");
@@ -1267,7 +1267,7 @@ navLinks.forEach((link) => {
 });
 
 function setActiveSectionLink(hash) {
-  const activeTargets = hash === "#top" || !hash ? ["#top"] : [hash];
+  const activeTargets = hash === "#top" || !hash ? ["#top"] : hash === "#firstStep" ? ["#designFlow"] : [hash];
   sectionNavLinks.forEach((link) => {
     const isActive = activeTargets.includes(link.getAttribute("href"));
     link.classList.toggle("active", isActive);
@@ -1282,7 +1282,7 @@ function setActiveSectionLink(hash) {
 function getPageView(hash) {
   if (hash === "#appTour") return "app";
   if (hash === "#pricing") return "pricing";
-  if (hash === "#designFlow") return "trial";
+  if (hash === "#designFlow" || hash === "#firstStep") return "trial";
   return "home";
 }
 
@@ -1295,12 +1295,22 @@ function showPageView(hash, scrollToTarget = false) {
     section.hidden = section.dataset.pageView !== pageView;
   });
 
+  const showingFirstStep = normalizedHash === "#firstStep";
+  const designFlowSection = document.querySelector("#designFlow");
+  designFlowSection?.classList.toggle("showing-first-step", showingFirstStep);
+  if (showingFirstStep) planPreviewPanel?.classList.add("is-ready");
+  if (pageView === "trial" && !showingFirstStep) planPreviewPanel?.classList.remove("is-ready");
+
   setActiveSectionLink(normalizedHash);
 
   if (scrollToTarget) {
     window.requestAnimationFrame(() => {
       const target = normalizedHash === "#top" ? document.querySelector("#top") : document.querySelector(normalizedHash);
       target?.scrollIntoView({ block: "start" });
+      if (normalizedHash === "#firstStep") {
+        const headerOffset = document.querySelector(".site-header")?.offsetHeight || 0;
+        window.scrollBy({ top: -(headerOffset + 10), left: 0 });
+      }
     });
   }
 }
@@ -1704,6 +1714,7 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
         if (aiPreviewStatus) aiPreviewStatus.textContent = "무료 목표 계획 1개를 이미 만들었어요";
         planPreviewPanel?.classList.add("is-ready");
         showToast("무료 플랜은 목표 계획 1개를 만들 수 있어요. 앱에서 올리 에너지로 수정해 보세요.");
+        openFirstStepResult();
         return;
       }
     } catch (error) {
@@ -1764,6 +1775,7 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
       }
       planPreviewPanel?.classList.add("is-ready");
       showToast(error.message);
+      openFirstStepResult();
       return;
     }
     console.error("Unable to generate AI goal plan", error);
@@ -1815,12 +1827,7 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
     }
   }
   if (showLoading && usedFallback) showToast("연결이 잠시 느려 입력 내용을 바탕으로 맞춤 계획을 완성했어요.");
-  if (showLoading) {
-    window.setTimeout(() => {
-      planPreviewPanel?.scrollIntoView({ behavior: "smooth", block: "start" });
-      planPreviewPanel?.focus({ preventScroll: true });
-    }, 80);
-  }
+  if (showLoading) openFirstStepResult();
   if (showLoading && readTrialAccess()?.plan !== "pro") {
     try {
       localStorage.setItem(FREE_PLAN_GENERATED_KEY, "true");
@@ -1829,6 +1836,16 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
       /* storage unavailable — ignore */
     }
   }
+}
+
+function openFirstStepResult() {
+  planPreviewPanel?.classList.add("is-ready");
+  if (window.location.hash === "#firstStep") {
+    showPageView("#firstStep", true);
+  } else {
+    window.location.hash = "firstStep";
+  }
+  window.setTimeout(() => planPreviewPanel?.focus({ preventScroll: true }), 80);
 }
 
 personalityForm?.addEventListener("submit", (event) => {
