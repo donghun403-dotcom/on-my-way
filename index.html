@@ -35,27 +35,28 @@
     <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin />
     <link rel="stylesheet" href="styles.css" />
   </head>
-  <body class="home-page">
+  <body class="home-page" data-page-view="home">
     <header class="site-header">
-      <a class="brand" href="/" aria-label="On My Way home">
+      <a class="brand" href="#top" aria-label="On My Way 홈">
         <img class="brand-logo" src="assets/logo-horizontal-ollie.png" alt="On My Way" />
       </a>
-      <button class="menu-button" type="button" aria-label="메뉴 열기" aria-expanded="false">
+      <button class="menu-button" type="button" aria-label="메뉴 열기" aria-expanded="false" aria-controls="mainNav">
         <span></span>
         <span></span>
         <span></span>
       </button>
-      <nav class="main-nav" aria-label="주요 메뉴">
-        <a href="#designFlow">목표 만들기</a>
+      <nav class="main-nav" id="mainNav" aria-label="주요 메뉴">
+        <a href="#top">처음으로</a>
         <a href="#appTour">앱 구경</a>
         <a href="#pricing">가격</a>
+        <a href="#designFlow">1일 무료 체험</a>
         <a href="app.html">앱 실행</a>
         <a class="nav-login-link" id="navLoginLink" href="app.html?auth=login">로그인</a>
       </nav>
     </header>
 
     <main id="top">
-      <section class="hero section-band">
+      <section class="hero section-band" data-page-view="home">
         <div class="hero-copy">
           <article class="hero-poster">
             <div>
@@ -76,13 +77,7 @@
 
       </section>
 
-      <nav class="bottom-tabbar" aria-label="빠른 이동">
-        <a class="active" href="/" aria-label="홈" aria-current="page">⌂</a>
-        <a href="#designFlow" aria-label="설계">◈</a>
-        <a href="#pricing" aria-label="가격">₩</a>
-      </nav>
-
-      <section class="design-flow section-band story-flow" id="designFlow" aria-live="polite">
+      <section class="design-flow section-band story-flow" id="designFlow" data-page-view="home" aria-live="polite">
         <div class="section-heading">
           <p class="eyebrow">Start Your 1-Day Trial</p>
           <h2>이제 내 목표로 직접 체험해보세요</h2>
@@ -276,7 +271,7 @@
         </div>
       </section>
 
-      <section class="app-dashboard section-band" id="appTour">
+      <section class="app-dashboard section-band" id="appTour" data-page-view="app" hidden>
         <div class="section-heading">
           <p class="eyebrow">See It Before You Start</p>
           <h2>결제 전에, 올리와 보내는 하루를 먼저 구경하세요</h2>
@@ -383,7 +378,7 @@
         </div>
       </section>
 
-      <section class="pricing section-band" id="pricing">
+      <section class="pricing section-band" id="pricing" data-page-view="pricing" hidden>
         <div class="section-heading">
           <p class="eyebrow">Pricing</p>
           <h2>하루 써본 뒤, 계속할지 결정하세요</h2>
@@ -461,7 +456,7 @@
         </div>
       </section>
 
-      <section class="final-cta section-band">
+      <section class="final-cta section-band" data-page-view="pricing" hidden>
         <img class="final-cta-mascot" src="assets/ollie-comfort.png" alt="" aria-hidden="true" />
         <div>
           <p class="eyebrow">Start</p>

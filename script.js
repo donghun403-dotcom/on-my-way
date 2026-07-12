@@ -4,7 +4,8 @@ const designGoal = document.querySelector("#designGoal");
 const menuButton = document.querySelector(".menu-button");
 const mainNav = document.querySelector(".main-nav");
 const navLinks = document.querySelectorAll(".main-nav a");
-const sectionNavLinks = document.querySelectorAll(".main-nav a[href^='#'], .bottom-tabbar a");
+const sectionNavLinks = document.querySelectorAll(".main-nav a[href^='#']");
+const pageViewSections = document.querySelectorAll("main > [data-page-view]");
 const personalityForm = document.querySelector("#personalityForm");
 const diagnosisSteps = document.querySelectorAll(".diagnosis-step");
 const diagnosisStepperItems = document.querySelectorAll(".diagnosis-stepper span");
@@ -1254,17 +1255,19 @@ updateAppFeatureUi(0);
 menuButton?.addEventListener("click", () => {
   const isOpen = mainNav.classList.toggle("open");
   menuButton.setAttribute("aria-expanded", String(isOpen));
+  menuButton.setAttribute("aria-label", isOpen ? "메뉴 닫기" : "메뉴 열기");
 });
 
 navLinks.forEach((link) => {
   link.addEventListener("click", () => {
     mainNav?.classList.remove("open");
     menuButton?.setAttribute("aria-expanded", "false");
+    menuButton?.setAttribute("aria-label", "메뉴 열기");
   });
 });
 
 function setActiveSectionLink(hash) {
-  const activeTargets = hash === "#top" ? ["#top", "#diagnosis"] : [hash];
+  const activeTargets = hash === "#top" || !hash ? ["#top"] : [hash];
   sectionNavLinks.forEach((link) => {
     const isActive = activeTargets.includes(link.getAttribute("href"));
     link.classList.toggle("active", isActive);
@@ -1276,29 +1279,33 @@ function setActiveSectionLink(hash) {
   });
 }
 
-sectionNavLinks.forEach((link) => {
-  link.addEventListener("click", () => {
-    const hash = link.getAttribute("href");
-    if (hash) setActiveSectionLink(hash);
-  });
-});
-
-setActiveSectionLink(window.location.hash || "#top");
-
-const sectionAnchors = ["#top", "#appTour", "#designFlow", "#pricing"]
-  .map((hash) => ({ hash, element: document.querySelector(hash) }))
-  .filter((item) => item.element);
-
-if (sectionAnchors.length > 0) {
-  window.addEventListener(
-    "scroll",
-    () => {
-      const current = [...sectionAnchors].reverse().find((item) => item.element.offsetTop <= window.scrollY + 180);
-      if (current) setActiveSectionLink(current.hash);
-    },
-    { passive: true },
-  );
+function getPageView(hash) {
+  if (hash === "#appTour") return "app";
+  if (hash === "#pricing") return "pricing";
+  return "home";
 }
+
+function showPageView(hash, scrollToTarget = false) {
+  const normalizedHash = hash || "#top";
+  const pageView = getPageView(normalizedHash);
+  document.body.dataset.pageView = pageView;
+
+  pageViewSections.forEach((section) => {
+    section.hidden = section.dataset.pageView !== pageView;
+  });
+
+  setActiveSectionLink(normalizedHash);
+
+  if (scrollToTarget) {
+    window.requestAnimationFrame(() => {
+      const target = normalizedHash === "#top" ? document.querySelector("#top") : document.querySelector(normalizedHash);
+      target?.scrollIntoView({ block: "start" });
+    });
+  }
+}
+
+window.addEventListener("hashchange", () => showPageView(window.location.hash, true));
+showPageView(window.location.hash || "#top", Boolean(window.location.hash));
 
 const stems = [
   { ko: "갑", element: "목", trait: "시작과 성장 욕구가 강한 확장형" },

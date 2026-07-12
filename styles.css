@@ -1555,6 +1555,27 @@ footer p {
   padding: 18px 12px 28px;
 }
 
+.home-page [data-page-view][hidden] {
+  display: none !important;
+}
+
+.home-page[data-page-view="app"] #appTour,
+.home-page[data-page-view="pricing"] #pricing,
+.home-page[data-page-view="pricing"] .final-cta {
+  animation: home-view-enter 240ms ease-out both;
+}
+
+@keyframes home-view-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .home-page .hero {
   display: block;
   min-height: auto;
