@@ -9751,8 +9751,8 @@ body.sheet-open {
   justify-content: center;
   gap: 2px;
   height: 24px;
-  min-width: 24px;
-  padding: 0 5px;
+  min-width: 52px;
+  padding: 0 8px;
   color: #59677d;
   background: rgba(255, 255, 255, 0.9);
   border: 1px solid rgba(107, 122, 166, 0.22);
@@ -9766,10 +9766,36 @@ body.sheet-open {
 }
 
 .energy-charge-button em {
-  display: none;
+  display: inline;
   font-style: normal;
   font-size: 9px;
   font-weight: 900;
+}
+
+.menu-toggle {
+  display: inline-flex;
+  min-height: 36px;
+  padding: 0 10px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  color: #536079;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(107, 122, 166, 0.18);
+  border-radius: 12px;
+  font-family: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.menu-toggle-icon {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.menu-toggle em {
+  font-style: normal;
+  font-size: 9px;
 }
 
 .energy-charge-button:hover {
@@ -11835,6 +11861,9 @@ body.sheet-open {
 
 @media (max-width: 620px) {
   .execution-page .execution-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 8px;
     top: 8px;
     width: min(calc(100% - 20px), 520px);
     min-height: 60px;
@@ -11845,6 +11874,38 @@ body.sheet-open {
 
   .execution-page .execution-header .brand-logo {
     width: 124px;
+  }
+
+  .execution-page .execution-header > a {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: center;
+    justify-self: start;
+  }
+
+  .execution-page .execution-header-actions {
+    display: contents;
+  }
+
+  .execution-page .ollie-energy-meter {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: 24px minmax(0, 1fr) auto;
+    padding: 8px 10px;
+  }
+
+  .execution-page .ollie-energy-meter small,
+  .execution-page .ollie-energy-meter strong {
+    white-space: nowrap;
+  }
+
+  .execution-page .menu-toggle {
+    grid-column: 2;
+    grid-row: 1;
+    min-height: 36px;
+    justify-self: end;
   }
 
   .execution-page .execution-app {
