@@ -15,5 +15,3 @@ ai-companion-chat.mjs
 wrangler.jsonc
 *.pdf
 *.md
-</content>
-</invoke>

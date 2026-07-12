@@ -4,233 +4,203 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>On My Way Admin</title>
-    <link rel="icon" href="assets/logo-horizontal-symbol.png" type="image/png" />
+    <link rel="icon" href="assets/logo-ollie-symbol.png" type="image/png" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body class="admin-page">
-    <main class="admin-login" id="adminLogin">
-      <section class="login-card">
-        <img class="login-logo" src="assets/logo-horizontal.png" alt="On My Way" />
-        <p class="eyebrow">Admin Access</p>
-        <h1>On My Way 관리자</h1>
-        <p>임시 비밀번호를 입력하면 운영 대시보드 미리보기에 접근할 수 있습니다.</p>
-        <form id="adminLoginForm">
-          <label for="adminPassword">임시 비밀번호</label>
-          <input id="adminPassword" type="password" placeholder="비밀번호 입력" autocomplete="current-password" />
-          <button type="submit">관리자 페이지 들어가기</button>
-          <span id="loginError" role="alert"></span>
-        </form>
-        <small>프로토타입 임시 비밀번호: OMW-2026</small>
-      </section>
-    </main>
-
     <main class="admin-dashboard-page locked" id="adminDashboard">
       <aside class="admin-sidebar">
-        <a class="brand" href="index.html">
-          <img class="brand-logo" src="assets/logo-horizontal.png" alt="On My Way" />
-        </a>
-        <nav>
-          <a class="active" href="#overview">Overview</a>
-          <a href="#users">Users</a>
-          <a href="#goals">Goals</a>
-          <a href="#funnel">Funnel</a>
-          <a href="#engagement">Engagement</a>
-          <a href="#content">Content</a>
+        <a class="brand" href="index.html"><img class="brand-logo" src="assets/logo-horizontal-ollie.png" alt="On My Way" /></a>
+        <div class="admin-demo-chip"><span></span>운영 샘플 데이터</div>
+        <nav aria-label="관리 메뉴">
+          <a class="active" href="#overview">서비스 건강도</a>
+          <a href="#lifecycle">전환 퍼널</a>
+          <a href="#retention">리텐션·이탈</a>
+          <a href="#product">기능 사용</a>
+          <a href="#costs">AI 비용</a>
+          <a href="#members">회원 관리</a>
+          <a href="#users">유저 운영 큐</a>
+          <a href="#security">보안 설정</a>
         </nav>
+        <div class="admin-sidebar-note"><strong>오늘 확인할 것</strong><span>체험 이탈 126명</span><span>3일 미접속 42명</span><span>AI 비용 정상</span></div>
       </aside>
 
       <section class="admin-workspace">
         <header class="admin-toolbar">
           <div>
             <p class="eyebrow">Operations Dashboard</p>
-            <h1>유저 상황과 목표 달성률</h1>
+            <h1>서비스 건강 상태</h1>
+            <p class="admin-toolbar-copy">유입부터 결제, 실행, 재방문, 이탈과 AI 원가까지 한 흐름으로 확인합니다.</p>
           </div>
-          <div class="admin-filters">
-            <select aria-label="기간">
-              <option>최근 30일</option>
-              <option>최근 7일</option>
-              <option>이번 달</option>
-            </select>
-            <select aria-label="목표 유형">
-              <option>전체 목표</option>
-              <option>시험/자격증</option>
-              <option>운동/다이어트</option>
-              <option>취업/이직</option>
-            </select>
+          <div class="admin-toolbar-side">
+            <span class="admin-data-status"><i></i>샘플 데이터 · 7월 12일 13:40</span>
+            <div class="admin-filters">
+              <select aria-label="분석 기간"><option>최근 30일</option><option>최근 7일</option><option>이번 달</option><option>지난 90일</option></select>
+              <select aria-label="유저 세그먼트"><option>전체 유저</option><option>무료 체험</option><option>PRO</option><option>이탈 위험</option></select>
+            </div>
           </div>
         </header>
 
-        <section class="admin-stat-grid" id="overview">
-          <article><span>가입자</span><strong>12,480</strong><em>+8.2%</em></article>
-          <article><span>활성 유저</span><strong>3,240</strong><em>+4.1%</em></article>
-          <article><span>유료 전환율</span><strong>18.4%</strong><em>+2.7%</em></article>
-          <article><span>목표 달성률</span><strong>42.7%</strong><em class="negative">-1.3%</em></article>
+        <aside class="admin-data-notice" role="note"><strong>분석 연동 전 미리보기</strong><span>현재 수치는 대시보드 설계를 검토하기 위한 샘플입니다. 실제 운영 전 이벤트 수집·회원 DB·결제 데이터를 연결해야 합니다.</span></aside>
+
+        <section class="admin-stat-grid admin-kpi-grid" id="overview" aria-label="핵심 운영 지표">
+          <article class="admin-kpi-card"><span>주간 활성 사용자 <button class="metric-help" title="최근 7일 동안 핵심 행동을 1회 이상 수행한 고유 사용자">?</button></span><strong>3,240</strong><em>↑ 4.1%</em><small>WAU / 가입자 26.0%</small></article>
+          <article class="admin-kpi-card"><span>1일 체험 시작</span><strong>1,084</strong><em>↑ 8.2%</em><small>진단 완료자의 43.6%</small></article>
+          <article class="admin-kpi-card"><span>체험 → PRO 전환</span><strong>18.4%</strong><em>↑ 2.7%p</em><small>목표 20%까지 1.6%p</small></article>
+          <article class="admin-kpi-card"><span>D7 리텐션 <button class="metric-help" title="가입 7일 뒤 다시 핵심 행동을 수행한 비율">?</button></span><strong>41.8%</strong><em>↑ 3.4%p</em><small>올리 대화 유저 52.1%</small></article>
+          <article class="admin-kpi-card is-risk"><span>30일 이탈률 <button class="metric-help" title="최근 30일간 7일 이상 핵심 행동이 없는 활성 사용자 비율">?</button></span><strong>7.6%</strong><em class="negative">↑ 1.2%p</em><small>운동 목표군 10.8%</small></article>
+          <article class="admin-kpi-card is-cost"><span>유료 유저당 AI 원가</span><strong>₩742</strong><em>목표 이내</em><small>한도 ₩1,000 · 마진 74.4%</small></article>
         </section>
 
-        <section class="admin-alert-strip" aria-label="오늘의 운영 알림">
-          <article>
-            <span>오늘 우선 처리</span>
-            <strong>3일 미체크 42명</strong>
-            <p>체크인 알림과 성장 보상 리마인드를 먼저 발송하세요.</p>
+        <section class="admin-health-strip" aria-label="오늘의 운영 판단">
+          <article><span class="health-icon danger">!</span><div><small>P0 · 이탈 방어</small><strong>체험 첫날 일정 미체크 126명</strong><p>첫 실행 2시간 뒤 올리 리마인드를 자동 발송할 후보입니다.</p></div></article>
+          <article><span class="health-icon warning">↗</span><div><small>P1 · 전환 개선</small><strong>결과 확인 → 체험 시작 구간 24% 이탈</strong><p>결과 화면의 체험 CTA 위치와 혜택 문구를 우선 실험하세요.</p></div></article>
+          <article><span class="health-icon stable">✓</span><div><small>정상 · 수익성</small><strong>평균 올리 에너지 사용 96 / 300</strong><p>AI 원가는 목표 범위이며 추가 에너지 매출이 8.7% 발생했습니다.</p></div></article>
+        </section>
+
+        <section class="admin-analytics-grid" id="lifecycle">
+          <article class="admin-chart-card admin-funnel-card">
+            <div class="card-title"><div><h2>가입·결제 퍼널</h2><span>어디에서 가장 많이 이탈하는지 확인</span></div><span class="card-tag">최근 30일</span></div>
+            <div class="admin-funnel-visual">
+              <div style="--funnel-width:100%"><span>랜딩 방문</span><strong>18,420</strong><em>100%</em></div>
+              <div style="--funnel-width:72%"><span>목표 입력</span><strong>9,860</strong><em>53.5% · 이탈 46.5%</em></div>
+              <div style="--funnel-width:56%"><span>성향 진단 완료</span><strong>7,104</strong><em>72.0% · 이탈 28.0%</em></div>
+              <div class="is-bottleneck" style="--funnel-width:36%"><span>1일 체험 시작</span><strong>3,098</strong><em>43.6% · 이탈 56.4%</em></div>
+              <div style="--funnel-width:22%"><span>PRO 결제</span><strong>570</strong><em>18.4% · 이탈 81.6%</em></div>
+            </div>
+            <p class="chart-insight"><b>가장 큰 병목</b> 진단 결과를 본 뒤 체험을 시작하지 않는 유저가 4,006명입니다.</p>
           </article>
-          <article>
-            <span>전환 개선 포인트</span>
-            <strong>진단 후 결제 전 이탈</strong>
-            <p>하루 체험 CTA와 Premium Monthly 혜택을 A/B 테스트합니다.</p>
+
+          <article class="admin-chart-card" id="retention">
+            <div class="card-title"><div><h2>리텐션 코호트</h2><span>가입일 기준 핵심 행동 재방문</span></div><span class="card-tag good">+3.4%p</span></div>
+            <div class="retention-summary"><div><small>D1</small><strong>71.6%</strong></div><div><small>D7</small><strong>41.8%</strong></div><div><small>D30</small><strong>27.9%</strong></div></div>
+            <div class="retention-lines" aria-label="주차별 D7 리텐션">
+              <div><span>6월 3주</span><b><i style="width:37%"></i></b><strong>37%</strong></div>
+              <div><span>6월 4주</span><b><i style="width:39%"></i></b><strong>39%</strong></div>
+              <div><span>7월 1주</span><b><i style="width:42%"></i></b><strong>42%</strong></div>
+              <div><span>7월 2주</span><b><i style="width:46%"></i></b><strong>46%</strong></div>
+            </div>
+            <p class="chart-insight"><b>강한 유지 신호</b> 첫날 다이어리 작성 유저의 D7 리텐션은 55.2%입니다.</p>
           </article>
-          <article>
-            <span>유지율 신호</span>
-            <strong>성장 대상 설정 +18%</strong>
-            <p>첫날 온보딩에서 성장 대상 선택을 더 앞에 배치하세요.</p>
+
+          <article class="admin-chart-card">
+            <div class="card-title"><div><h2>이탈 원인</h2><span>7일 이상 핵심 행동이 없는 유저</span></div><span class="card-tag danger">242명</span></div>
+            <div class="reason-list">
+              <div><span>첫 일정 미완료</span><b><i style="width:34%"></i></b><strong>34%</strong></div>
+              <div><span>계획 난이도 과다</span><b><i style="width:26%"></i></b><strong>26%</strong></div>
+              <div><span>체험 종료 후 미결제</span><b><i style="width:21%"></i></b><strong>21%</strong></div>
+              <div><span>알림 미허용</span><b><i style="width:12%"></i></b><strong>12%</strong></div>
+              <div><span>기타</span><b><i style="width:7%"></i></b><strong>7%</strong></div>
+            </div>
+          </article>
+
+          <article class="admin-chart-card" id="product">
+            <div class="card-title"><div><h2>핵심 기능 사용률</h2><span>활성 유저 중 최근 7일 사용 비율</span></div><span class="card-tag">WAU 기준</span></div>
+            <div class="feature-grid">
+              <div><span>✓</span><strong>일정 체크</strong><b>78%</b><small>리텐션 +16%p</small></div>
+              <div><span>◷</span><strong>집중 타이머</strong><b>49%</b><small>완료율 +12%p</small></div>
+              <div><span>✦</span><strong>올리 대화</strong><b>44%</b><small>리텐션 +10%p</small></div>
+              <div><span>▤</span><strong>다이어리</strong><b>31%</b><small>리텐션 +13%p</small></div>
+              <div><span>↻</span><strong>AI 계획 수정</strong><b>22%</b><small>이탈 -7%p</small></div>
+              <div><span>♧</span><strong>여정 지도</strong><b>68%</b><small>재방문 +8%p</small></div>
+            </div>
+          </article>
+
+          <article class="admin-chart-card" id="costs">
+            <div class="card-title"><div><h2>올리 에너지·AI 비용</h2><span>PRO 월 2,900원 수익성 관리</span></div><span class="card-tag good">정상</span></div>
+            <div class="cost-meter"><div><span>유료 유저당 평균 원가</span><strong>₩742 / ₩1,000</strong></div><b><i style="width:74.2%"></i></b><small>목표 원가의 74.2% 사용 · 예상 매출총이익률 74.4%</small></div>
+            <ul class="signal-list compact"><li><span>단순 수정</span><strong>월 82회</strong></li><li><span>오늘 일정 재생성</span><strong>월 4.8회</strong></li><li><span>주간 최적화</span><strong>월 1.6회</strong></li><li><span>추가 에너지 구매율</span><strong>8.7%</strong></li></ul>
+          </article>
+
+          <article class="admin-chart-card">
+            <div class="card-title"><div><h2>목표 유형별 성과</h2><span>30일 내 목표 루틴 유지율</span></div><span class="card-tag">4개 유형</span></div>
+            <div class="bar-list refined"><div><span>습관 형성</span><b style="width:55%"></b><strong>55%</strong></div><div><span>시험/자격증</span><b style="width:48%"></b><strong>48%</strong></div><div><span>취업/창업</span><b style="width:41%"></b><strong>41%</strong></div><div><span>운동/다이어트</span><b style="width:36%"></b><strong>36%</strong></div></div>
+            <p class="chart-insight"><b>주의</b> 운동 목표의 2주차 이탈률이 전월 대비 3.1%p 상승했습니다.</p>
           </article>
         </section>
 
-        <section class="admin-data-grid">
-          <article class="admin-chart-card" id="goals">
-            <div class="card-title">
-              <h2>목표 유형별 달성률</h2>
-              <span>완료 기준</span>
-            </div>
-            <div class="bar-list">
-              <div><span>습관 형성</span><b style="width: 55%"></b><strong>55%</strong></div>
-              <div><span>시험/자격증</span><b style="width: 48%"></b><strong>48%</strong></div>
-              <div><span>취업/이직</span><b style="width: 41%"></b><strong>41%</strong></div>
-              <div><span>운동/다이어트</span><b style="width: 36%"></b><strong>36%</strong></div>
-            </div>
-          </article>
-
-          <article class="admin-chart-card" id="funnel">
-            <div class="card-title">
-              <h2>전환 퍼널</h2>
-              <span>목표 입력 → 결제</span>
-            </div>
-            <div class="funnel-list">
-              <p><span>목표 입력</span><strong>100%</strong></p>
-              <p><span>성향 진단</span><strong>72%</strong></p>
-              <p><span>하루 체험</span><strong>31%</strong></p>
-              <p><span>결제 전환</span><strong>18%</strong></p>
-            </div>
-          </article>
-
-          <article class="admin-chart-card" id="engagement">
-            <div class="card-title">
-              <h2>사용 지표</h2>
-              <span>유지율 영향</span>
-            </div>
-            <ul class="signal-list">
-              <li><span>체크인 완료율</span><strong>63%</strong></li>
-              <li><span>성장 보상 확인률</span><strong>71%</strong></li>
-              <li><span>PDF 다운로드율</span><strong>24%</strong></li>
-              <li><span>게이지 확인률</span><strong>58%</strong></li>
-            </ul>
-          </article>
-
-          <article class="admin-chart-card risk-card" id="users">
-            <div class="card-title">
-              <h2>이탈 위험 구간</h2>
-              <span>관리 필요</span>
-            </div>
-            <ul class="signal-list">
-              <li><span>진단 후 결제 전 이탈</span><strong>높음</strong></li>
-              <li><span>3일 미체크 유저</span><strong>420명</strong></li>
-              <li><span>목표 수정 0회 유저</span><strong>주의</strong></li>
-            </ul>
-          </article>
+        <section class="admin-action-center" aria-labelledby="actionCenterTitle">
+          <div class="card-title"><div><h2 id="actionCenterTitle">이번 주 운영 액션</h2><span>지표에서 바로 이어지는 우선순위</span></div><span class="card-tag">3개 진행</span></div>
+          <div class="action-list"><article><b>P0</b><div><strong>첫 일정 미완료 유저 회복</strong><p>가입 2시간 뒤 미체크 유저에게 5분 타이머 딥링크를 발송합니다.</p></div><span>예상 회복 +8%</span></article><article><b>P1</b><div><strong>체험 CTA A/B 테스트</strong><p>결과 화면 중단 CTA와 하단 CTA의 체험 시작률을 비교합니다.</p></div><span>목표 +5%p</span></article><article><b>P1</b><div><strong>운동 목표 2주차 난이도 완화</strong><p>실행률 30% 미만 유저에게 AI 재설계 제안을 노출합니다.</p></div><span>대상 184명</span></article></div>
         </section>
 
-        <section class="admin-insights" id="content">
-          <h2>최근 관리 포인트</h2>
-          <div>
-            <p>운동/다이어트 목표의 2주차 이탈률이 상승했습니다.</p>
-            <p>성장 대상 설정 완료 유저의 D7 리텐션이 18% 높습니다.</p>
-            <p>PDF 다운로드 유저의 결제 유지율이 평균보다 높습니다.</p>
-          </div>
-        </section>
-
-        <section class="admin-table-section">
-          <div class="card-title">
-            <div>
-              <h2>유저 모니터링</h2>
-              <span>3일 연속 미체크 및 이탈 위험 유저</span>
-            </div>
+        <section class="admin-table-section" id="members">
+          <div class="card-title admin-user-title">
+            <div><h2>가입 회원 관리</h2><span><b id="memberCount">0명</b> · 소셜 로그인으로 가입한 실제 회원 목록입니다</span></div>
             <div class="table-filters">
-              <select id="riskFilter" aria-label="위험 상태">
-                <option value="all">전체 상태</option>
-                <option value="3days">3일 미체크</option>
-                <option value="prepay">결제 전 이탈</option>
-                <option value="pause">목표 중단 위험</option>
-              </select>
-              <select id="goalFilter" aria-label="목표 유형">
-                <option value="all">전체 목표</option>
-                <option value="exam">시험/자격증</option>
-                <option value="fitness">운동/다이어트</option>
-                <option value="habit">습관 형성</option>
-              </select>
+              <button id="refreshMembers" type="button">새로고침</button>
             </div>
           </div>
           <div class="admin-table-wrap">
-            <table class="admin-table">
-              <caption class="sr-only">관리자가 이탈 위험 유저를 상태와 목표 유형별로 확인하는 표</caption>
-              <thead>
-                <tr>
-                  <th>유저</th>
-                  <th>목표 유형</th>
-                  <th>최근 체크인</th>
-                  <th>달성 게이지</th>
-                  <th>상태</th>
-                  <th>관리 메모</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr data-risk="3days" data-goal="fitness">
-                  <td>user_1024</td>
-                  <td>운동/다이어트</td>
-                  <td>3일 전</td>
-                  <td>18%</td>
-                  <td><span class="status-pill danger">3일 미체크</span></td>
-                  <td>2주차 이탈 위험. 리마인드 필요</td>
-                </tr>
-                <tr data-risk="stable" data-goal="exam">
-                  <td>user_1188</td>
-                  <td>시험/자격증</td>
-                  <td>오늘</td>
-                  <td>42%</td>
-                  <td><span class="status-pill stable">진행 중</span></td>
-                  <td>PDF 다운로드 후 유지율 양호</td>
-                </tr>
-                <tr data-risk="prepay" data-goal="habit">
-                  <td>user_1371</td>
-                  <td>습관 형성</td>
-                  <td>2일 전</td>
-                  <td>9%</td>
-                  <td><span class="status-pill warning">초기 이탈</span></td>
-                  <td>성장 대상 미설정</td>
-                </tr>
-                <tr data-risk="pause" data-goal="exam">
-                  <td>user_1410</td>
-                  <td>시험/자격증</td>
-                  <td>4일 전</td>
-                  <td>26%</td>
-                  <td><span class="status-pill danger">목표 중단 위험</span></td>
-                  <td>계획 난이도 재조정 권장</td>
-                </tr>
-                <tr data-risk="prepay" data-goal="fitness">
-                  <td>user_1502</td>
-                  <td>운동/다이어트</td>
-                  <td>가입 후 미체크</td>
-                  <td>0%</td>
-                  <td><span class="status-pill warning">결제 전 이탈</span></td>
-                  <td>무료 진단 후 하루 체험 미시작</td>
-                </tr>
-                <tr class="admin-empty-row" hidden>
-                  <td colspan="6">선택한 조건에 해당하는 유저가 없습니다.</td>
-                </tr>
+            <table class="admin-table admin-user-table">
+              <caption class="sr-only">가입 회원의 계정, 플랜, 가입일, 최근 로그인과 관리 작업</caption>
+              <thead><tr><th>회원</th><th>가입 방법</th><th>플랜</th><th>가입일</th><th>최근 로그인</th><th>권한</th><th>관리</th></tr></thead>
+              <tbody id="memberTableBody">
+                <tr class="admin-empty-row"><td colspan="7">아직 가입한 회원이 없습니다. 앱에서 소셜 로그인을 하면 이곳에 나타나요.</td></tr>
               </tbody>
             </table>
           </div>
+          <p class="admin-table-note">PRO 전환·해제는 즉시 반영됩니다. 관리자 지정은 신중하게 사용하세요.</p>
+        </section>
+
+        <section class="admin-table-section" id="users">
+          <div class="card-title admin-user-title">
+            <div><h2>유저 운영 큐 <span class="card-tag">샘플</span></h2><span><b id="adminVisibleCount">8명</b> · 지금 조치가 필요한 유저를 우선 표시합니다</span></div>
+            <div class="table-filters">
+              <input id="adminUserSearch" type="search" placeholder="유저 ID 검색" aria-label="유저 ID 검색" />
+              <select id="riskFilter" aria-label="위험 상태"><option value="all">전체 상태</option><option value="3days">3일 미접속</option><option value="prepay">체험·결제 이탈</option><option value="pause">목표 중단 위험</option><option value="stable">안정</option></select>
+              <select id="goalFilter" aria-label="목표 유형"><option value="all">전체 목표</option><option value="exam">시험/자격증</option><option value="fitness">운동/다이어트</option><option value="habit">습관 형성</option><option value="career">취업/창업</option></select>
+              <select id="planFilter" aria-label="요금제"><option value="all">전체 요금제</option><option value="trial">체험</option><option value="free">FREE</option><option value="pro">PRO</option></select>
+              <button id="resetAdminFilters" type="button">초기화</button>
+            </div>
+          </div>
+          <div class="admin-table-wrap">
+            <table class="admin-table admin-user-table">
+              <caption class="sr-only">관리자가 유저별 이용 상태와 이탈 위험, 권장 조치를 확인하는 표</caption>
+              <thead><tr><th>유저</th><th>플랜</th><th>목표</th><th>최근 활동</th><th>7일 실행</th><th>올리 에너지</th><th>위험 신호</th><th>권장 조치</th></tr></thead>
+              <tbody>
+                <tr data-user="user_1024" data-risk="3days" data-goal="fitness" data-plan="pro"><td><strong>user_1024</strong><small>가입 D18</small></td><td><span class="plan-pill pro">PRO</span></td><td>운동/다이어트</td><td>3일 전</td><td>18%</td><td>244 / 300</td><td><span class="status-pill danger">3일 미접속</span></td><td>5분 재시작 제안</td></tr>
+                <tr data-user="user_1188" data-risk="stable" data-goal="exam" data-plan="pro"><td><strong>user_1188</strong><small>가입 D42</small></td><td><span class="plan-pill pro">PRO</span></td><td>시험/자격증</td><td>오늘</td><td>86%</td><td>128 / 300</td><td><span class="status-pill stable">안정</span></td><td>유지 · 개입 없음</td></tr>
+                <tr data-user="user_1371" data-risk="prepay" data-goal="habit" data-plan="trial"><td><strong>user_1371</strong><small>체험 18시간</small></td><td><span class="plan-pill trial">체험</span></td><td>습관 형성</td><td>2일 전</td><td>9%</td><td>8 / 10</td><td><span class="status-pill warning">체험 이탈</span></td><td>체험 종료 전 가치 안내</td></tr>
+                <tr data-user="user_1410" data-risk="pause" data-goal="exam" data-plan="pro"><td><strong>user_1410</strong><small>가입 D29</small></td><td><span class="plan-pill pro">PRO</span></td><td>시험/자격증</td><td>4일 전</td><td>26%</td><td>286 / 300</td><td><span class="status-pill danger">중단 위험</span></td><td>난이도 재설계 제안</td></tr>
+                <tr data-user="user_1502" data-risk="prepay" data-goal="fitness" data-plan="trial"><td><strong>user_1502</strong><small>체험 4시간</small></td><td><span class="plan-pill trial">체험</span></td><td>운동/다이어트</td><td>가입 후 없음</td><td>0%</td><td>10 / 10</td><td><span class="status-pill warning">첫 실행 전</span></td><td>첫 일정 딥링크</td></tr>
+                <tr data-user="user_1633" data-risk="3days" data-goal="career" data-plan="free"><td><strong>user_1633</strong><small>가입 D11</small></td><td><span class="plan-pill free">FREE</span></td><td>취업/창업</td><td>3일 전</td><td>32%</td><td>4 / 10</td><td><span class="status-pill danger">3일 미접속</span></td><td>다이어리 회고 알림</td></tr>
+                <tr data-user="user_1704" data-risk="stable" data-goal="habit" data-plan="free"><td><strong>user_1704</strong><small>가입 D7</small></td><td><span class="plan-pill free">FREE</span></td><td>습관 형성</td><td>오늘</td><td>71%</td><td>2 / 10</td><td><span class="status-pill stable">안정</span></td><td>PRO 가치 노출 후보</td></tr>
+                <tr data-user="user_1822" data-risk="pause" data-goal="fitness" data-plan="pro"><td><strong>user_1822</strong><small>가입 D63</small></td><td><span class="plan-pill pro">PRO</span></td><td>운동/다이어트</td><td>어제</td><td>24%</td><td>298 / 300</td><td><span class="status-pill warning">실행 급감</span></td><td>주간 계획 자동 완화</td></tr>
+                <tr class="admin-empty-row" hidden><td colspan="8">선택한 조건에 해당하는 유저가 없습니다.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="admin-table-note">위험 신호 권장 기준: 3일 미접속, 최근 7일 실행률 30% 미만, 체험 시작 후 핵심 행동 0회, 에너지 80% 이상 사용 후 재방문 없음.</p>
+        </section>
+
+        <section class="admin-table-section admin-security-section" id="security">
+          <div class="card-title admin-user-title">
+            <div><h2>관리자 보안 설정</h2><span>임시 비밀번호로 로그인한 뒤 내 비밀번호로 바로 교체할 수 있습니다.</span></div>
+            <span class="card-tag good">관리자 전용</span>
+          </div>
+          <form class="admin-password-change-form" id="adminPasswordChangeForm">
+            <label>현재 비밀번호<input id="currentAdminPassword" type="password" autocomplete="current-password" required /></label>
+            <label>새 비밀번호<input id="newAdminPassword" type="password" autocomplete="new-password" minlength="16" maxlength="128" required /></label>
+            <label>새 비밀번호 확인<input id="confirmAdminPassword" type="password" autocomplete="new-password" minlength="16" maxlength="128" required /></label>
+            <button type="submit">관리자 비밀번호 변경</button>
+          </form>
+          <p class="admin-password-guidance">16자 이상이며 영문 대문자·소문자, 숫자, 특수문자를 각각 1개 이상 포함해 주세요.</p>
+          <p class="admin-password-change-message" id="adminPasswordChangeMessage" role="status" aria-live="polite"></p>
         </section>
       </section>
     </main>
+
+    <footer class="site-footer">
+      <div class="footer-brand-block">
+        <strong>Olive&amp;Rich</strong>
+        <span>On My Way</span>
+      </div>
+      <div class="footer-information">
+        <p>작은 시작이 오래 이어지도록 돕는 목표 성장 앱</p>
+        <small>© 2026 Olive&amp;Rich. All rights reserved. On My Way is a service of Olive&amp;Rich.</small>
+      </div>
+    </footer>
 
     <script src="script.js"></script>
   </body>
