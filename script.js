@@ -908,15 +908,31 @@ function renderDiagnosisStep() {
   updateWizardSummary();
 }
 
+function revealActiveDiagnosisStep() {
+  if (!personalityForm || !diagnosisSteps.length) return;
+  const activeStep = diagnosisSteps[diagnosisStepIndex];
+  const firstField = activeStep?.querySelector("input:not([type='checkbox']), select, textarea");
+  const headerHeight = document.querySelector(".home-page .site-header")?.getBoundingClientRect().height || 0;
+  const top = Math.max(0, window.scrollY + personalityForm.getBoundingClientRect().top - headerHeight - 14);
+  const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+  window.requestAnimationFrame(() => {
+    window.scrollTo({ top, behavior: reducedMotion ? "auto" : "smooth" });
+    window.setTimeout(() => firstField?.focus({ preventScroll: true }), reducedMotion ? 0 : 260);
+  });
+}
+
 diagnosisBackButton?.addEventListener("click", () => {
   diagnosisStepIndex = Math.max(0, diagnosisStepIndex - 1);
   renderDiagnosisStep();
+  revealActiveDiagnosisStep();
 });
 
 diagnosisNextButton?.addEventListener("click", () => {
   if (!canLeaveDiagnosisStep()) return;
   diagnosisStepIndex = Math.min(diagnosisSteps.length - 1, diagnosisStepIndex + 1);
   renderDiagnosisStep();
+  revealActiveDiagnosisStep();
 });
 
 goalSuggestionButtons.forEach((button) => {
@@ -1560,6 +1576,7 @@ personalityForm?.addEventListener("submit", (event) => {
     if (!canLeaveDiagnosisStep()) return;
     diagnosisStepIndex += 1;
     renderDiagnosisStep();
+    revealActiveDiagnosisStep();
     return;
   }
   runPersonalityAnalysis({ showLoading: true });
