@@ -63,8 +63,6 @@ const appFeaturePrev = document.querySelector("#appFeaturePrev");
 const appFeatureNext = document.querySelector("#appFeatureNext");
 const appFeatureTitle = document.querySelector("#appFeatureTitle");
 const appFeatureCounter = document.querySelector("#appFeatureCounter");
-const appTourSection = document.querySelector("#appTour");
-const designFlowSection = document.querySelector("#designFlow");
 const trialPhoneInput = document.querySelector("#trialPhone");
 const trialServiceConsent = document.querySelector("#trialServiceConsent");
 const trialMarketingConsent = document.querySelector("#trialMarketingConsent");
@@ -152,15 +150,30 @@ const TRIAL_DURATION_MS = 24 * 60 * 60 * 1000;
 const OLLIE_ENERGY_KEY = "omwOllieEnergy";
 const FREE_PLAN_GENERATED_KEY = "omwFreePlanGenerated";
 
-if (appTourSection && designFlowSection && appTourSection.nextElementSibling !== designFlowSection) {
-  designFlowSection.parentNode?.insertBefore(appTourSection, designFlowSection);
-}
-
 function readTrialAccess() {
   try {
     return JSON.parse(localStorage.getItem(TRIAL_ACCESS_KEY) || "null");
   } catch (error) {
     return null;
+  }
+}
+
+const FUNNEL_ENDPOINT = "/api/funnel";
+const sentFunnelEvents = new Set();
+
+// 수집 실패가 사용자 흐름을 막지 않도록 fire-and-forget으로만 보낸다
+function sendFunnelEvent(step) {
+  if (sentFunnelEvents.has(step)) return;
+  sentFunnelEvents.add(step);
+  try {
+    const body = JSON.stringify({ step });
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon(FUNNEL_ENDPOINT, new Blob([body], { type: "application/json" }));
+    } else {
+      fetch(FUNNEL_ENDPOINT, { method: "POST", keepalive: true, headers: { "Content-Type": "application/json" }, body }).catch(() => {});
+    }
+  } catch (error) {
+    /* 수집 실패는 무시 */
   }
 }
 
@@ -193,6 +206,7 @@ function startTrialAccess() {
   } catch (error) {
     console.warn("Unable to save trial access", error);
   }
+  sendFunnelEvent("trial_start");
   return access;
 }
 
@@ -931,6 +945,7 @@ function canLeaveDiagnosisStep() {
 
 function renderDiagnosisStep() {
   if (!diagnosisSteps.length) return;
+  sendFunnelEvent(`step${diagnosisStepIndex + 1}_enter`);
 
   diagnosisSteps.forEach((step, index) => {
     const isActive = index === diagnosisStepIndex;

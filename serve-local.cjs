@@ -8,6 +8,7 @@ const root = path.resolve(__dirname);
 const aiGoalPlanModule = import("./ai-goal-plan.mjs");
 const aiPlanRevisionModule = import("./ai-plan-revision.mjs");
 const authServiceModule = import("./auth-service.mjs");
+const workerModule = import("./worker.mjs");
 const localEnv = {
   ...process.env,
   ALLOW_DEV_LOGIN: process.env.ALLOW_DEV_LOGIN || "true",
@@ -223,6 +224,45 @@ const server = http.createServer(async (request, response) => {
       console.error("AI plan revision request failed", error);
       sendJson(response, error.status || 500, { error: error.message || "AI 변경안을 만들지 못했어요." });
     }
+    return;
+  }
+
+  if (pathname === "/api/funnel") {
+    if (request.method !== "POST") {
+      sendJson(response, 405, { error: "POST 요청만 사용할 수 있어요." });
+      return;
+    }
+
+    try {
+      const body = await readJsonBody(request, 1000).catch(() => ({}));
+      const { recordFunnelEvent } = await workerModule;
+      // 로컬 개발용 퍼널 카운터: tmp/dev-funnel.json (git에 올라가지 않음)
+      const funnelFile = path.join(root, "tmp", "dev-funnel.json");
+      const readAllFunnel = () => {
+        try {
+          return JSON.parse(fs.readFileSync(funnelFile, "utf8"));
+        } catch {
+          return {};
+        }
+      };
+      const kv = {
+        get: async (key) => {
+          const all = readAllFunnel();
+          return all[key] ? JSON.stringify(all[key]) : null;
+        },
+        put: async (key, value) => {
+          const all = readAllFunnel();
+          all[key] = JSON.parse(value);
+          fs.mkdirSync(path.dirname(funnelFile), { recursive: true });
+          fs.writeFileSync(funnelFile, JSON.stringify(all, null, 2), "utf8");
+        },
+      };
+      await recordFunnelEvent({ step: body.step, kv });
+    } catch (error) {
+      console.error("Funnel event failed", error);
+    }
+    response.writeHead(204, { "Cache-Control": "no-store" });
+    response.end();
     return;
   }
 

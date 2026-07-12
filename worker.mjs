@@ -25,6 +25,29 @@ function accountResultToResponse(result) {
   return new Response(JSON.stringify(result.json ?? {}), { status: result.status || 200, headers });
 }
 
+const FUNNEL_STEPS = new Set(["step1_enter", "step2_enter", "step3_enter", "step4_enter", "trial_start"]);
+
+function funnelDateKey(now = Date.now()) {
+  // 한국 시간 기준 일자 버킷
+  return new Date(now + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+export async function recordFunnelEvent({ step, kv, now = Date.now() }) {
+  const name = String(step || "").replace(/^funnel:/, "");
+  if (!FUNNEL_STEPS.has(name)) return null;
+  const key = `funnel:${funnelDateKey(now)}`;
+  let counts = {};
+  try {
+    counts = JSON.parse((await kv.get(key)) || "{}") || {};
+  } catch (error) {
+    counts = {};
+  }
+  counts[name] = Number(counts[name] || 0) + 1;
+  // 근사 지표라 동시 요청 간 원자적 갱신은 생략
+  await kv.put(key, JSON.stringify(counts), { expirationTtl: 60 * 60 * 24 * 90 });
+  return { key, counts };
+}
+
 export async function createGoalPlanForUser({ input, env, userStore, user, generatePlan = createAiGoalPlan, now = Date.now() }) {
   const hasTrialLimit = user && user.role !== "admin" && user.plan !== "pro";
   if (hasTrialLimit && user.goalPlanGeneratedAt) {
@@ -165,6 +188,17 @@ export default {
         console.error("AI plan revision request failed", error);
         return json({ error: error.message || "AI 변경안을 만들지 못했어요." }, error.status || 500);
       }
+    }
+
+    if (url.pathname === "/api/funnel") {
+      if (request.method !== "POST") return json({ error: "POST 요청만 사용할 수 있어요." }, 405);
+      try {
+        const body = await request.json().catch(() => ({}));
+        if (env.USERS_KV) await recordFunnelEvent({ step: body.step, kv: env.USERS_KV });
+      } catch (error) {
+        console.error("Funnel event failed", error);
+      }
+      return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
     }
 
     return env.ASSETS.fetch(request);
