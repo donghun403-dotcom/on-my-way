@@ -8,10 +8,8 @@ tmp/
 On My Way 로고/
 .gitignore
 .assetsignore
-serve-local.cjs
-worker.mjs
-ai-goal-plan.mjs
-ai-companion-chat.mjs
+*.mjs
+*.cjs
 wrangler.jsonc
 *.pdf
 *.md
