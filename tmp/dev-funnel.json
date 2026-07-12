@@ -1,9 +1,9 @@
 {
   "funnel:2026-07-12": {
-    "step1_enter": 7,
-    "step2_enter": 3,
-    "step3_enter": 3,
+    "step1_enter": 8,
+    "step2_enter": 4,
+    "step3_enter": 4,
     "step4_enter": 2,
-    "trial_start": 3
+    "trial_start": 4
   }
 }
