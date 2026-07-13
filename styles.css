@@ -12730,6 +12730,58 @@ body.sheet-open {
   box-shadow: 0 22px 50px rgba(107, 122, 166, 0.34);
 }
 
+/* Compact page-to-footer rhythm after removing the landing floating CTA/tab bar. */
+.home-page main {
+  min-height: 0;
+  padding-bottom: 24px;
+}
+
+.home-page .site-footer {
+  min-height: 0;
+  gap: 16px;
+  padding: 26px clamp(22px, 4vw, 40px) 30px;
+}
+
+.execution-page .execution-app {
+  padding-bottom: 88px;
+}
+
+.execution-page .site-footer {
+  min-height: 0;
+  padding: 28px 32px 92px;
+}
+
+@media (max-width: 759px) {
+  .home-page main {
+    padding-bottom: 14px;
+  }
+
+  .home-page .site-footer {
+    gap: 10px;
+    padding: 22px 18px 26px;
+  }
+
+  .home-page .footer-brand-block {
+    gap: 3px;
+  }
+
+  .home-page .footer-brand-block strong {
+    font-size: 24px;
+  }
+
+  .home-page .footer-information {
+    gap: 5px;
+  }
+
+  .execution-page .execution-app {
+    padding-bottom: 82px;
+  }
+
+  .execution-page .site-footer {
+    padding: 24px 20px calc(84px + env(safe-area-inset-bottom));
+  }
+}
+
 .hero-cta-note {
   color: var(--muted);
   font-size: 13px;
