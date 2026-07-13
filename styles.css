@@ -5003,14 +5003,12 @@ body.sheet-open {
   font-weight: 500;
 }
 
-.difficulty-card,
 .recovery-card {
   background:
     linear-gradient(145deg, rgba(255, 255, 255, 0.92), rgba(235, 244, 249, 0.72)),
     var(--soft-surface);
 }
 
-.difficulty-actions,
 .recovery-actions {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -5021,7 +5019,6 @@ body.sheet-open {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.difficulty-actions button,
 .recovery-actions button {
   min-height: 42px;
   color: var(--soft-primary-dark);
@@ -5032,8 +5029,6 @@ body.sheet-open {
   cursor: pointer;
 }
 
-.difficulty-actions button.active,
-.difficulty-actions button:hover,
 .recovery-actions button:hover {
   color: #ffffff;
   background: var(--soft-primary);
@@ -5203,7 +5198,6 @@ body.sheet-open {
 }
 
 @media (max-width: 430px) {
-  .difficulty-actions,
   .recovery-actions,
   .plan-editor-actions {
     grid-template-columns: 1fr;
@@ -10559,7 +10553,6 @@ body.sheet-open {
   grid-row: 2 / span 3;
 }
 
-.execution-page #view-today .difficulty-card,
 .execution-page #view-today .recovery-card {
   grid-column: 1 / -1;
 }
@@ -12059,7 +12052,6 @@ body.sheet-open {
   .execution-page #view-today .execution-hero,
   .execution-page #view-today .focus-task-card,
   .execution-page #view-today .today-card,
-  .execution-page #view-today .difficulty-card,
   .execution-page #view-today .recovery-card,
   .execution-page #view-today .progress-card,
   .execution-page #view-today .coach-card,
@@ -12620,7 +12612,6 @@ body.sheet-open {
 
 .execution-page #view-today .trial-reminder-card,
 .execution-page #view-today .personality-nudge-card,
-.execution-page #view-today .difficulty-card,
 .execution-page #view-today .recovery-card { order: 6; }
 
 .execution-page .add-schedule-sheet { width: min(460px, calc(100vw - 24px)); }

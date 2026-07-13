@@ -127,8 +127,6 @@ const revisionChipButtons = document.querySelectorAll("[data-revision-chip]");
 const selectedScheduleTitle = document.querySelector("#selectedScheduleTitle");
 const selectedScheduleMeta = document.querySelector("#selectedScheduleMeta");
 const executionChecklist = document.querySelector("#executionChecklist");
-const difficultyCard = document.querySelector("#difficultyCard");
-const difficultyButtons = document.querySelectorAll("[data-difficulty]");
 const recoveryCard = document.querySelector("#recoveryCard");
 const recoverySummary = document.querySelector("#recoverySummary");
 const recoveryButtons = document.querySelectorAll("[data-recovery-action]");
@@ -2109,10 +2107,6 @@ function migrateExecutionState(rawState) {
       state.customTasksByDay && typeof state.customTasksByDay === "object" && !Array.isArray(state.customTasksByDay)
         ? state.customTasksByDay
         : {},
-    difficultyByTask:
-      state.difficultyByTask && typeof state.difficultyByTask === "object" && !Array.isArray(state.difficultyByTask)
-        ? state.difficultyByTask
-        : {},
     recoveryActions: Array.isArray(state.recoveryActions) ? state.recoveryActions.slice(-30) : [],
     completedLog: Array.isArray(state.completedLog) ? state.completedLog.slice(-80) : [],
     dailyMemories: Array.isArray(state.dailyMemories) ? state.dailyMemories.slice(-365) : [],
@@ -2376,7 +2370,6 @@ function getPlanBundle({ reset = false, customText, revisionRequest, revisionDet
         selectedDay: previous.selectedDay || 1,
         checkedByDay: checkedForSchedule,
         customTasksByDay,
-        difficultyByTask: previous.difficultyByTask || {},
         recoveryActions: previous.recoveryActions || [],
         completedLog: previous.completedLog || [],
         dailyMemories: previous.dailyMemories || [],
@@ -3798,7 +3791,6 @@ function renderMemoryCards({ selectedCompletion }) {
   }
 
   renderPatternCards(state);
-  renderDifficultyPrompt(state);
 }
 
 function renderPatternCards(state) {
@@ -3952,16 +3944,6 @@ memoryList?.addEventListener("click", (event) => {
     window.setTimeout(() => editor?.classList.remove("memory-revision-arrival"), 1800);
   }, 140);
 });
-
-function renderDifficultyPrompt(state) {
-  if (!difficultyCard) return;
-  const last = state.lastCompletion;
-  const hasFeedback = last && state.difficultyByTask?.[last.taskKey];
-  difficultyCard.hidden = !last || Boolean(hasFeedback);
-  difficultyButtons.forEach((button) => {
-    button.classList.toggle("active", Boolean(last && button.dataset.difficulty === state.difficultyByTask?.[last.taskKey]));
-  });
-}
 
 function renderRecoveryPrompt(state, selectedCompletion) {
   if (!recoveryCard) return;
@@ -4151,7 +4133,7 @@ function renderDailyCoach(state, selectedCompletion, dayPlan) {
     } else if (Number(yesterdayMemory.completion || 0) >= 80) {
       copy = { title: "어제 만든 좋은 흐름을 오늘도 같은 순서로 이어가요.", message: "잘 맞았던 실행 시간과 순서를 유지하면 오늘의 체크도 자연스럽게 쌓일 거예요.", image: "assets/ollie-celebrate.png" };
     } else {
-      copy = { title: "어제 남긴 기록 덕분에 오늘의 시작점이 선명해졌어요.", message: "가장 먼저 보이는 일정 하나를 체크하고, 끝난 뒤 난이도를 알려주세요.", image: "assets/ollie-action.png" };
+      copy = { title: "어제 남긴 기록 덕분에 오늘의 시작점이 선명해졌어요.", message: "가장 먼저 보이는 일정 하나부터 가볍게 체크해보세요.", image: "assets/ollie-action.png" };
     }
   }
 
@@ -4644,25 +4626,6 @@ focusTimerPauseButton?.addEventListener("click", pauseFocusTimer);
 decreaseFocusTime?.addEventListener("click", () => adjustFocusMinutes(-5));
 increaseFocusTime?.addEventListener("click", () => adjustFocusMinutes(5));
 focusMinutesInput?.addEventListener("change", () => setFocusMinutes(focusMinutesInput.value));
-
-difficultyButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    const bundle = getPlanBundle();
-    const last = bundle.state.lastCompletion;
-    if (!last) return;
-    bundle.state.difficultyByTask[last.taskKey] = button.dataset.difficulty;
-    savePlanBundleState(bundle.state);
-    const copy = {
-      easy: "쉬웠던 과제는 다음에도 이 리듬을 유지할게요.",
-      okay: "적당했던 난이도를 기준으로 다음 계획을 맞출게요.",
-      hard: "어려웠던 과제는 더 작은 단위로 나누는 게 좋아요.",
-    }[button.dataset.difficulty];
-    showToast("난이도를 기록했어요 · 다음 변경안에 반영할 수 있어요");
-    if (companionMessage) companionMessage.textContent = copy;
-    trackCompanionEvent("task_difficulty_rated", { taskKey: last.taskKey, difficulty: button.dataset.difficulty });
-    renderExecutionPage(bundle);
-  });
-});
 
 recoveryButtons.forEach((button) => {
   button.addEventListener("click", () => {
