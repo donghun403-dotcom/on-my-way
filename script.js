@@ -950,6 +950,8 @@ const bondReaction = document.querySelector("#bondReaction");
 const touchCompanionHint = document.querySelector("#touchCompanionHint");
 const journeyBadge = document.querySelector("#journeyBadge");
 const journeyMap = document.querySelector("#journeyMap");
+const journeyPlaceSummary = document.querySelector("#journeyPlaceSummary");
+const journeyNextSummary = document.querySelector("#journeyNextSummary");
 const journeyPlaceTitle = document.querySelector("#journeyPlaceTitle");
 const journeyPlaceStory = document.querySelector("#journeyPlaceStory");
 const journeyNextText = document.querySelector("#journeyNextText");
@@ -969,6 +971,7 @@ const memoryNextStep = document.querySelector("#memoryNextStep");
 const memorySaveHint = document.querySelector("#memorySaveHint");
 const memorySaveButton = document.querySelector("#memorySaveButton");
 const memoryCount = document.querySelector("#memoryCount");
+const memoryOptionalDetails = document.querySelector("#memoryOptionalDetails");
 const chatOverlay = document.querySelector("#chatOverlay");
 const companionChatSheet = document.querySelector("#companionChatSheet");
 const closeCompanionChatButton = document.querySelector("#closeCompanionChat");
@@ -3751,6 +3754,8 @@ function renderJourneyMap(overallProgress) {
   journeyMap.scrollLeft = Math.max(0, currentIndex * 148 - 12);
 
   if (journeyBadge) journeyBadge.textContent = stage.badge;
+  if (journeyPlaceSummary) journeyPlaceSummary.textContent = currentStop.title;
+  if (journeyNextSummary) journeyNextSummary.textContent = nextStop ? `다음 장소까지 ${Math.max(0, nextStop.threshold - overallProgress)}% 남음` : "별꽃 정원에 도착했어요";
   if (journeyPlaceTitle) journeyPlaceTitle.textContent = currentStop.title;
   if (journeyPlaceStory) journeyPlaceStory.textContent = currentStop.story;
   if (journeyNextText) journeyNextText.textContent = nextStop ? `${nextStop.shortTitle}까지 ${Math.max(0, nextStop.threshold - overallProgress)}% 남음` : "정원에 도착했어요!";
@@ -4086,6 +4091,7 @@ memoryList?.addEventListener("click", (event) => {
     if (memoryNote) memoryNote.value = memory.note || "";
     if (memoryObstacle) memoryObstacle.value = memory.obstacle || "none";
     if (memoryNextStep) memoryNextStep.value = memory.nextStep || "";
+    if (memoryOptionalDetails) memoryOptionalDetails.open = true;
     applyMoodSelectionToForm(memory);
     const saveLabel = memorySaveButton?.querySelector("span");
     if (saveLabel) saveLabel.textContent = "수정한 다이어리 저장하기";
@@ -4968,6 +4974,7 @@ sendCompanionMessage?.addEventListener("click", async () => {
   try {
     const { reply, headline } = await requestCompanionReply(message);
     if (companionChatResponse) companionChatResponse.textContent = reply;
+    if (memoryConversation) memoryConversation.textContent = reply;
     showOllieReaction(reply, headline || "올리의 대답이에요.");
     trackCompanionEvent("companion_dialogue", {
       user: message.slice(0, 160),

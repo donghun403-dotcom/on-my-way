@@ -560,7 +560,7 @@
       <!-- ============ 올리 (Mate) ============ -->
       <div class="app-view" id="view-mate" data-view="mate" role="tabpanel" aria-labelledby="tab-mate" hidden>
         <div class="view-head">
-          <div><span>GROW TOGETHER</span><h1>목표 메이트 올리</h1><p>작은 실행을 함께 쌓을수록 올리의 세상도 자라나요.</p></div>
+          <div><span>GROW TOGETHER</span><h1>함께 자라는 올리</h1><p>오늘의 실행이 올리의 표정과 세상을 조금씩 바꿔요.</p></div>
           <img src="assets/ollie-celebrate.png" alt="함께 성장해서 기뻐하는 올리" />
         </div>
 
@@ -590,87 +590,103 @@
           <div class="companion-xp" aria-label="메이트 성장 경험치">
             <span id="companionXpBar" style="width: 0%"></span>
           </div>
+          <div class="companion-next-inline">
+            <span aria-hidden="true">✦</span>
+            <div><small>다음 변화</small><strong id="bondNextUnlock">포근한 미소와 반가운 인사</strong><p id="bondUnlockDescription">관계가 자라면 올리의 표정과 대사, 함께 가는 장소가 달라져요.</p></div>
+          </div>
           <div class="companion-primary-actions">
-            <button id="openCompanionChat" type="button">이야기하기</button>
-          </div>
-        </section>
-
-        <section class="execution-card companion-run-card" id="matePanel">
-          <div class="card-title compact">
-            <div>
-              <small class="bond-kicker">OLLIE &amp; ME</small>
-              <h2>올리랑 마음이 몽글몽글</h2>
-              <span id="executionCompanionPath">작은 방 → 산책길 → 숲 → 별빛 언덕 → 올리의 별꽃 정원</span>
-            </div>
-            <span class="soft-badge">사이좋게 자라는 중</span>
-          </div>
-          <div class="companion-run-body">
-            <div class="companion-run-visual">
-              <img class="mascot-art" id="executionCompanion" src="assets/ollie-comfort.png" alt="다정하게 응원하는 올리" />
-              <span class="bond-reaction" id="bondReaction" aria-hidden="true">♥ +5</span>
-            </div>
-            <div>
-              <strong id="executionCompanionTitle">새싹 친구 올리</strong>
-              <p id="executionCompanionText">
-                올리는 혼내지 않고, 오늘 할 수 있는 크기로 계획을 줄여주는 여정 파트너입니다.
-              </p>
-            </div>
-          </div>
-          <div class="companion-stats" aria-label="메이트 상태">
-            <span>기분 <strong id="companionMood">기대</strong></span>
-            <span>함께한 날 <strong id="companionDays">1일</strong></span>
-            <span>관계 단계 <strong id="companionNextGrowth">새싹 친구</strong></span>
-          </div>
-          <div class="bond-growth-card" aria-label="올리 관계 성장 정보">
-            <div class="bond-growth-head">
-              <div><span>관계 XP</span><strong id="bondLevelName">새싹 친구</strong></div>
-              <b id="bondXpText">0 / 40 XP</b>
-            </div>
-            <div class="bond-xp-track" aria-hidden="true"><span id="bondXpBar" style="width: 0%"></span></div>
-            <div class="bond-next-unlock">
-              <span aria-hidden="true">✦</span>
-              <div><small>다음 변화</small><strong id="bondNextUnlock">포근한 미소와 반가운 인사</strong><p id="bondUnlockDescription">관계가 자라면 올리의 표정과 대사, 함께 가는 장소가 달라져요.</p></div>
-            </div>
-          </div>
-          <div class="mate-actions" aria-label="올리 상호작용">
             <button id="touchCompanion" type="button">오늘 쓰다듬기 · XP +5</button>
-            <button data-open-companion-chat type="button">올리와 대화하기</button>
           </div>
-          <p class="touch-companion-hint" id="touchCompanionHint">하루 첫 쓰다듬기는 관계 XP +5 · 단계마다 새 표정과 대화, 장소가 열려요.</p>
+          <p class="touch-companion-hint" id="touchCompanionHint">하루 첫 쓰다듬기는 관계 XP +5 · 기록은 아래 기록 탭에서 남길 수 있어요.</p>
         </section>
 
-        <section class="execution-card journey-map-card" id="journeyMapCard">
-          <div class="card-title compact">
-            <div>
-              <h2>여정 지도</h2>
-              <span>완료율에 따라 올리와 새로운 장소로 이동합니다</span>
+        <details class="execution-card companion-run-card growth-detail-disclosure" id="matePanel">
+          <summary>
+            <span><strong>우리 사이 자세히 보기</strong><small id="executionCompanionPath">기분 · 함께한 날 · 관계 단계</small></span>
+            <b aria-hidden="true">보기</b>
+          </summary>
+          <div class="growth-detail-content">
+            <div class="companion-run-body">
+              <div class="companion-run-visual">
+                <img class="mascot-art" id="executionCompanion" src="assets/ollie-comfort.png" alt="다정하게 응원하는 올리" />
+                <span class="bond-reaction" id="bondReaction" aria-hidden="true">♥ +5</span>
+              </div>
+              <div>
+                <strong id="executionCompanionTitle">새싹 친구 올리</strong>
+                <p id="executionCompanionText">올리는 오늘 할 수 있는 크기로 계획을 줄여주는 여정 파트너입니다.</p>
+              </div>
             </div>
-            <span class="soft-badge" id="journeyBadge">출발</span>
-            <a class="soft-badge pro-badge" href="index.html#pricing">PRO · 전체 여정</a>
+            <div class="companion-stats" aria-label="메이트 상태">
+              <span>기분 <strong id="companionMood">기대</strong></span>
+              <span>함께한 날 <strong id="companionDays">1일</strong></span>
+              <span>관계 단계 <strong id="companionNextGrowth">새싹 친구</strong></span>
+            </div>
+            <div class="bond-growth-card" aria-label="올리 관계 성장 정보">
+              <div class="bond-growth-head">
+                <div><span>관계 XP</span><strong id="bondLevelName">새싹 친구</strong></div>
+                <b id="bondXpText">0 / 40 XP</b>
+              </div>
+              <div class="bond-xp-track" aria-hidden="true"><span id="bondXpBar" style="width: 0%"></span></div>
+            </div>
           </div>
-          <div class="journey-story-panel">
+        </details>
+
+        <details class="execution-card journey-map-card journey-map-disclosure" id="journeyMapCard">
+          <summary>
             <div>
-              <span>지금 올리가 머무는 곳</span>
-              <strong id="journeyPlaceTitle">작은 방</strong>
-              <p id="journeyPlaceStory">첫 마음을 심고, 아주 작은 시작을 준비하는 포근한 공간이에요.</p>
+              <span>지금 머무는 곳</span>
+              <strong id="journeyPlaceSummary">작은 방</strong>
+              <small id="journeyNextSummary">다음 장소까지 25% 남음</small>
             </div>
-            <div class="journey-next-place">
-              <span>다음 장소까지</span>
-              <strong id="journeyNextText">25% 남음</strong>
-              <div><span id="journeyNextBar" style="width: 0%"></span></div>
+            <b aria-hidden="true">지도 보기</b>
+          </summary>
+          <div class="journey-map-details">
+            <div class="card-title compact">
+              <div><h2>올리의 성장 여정</h2><span>완료율에 따라 새로운 장소로 이동해요</span></div>
+              <span class="soft-badge" id="journeyBadge">출발</span>
+              <a class="soft-badge pro-badge" href="index.html#pricing">PRO · 전체 여정</a>
             </div>
+            <div class="journey-story-panel">
+              <div>
+                <span>지금 올리가 머무는 곳</span>
+                <strong id="journeyPlaceTitle">작은 방</strong>
+                <p id="journeyPlaceStory">첫 마음을 심고, 아주 작은 시작을 준비하는 포근한 공간이에요.</p>
+              </div>
+              <div class="journey-next-place">
+                <span>다음 장소까지</span>
+                <strong id="journeyNextText">25% 남음</strong>
+                <div><span id="journeyNextBar" style="width: 0%"></span></div>
+              </div>
+            </div>
+            <div class="journey-map" id="journeyMap" aria-label="목표 여정 지도"></div>
           </div>
-          <div class="journey-map" id="journeyMap" aria-label="목표 여정 지도"></div>
+        </details>
+      </div>
+
+      <!-- ============ 기록 (Memory) ============ -->
+      <div class="app-view" id="view-memory" data-view="memory" role="tabpanel" aria-labelledby="tab-memory" hidden>
+        <div class="view-head memory-view-head">
+          <div><span>DAILY MEMORY</span><h1>올리와 오늘 기록</h1><p>한마디 나누고, 오늘의 마음을 한 줄로 남겨요.</p></div>
+          <img src="assets/ollie-thinking.png" alt="오늘의 기록을 함께 정리하는 올리" />
+        </div>
+
+        <section class="execution-card memory-conversation-card" aria-labelledby="memoryConversationTitle">
+          <img src="assets/ollie-comfort.png" alt="이야기를 기다리는 올리" />
+          <div>
+            <span>STEP 1 · TALK</span>
+            <h2 id="memoryConversationTitle">오늘은 어땠어요?</h2>
+            <p>잘한 일도, 힘들었던 일도 편하게 말해 주세요. 대화는 오늘 기록에 함께 담겨요.</p>
+          </div>
+          <button id="openCompanionChat" type="button">올리와 이야기하기</button>
         </section>
 
         <section class="execution-card memory-card" id="recordsPanel">
           <div class="card-title compact">
             <div>
-              <small class="memory-kicker">DAILY MEMORY WITH OLLIE</small>
-              <h2>올리와 쓰는 오늘의 기억</h2>
-              <span>오늘을 기록하면 내일 계획이 내 생활에 더 잘 맞아져요</span>
+              <small class="memory-kicker">STEP 2 · WRITE</small>
+              <h2>오늘의 한 장 남기기</h2>
+              <span>마음 하나와 기억하고 싶은 순간만 적어도 충분해요</span>
             </div>
-            <span class="soft-badge">기록 → 다음 계획</span>
           </div>
           <div class="memory-journal-grid">
             <form class="memory-compose-card" id="memoryForm">
@@ -678,17 +694,12 @@
                 <div><span>오늘 실행</span><strong id="memoryCompletion">0% 완료</strong></div>
                 <div><span>올리의 오늘 한마디</span><p id="memoryConversation">아직 오늘 나눈 대화가 없어요.</p></div>
               </div>
-              <label class="memory-field memory-title-field" for="memoryTitle"><span>오늘의 다이어리 제목</span><input id="memoryTitle" type="text" maxlength="60" placeholder="예: 망설였지만 결국 시작한 날" /></label>
               <fieldset class="memory-mood-picker">
-                <legend>오늘의 마음은 어떤 색이었나요?</legend>
+                <legend>지금 마음과 가장 가까운 건 무엇인가요?</legend>
                 <button type="button" data-memory-mood="happy"><span aria-hidden="true">😊</span> 기쁨</button>
-                <button type="button" data-memory-mood="excited"><span aria-hidden="true">🌸</span> 설렘</button>
                 <button type="button" data-memory-mood="proud"><span aria-hidden="true">✨</span> 뿌듯함</button>
-                <button type="button" data-memory-mood="grateful"><span aria-hidden="true">🍀</span> 고마움</button>
                 <button class="selected" type="button" data-memory-mood="calm"><span aria-hidden="true">🌿</span> 평온함</button>
                 <button type="button" data-memory-mood="tired"><span aria-hidden="true">🌙</span> 지침</button>
-                <button type="button" data-memory-mood="regret"><span aria-hidden="true">🍂</span> 아쉬움</button>
-                <button type="button" data-memory-mood="heavy"><span aria-hidden="true">☁️</span> 답답함</button>
                 <button type="button" data-memory-mood="anxious"><span aria-hidden="true">🌫️</span> 불안함</button>
                 <button type="button" data-memory-mood="sad"><span aria-hidden="true">🌧️</span> 슬픔</button>
                 <label class="memory-custom-mood" for="memoryCustomMood">
@@ -697,28 +708,34 @@
                 </label>
                 <p class="memory-mood-echo" id="memoryMoodEcho" aria-live="polite">잔잔한 하루도 소중한 기록이 돼요.</p>
               </fieldset>
-              <label class="memory-field memory-note-field" for="memoryNote"><span>오늘 기억하고 싶은 순간</span><textarea id="memoryNote" rows="4" maxlength="500" placeholder="무슨 일이 있었고, 어떤 마음이 들었나요? 사소한 순간도 좋아요."></textarea></label>
-              <div class="memory-input-grid">
-                <label class="memory-field" for="memoryObstacle"><span>오늘 가장 방해된 것</span><select id="memoryObstacle"><option value="none">특별히 없었어요</option><option value="time">시간이 부족했어요</option><option value="energy">에너지가 부족했어요</option><option value="difficulty">과제가 너무 컸어요</option><option value="focus">집중이 흐트러졌어요</option></select></label>
-                <label class="memory-field" for="memoryNextStep"><span>내일의 가장 작은 행동</span><input id="memoryNextStep" type="text" maxlength="120" placeholder="예: 단어 앱 5분 열기" /></label>
-              </div>
-              <button class="save-memory-button" id="memorySaveButton" type="submit"><span>오늘의 다이어리 저장하기</span><b aria-hidden="true">→</b></button>
-              <p class="memory-save-hint" id="memorySaveHint">실행률과 올리의 대화도 한 장의 기억으로 함께 저장돼요.</p>
+              <label class="memory-field memory-note-field" for="memoryNote"><span>오늘 기억하고 싶은 한 장면</span><textarea id="memoryNote" rows="4" maxlength="500" placeholder="한 줄이면 충분해요. 예: 피곤했지만 단어 앱은 열었다."></textarea></label>
+              <details class="memory-optional-details" id="memoryOptionalDetails">
+                <summary><span><strong>조금 더 남기기</strong><small>제목 · 방해 요인 · 내일의 행동</small></span><b>선택</b></summary>
+                <div>
+                  <label class="memory-field memory-title-field" for="memoryTitle"><span>오늘의 다이어리 제목</span><input id="memoryTitle" type="text" maxlength="60" placeholder="예: 망설였지만 결국 시작한 날" /></label>
+                  <div class="memory-input-grid">
+                    <label class="memory-field" for="memoryObstacle"><span>오늘 가장 방해된 것</span><select id="memoryObstacle"><option value="none">특별히 없었어요</option><option value="time">시간이 부족했어요</option><option value="energy">에너지가 부족했어요</option><option value="difficulty">과제가 너무 컸어요</option><option value="focus">집중이 흐트러졌어요</option></select></label>
+                    <label class="memory-field" for="memoryNextStep"><span>내일의 가장 작은 행동</span><input id="memoryNextStep" type="text" maxlength="120" placeholder="예: 단어 앱 5분 열기" /></label>
+                  </div>
+                </div>
+              </details>
+              <button class="save-memory-button" id="memorySaveButton" type="submit"><span>오늘의 한 장 저장하기</span><b aria-hidden="true">→</b></button>
+              <p class="memory-save-hint" id="memorySaveHint">실행률과 올리와 나눈 대화도 함께 저장돼요.</p>
             </form>
-            <aside class="memory-ollie-guide">
-              <img src="assets/ollie-thinking.png" alt="오늘의 기록을 함께 정리하는 올리" />
-              <div><span>올리는 이렇게 도와줘요</span><strong>기록을 다음 행동으로 바꿔요</strong><p>기분과 방해 요인을 비교해 내일의 시간, 난이도와 최소 행동을 제안해요.</p></div>
-            </aside>
           </div>
-          <div class="memory-list-head">
-            <div><h3>차곡차곡 쌓인 나의 다이어리</h3><p>감정과 실행이 하루 한 장씩 이어져요</p></div>
-            <span id="memoryCount">0장</span>
-          </div>
-          <div class="memory-list" id="memoryList"></div>
-          <div class="memory-pattern-panel">
-            <div class="memory-pattern-head"><span>OLLIE'S INSIGHT</span><h3>올리가 발견한 성공 단서</h3><p>기록이 쌓일수록 계획을 더 정확하게 조정할 수 있어요.</p></div>
-            <div class="pattern-list" id="patternList" aria-label="올리가 발견한 패턴"></div>
-          </div>
+          <details class="memory-history-disclosure">
+            <summary>
+              <span><strong>차곡차곡 쌓인 기록</strong><small>지난 마음과 올리의 성공 단서를 다시 봐요</small></span>
+              <b id="memoryCount">0장</b>
+            </summary>
+            <div class="memory-history-content">
+              <div class="memory-list" id="memoryList"></div>
+              <div class="memory-pattern-panel">
+                <div class="memory-pattern-head"><span>OLLIE'S INSIGHT</span><h3>올리가 발견한 성공 단서</h3><p>기록이 쌓일수록 계획을 더 정확하게 조정할 수 있어요.</p></div>
+                <div class="pattern-list" id="patternList" aria-label="올리가 발견한 패턴"></div>
+              </div>
+            </div>
+          </details>
         </section>
       </div>
     </main>
@@ -735,6 +752,10 @@
       <button class="tab" type="button" role="tab" id="tab-mate" data-view="mate" aria-selected="false" aria-controls="view-mate">
         <span class="tab-icon" aria-hidden="true">🌱</span>
         <span class="tab-label">올리</span>
+      </button>
+      <button class="tab" type="button" role="tab" id="tab-memory" data-view="memory" aria-selected="false" aria-controls="view-memory">
+        <span class="tab-icon" aria-hidden="true">✎</span>
+        <span class="tab-label">기록</span>
       </button>
     </nav>
 
@@ -754,8 +775,8 @@
       <div class="sheet-handle" aria-hidden="true"></div>
       <div class="sheet-title-row">
         <div>
-          <span>올리와 오늘 조정하기</span>
-          <h2 id="companionChatTitle">지금 상태를 알려주세요</h2>
+          <span>올리와 오늘 이야기하기</span>
+          <h2 id="companionChatTitle">지금 마음을 알려주세요</h2>
         </div>
         <button id="closeCompanionChat" type="button" aria-label="대화 닫기">×</button>
       </div>
@@ -772,7 +793,7 @@
       </div>
       <label class="chat-input-label" for="companionChatInput">
         <span>올리에게 하고 싶은 말</span>
-        <textarea id="companionChatInput" rows="4" placeholder="예: 오늘 회의가 길어서 저녁 9시 이후에 10분짜리 행동만 남겨줘."></textarea>
+        <textarea id="companionChatInput" rows="4" placeholder="예: 오늘은 피곤했지만 그래도 첫 일정은 끝냈어."></textarea>
       </label>
       <button class="chat-send-button" id="sendCompanionMessage" type="button">올리에게 보내기</button>
       <p class="chat-response" id="companionChatResponse">메시지를 보내면 올리 에너지 1을 사용해 올리가 직접 답해줘요. 계획을 바꾸는 요청은 계획 탭의 변경안에도 함께 담아둬요.</p>

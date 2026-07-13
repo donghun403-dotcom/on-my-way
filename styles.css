@@ -13316,6 +13316,445 @@ body.sheet-open {
   }
 }
 
+/* Companion IA: growth lives in Ollie, reflection lives in its own Memory tab. */
+.execution-page #view-mate .view-head,
+.execution-page #view-mate .journey-map-disclosure,
+.execution-page #view-memory .memory-view-head,
+.execution-page #view-memory .memory-conversation-card,
+.execution-page #view-memory .memory-card {
+  grid-column: 1 / -1;
+}
+
+.execution-page #view-mate .companion-run-card {
+  align-content: start;
+  padding: 0;
+}
+
+.execution-page #view-mate .companion-next-inline {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  margin-top: 12px;
+  padding: 11px 12px;
+  background: rgba(255, 255, 255, 0.64);
+  border: 1px solid rgba(107, 122, 166, 0.1);
+  border-radius: 15px;
+}
+
+.execution-page #view-mate .companion-next-inline > span {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  color: #ffffff;
+  background: linear-gradient(145deg, #83a79d, #9b91ad);
+  border-radius: 12px;
+}
+
+.execution-page #view-mate .companion-next-inline > div {
+  display: grid;
+  gap: 2px;
+}
+
+.execution-page #view-mate .companion-next-inline small {
+  color: #87948f;
+  font-size: 8px;
+  font-weight: 900;
+}
+
+.execution-page #view-mate .companion-next-inline strong {
+  color: #435169;
+  font-size: 11px;
+}
+
+.execution-page #view-mate .companion-next-inline p {
+  margin: 0;
+  color: #7e8998;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.execution-page .growth-detail-disclosure > summary {
+  display: flex;
+  min-height: 82px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px 18px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.execution-page .growth-detail-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.execution-page .growth-detail-disclosure > summary > span {
+  display: grid;
+  gap: 4px;
+}
+
+.execution-page .growth-detail-disclosure > summary strong {
+  color: #46546b;
+  font-size: 13px;
+}
+
+.execution-page .growth-detail-disclosure > summary small {
+  color: #8792a2;
+  font-size: 9px;
+  font-weight: 750;
+}
+
+.execution-page .growth-detail-disclosure > summary > b {
+  padding: 8px 10px;
+  color: #6d827a;
+  background: #edf5f2;
+  border-radius: 999px;
+  font-size: 8px;
+}
+
+.execution-page .growth-detail-disclosure[open] > summary > b {
+  font-size: 0;
+}
+
+.execution-page .growth-detail-disclosure[open] > summary > b::after {
+  content: "접기";
+  font-size: 8px;
+}
+
+.execution-page .growth-detail-content {
+  display: grid;
+  gap: 12px;
+  padding: 0 16px 16px;
+  animation: viewFade 0.22s ease;
+}
+
+.execution-page #view-mate .companion-run-body {
+  grid-template-columns: 92px minmax(0, 1fr);
+  margin-top: 4px;
+}
+
+.execution-page #view-mate .companion-run-body img {
+  width: 92px;
+  height: 108px;
+}
+
+.execution-page #view-mate .companion-run-visual {
+  min-height: 108px;
+}
+
+.execution-page #view-mate .mate-actions {
+  grid-template-columns: 1fr;
+}
+
+.execution-page .journey-map-disclosure {
+  padding: 0;
+  overflow: hidden;
+}
+
+.execution-page .journey-map-disclosure > summary {
+  display: flex;
+  min-height: 92px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px 22px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.execution-page .journey-map-disclosure > summary::-webkit-details-marker,
+.execution-page .memory-optional-details > summary::-webkit-details-marker,
+.execution-page .memory-history-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.execution-page .journey-map-disclosure > summary > div {
+  display: grid;
+  gap: 3px;
+}
+
+.execution-page .journey-map-disclosure > summary span,
+.execution-page .journey-map-disclosure > summary small {
+  color: #86938f;
+  font-size: 9px;
+  font-weight: 850;
+}
+
+.execution-page .journey-map-disclosure > summary strong {
+  color: #44566b;
+  font-size: 19px;
+}
+
+.execution-page .journey-map-disclosure > summary > b {
+  min-width: 76px;
+  padding: 9px 12px;
+  color: #657b73;
+  background: #edf6f2;
+  border-radius: 999px;
+  font-size: 9px;
+  text-align: center;
+}
+
+.execution-page .journey-map-disclosure[open] > summary > b {
+  font-size: 0;
+}
+
+.execution-page .journey-map-disclosure[open] > summary > b::after {
+  content: "지도 접기";
+  font-size: 9px;
+}
+
+.execution-page .journey-map-details {
+  display: grid;
+  gap: 14px;
+  padding: 0 18px 18px;
+  animation: viewFade 0.22s ease;
+}
+
+.execution-page .memory-conversation-card {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  max-width: 860px;
+  width: 100%;
+  margin-inline: auto;
+  background: linear-gradient(145deg, rgba(237, 247, 243, 0.94), rgba(244, 240, 247, 0.9));
+}
+
+.execution-page .memory-conversation-card > img {
+  width: 92px;
+  height: 108px;
+  object-fit: contain;
+  filter: drop-shadow(0 12px 14px rgba(91, 106, 151, 0.14));
+}
+
+.execution-page .memory-conversation-card > div {
+  display: grid;
+  gap: 5px;
+}
+
+.execution-page .memory-conversation-card span {
+  color: #819b92;
+  font-size: 9px;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+}
+
+.execution-page .memory-conversation-card h2 {
+  margin: 0;
+  color: #3f4d64;
+  font-size: 20px;
+}
+
+.execution-page .memory-conversation-card p {
+  margin: 0;
+  color: #768295;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.execution-page .memory-conversation-card button {
+  min-height: 46px;
+  padding: 0 16px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #789f93, #8993ad);
+  border: 0;
+  border-radius: 14px;
+  box-shadow: 0 10px 22px rgba(91, 106, 151, 0.16);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.execution-page #view-memory .memory-card {
+  max-width: 860px;
+  width: 100%;
+  margin-inline: auto;
+}
+
+.execution-page #view-memory .memory-journal-grid {
+  grid-template-columns: 1fr;
+}
+
+.execution-page .memory-optional-details,
+.execution-page .memory-history-disclosure {
+  overflow: hidden;
+  background: rgba(247, 249, 251, 0.78);
+  border: 1px solid rgba(107, 122, 166, 0.12);
+  border-radius: 17px;
+}
+
+.execution-page .memory-optional-details > summary,
+.execution-page .memory-history-disclosure > summary {
+  display: flex;
+  min-height: 62px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 11px 14px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.execution-page .memory-optional-details > summary > span,
+.execution-page .memory-history-disclosure > summary > span {
+  display: grid;
+  gap: 3px;
+}
+
+.execution-page .memory-optional-details > summary strong,
+.execution-page .memory-history-disclosure > summary strong {
+  color: #4b586e;
+  font-size: 11px;
+}
+
+.execution-page .memory-optional-details > summary small,
+.execution-page .memory-history-disclosure > summary small {
+  color: #8a94a4;
+  font-size: 8px;
+  font-weight: 750;
+}
+
+.execution-page .memory-optional-details > summary > b,
+.execution-page .memory-history-disclosure > summary > b {
+  flex: 0 0 auto;
+  padding: 7px 9px;
+  color: #70857d;
+  background: #edf5f2;
+  border-radius: 999px;
+  font-size: 8px;
+}
+
+.execution-page .memory-optional-details > div {
+  display: grid;
+  gap: 12px;
+  padding: 0 12px 12px;
+}
+
+.execution-page .memory-history-disclosure {
+  margin-top: 14px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.execution-page .memory-history-content {
+  display: grid;
+  gap: 12px;
+  padding: 0 12px 12px;
+  animation: viewFade 0.22s ease;
+}
+
+.execution-page .memory-history-content .memory-pattern-panel {
+  margin-top: 0;
+}
+
+@media (max-width: 620px) {
+  .execution-page #view-mate .companion-home-card,
+  .execution-page #view-mate .companion-run-card,
+  .execution-page #view-mate .journey-map-disclosure,
+  .execution-page #view-memory .memory-view-head,
+  .execution-page #view-memory .memory-conversation-card,
+  .execution-page #view-memory .memory-card {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .execution-page #view-mate .view-head {
+    grid-template-columns: minmax(0, 1fr) 76px;
+    min-height: 112px;
+    padding: 14px 16px;
+  }
+
+  .execution-page #view-mate .view-head h1 {
+    font-size: 25px;
+  }
+
+  .execution-page #view-mate .view-head p {
+    margin-top: 4px;
+    font-size: 9px;
+  }
+
+  .execution-page #view-mate .view-head img {
+    width: 76px;
+    height: 90px;
+  }
+
+  .execution-page #view-mate .companion-home-card {
+    padding: 14px;
+  }
+
+  .execution-page #view-mate .companion-world {
+    min-height: 220px;
+  }
+
+  .execution-page #view-mate .companion-world img {
+    width: 170px;
+    height: 190px;
+    margin-top: -18px;
+  }
+
+  .execution-page #view-mate .companion-speech {
+    right: 12px;
+    bottom: 12px;
+    max-width: 230px;
+  }
+
+  .execution-page .growth-detail-disclosure > summary {
+    min-height: 76px;
+    padding: 14px 16px;
+  }
+
+  .execution-page .memory-conversation-card {
+    grid-template-columns: 70px minmax(0, 1fr);
+    gap: 10px;
+    padding: 16px;
+  }
+
+  .execution-page .memory-conversation-card > img {
+    width: 70px;
+    height: 84px;
+  }
+
+  .execution-page .memory-conversation-card h2 {
+    font-size: 17px;
+  }
+
+  .execution-page .memory-conversation-card button {
+    grid-column: 1 / -1;
+    min-height: 50px;
+  }
+
+  .execution-page #view-memory .memory-card {
+    padding: 17px;
+  }
+
+  .execution-page #view-memory .memory-auto-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .execution-page #view-memory .memory-mood-picker {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .execution-page .journey-map-disclosure > summary {
+    min-height: 82px;
+    padding: 14px 16px;
+  }
+
+  .execution-page .journey-map-disclosure > summary strong {
+    font-size: 16px;
+  }
+
+  .execution-page .execution-tabbar .tab-label {
+    font-size: 10px;
+  }
+}
+
 .hero-cta-note {
   color: var(--muted);
   font-size: 13px;
