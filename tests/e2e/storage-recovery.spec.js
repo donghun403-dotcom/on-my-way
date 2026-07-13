@@ -1,5 +1,5 @@
 const { test, expect } = require("@playwright/test");
-const { monitorPage, prepareApp, readStored } = require("./helpers");
+const { mockExternalAssets, monitorPage, prepareApp, readStored } = require("./helpers");
 
 const corruptions = [
   ["invalid JSON and empty values", { omwExecutionState: "{bad-json", omwCompanionState: "" }],
@@ -30,3 +30,44 @@ for (const [name, storage] of corruptions) {
     diagnostics.expectClean();
   });
 }
+
+test("account changes isolate local plans and restore only the matching account", async ({ page }) => {
+  await mockExternalAssets(page);
+  await page.goto("/app.html");
+  const result = await page.evaluate(() => {
+    switchAccountStorageScope("user:account-a");
+    localStorage.setItem("omwExecutionPlan", JSON.stringify({ goal: "A-only goal" }));
+
+    switchAccountStorageScope("user:account-b");
+    const bInitiallySaw = JSON.parse(localStorage.getItem("omwExecutionPlan") || "{}").goal || null;
+    localStorage.setItem("omwExecutionPlan", JSON.stringify({ goal: "B-only goal" }));
+
+    switchAccountStorageScope("user:account-a");
+    const aRestored = JSON.parse(localStorage.getItem("omwExecutionPlan") || "{}").goal || null;
+
+    switchAccountStorageScope("user:account-b");
+    const bRestored = JSON.parse(localStorage.getItem("omwExecutionPlan") || "{}").goal || null;
+    return { bInitiallySaw, aRestored, bRestored };
+  });
+
+  expect(result).toEqual({ bInitiallySaw: null, aRestored: "A-only goal", bRestored: "B-only goal" });
+});
+
+test("a corrupt account snapshot recovers without a reload loop", async ({ page }) => {
+  await mockExternalAssets(page);
+  await page.goto("/app.html");
+  const result = await page.evaluate(() => {
+    localStorage.setItem("omwAccountStorageScope", "user:account-a");
+    localStorage.setItem("omwExecutionPlan", JSON.stringify({ goal: "A-only goal" }));
+    localStorage.setItem("omwAccountStorageSnapshot:user:account-b", "{bad-json");
+    const changed = switchAccountStorageScope("user:account-b");
+    return {
+      changed,
+      scope: localStorage.getItem("omwAccountStorageScope"),
+      plan: localStorage.getItem("omwExecutionPlan"),
+      corruptSnapshot: localStorage.getItem("omwAccountStorageSnapshot:user:account-b"),
+    };
+  });
+
+  expect(result).toEqual({ changed: true, scope: "user:account-b", plan: null, corruptSnapshot: null });
+});
