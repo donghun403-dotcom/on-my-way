@@ -7842,6 +7842,224 @@ body.sheet-open {
 
 }
 
+/* First-use trial setup: one decision at a time, with optional detail folded away. */
+.home-page .story-flow:not(.showing-first-step) > .section-heading {
+  max-width: 760px;
+  margin-inline: auto;
+  text-align: center;
+}
+
+.trial-trust-list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.trial-trust-list li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  color: #718097;
+  background: rgba(255, 255, 255, 0.68);
+  border: 1px solid rgba(107, 122, 166, 0.1);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.trial-trust-list span {
+  display: grid;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+  color: #ffffff;
+  background: #7fa18f;
+  border-radius: 50%;
+  font-size: 9px;
+}
+
+.home-page .story-flow:not(.showing-first-step) .goal-builder-shell {
+  grid-template-columns: 72px minmax(0, 1fr);
+  width: min(100%, 780px);
+  max-width: 780px;
+  min-height: 0;
+}
+
+.home-page .story-flow:not(.showing-first-step) .app-plan-preview {
+  display: none;
+}
+
+.builder-reassurance {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  margin: -14px 0 22px;
+  color: #7d8798;
+  font-size: 10px;
+  font-weight: 750;
+  line-height: 1.5;
+}
+
+.builder-reassurance span {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  place-items: center;
+  color: #ffffff;
+  background: #90aa9e;
+  border-radius: 50%;
+  font-size: 9px;
+}
+
+.optional-settings {
+  overflow: hidden;
+  background: rgba(246, 248, 251, 0.88);
+  border: 1px solid #e4e8ef;
+  border-radius: 15px;
+}
+
+.optional-settings summary {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 15px;
+  color: #647087;
+  font-size: 11px;
+  font-weight: 850;
+  cursor: pointer;
+  list-style: none;
+}
+
+.optional-settings summary::-webkit-details-marker { display: none; }
+.optional-settings summary::after {
+  margin-left: auto;
+  color: #8c97a8;
+  content: "+";
+  font-size: 16px;
+}
+.optional-settings[open] summary::after { content: "−"; }
+.optional-settings summary small {
+  order: 2;
+  padding: 4px 7px;
+  color: #80909f;
+  background: #ffffff;
+  border-radius: 999px;
+  font-size: 8px;
+}
+.optional-settings > .builder-field,
+.optional-settings > .personality-fields,
+.optional-settings > .privacy-note {
+  margin: 0 14px 14px;
+}
+.personality-optional-settings > .personality-fields { padding-top: 2px; }
+
+.home-page .story-flow:not(.showing-first-step) .ollie-goal-card {
+  grid-template-rows: auto auto auto auto auto;
+  min-height: 0;
+  padding-bottom: 26px;
+}
+
+.home-page .story-flow .builder-actions {
+  padding: 10px;
+}
+
+@media (max-width: 640px) {
+  .home-page .story-flow:not(.showing-first-step) {
+    padding: 14px 10px 24px;
+  }
+
+  .home-page .story-flow:not(.showing-first-step) > .section-heading {
+    padding-inline: 8px;
+  }
+
+  .home-page .story-flow:not(.showing-first-step) > .section-heading h2 {
+    font-size: clamp(24px, 8vw, 32px);
+    line-height: 1.22;
+  }
+
+  .home-page .story-flow:not(.showing-first-step) > .section-heading > p:last-of-type {
+    margin-top: 8px;
+    font-size: 12px;
+    line-height: 1.55;
+  }
+
+  .trial-trust-list {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 5px;
+    margin-top: 12px;
+  }
+
+  .trial-trust-list li {
+    justify-content: center;
+    gap: 4px;
+    padding: 7px 3px;
+    font-size: 8px;
+    white-space: nowrap;
+  }
+
+  .trial-trust-list span { width: 14px; height: 14px; flex: 0 0 14px; font-size: 8px; }
+
+  .home-page .story-flow:not(.showing-first-step) .goal-builder-shell {
+    grid-template-columns: 1fr;
+    margin-top: 18px;
+    border-radius: 22px;
+  }
+
+  .home-page .story-flow:not(.showing-first-step) .diagnosis-stepper {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 5px;
+    padding: 7px;
+  }
+
+  .home-page .story-flow:not(.showing-first-step) .diagnosis-stepper span {
+    min-height: 52px;
+    border-radius: 14px;
+  }
+
+  .home-page .story-flow:not(.showing-first-step) .ollie-goal-card {
+    min-height: 0;
+    padding: 22px 16px 18px;
+  }
+
+  .builder-header { gap: 12px; }
+  .builder-kicker { margin-bottom: 5px; font-size: 9px; letter-spacing: 0.07em; }
+  .builder-header h3 { font-size: 21px; line-height: 1.3; }
+  .builder-progress { margin: 16px 0 22px; }
+  .builder-reassurance { margin-top: -12px; margin-bottom: 18px; font-size: 9px; }
+
+  .home-page .compact-ollie-message {
+    grid-template-columns: 48px minmax(0, 1fr);
+    gap: 10px;
+    padding: 11px 12px;
+  }
+  .home-page .compact-ollie-message img { width: 48px; height: 52px; }
+  .home-page .compact-ollie-message p { font-size: 12px; }
+
+  .goal-suggestions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .goal-suggestions button { min-height: 44px; font-size: 11px; }
+  .goal-suggestions .custom-goal-button { grid-column: 1 / -1; }
+
+  .builder-field-grid { gap: 12px; }
+  .home-page .goal-builder-shell .builder-field input,
+  .home-page .goal-builder-shell .builder-field select,
+  .home-page .goal-builder-shell .personality-fields input,
+  .home-page .goal-builder-shell .personality-fields select { min-height: 48px; }
+
+  .refined-profile-intro { padding: 13px 14px !important; }
+  .trial-terms-note { font-size: 9px; line-height: 1.5; }
+  .home-page .story-flow .builder-actions { margin-top: 18px; padding: 7px; border-radius: 15px; }
+  .builder-actions button { min-height: 50px; padding-inline: 13px; font-size: 11px; }
+}
+
 /* Ollie-centered app feature carousel */
 .home-page .app-dashboard .section-heading > p:last-child {
   max-width: 660px;

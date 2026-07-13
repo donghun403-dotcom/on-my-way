@@ -1150,7 +1150,7 @@ diagnosisBackButton?.addEventListener("click", () => {
 diagnosisNextButton?.addEventListener("click", () => advanceDiagnosisStep());
 
 // 단계별 선택형 입력: 전부 직접 확인해야 자동 진행 (하나만 고르고 넘어가지 않도록)
-const stepChoiceFieldIds = [[], ["goalPeriod", "routineTime", "routineReadiness"], []];
+const stepChoiceFieldIds = [[], ["goalPeriod", "routineTime"], []];
 const touchedChoiceFields = new Set();
 
 personalityForm?.addEventListener("change", (event) => {
@@ -1318,17 +1318,15 @@ function showPageView(hash, scrollToTarget = false) {
 
   if (scrollToTarget) {
     window.requestAnimationFrame(() => {
-      const target = normalizedHash === "#top" ? document.querySelector("#top") : document.querySelector(normalizedHash);
-      target?.scrollIntoView({ block: "start" });
-      if (normalizedHash === "#firstStep") {
-        const headerOffset = document.querySelector(".site-header")?.offsetHeight || 0;
-        window.scrollBy({ top: -(headerOffset + 10), left: 0 });
-      }
+      window.scrollTo({ top: 0, left: 0 });
     });
   }
 }
 
 window.addEventListener("hashchange", () => showPageView(window.location.hash, true));
+window.addEventListener("load", () => {
+  if (window.location.hash) window.requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0 }));
+});
 showPageView(window.location.hash || "#top", Boolean(window.location.hash));
 
 const stems = [
@@ -1771,7 +1769,7 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
   if (showLoading) {
     aiPreviewStatus.textContent = "AI가 목표 설계 중";
     aiPreviewButton.disabled = true;
-    aiPreviewButton.textContent = "AI 미리보기 생성 중...";
+    aiPreviewButton.textContent = "올리가 오늘 계획을 만드는 중...";
     await playAnalysisLoading();
   }
 
@@ -1784,7 +1782,7 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
       if (aiPreviewStatus) aiPreviewStatus.textContent = "무료 목표 계획 1개를 이미 만들었어요";
       if (aiPreviewButton) {
         aiPreviewButton.disabled = false;
-        aiPreviewButton.textContent = "AI 맞춤 계획 만들고 1일 체험 준비";
+        aiPreviewButton.textContent = "이대로 1일 체험 시작하기";
       }
       planPreviewPanel?.classList.add("is-ready");
       showToast(error.message);
@@ -1801,7 +1799,7 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
   if (aiPreviewStatus) aiPreviewStatus.textContent = usedFallback ? "올리가 입력 내용을 바탕으로 준비한 계획" : "올리가 AI로 만든 맞춤 계획";
   if (aiPreviewButton) {
     aiPreviewButton.disabled = false;
-    aiPreviewButton.textContent = "AI 맞춤 계획 만들고 1일 체험 준비";
+    aiPreviewButton.textContent = "이대로 1일 체험 시작하기";
   }
 
   try {

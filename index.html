@@ -79,9 +79,14 @@
 
       <section class="design-flow section-band story-flow" id="designFlow" data-page-view="trial" aria-live="polite" hidden>
         <div class="section-heading">
-          <p class="eyebrow">Start Your 1-Day Trial</p>
-          <h2>이제 내 목표로 직접 체험해보세요</h2>
-          <p>목표만 입력하면 결제정보 없이 24시간 동안 올리의 핵심 기능을 이용할 수 있어요.</p>
+          <p class="eyebrow">3 Steps · About 30 Seconds</p>
+          <h2>세 가지만 고르면 오늘 계획이 완성돼요</h2>
+          <p>정답은 없어요. 편하게 고르고 나중에 언제든 바꿀 수 있어요.</p>
+          <ul class="trial-trust-list" aria-label="무료 체험 안내">
+            <li><span aria-hidden="true">✓</span> 카드 등록 없음</li>
+            <li><span aria-hidden="true">✓</span> 자동 결제 없음</li>
+            <li><span aria-hidden="true">✓</span> 언제든 수정 가능</li>
+          </ul>
         </div>
         <div class="design-panel first-meeting-panel goal-builder-shell">
           <nav class="diagnosis-stepper" aria-label="목표 설정 단계">
@@ -93,14 +98,15 @@
           <form class="personality-form ollie-goal-card" id="personalityForm">
             <header class="builder-header">
               <div>
-                <p class="builder-kicker">Goal Builder</p>
-                <h3 id="diagnosisStepTitle" aria-live="polite">올리와 함께 첫 목표를 골라볼까요?</h3>
+                <p class="builder-kicker">한 번에 하나씩만 선택해요</p>
+                <h3 id="diagnosisStepTitle" aria-live="polite">무엇을 시작해볼까요?</h3>
               </div>
               <span id="diagnosisStepCount">1 / 3</span>
             </header>
             <div class="builder-progress" aria-hidden="true"><span id="diagnosisProgressBar" style="width: 33%"></span></div>
+            <p class="builder-reassurance"><span aria-hidden="true">✓</span> 지금 선택은 임시 설정이에요. 앱에서 편하게 다시 바꿀 수 있어요.</p>
 
-            <section class="diagnosis-step active" data-step-title="올리와 함께 첫 목표를 골라볼까요?">
+            <section class="diagnosis-step active" data-step-title="무엇을 시작해볼까요?">
               <div class="ollie-message compact-ollie-message">
                 <img class="mascot-art mascot-avatar" src="assets/ollie-thinking.png" alt="" />
                 <div>
@@ -126,10 +132,10 @@
               </div>
             </section>
 
-            <section class="diagnosis-step" data-step-title="내 생활에 맞는 실행 리듬을 찾아볼게요" hidden>
+            <section class="diagnosis-step" data-step-title="언제 하면 가장 편할까요?" hidden>
               <div class="builder-field-grid">
                 <label class="builder-field" for="goalPeriod">
-                  <span>목표 기간</span>
+                  <span>얼마 동안 해볼까요?</span>
                   <select id="goalPeriod" required>
                     <option value="7">7일 · 가볍게 시작</option>
                     <option value="14">14일 · 2주 도전</option>
@@ -140,7 +146,7 @@
                   </select>
                 </label>
                 <label class="builder-field" for="routineTime">
-                  <span>집중하기 좋은 시간</span>
+                  <span>언제 가장 여유롭나요?</span>
                   <select id="routineTime" required>
                     <option selected>아침</option>
                     <option>점심</option>
@@ -148,7 +154,10 @@
                     <option>자기 전</option>
                   </select>
                 </label>
-                <label class="builder-field builder-field-wide" for="routineReadiness">
+              </div>
+              <details class="optional-settings">
+                <summary><span>조금 더 맞춤 설정</span><small>선택</small></summary>
+                <label class="builder-field" for="routineReadiness">
                   <span>평소 실행 스타일</span>
                   <select id="routineReadiness" required>
                     <option>바로 실행하는 편이에요</option>
@@ -158,36 +167,39 @@
                     <option>시작해도 쉽게 중단돼요</option>
                   </select>
                 </label>
-              </div>
+              </details>
             </section>
 
-            <section class="diagnosis-step" data-step-title="나에게 맞는 응원 방식을 선택해요" hidden>
+            <section class="diagnosis-step" data-step-title="이대로 바로 시작할까요?" hidden>
               <div class="profile-intro refined-profile-intro">
-                <span>맞춤 입력 (선택)</span>
-                <p>건너뛰어도 돼요 — 나중에 입력하면 계획이 더 정교해져요.</p>
+                <span>필수 설정은 모두 끝났어요</span>
+                <p>아래 정보는 건너뛰어도 계획을 바로 만들 수 있어요.</p>
               </div>
-              <div class="personality-fields" aria-label="성향 분석 입력">
-                <label for="birthDate">생년월일<input id="birthDate" type="date" /></label>
-                <label for="birthTime">출생 시간<input id="birthTime" type="time" /></label>
-                <label for="birthPlace">출생지<input id="birthPlace" type="text" placeholder="예: 서울" /></label>
-                <label for="mbti">MBTI
-                  <select id="mbti">
-                    <option value="" selected>나중에 입력</option>
-                    <option>INTJ</option><option>INTP</option><option>ENTJ</option><option>ENTP</option>
-                    <option>INFJ</option><option>INFP</option><option>ENFJ</option><option>ENFP</option>
-                    <option>ISTJ</option><option>ISFJ</option><option>ESTJ</option><option>ESFJ</option>
-                    <option>ISTP</option><option>ISFP</option><option>ESTP</option><option>ESFP</option>
-                  </select>
-                </label>
-              </div>
-              <div class="privacy-note"><span aria-hidden="true">✓</span> 입력 내용은 목표 계획을 만드는 데만 사용됩니다.</div>
+              <details class="optional-settings personality-optional-settings">
+                <summary><span>성향 정보를 추가할게요</span><small>선택</small></summary>
+                <div class="personality-fields" aria-label="성향 분석 입력">
+                  <label for="birthDate">생년월일<input id="birthDate" type="date" /></label>
+                  <label for="birthTime">출생 시간<input id="birthTime" type="time" /></label>
+                  <label for="birthPlace">출생지<input id="birthPlace" type="text" placeholder="예: 서울" /></label>
+                  <label for="mbti">MBTI
+                    <select id="mbti">
+                      <option value="" selected>나중에 입력</option>
+                      <option>INTJ</option><option>INTP</option><option>ENTJ</option><option>ENTP</option>
+                      <option>INFJ</option><option>INFP</option><option>ENFJ</option><option>ENFP</option>
+                      <option>ISTJ</option><option>ISFJ</option><option>ESTJ</option><option>ESFJ</option>
+                      <option>ISTP</option><option>ISFP</option><option>ESTP</option><option>ESFP</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="privacy-note"><span aria-hidden="true">✓</span> 입력 내용은 목표 계획을 만드는 데만 사용됩니다.</div>
+              </details>
               <div class="trial-terms-note"><span aria-hidden="true">✓</span> 결제정보 없이 24시간 이용 · 자동 결제 없음 · 체험 종료 후 결제 전까지 이용 일시 중단</div>
             </section>
 
             <footer class="builder-actions">
               <button class="builder-back" type="button" id="diagnosisBackButton" hidden>이전</button>
               <button class="builder-next" type="button" id="diagnosisNextButton">다음 단계</button>
-              <button type="submit" id="aiPreviewButton" hidden>AI 맞춤 계획 만들고 1일 체험 준비</button>
+              <button type="submit" id="aiPreviewButton" hidden>이대로 1일 체험 시작하기</button>
             </footer>
           </form>
 
