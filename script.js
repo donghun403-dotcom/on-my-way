@@ -127,6 +127,8 @@ const revisionChipButtons = document.querySelectorAll("[data-revision-chip]");
 const selectedScheduleTitle = document.querySelector("#selectedScheduleTitle");
 const selectedScheduleMeta = document.querySelector("#selectedScheduleMeta");
 const executionChecklist = document.querySelector("#executionChecklist");
+const scheduleModeButtons = document.querySelectorAll("[data-schedule-mode]");
+const todayOrderHint = document.querySelector("#todayOrderHint");
 const recoveryCard = document.querySelector("#recoveryCard");
 const recoverySummary = document.querySelector("#recoverySummary");
 const recoveryButtons = document.querySelectorAll("[data-recovery-action]");
@@ -158,6 +160,8 @@ const closeAddScheduleButton = document.querySelector("#closeAddSchedule");
 const addScheduleForm = document.querySelector("#addScheduleForm");
 const newScheduleName = document.querySelector("#newScheduleName");
 const newScheduleTime = document.querySelector("#newScheduleTime");
+const newScheduleTimeField = document.querySelector("#newScheduleTimeField");
+const addScheduleModeHint = document.querySelector("#addScheduleModeHint");
 const newScheduleDuration = document.querySelector("#newScheduleDuration");
 const newScheduleMemo = document.querySelector("#newScheduleMemo");
 const executionThemeButtons = document.querySelectorAll(".execution-theme-button");
@@ -2043,7 +2047,7 @@ document.querySelectorAll(".admin-sidebar nav a").forEach((link) => {
 
 applyAdminTableFilters();
 
-const appStateVersion = 2;
+const appStateVersion = 3;
 
 function safeJsonParse(value, fallback = {}) {
   try {
@@ -2106,6 +2110,22 @@ function migrateExecutionState(rawState) {
     customTasksByDay:
       state.customTasksByDay && typeof state.customTasksByDay === "object" && !Array.isArray(state.customTasksByDay)
         ? state.customTasksByDay
+        : {},
+    scheduleModeByDay:
+      state.scheduleModeByDay && typeof state.scheduleModeByDay === "object" && !Array.isArray(state.scheduleModeByDay)
+        ? state.scheduleModeByDay
+        : {},
+    taskOrderByDay:
+      state.taskOrderByDay && typeof state.taskOrderByDay === "object" && !Array.isArray(state.taskOrderByDay)
+        ? state.taskOrderByDay
+        : {},
+    taskTimeByDay:
+      state.taskTimeByDay && typeof state.taskTimeByDay === "object" && !Array.isArray(state.taskTimeByDay)
+        ? state.taskTimeByDay
+        : {},
+    checkedTaskKeysByDay:
+      state.checkedTaskKeysByDay && typeof state.checkedTaskKeysByDay === "object" && !Array.isArray(state.checkedTaskKeysByDay)
+        ? state.checkedTaskKeysByDay
         : {},
     recoveryActions: Array.isArray(state.recoveryActions) ? state.recoveryActions.slice(-30) : [],
     completedLog: Array.isArray(state.completedLog) ? state.completedLog.slice(-80) : [],
@@ -2329,6 +2349,79 @@ function remapCompletedChecks(previousSchedule, nextSchedule, checkedByDay) {
   return remapped;
 }
 
+function getStableTaskKey(day, task, index) {
+  if (task?.id) return String(task.id);
+  return `plan-${day}-${index}-${hashText(String(task?.text || "일정"))}`;
+}
+
+function getSortableTaskTime(time) {
+  const match = String(time || "").match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return Number.POSITIVE_INFINITY;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+function compareTasksByTime(first, second) {
+  const firstTime = getSortableTaskTime(first.time);
+  const secondTime = getSortableTaskTime(second.time);
+  if (firstTime !== secondTime) return firstTime - secondTime;
+  return Number(first._sourceIndex || 0) - Number(second._sourceIndex || 0);
+}
+
+function prepareScheduleTasks(schedule, customTasksByDay = {}) {
+  schedule.forEach((dayPlan) => {
+    const customTasks = Array.isArray(customTasksByDay[String(dayPlan.day)]) ? customTasksByDay[String(dayPlan.day)] : [];
+    dayPlan.tasks = [...dayPlan.tasks, ...customTasks]
+      .map((task, index) => ({
+        ...task,
+        _sourceIndex: index,
+        _taskKey: getStableTaskKey(dayPlan.day, task, index),
+      }))
+      .sort(compareTasksByTime);
+    if (customTasks.length) dayPlan.isRestDay = false;
+  });
+}
+
+function applySchedulePreferences(schedule, state, { resetChecks = false } = {}) {
+  const checkedTaskKeysByDay = resetChecks ? {} : { ...(state.checkedTaskKeysByDay || {}) };
+  const scheduleModeByDay = state.scheduleModeByDay || {};
+  const taskOrderByDay = state.taskOrderByDay || {};
+  const taskTimeByDay = state.taskTimeByDay || {};
+
+  schedule.forEach((dayPlan) => {
+    const dayKey = String(dayPlan.day);
+    const legacyChecks = state.checkedByDay[dayKey] || [];
+    const hasStableChecks = Object.prototype.hasOwnProperty.call(checkedTaskKeysByDay, dayKey);
+    const stableChecks = hasStableChecks
+      ? { ...(checkedTaskKeysByDay[dayKey] || {}) }
+      : Object.fromEntries(dayPlan.tasks.map((task, index) => [task._taskKey, Boolean(legacyChecks[index])]));
+    const timeOverrides = taskTimeByDay[dayKey] || {};
+
+    dayPlan.tasks = dayPlan.tasks.map((task) => ({
+      ...task,
+      time: Object.prototype.hasOwnProperty.call(timeOverrides, task._taskKey) ? timeOverrides[task._taskKey] : task.time,
+    }));
+
+    const mode = scheduleModeByDay[dayKey] === "priority" ? "priority" : "time";
+    if (mode === "priority") {
+      const savedOrder = Array.isArray(taskOrderByDay[dayKey]) ? taskOrderByDay[dayKey] : [];
+      const positions = new Map(savedOrder.map((taskKey, index) => [taskKey, index]));
+      dayPlan.tasks.sort((first, second) => {
+        const firstPosition = positions.has(first._taskKey) ? positions.get(first._taskKey) : savedOrder.length + first._sourceIndex;
+        const secondPosition = positions.has(second._taskKey) ? positions.get(second._taskKey) : savedOrder.length + second._sourceIndex;
+        return firstPosition - secondPosition;
+      });
+    } else {
+      dayPlan.tasks.sort(compareTasksByTime);
+    }
+
+    dayPlan.scheduleMode = mode;
+    checkedTaskKeysByDay[dayKey] = stableChecks;
+    state.checkedByDay[dayKey] = dayPlan.tasks.map((task) => Boolean(stableChecks[task._taskKey]));
+  });
+
+  state.checkedTaskKeysByDay = checkedTaskKeysByDay;
+}
+
 function getPlanBundle({ reset = false, customText, revisionRequest, revisionDetails, weeklySchedule } = {}) {
   const plan = readExecutionPlan();
   const previous = getExecutionState();
@@ -2338,15 +2431,14 @@ function getPlanBundle({ reset = false, customText, revisionRequest, revisionDet
   const weekConfig = weeklySchedule ?? previous.weeklySchedule ?? [];
   const schedule = buildSchedule(plan, planText, requestText, weekConfig);
   const customTasksByDay = previous.customTasksByDay || {};
-  schedule.forEach((dayPlan) => {
-    const customTasks = Array.isArray(customTasksByDay[String(dayPlan.day)]) ? customTasksByDay[String(dayPlan.day)] : [];
-    if (!customTasks.length) return;
-    dayPlan.tasks = [...dayPlan.tasks, ...customTasks].sort((first, second) => String(first.time || "").localeCompare(String(second.time || "")));
-    dayPlan.isRestDay = false;
-  });
+  prepareScheduleTasks(schedule, customTasksByDay);
   const previousSchedule = reset
     ? buildSchedule(plan, previous.planText || getDefaultPlanText(plan), previous.revisionRequest || "", previous.weeklySchedule || [])
     : schedule;
+  if (reset) {
+    prepareScheduleTasks(previousSchedule, customTasksByDay);
+    applySchedulePreferences(previousSchedule, previous);
+  }
   const checkedForSchedule = reset
     ? remapCompletedChecks(previousSchedule, schedule, previous.checkedByDay || {})
     : previous.checkedByDay || {};
@@ -2370,6 +2462,10 @@ function getPlanBundle({ reset = false, customText, revisionRequest, revisionDet
         selectedDay: previous.selectedDay || 1,
         checkedByDay: checkedForSchedule,
         customTasksByDay,
+        scheduleModeByDay: previous.scheduleModeByDay || {},
+        taskOrderByDay: previous.taskOrderByDay || {},
+        taskTimeByDay: previous.taskTimeByDay || {},
+        checkedTaskKeysByDay: reset ? {} : previous.checkedTaskKeysByDay || {},
         recoveryActions: previous.recoveryActions || [],
         completedLog: previous.completedLog || [],
         dailyMemories: previous.dailyMemories || [],
@@ -2389,6 +2485,11 @@ function getPlanBundle({ reset = false, customText, revisionRequest, revisionDet
   state.selectedDay = Math.max(1, Math.min(Number(state.selectedDay) || 1, schedule.length));
   state.planStartDate = state.planStartDate || getLocalDateKey(plan.createdAt);
   state.customTasksByDay = state.customTasksByDay || customTasksByDay;
+  state.scheduleModeByDay = state.scheduleModeByDay || {};
+  state.taskOrderByDay = state.taskOrderByDay || {};
+  state.taskTimeByDay = state.taskTimeByDay || {};
+  state.checkedTaskKeysByDay = state.checkedTaskKeysByDay || {};
+  applySchedulePreferences(schedule, state, { resetChecks: reset });
 
   return { plan, planText, schedule, state };
 }
@@ -2904,6 +3005,20 @@ function closeEnergyCharge() {
 }
 
 function openAddSchedule() {
+  const bundle = getPlanBundle();
+  const dayPlan = bundle.schedule[bundle.state.selectedDay - 1] || bundle.schedule[0];
+  const isPriorityMode = dayPlan?.scheduleMode === "priority";
+  if (addScheduleModeHint) {
+    addScheduleModeHint.textContent = isPriorityMode
+      ? "시간 없이 추가한 뒤 길게 눌러 원하는 우선순위에 놓을 수 있어요."
+      : "시간을 정하면 오늘 일정에 시간순으로 배치돼요.";
+  }
+  if (newScheduleTimeField) newScheduleTimeField.classList.toggle("is-optional", isPriorityMode);
+  if (newScheduleTime) {
+    newScheduleTime.required = false;
+    if (isPriorityMode) newScheduleTime.value = "";
+    else if (!newScheduleTime.value) newScheduleTime.value = "18:00";
+  }
   setSheetOpen(addScheduleSheet, addScheduleOverlay, true);
 }
 
@@ -3043,12 +3158,16 @@ function openFocusMode() {
     showToast("오늘은 계획된 휴식일이에요 · 다음 학습일에 이어가요");
     return;
   }
-  const taskKey = getTaskKey(dayPlan.day, taskIndex);
+  const taskKey = getTaskKey(dayPlan.day, taskIndex, task);
   const suggestedMinutes = getSuggestedFocusMinutes(task);
 
   activeFocusTaskIndex = taskIndex;
   if (focusModeTitle) focusModeTitle.textContent = task?.text || "지금 시작할 일정";
-  if (focusCriteria) focusCriteria.textContent = `${task?.time || "오늘"} 일정 · 시간은 언제든 조정할 수 있어요.`;
+  if (focusCriteria) {
+    focusCriteria.textContent = dayPlan.scheduleMode === "priority"
+      ? `${taskIndex + 1}순위 일정 · 한 가지에만 가볍게 집중해보세요.`
+      : `${task?.time || "시간 미정"} 일정 · 시간은 언제든 조정할 수 있어요.`;
+  }
 
   try {
     const stored = safeJsonParse(localStorage.getItem(focusSessionKey), null);
@@ -3080,14 +3199,29 @@ function closeFocusMode() {
   setSheetOpen(focusMode, focusModeOverlay, false);
 }
 
-function getTaskKey(day, taskIndex) {
-  return `${day}:${taskIndex}`;
+function getTaskKey(day, taskIndex, task) {
+  return task?._taskKey || `${day}:${taskIndex}`;
+}
+
+function setTaskCheckedState(state, dayPlan, taskIndex, isChecked) {
+  const dayKey = String(dayPlan.day);
+  const task = dayPlan.tasks[taskIndex];
+  if (!task) return;
+  const checked = [...(state.checkedByDay[dayKey] || Array(dayPlan.tasks.length).fill(false))];
+  checked[taskIndex] = Boolean(isChecked);
+  state.checkedByDay[dayKey] = checked;
+  const checkedTaskKeysByDay = { ...(state.checkedTaskKeysByDay || {}) };
+  checkedTaskKeysByDay[dayKey] = {
+    ...(checkedTaskKeysByDay[dayKey] || {}),
+    [task._taskKey]: Boolean(isChecked),
+  };
+  state.checkedTaskKeysByDay = checkedTaskKeysByDay;
 }
 
 function recordTaskCompletion(state, dayPlan, taskIndex) {
   const task = dayPlan.tasks[taskIndex];
   if (!task) return;
-  const taskKey = getTaskKey(dayPlan.day, taskIndex);
+  const taskKey = getTaskKey(dayPlan.day, taskIndex, task);
   const exists = (state.completedLog || []).some((item) => item.taskKey === taskKey);
   if (!exists) {
     state.completedLog = [
@@ -3112,8 +3246,7 @@ function completeFocusTask() {
   const checked = bundle.state.checkedByDay[selectedDay] || Array(dayPlan.tasks.length).fill(false);
   const wasUnchecked = !checked[activeFocusTaskIndex];
 
-  checked[activeFocusTaskIndex] = true;
-  bundle.state.checkedByDay[selectedDay] = checked;
+  setTaskCheckedState(bundle.state, dayPlan, activeFocusTaskIndex, true);
   if (wasUnchecked) recordTaskCompletion(bundle.state, dayPlan, activeFocusTaskIndex);
   savePlanBundleState(bundle.state);
   if (wasUnchecked) addCompanionXp(10, "happy");
@@ -3155,7 +3288,8 @@ function renderFocusTask(dayPlan, selectedCompletion) {
 
   const suggestedMinutes = getSuggestedFocusMinutes(task);
   if (focusTaskTitle) focusTaskTitle.textContent = task?.text || "오늘 기록 돌아보기";
-  if (focusTaskMeta) focusTaskMeta.textContent = selectedCompletion.percent === 100 ? "오늘 AI 스케줄을 모두 완료했어요" : `${task?.time || "오늘"} · 지금 시작하면 좋은 다음 일정`;
+  const taskPosition = dayPlan.scheduleMode === "priority" ? `${taskIndex + 1}순위` : task?.time || "시간 미정";
+  if (focusTaskMeta) focusTaskMeta.textContent = selectedCompletion.percent === 100 ? "오늘 AI 스케줄을 모두 완료했어요" : `${taskPosition} · 지금 시작하면 좋은 다음 일정`;
   if (minimumGoalText) minimumGoalText.textContent = selectedCompletion.percent === 100 ? "오늘 일정 모두 완료" : `집중 시간 ${suggestedMinutes}분`;
   if (focusProgressText) focusProgressText.textContent = `${selectedCompletion.completed}/${selectedCompletion.total} 완료`;
   if (startFocusButton) {
@@ -3186,6 +3320,7 @@ function renderChecklist(dayPlan, state) {
   if (!executionChecklist) return;
 
   executionChecklist.innerHTML = "";
+  executionChecklist.dataset.mode = dayPlan.scheduleMode || "time";
   const checked = state.checkedByDay[String(dayPlan.day)] || [];
 
   if (!dayPlan.tasks.length) {
@@ -3198,8 +3333,8 @@ function renderChecklist(dayPlan, state) {
 
   dayPlan.tasks.forEach((task, index) => {
     const period = getTaskPeriod(task.time);
-    const label = document.createElement("label");
-    const input = document.createElement("input");
+    const row = document.createElement("article");
+    const checkbox = document.createElement("input");
     const content = document.createElement("span");
     const time = document.createElement("span");
     const startTime = document.createElement("strong");
@@ -3207,23 +3342,43 @@ function renderChecklist(dayPlan, state) {
     const text = document.createElement("span");
     const head = document.createElement("span");
     const periodBadge = document.createElement("span");
-    const timelineNode = document.createElement("i");
+    const orderControl = document.createElement(dayPlan.scheduleMode === "priority" ? "button" : "i");
 
-    label.className = `task-row task-${period.theme}`;
-    input.className = "execution-check";
-    input.type = "checkbox";
-    input.dataset.taskIndex = String(index);
-    input.checked = Boolean(checked[index]);
-    label.classList.toggle("is-complete", input.checked);
+    row.className = `task-row task-${period.theme}`;
+    row.dataset.taskKey = task._taskKey;
+    row.dataset.taskIndex = String(index);
+    row.classList.toggle("is-complete", Boolean(checked[index]));
+    row.setAttribute("aria-label", `${index + 1}번째 일정, ${task.text}`);
+    checkbox.className = "execution-check";
+    checkbox.type = "checkbox";
+    checkbox.dataset.taskIndex = String(index);
+    checkbox.checked = Boolean(checked[index]);
+    checkbox.setAttribute("aria-label", `${task.text} 완료 표시`);
     content.className = "task-content";
     time.className = "task-time";
     head.className = "task-row-head";
     periodBadge.className = "task-period";
-    timelineNode.className = "task-timeline-node";
+    orderControl.className = dayPlan.scheduleMode === "priority" ? "task-drag-handle" : "task-timeline-node";
 
-    startTime.textContent = task.time;
-    endTime.textContent = getTaskEndTime(task.time, task.durationMinutes);
-    time.append(startTime, endTime);
+    if (dayPlan.scheduleMode === "priority") {
+      startTime.textContent = `${index + 1}순위`;
+      endTime.textContent = "길게 눌러 이동";
+      orderControl.type = "button";
+      orderControl.dataset.taskHandle = "";
+      orderControl.textContent = "⠿";
+      orderControl.setAttribute("aria-label", `${task.text} 순서 이동. 위아래 화살표 키로 조정할 수 있어요.`);
+      time.append(startTime, endTime);
+    } else {
+      const timeInput = document.createElement("input");
+      const timeMatch = String(task.time || "").match(/^(\d{1,2}):(\d{2})$/);
+      const validTime = timeMatch ? `${String(Number(timeMatch[1])).padStart(2, "0")}:${timeMatch[2]}` : "";
+      timeInput.type = "time";
+      timeInput.value = validTime;
+      timeInput.dataset.taskTime = task._taskKey;
+      timeInput.setAttribute("aria-label", `${task.text} 시작 시간`);
+      endTime.textContent = validTime ? `${getTaskEndTime(validTime, task.durationMinutes)} 종료` : "시간 미정";
+      time.append(timeInput, endTime);
+    }
     periodBadge.textContent = `${period.icon} ${period.label}`;
     text.textContent = task.text;
 
@@ -3235,8 +3390,8 @@ function renderChecklist(dayPlan, state) {
 
     head.append(periodBadge);
     content.append(head, text, minimum);
-    label.append(time, timelineNode, content, input);
-    executionChecklist.append(label);
+    row.append(time, orderControl, content, checkbox);
+    executionChecklist.append(row);
   });
 }
 
@@ -3376,7 +3531,7 @@ function renderCalendarDayDetail(schedule, state, plan) {
 
       item.classList.toggle("is-complete", Boolean(checked[index]));
       status.textContent = checked[index] ? "✓" : "";
-      time.textContent = task.time;
+      time.textContent = dayPlan.scheduleMode === "priority" ? `${index + 1}순위` : task.time || "시간 미정";
       text.textContent = task.text;
       item.append(status, time, text);
       calendarDayDetailList.append(item);
@@ -4205,6 +4360,17 @@ function renderExecutionPage(bundle) {
   if (todayGoalProgressBar) todayGoalProgressBar.style.width = `${selectedCompletion.percent}%`;
   if (selectedScheduleTitle) selectedScheduleTitle.textContent = isRestDay ? "오늘은 계획된 휴식일" : "오늘의 일정";
   if (selectedScheduleMeta) selectedScheduleMeta.textContent = isRestDay ? "선택한 가능 요일에 맞춰 학습을 비워두었어요" : `${selectedCompletion.percent}% 완료 · ${remainingTasks}개 남음`;
+  scheduleModeButtons.forEach((button) => {
+    const isActive = button.dataset.scheduleMode === selectedDay.scheduleMode;
+    button.classList.toggle("active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
+    button.disabled = isRestDay;
+  });
+  if (todayOrderHint) {
+    todayOrderHint.textContent = selectedDay.scheduleMode === "priority"
+      ? "✣ 일정을 길게 누르거나 이동 손잡이를 끌어 우선순위를 바꿔보세요."
+      : "✣ 시작 시간을 눌러 오늘 상황에 맞게 바로 조정할 수 있어요.";
+  }
   if (completeTodayButton) {
     completeTodayButton.disabled = isRestDay;
     completeTodayButton.textContent = isRestDay ? "오늘은 계획된 휴식일" : "오늘 계획 한 번에 완료";
@@ -4292,7 +4458,158 @@ function initializeExecutionPage() {
   }
 }
 
+scheduleModeButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    const bundle = getPlanBundle();
+    const dayPlan = bundle.schedule[bundle.state.selectedDay - 1] || bundle.schedule[0];
+    if (!dayPlan?.tasks.length) return;
+    const dayKey = String(dayPlan.day);
+    const nextMode = button.dataset.scheduleMode === "priority" ? "priority" : "time";
+    if (dayPlan.scheduleMode === nextMode) return;
+
+    bundle.state.scheduleModeByDay = {
+      ...(bundle.state.scheduleModeByDay || {}),
+      [dayKey]: nextMode,
+    };
+    if (nextMode === "priority" && !Array.isArray(bundle.state.taskOrderByDay?.[dayKey])) {
+      bundle.state.taskOrderByDay = {
+        ...(bundle.state.taskOrderByDay || {}),
+        [dayKey]: dayPlan.tasks.map((task) => task._taskKey),
+      };
+    }
+    savePlanBundleState(bundle.state);
+    renderExecutionPage(getPlanBundle());
+    showToast(nextMode === "priority" ? "우선순위 모드 · 길게 눌러 순서를 바꿀 수 있어요" : "시간순 모드 · 시작 시간을 직접 조정할 수 있어요");
+    trackCompanionEvent("today_schedule_mode_changed", { day: dayPlan.day, mode: nextMode });
+  });
+});
+
+function persistPriorityOrderFromDom({ focusTaskKey = "", announce = true } = {}) {
+  if (!executionChecklist) return;
+  const orderedKeys = [...executionChecklist.querySelectorAll(".task-row[data-task-key]")].map((row) => row.dataset.taskKey);
+  if (!orderedKeys.length) return;
+  const bundle = getPlanBundle();
+  const dayPlan = bundle.schedule[bundle.state.selectedDay - 1] || bundle.schedule[0];
+  const dayKey = String(dayPlan.day);
+  bundle.state.scheduleModeByDay = { ...(bundle.state.scheduleModeByDay || {}), [dayKey]: "priority" };
+  bundle.state.taskOrderByDay = { ...(bundle.state.taskOrderByDay || {}), [dayKey]: orderedKeys };
+  savePlanBundleState(bundle.state);
+  renderExecutionPage(getPlanBundle());
+  if (focusTaskKey) {
+    [...executionChecklist.querySelectorAll(".task-row")]
+      .find((row) => row.dataset.taskKey === focusTaskKey)
+      ?.querySelector(".task-drag-handle")
+      ?.focus();
+  }
+  if (announce) showToast("우선순위를 저장했어요 · 첫 번째 일정부터 시작해보세요");
+  trackCompanionEvent("today_schedule_reordered", { day: dayPlan.day, taskCount: orderedKeys.length });
+}
+
+let priorityDragState = null;
+
+function clearPriorityDragState({ restore = false } = {}) {
+  if (!priorityDragState) return;
+  window.clearTimeout(priorityDragState.timer);
+  priorityDragState.row?.classList.remove("is-dragging");
+  executionChecklist?.classList.remove("is-reordering");
+  const shouldRestore = restore && priorityDragState.active;
+  priorityDragState = null;
+  if (shouldRestore) renderExecutionPage(getPlanBundle());
+}
+
+executionChecklist?.addEventListener("pointerdown", (event) => {
+  if (executionChecklist.dataset.mode !== "priority" || event.button > 0) return;
+  const row = event.target.closest(".task-row");
+  if (!row) return;
+  const handle = event.target.closest(".task-drag-handle");
+  if (!handle && event.target.closest("input, button, select, textarea")) return;
+
+  clearPriorityDragState();
+  const activate = () => {
+    if (!priorityDragState) return;
+    priorityDragState.active = true;
+    row.classList.add("is-dragging");
+    executionChecklist.classList.add("is-reordering");
+    try {
+      row.setPointerCapture(event.pointerId);
+    } catch (error) {
+      // Pointer capture is an enhancement; reordering still works without it.
+    }
+    if (navigator.vibrate) navigator.vibrate(18);
+  };
+  priorityDragState = {
+    row,
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    active: false,
+    moved: false,
+    timer: window.setTimeout(activate, handle ? 0 : 460),
+  };
+});
+
+executionChecklist?.addEventListener("pointermove", (event) => {
+  const drag = priorityDragState;
+  if (!drag || drag.pointerId !== event.pointerId) return;
+  const distance = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY);
+  if (!drag.active) {
+    if (distance > 10) clearPriorityDragState();
+    return;
+  }
+
+  event.preventDefault();
+  const targetRow = document.elementFromPoint(event.clientX, event.clientY)?.closest(".task-row");
+  if (!targetRow || targetRow === drag.row || targetRow.parentElement !== executionChecklist) return;
+  const targetRect = targetRow.getBoundingClientRect();
+  if (event.clientY < targetRect.top + targetRect.height / 2) targetRow.before(drag.row);
+  else targetRow.after(drag.row);
+  drag.moved = true;
+});
+
+executionChecklist?.addEventListener("pointerup", (event) => {
+  const drag = priorityDragState;
+  if (!drag || drag.pointerId !== event.pointerId) return;
+  const shouldPersist = drag.active && drag.moved;
+  const focusTaskKey = drag.row.dataset.taskKey;
+  clearPriorityDragState();
+  if (shouldPersist) persistPriorityOrderFromDom({ focusTaskKey });
+});
+
+executionChecklist?.addEventListener("pointercancel", () => clearPriorityDragState({ restore: true }));
+executionChecklist?.addEventListener("contextmenu", (event) => {
+  if (executionChecklist.dataset.mode === "priority" && event.target.closest(".task-row")) event.preventDefault();
+});
+
+executionChecklist?.addEventListener("keydown", (event) => {
+  const handle = event.target.closest(".task-drag-handle");
+  if (!handle || !["ArrowUp", "ArrowDown"].includes(event.key)) return;
+  event.preventDefault();
+  const row = handle.closest(".task-row");
+  const sibling = event.key === "ArrowUp" ? row.previousElementSibling : row.nextElementSibling;
+  if (!sibling) return;
+  if (event.key === "ArrowUp") sibling.before(row);
+  else sibling.after(row);
+  persistPriorityOrderFromDom({ focusTaskKey: row.dataset.taskKey, announce: false });
+});
+
 executionChecklist?.addEventListener("change", (event) => {
+  const timeInput = event.target.closest("[data-task-time]");
+  if (timeInput) {
+    const bundle = getPlanBundle();
+    const dayPlan = bundle.schedule[bundle.state.selectedDay - 1] || bundle.schedule[0];
+    const dayKey = String(dayPlan.day);
+    bundle.state.taskTimeByDay = { ...(bundle.state.taskTimeByDay || {}) };
+    bundle.state.taskTimeByDay[dayKey] = {
+      ...(bundle.state.taskTimeByDay[dayKey] || {}),
+      [timeInput.dataset.taskTime]: timeInput.value,
+    };
+    savePlanBundleState(bundle.state);
+    renderExecutionPage(getPlanBundle());
+    showToast(timeInput.value ? `${timeInput.value}로 시간을 바꿨어요` : "시간을 비워두었어요 · 시간 미정으로 표시됩니다");
+    trackCompanionEvent("today_task_time_changed", { day: dayPlan.day, hasTime: Boolean(timeInput.value) });
+    return;
+  }
+
   if (!event.target.classList.contains("execution-check")) return;
 
   const bundle = getPlanBundle();
@@ -4301,8 +4618,7 @@ executionChecklist?.addEventListener("change", (event) => {
   const dayPlan = bundle.schedule[bundle.state.selectedDay - 1];
   const checked = bundle.state.checkedByDay[selectedDay] || Array(dayPlan.tasks.length).fill(false);
   const wasUnchecked = !checked[taskIndex];
-  checked[taskIndex] = event.target.checked;
-  bundle.state.checkedByDay[selectedDay] = checked;
+  setTaskCheckedState(bundle.state, dayPlan, taskIndex, event.target.checked);
   savePlanBundleState(bundle.state);
   if (event.target.checked && wasUnchecked) {
     recordTaskCompletion(bundle.state, dayPlan, taskIndex);
@@ -4322,8 +4638,8 @@ completeTodayButton?.addEventListener("click", () => {
   const dayPlan = bundle.schedule[bundle.state.selectedDay - 1];
   const current = bundle.state.checkedByDay[selectedDay] || [];
   const newlyCompleted = dayPlan.tasks.filter((_, index) => !current[index]).length;
-  bundle.state.checkedByDay[selectedDay] = dayPlan.tasks.map(() => true);
   dayPlan.tasks.forEach((_, index) => {
+    setTaskCheckedState(bundle.state, dayPlan, index, true);
     if (!current[index]) recordTaskCompletion(bundle.state, dayPlan, index);
   });
   savePlanBundleState(bundle.state);
@@ -4355,21 +4671,28 @@ addScheduleForm?.addEventListener("submit", (event) => {
   const tasks = Array.isArray(customTasksByDay[dayKey]) ? [...customTasksByDay[dayKey]] : [];
   const newTask = {
     id: `custom-${Date.now()}`,
-    time: newScheduleTime?.value || "18:00",
+    time: newScheduleTime?.value || "",
     durationMinutes: Math.max(5, Number(newScheduleDuration?.value) || 20),
     text: newScheduleName?.value.trim() || "새 일정",
     completionRule: newScheduleMemo?.value.trim() || "정한 시간만큼 실행하면 완료",
     custom: true,
   };
   const currentDayPlan = bundle.schedule[bundle.state.selectedDay - 1];
-  const insertionIndex = currentDayPlan.tasks.findIndex((task) => String(task.time || "").localeCompare(newTask.time) > 0);
-  const safeInsertionIndex = insertionIndex === -1 ? currentDayPlan.tasks.length : insertionIndex;
-  const checked = [...(bundle.state.checkedByDay[dayKey] || Array(currentDayPlan.tasks.length).fill(false))];
-  checked.splice(safeInsertionIndex, 0, false);
-  bundle.state.checkedByDay[dayKey] = checked;
   tasks.push(newTask);
   customTasksByDay[dayKey] = tasks;
   bundle.state.customTasksByDay = customTasksByDay;
+  bundle.state.checkedTaskKeysByDay = { ...(bundle.state.checkedTaskKeysByDay || {}) };
+  bundle.state.checkedTaskKeysByDay[dayKey] = {
+    ...(bundle.state.checkedTaskKeysByDay[dayKey] || {}),
+    [newTask.id]: false,
+  };
+  if (currentDayPlan.scheduleMode === "priority") {
+    bundle.state.taskOrderByDay = { ...(bundle.state.taskOrderByDay || {}) };
+    bundle.state.taskOrderByDay[dayKey] = [
+      ...(bundle.state.taskOrderByDay[dayKey] || currentDayPlan.tasks.map((task) => task._taskKey)),
+      newTask.id,
+    ];
+  }
   savePlanBundleState(bundle.state);
   closeAddSchedule();
   addScheduleForm.reset();

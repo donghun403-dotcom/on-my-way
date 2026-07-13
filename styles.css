@@ -12513,8 +12513,33 @@ body.sheet-open {
 .execution-page .today-goal-progress > strong { color: #65738c; font-size: 10px; white-space: nowrap; }
 
 .execution-page #view-today .today-card { order: 3; padding: 26px; }
-.execution-page .today-schedule-actions { display: flex; align-items: center; gap: 8px; }
-.execution-page .today-schedule-actions > span { color: var(--app-muted); font-size: 9px; font-weight: 850; }
+.execution-page .today-schedule-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.execution-page .schedule-mode-switch {
+  display: inline-grid;
+  grid-template-columns: repeat(2, 1fr);
+  padding: 3px;
+  background: rgba(107, 122, 166, 0.08);
+  border: 1px solid rgba(107, 122, 166, 0.1);
+  border-radius: 13px;
+}
+.execution-page .schedule-mode-switch button {
+  min-height: 30px;
+  padding: 0 11px;
+  color: #8a94a6;
+  background: transparent;
+  border: 0;
+  border-radius: 10px;
+  font-size: 9px;
+  font-weight: 900;
+  cursor: pointer;
+}
+.execution-page .schedule-mode-switch button.active {
+  color: #53617b;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 5px 12px rgba(91, 106, 151, 0.1);
+}
+.execution-page .schedule-mode-switch button:focus-visible { outline: 2px solid rgba(107, 122, 166, 0.38); outline-offset: 1px; }
+.execution-page .schedule-mode-switch button:disabled { cursor: default; opacity: 0.48; }
 .execution-page .today-schedule-actions .text-button { min-height: 34px; padding: 0 11px; font-size: 9px; }
 
 .execution-page .today-next-action {
@@ -12539,7 +12564,7 @@ body.sheet-open {
 
 .execution-page #view-today .execution-checklist { gap: 9px; margin-top: 12px; }
 .execution-page #view-today .execution-checklist .task-row {
-  grid-template-columns: 48px 10px minmax(0, 1fr) 34px;
+  grid-template-columns: 66px 10px minmax(0, 1fr) 34px;
   gap: 11px;
   min-height: 76px;
   padding: 12px 14px;
@@ -12547,10 +12572,57 @@ body.sheet-open {
   border: 1px solid rgba(107, 122, 166, 0.09);
   border-radius: 17px;
   box-shadow: 0 9px 22px rgba(91, 106, 151, 0.06);
+  cursor: default;
 }
 .execution-page #view-today .task-time { display: grid; gap: 3px; align-self: center; text-align: left; }
 .execution-page #view-today .task-time strong { color: #53617b; font-size: 11px; }
 .execution-page #view-today .task-time small { color: #a0a8b6; font-size: 9px; font-weight: 700; }
+.execution-page #view-today .task-time input {
+  width: 64px;
+  min-width: 0;
+  padding: 3px 2px;
+  color: #53617b;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px dashed rgba(83, 97, 123, 0.28);
+  border-radius: 0;
+  outline: 0;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+}
+.execution-page #view-today .task-time input:focus { border-bottom-color: #789f9b; box-shadow: 0 2px 0 rgba(120, 159, 155, 0.16); }
+.execution-page #view-today .execution-checklist[data-mode="priority"] .task-row {
+  grid-template-columns: 54px 28px minmax(0, 1fr) 34px;
+  user-select: none;
+  cursor: grab;
+}
+.execution-page .task-drag-handle {
+  display: grid;
+  width: 28px;
+  height: 38px;
+  padding: 0;
+  place-items: center;
+  color: #8d97a9;
+  background: rgba(107, 122, 166, 0.07);
+  border: 1px solid rgba(107, 122, 166, 0.1);
+  border-radius: 10px;
+  font-size: 19px;
+  line-height: 1;
+  cursor: grab;
+  touch-action: none;
+}
+.execution-page .task-drag-handle:active { cursor: grabbing; }
+.execution-page .task-drag-handle:focus-visible { outline: 2px solid rgba(120, 159, 155, 0.5); outline-offset: 2px; }
+.execution-page .execution-checklist.is-reordering .task-row:not(.is-dragging) { opacity: 0.62; }
+.execution-page #view-today .execution-checklist .task-row.is-dragging {
+  z-index: 4;
+  background: #ffffff;
+  border-color: rgba(120, 159, 155, 0.38);
+  box-shadow: 0 18px 34px rgba(91, 106, 151, 0.2);
+  transform: scale(1.015);
+}
 .execution-page #view-today .task-timeline-node {
   position: static;
   display: block;
@@ -12616,8 +12688,11 @@ body.sheet-open {
 
 .execution-page .add-schedule-sheet { width: min(460px, calc(100vw - 24px)); }
 .execution-page .add-schedule-form { display: grid; gap: 12px; }
+.execution-page .add-schedule-mode-hint { margin: 0; padding: 10px 12px; color: #68758b; background: rgba(120, 159, 155, 0.08); border-radius: 12px; font-size: 10px; font-weight: 750; line-height: 1.5; }
 .execution-page .add-schedule-form > div { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .execution-page .add-schedule-form label { display: grid; gap: 7px; color: #68758b; font-size: 10px; font-weight: 850; }
+.execution-page .add-schedule-form label span small { color: #9aa3b3; font-size: 8px; font-weight: 700; }
+.execution-page .add-schedule-form label.is-optional { opacity: 0.72; }
 .execution-page .add-schedule-form input,
 .execution-page .add-schedule-form select,
 .execution-page .add-schedule-form textarea {
@@ -12641,7 +12716,13 @@ body.sheet-open {
   .execution-page #view-today .today-ollie-stage span { display: none; }
   .execution-page .today-next-action { grid-template-columns: minmax(0, 1fr) auto; }
   .execution-page .today-next-action .focus-task-goal { display: none; }
-  .execution-page #view-today .execution-checklist .task-row { grid-template-columns: 43px 8px minmax(0, 1fr) 30px; gap: 8px; padding: 11px 10px; }
+  .execution-page #view-today .today-card > .card-title { align-items: stretch; flex-direction: column; gap: 12px; }
+  .execution-page .today-schedule-actions { justify-content: space-between; }
+  .execution-page .schedule-mode-switch { flex: 1; }
+  .execution-page #view-today .execution-checklist .task-row { grid-template-columns: 60px 8px minmax(0, 1fr) 30px; gap: 8px; padding: 11px 10px; }
+  .execution-page #view-today .execution-checklist[data-mode="priority"] .task-row { grid-template-columns: 48px 26px minmax(0, 1fr) 30px; }
+  .execution-page #view-today .task-time input { width: 58px; font-size: 10px; }
+  .execution-page .task-drag-handle { width: 26px; height: 36px; }
   .execution-page #view-today .coach-card { grid-template-columns: 70px minmax(0, 1fr) 58px; gap: 10px; padding: 18px 14px; }
   .execution-page #view-today .coach-card > img { width: 72px; height: 90px; }
   .execution-page .today-add-button { width: 54px; height: 54px; }

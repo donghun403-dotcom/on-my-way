@@ -227,7 +227,10 @@
               <span id="selectedScheduleMeta">순서대로 하나씩 체크해 보세요</span>
             </div>
             <div class="today-schedule-actions">
-              <span>시간순</span>
+              <div class="schedule-mode-switch" role="group" aria-label="오늘 일정 정렬 방식">
+                <button type="button" class="active" data-schedule-mode="time" aria-pressed="true">시간순</button>
+                <button type="button" data-schedule-mode="priority" aria-pressed="false">우선순위</button>
+              </div>
               <button class="text-button" id="completeTodayButton" type="button">모두 완료</button>
             </div>
           </div>
@@ -244,7 +247,7 @@
             <button class="focus-start-button" id="startFocusButton" type="button">시작</button>
           </div>
           <div class="execution-checklist" id="executionChecklist"></div>
-          <p class="today-order-hint"><span aria-hidden="true">✣</span> 계획을 바꾸고 싶다면 올리에게 부담되는 일정을 알려주세요.</p>
+          <p class="today-order-hint" id="todayOrderHint"><span aria-hidden="true">✣</span> 시간을 눌러 오늘 일정에 맞게 조정할 수 있어요.</p>
           <button class="focus-adjust-link" data-open-companion-chat type="button">오늘 계획 조정하기</button>
           <button class="view-jump-link" data-goto-view="plan" type="button">이번 주 계획 다듬기 →</button>
         </section>
@@ -785,9 +788,10 @@
         <button id="closeAddSchedule" type="button" aria-label="일정 추가 닫기">×</button>
       </div>
       <form class="add-schedule-form" id="addScheduleForm">
+        <p class="add-schedule-mode-hint" id="addScheduleModeHint">시간을 정하면 오늘 일정에 시간순으로 배치돼요.</p>
         <label for="newScheduleName"><span>제목</span><input id="newScheduleName" type="text" maxlength="80" placeholder="예: 영단어 복습" required /></label>
         <div>
-          <label for="newScheduleTime"><span>시간</span><input id="newScheduleTime" type="time" value="18:00" required /></label>
+          <label for="newScheduleTime" id="newScheduleTimeField"><span>시간 <small>선택</small></span><input id="newScheduleTime" type="time" value="18:00" /></label>
           <label for="newScheduleDuration"><span>예상 시간</span><select id="newScheduleDuration"><option value="10">10분</option><option value="20" selected>20분</option><option value="30">30분</option><option value="60">60분</option></select></label>
         </div>
         <label for="newScheduleMemo"><span>완료 기준</span><textarea id="newScheduleMemo" rows="3" maxlength="160" placeholder="예: 단어 20개를 복습하면 완료"></textarea></label>
