@@ -334,43 +334,49 @@
 
       <!-- ============ 계획 (Plan) ============ -->
       <div class="app-view" id="view-plan" data-view="plan" role="tabpanel" aria-labelledby="tab-plan" hidden>
-        <div class="view-head">
-          <div><span>PLAN WITH OLLIE</span><h1>계획 다듬기</h1><p>지금 계획을 확인하고, 내 생활에 맞게 부드럽게 고쳐요.</p></div>
+        <div class="view-head plan-view-head" data-plan-screen="home">
+          <div><span>MY PLAN</span><h1>내 계획</h1><p>핵심만 확인하고, 필요할 때 수정해요.</p></div>
           <img src="assets/ollie-thinking.png" alt="계획을 함께 고민하는 올리" />
         </div>
 
-        <!-- ① 지금 내 계획 확인 -->
-        <section class="execution-card weekly-plan-card">
-          <div class="card-title compact">
+        <section class="execution-card weekly-plan-card plan-overview-card" data-plan-screen="home">
+          <div class="plan-overview-head">
             <div>
-              <h2>현재 계획</h2>
-              <span>지금 진행 중인 이번 주 실행 흐름이에요</span>
+              <span>현재 진행 중</span>
+              <h2 id="planOverviewGoal">나의 목표</h2>
+              <p>올리가 지금 적용 중인 계획이에요.</p>
             </div>
-            <div class="weekly-plan-actions">
-              <button class="energy-action-button" id="weeklyOptimizeButton" type="button">주간 최적화 <span>5</span></button>
-            </div>
+            <span class="plan-overview-status" id="planOverviewStatus">진행 중</span>
+          </div>
+
+          <div class="plan-overview-metrics" aria-label="현재 계획 핵심 정보">
+            <div><span>전체 기간</span><strong id="planOverviewPeriod">30일</strong></div>
+            <div><span>이번 주</span><strong id="planOverviewWeek">실행 5일</strong></div>
+            <div><span>집중 시간</span><strong id="planOverviewRhythm">아침</strong></div>
+          </div>
+
+          <div class="plan-week-preview-head">
+            <strong>다가오는 일정</strong>
+            <span>먼저 할 핵심 3개만 보여드려요</span>
           </div>
           <ol class="weekly-plan" id="weeklyPlanList">
-            <li><span>월</span><strong>핵심 루틴 고정</strong><p>단어, LC, 오답 정리를 같은 시간에 실행</p></li>
-            <li><span>수</span><strong>중간 점검</strong><p>누락된 계획을 20분 단위로 재배치</p></li>
-            <li><span>금</span><strong>실전 세트</strong><p>시간 제한을 두고 약점 유형을 확인</p></li>
-            <li><span>일</span><strong>성장 리포트</strong><p>완료율과 다음 주 난이도를 조정</p></li>
+            <li><span>월</span><strong>오늘의 핵심 일정</strong><p>09:00 · 예상 15분</p></li>
+            <li><span>화</span><strong>다음 핵심 일정</strong><p>18:00 · 예상 20분</p></li>
+            <li><span>수</span><strong>주간 점검</strong><p>완료한 계획을 가볍게 확인</p></li>
           </ol>
-          <div class="routine-strip">
-            <div class="routine-strip-head">
-              <strong id="routineModeTitle">아침 루틴 모드</strong>
-              <span id="routineModeMeta">이미 하고 있는 루틴과 새 목표를 연결합니다</span>
-            </div>
-            <div class="routine-cue-list" id="routineCueList">
-              <span>물 마시기 뒤 10분 실행</span>
-              <span>작게 시작하기</span>
-              <span>완료 즉시 체크</span>
-            </div>
+
+          <div class="plan-home-actions">
+            <button id="planOpenDetailButton" type="button"><span><strong>전체 계획 보기</strong><small>달력에서 날짜별 일정을 확인해요</small></span><b aria-hidden="true">›</b></button>
+            <button id="planOpenEditorButton" type="button"><span><strong>계획 수정하기</strong><small>시간·요일·우선순위를 바꿔요</small></span><b aria-hidden="true">›</b></button>
           </div>
         </section>
 
-        <!-- ② 진행 확인 -->
-        <section class="execution-card schedule-calendar-card">
+        <header class="plan-subview-header" data-plan-screen="detail" tabindex="-1" hidden>
+          <button type="button" data-plan-back aria-label="내 계획으로 돌아가기">‹ <span>내 계획</span></button>
+          <div><span>PLAN OVERVIEW</span><h1>전체 계획</h1><p>날짜를 눌러 그날의 일정을 확인해요.</p></div>
+        </header>
+
+        <section class="execution-card schedule-calendar-card" data-plan-screen="detail" hidden>
           <div class="card-title compact">
             <div>
               <small class="calendar-kicker">OLLIE'S MONTH</small>
@@ -411,14 +417,21 @@
           </div>
         </section>
 
-        <!-- ③ 수정 -->
-        <section class="execution-card plan-editor-card" id="journeyPlanEditor">
+        <header class="plan-subview-header" data-plan-screen="editor" tabindex="-1" hidden>
+          <button type="button" data-plan-back aria-label="내 계획으로 돌아가기">‹ <span>내 계획</span></button>
+          <div><span>EDIT PLAN</span><h1>계획 수정</h1><p>바꾸고 싶은 부분만 선택해서 알려주세요.</p></div>
+        </header>
+
+        <section class="execution-card plan-editor-card" id="journeyPlanEditor" data-plan-screen="editor" hidden>
           <div class="card-title compact">
             <div>
               <h2>계획 수정하기</h2>
               <span>올리가 제안하고, 적용은 직접 승인해요</span>
             </div>
-            <span class="soft-badge" id="planStatusBadge">AI 제안</span>
+            <div class="plan-editor-head-actions">
+              <span class="soft-badge" id="planStatusBadge">AI 제안</span>
+              <button class="energy-action-button" id="weeklyOptimizeButton" type="button">주간 최적화 <span>5</span></button>
+            </div>
           </div>
 
           <div class="edit-step">
@@ -433,6 +446,9 @@
               <p id="revisionIntroDescription">원하는 결과와 쓸 수 있는 자원, 가능한 시간을 적을수록 올리가 실제로 실행할 수 있는 계획으로 바꿔드려요.</p>
             </div>
 
+            <details class="revision-advanced">
+              <summary><span><strong>세부 조건 설정</strong><small>시간·요일·우선순위를 직접 정하고 싶을 때</small></span><b aria-hidden="true">＋</b></summary>
+              <div class="revision-advanced-body">
             <div class="revision-goal-type-row">
               <label class="revision-field" for="revisionGoalType">
                 <span>어떤 종류의 목표인가요?</span>
@@ -507,6 +523,9 @@
                 <label class="revision-field revision-field-wide" for="revisionConstraints"><span>피해야 할 시간·현실적인 제약</span><textarea id="revisionConstraints" rows="2" data-revision-detail placeholder="예: 가능한 시간, 예산, 장소, 체력, 함께할 사람의 일정"></textarea></label>
               </div>
             </div>
+
+              </div>
+            </details>
 
             <div class="revision-quick-actions" id="revisionQuickActions" aria-label="목표에 맞는 빠른 수정 요청">
               <button type="button" data-revision-chip="가장 중요한 결과에 직접 연결되는 행동부터 배치해줘.">핵심 결과에 집중</button>

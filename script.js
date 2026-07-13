@@ -127,6 +127,15 @@ const revisionChipButtons = document.querySelectorAll("[data-revision-chip]");
 const selectedScheduleTitle = document.querySelector("#selectedScheduleTitle");
 const selectedScheduleMeta = document.querySelector("#selectedScheduleMeta");
 const executionChecklist = document.querySelector("#executionChecklist");
+const planScreenElements = document.querySelectorAll("[data-plan-screen]");
+const planOpenDetailButton = document.querySelector("#planOpenDetailButton");
+const planOpenEditorButton = document.querySelector("#planOpenEditorButton");
+const planBackButtons = document.querySelectorAll("[data-plan-back]");
+const planOverviewGoal = document.querySelector("#planOverviewGoal");
+const planOverviewStatus = document.querySelector("#planOverviewStatus");
+const planOverviewPeriod = document.querySelector("#planOverviewPeriod");
+const planOverviewWeek = document.querySelector("#planOverviewWeek");
+const planOverviewRhythm = document.querySelector("#planOverviewRhythm");
 const scheduleModeButtons = document.querySelectorAll("[data-schedule-mode]");
 const todayOrderHint = document.querySelector("#todayOrderHint");
 const recoveryCard = document.querySelector("#recoveryCard");
@@ -149,9 +158,6 @@ const dailyCoachImage = document.querySelector("#dailyCoachImage");
 const dailyCoachKicker = document.querySelector("#dailyCoachKicker");
 const dailyCoachTitle = document.querySelector("#dailyCoachTitle");
 const dailyCoachMessage = document.querySelector("#dailyCoachMessage");
-const routineModeTitle = document.querySelector("#routineModeTitle");
-const routineModeMeta = document.querySelector("#routineModeMeta");
-const routineCueList = document.querySelector("#routineCueList");
 const completeTodayButton = document.querySelector("#completeTodayButton");
 const addTodayScheduleButton = document.querySelector("#addTodayScheduleButton");
 const addScheduleOverlay = document.querySelector("#addScheduleOverlay");
@@ -179,6 +185,22 @@ const TRIAL_LEAD_KEY = "omwTrialLead";
 const TRIAL_DURATION_MS = 24 * 60 * 60 * 1000;
 const OLLIE_ENERGY_KEY = "omwOllieEnergy";
 const FREE_PLAN_GENERATED_KEY = "omwFreePlanGenerated";
+let activePlanScreen = "home";
+
+function setPlanScreen(screen, { scroll = true, focus = true } = {}) {
+  const nextScreen = ["home", "detail", "editor"].includes(screen) ? screen : "home";
+  activePlanScreen = nextScreen;
+  planScreenElements.forEach((element) => {
+    const isVisible = element.dataset.planScreen === nextScreen;
+    element.hidden = !isVisible;
+  });
+  const planView = document.querySelector("#view-plan");
+  if (planView) planView.dataset.activePlanScreen = nextScreen;
+  const firstVisible = [...planScreenElements].find((element) => element.dataset.planScreen === nextScreen);
+  if (scroll) window.scrollTo({ top: 0, behavior: "smooth" });
+  if (focus && nextScreen !== "home") window.setTimeout(() => firstVisible?.focus({ preventScroll: true }), 80);
+  announce(nextScreen === "detail" ? "전체 계획 화면" : nextScreen === "editor" ? "계획 수정 화면" : "내 계획 화면");
+}
 
 function readTrialAccess() {
   try {
@@ -3541,52 +3563,53 @@ function renderCalendarDayDetail(schedule, state, plan) {
   }
 }
 
-function renderWeeklyPlan(schedule) {
+function renderPlanOverview(plan, schedule, state) {
+  const weekStart = Math.max(0, Number(state.selectedDay || 1) - 1);
+  const week = schedule.slice(weekStart, weekStart + 7);
+  const activeDays = week.filter((dayPlan) => dayPlan.tasks.length > 0).length;
+  const taskCount = week.reduce((sum, dayPlan) => sum + dayPlan.tasks.length, 0);
+  if (planOverviewGoal) planOverviewGoal.textContent = plan.goal || "나의 목표";
+  if (planOverviewStatus) {
+    planOverviewStatus.textContent = state.pendingPlanText ? "변경안 확인 필요" : state.status === "적용 완료" ? "최신 계획" : "진행 중";
+    planOverviewStatus.classList.toggle("has-pending", Boolean(state.pendingPlanText));
+  }
+  if (planOverviewPeriod) planOverviewPeriod.textContent = `${schedule.length}일`;
+  if (planOverviewWeek) planOverviewWeek.textContent = `${activeDays}일 · ${taskCount}개`;
+  if (planOverviewRhythm) planOverviewRhythm.textContent = plan.routineTime ? `${plan.routineTime} 중심` : "유연하게";
+}
+
+function renderWeeklyPlan(schedule, plan, state) {
   if (!weeklyPlanList) return;
-  const labels = ["월", "수", "금", "일"];
-  const picks = [0, 2, 4, 6].map((index) => schedule[index]).filter(Boolean);
+  const startIndex = Math.max(0, Number(state?.selectedDay || 1) - 1);
+  const upcomingWindow = schedule.slice(startIndex, startIndex + 10);
+  const picks = upcomingWindow.filter((dayPlan) => dayPlan.tasks.length > 0).slice(0, 3);
+  const planStartDate = getPlanStartDate(plan, state);
+  const weekdayFormatter = new Intl.DateTimeFormat("ko-KR", { weekday: "short" });
 
   weeklyPlanList.innerHTML = "";
-  picks.forEach((dayPlan, index) => {
+  if (!picks.length) {
+    const rest = document.createElement("li");
+    rest.innerHTML = "<span>쉼</span><strong>다가오는 일정이 없어요</strong><p>계획된 휴식도 목표를 이어가는 과정이에요.</p>";
+    weeklyPlanList.append(rest);
+    return;
+  }
+
+  picks.forEach((dayPlan) => {
     const item = document.createElement("li");
     const day = document.createElement("span");
     const title = document.createElement("strong");
     const detail = document.createElement("p");
+    const firstTask = dayPlan.tasks[0];
+    const date = new Date(planStartDate.getFullYear(), planStartDate.getMonth(), planStartDate.getDate() + dayPlan.day - 1);
+    const timing = dayPlan.scheduleMode === "priority" ? "1순위" : firstTask.time || "시간 미정";
+    const extraCount = Math.max(0, dayPlan.tasks.length - 1);
 
-    day.textContent = labels[index] || `D${dayPlan.day}`;
-    title.textContent = dayPlan.title.replace(/^Day \d+ · /, "");
-    detail.textContent = dayPlan.tasks.length ? dayPlan.tasks.map((task) => task.text).slice(0, 2).join(" · ") : "계획된 휴식일";
+    day.textContent = weekdayFormatter.format(date).replace("요일", "");
+    title.textContent = firstTask.text;
+    detail.textContent = `${timing} · 예상 ${getSuggestedFocusMinutes(firstTask)}분${extraCount ? ` · 외 ${extraCount}개` : ""}`;
     item.append(day, title, detail);
     weeklyPlanList.append(item);
   });
-}
-
-function renderRoutineInsight(plan) {
-  if (!routineModeTitle) return;
-
-  const routineTime = plan.routineTime || "아침";
-  const currentRoutine = plan.currentRoutine || "기존 루틴";
-  const readiness = plan.routineReadiness || DEFAULT_ROUTINE_READINESS;
-  const isDelayProne = needsLowFrictionStart(readiness);
-  const cues = isDelayProne
-    ? [`${currentRoutine} 뒤 10분만`, "알림으로 다시 시작", "못한 날은 다음 칸으로 이동"]
-    : [`${currentRoutine}와 연결`, "완료 즉시 체크", "달력에서 진행률 확인"];
-
-  routineModeTitle.textContent = `${routineTime} 루틴 모드`;
-  if (routineModeMeta) {
-    routineModeMeta.textContent = isDelayProne
-      ? `${readiness} 성향에 맞춰 작게 시작하고 다시 불러옵니다`
-      : `${readiness} 성향에 맞춰 바로 실행할 수 있게 배치합니다`;
-  }
-
-  if (routineCueList) {
-    routineCueList.innerHTML = "";
-    cues.forEach((cue) => {
-      const item = document.createElement("span");
-      item.textContent = cue;
-      routineCueList.append(item);
-    });
-  }
 }
 
 function getCompanionStage(overallProgress) {
@@ -4092,6 +4115,7 @@ memoryList?.addEventListener("click", (event) => {
   appendRevisionRequest(memory.suggestion, "추억 카드에서 찾은 단서를 계획 수정 요청에 담았어요.");
   trackCompanionEvent("memory_insight_applied", { memoryId: memory.id });
   showToast("추억 카드의 제안을 옮겼어요 · AI 변경안 만들기를 눌러 확인해 주세요");
+  setPlanScreen("editor", { scroll: false, focus: false });
   document.querySelector("#tab-plan")?.click();
   window.setTimeout(() => {
     const editor = document.querySelector("#journeyPlanEditor");
@@ -4389,8 +4413,8 @@ function renderExecutionPage(bundle) {
 
   renderChecklist(selectedDay, state);
   renderCalendar(schedule, state, plan);
-  renderWeeklyPlan(schedule);
-  renderRoutineInsight(plan);
+  renderPlanOverview(plan, schedule, state);
+  renderWeeklyPlan(schedule, plan, state);
   renderFocusTask(selectedDay, selectedCompletion);
   renderDailyCoach(state, selectedCompletion, selectedDay);
   renderRecoveryPrompt(state, selectedCompletion);
@@ -4459,6 +4483,25 @@ function initializeExecutionPage() {
     console.warn("Unable to restore background focus timer", error);
   }
 }
+
+planOpenDetailButton?.addEventListener("click", () => {
+  setPlanScreen("detail");
+  trackCompanionEvent("plan_detail_opened");
+});
+
+planOpenEditorButton?.addEventListener("click", () => {
+  setPlanScreen("editor");
+  trackCompanionEvent("plan_editor_opened");
+});
+
+planBackButtons.forEach((button) => {
+  button.addEventListener("click", () => setPlanScreen("home"));
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape" || activePlanScreen === "home" || document.querySelector("#view-plan")?.hidden) return;
+  setPlanScreen("home");
+});
 
 scheduleModeButtons.forEach((button) => {
   button.addEventListener("click", () => {
@@ -5019,6 +5062,7 @@ acceptPlanButton?.addEventListener("click", () => {
   if (planEditorMessage) planEditorMessage.textContent = "변경안을 적용했어요. 오늘 일정도 함께 업데이트했습니다.";
   showToast("변경안을 적용했어요 · 완료한 일정은 그대로 보호했어요");
   renderExecutionPage(bundle);
+  setPlanScreen("home");
 });
 
 regeneratePlanButton?.addEventListener("click", async () => {
@@ -5127,6 +5171,7 @@ keepPlanButton?.addEventListener("click", () => {
   savePlanBundleState(bundle.state);
   if (planEditorMessage) planEditorMessage.textContent = "기존 계획을 유지했어요. 변경안은 적용하지 않았습니다.";
   renderExecutionPage(bundle);
+  setPlanScreen("home");
 });
 
 executionThemeButtons.forEach((button) => {

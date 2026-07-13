@@ -12831,6 +12831,336 @@ body.sheet-open {
   padding: 28px 32px 92px;
 }
 
+/* Plan tab: progressive disclosure with focused overview, detail, and edit screens. */
+.execution-page #view-plan [data-plan-screen][hidden] {
+  display: none !important;
+}
+
+.execution-page #view-plan [data-plan-screen] {
+  grid-column: 1 / -1;
+}
+
+.execution-page .plan-view-head {
+  min-height: 170px;
+}
+
+.execution-page .plan-overview-card {
+  width: min(100%, 780px);
+  min-height: 0;
+  justify-self: center;
+  padding: 26px;
+  background: linear-gradient(155deg, rgba(255, 255, 255, 0.94), rgba(239, 246, 244, 0.9));
+}
+
+.execution-page .plan-overview-head {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.execution-page .plan-overview-head > div {
+  min-width: 0;
+}
+
+.execution-page .plan-overview-head > div > span {
+  color: #78988f;
+  font-size: 9px;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+}
+
+.execution-page .plan-overview-head h2 {
+  margin: 7px 0 5px;
+  color: var(--app-ink);
+  font-family: "Jalnan", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  font-size: clamp(20px, 3vw, 28px);
+  line-height: 1.25;
+}
+
+.execution-page .plan-overview-head p {
+  margin: 0;
+  color: var(--app-muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.execution-page .plan-overview-status {
+  flex: 0 0 auto;
+  padding: 8px 10px;
+  color: #657895;
+  background: #edf2f8;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.execution-page .plan-overview-status.has-pending {
+  color: #8a6877;
+  background: #f8eaf0;
+}
+
+.execution-page .plan-overview-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.execution-page .plan-overview-metrics > div {
+  display: grid;
+  gap: 4px;
+  padding: 13px 14px;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(107, 122, 166, 0.09);
+  border-radius: 15px;
+}
+
+.execution-page .plan-overview-metrics span {
+  color: #929baa;
+  font-size: 8px;
+  font-weight: 800;
+}
+
+.execution-page .plan-overview-metrics strong {
+  overflow: hidden;
+  color: #53617b;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.execution-page .plan-week-preview-head {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 22px 0 10px;
+}
+
+.execution-page .plan-week-preview-head strong {
+  color: var(--app-ink);
+  font-size: 13px;
+}
+
+.execution-page .plan-week-preview-head span {
+  color: #929baa;
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.execution-page .plan-overview-card .weekly-plan {
+  gap: 7px;
+}
+
+.execution-page .plan-overview-card .weekly-plan li {
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 2px 10px;
+  padding: 11px 12px;
+  background: rgba(255, 255, 255, 0.75);
+  border-color: rgba(107, 122, 166, 0.08);
+  border-radius: 14px;
+}
+
+.execution-page .plan-overview-card .weekly-plan li > span {
+  width: 34px;
+  height: 34px;
+  color: #657895;
+  background: #edf2f8;
+  border-radius: 11px;
+  font-size: 10px;
+}
+
+.execution-page .plan-overview-card .weekly-plan strong {
+  overflow: hidden;
+  color: #3f4b63;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.execution-page .plan-overview-card .weekly-plan p {
+  margin: 0;
+  color: #919aa9;
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.execution-page .plan-home-actions {
+  display: grid;
+  margin-top: 18px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(107, 122, 166, 0.1);
+  border-radius: 16px;
+}
+
+.execution-page .plan-home-actions button {
+  display: flex;
+  width: 100%;
+  min-height: 58px;
+  padding: 10px 14px;
+  align-items: center;
+  justify-content: space-between;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.execution-page .plan-home-actions button + button {
+  border-top: 1px solid rgba(107, 122, 166, 0.1);
+}
+
+.execution-page .plan-home-actions button:hover {
+  background: rgba(120, 159, 155, 0.08);
+}
+
+.execution-page .plan-home-actions button:focus-visible {
+  outline: 2px solid rgba(120, 159, 155, 0.5);
+  outline-offset: -3px;
+}
+
+.execution-page .plan-home-actions button > span {
+  display: grid;
+  gap: 3px;
+}
+
+.execution-page .plan-home-actions strong {
+  color: #46536b;
+  font-size: 11px;
+}
+
+.execution-page .plan-home-actions small {
+  color: #929baa;
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.execution-page .plan-home-actions b {
+  color: #8995a8;
+  font-size: 22px;
+  font-weight: 500;
+}
+
+.execution-page .plan-subview-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 16px;
+  width: min(100%, 960px);
+  margin: 0 auto;
+  align-items: start;
+  outline: 0;
+}
+
+.execution-page .plan-subview-header > button {
+  min-height: 36px;
+  padding: 0 8px 0 0;
+  color: #6f8f8a;
+  background: transparent;
+  border: 0;
+  font-size: 18px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.execution-page .plan-subview-header > button span {
+  font-size: 10px;
+  vertical-align: 2px;
+}
+
+.execution-page .plan-subview-header > div > span {
+  color: #8d82a0;
+  font-size: 8px;
+  font-weight: 950;
+  letter-spacing: 0.1em;
+}
+
+.execution-page .plan-subview-header h1 {
+  margin: 4px 0;
+  color: var(--app-ink);
+  font-family: "Jalnan", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  font-size: clamp(25px, 4vw, 34px);
+}
+
+.execution-page .plan-subview-header p {
+  margin: 0;
+  color: var(--app-muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.execution-page #view-plan .schedule-calendar-card[data-plan-screen="detail"],
+.execution-page #view-plan .plan-editor-card[data-plan-screen="editor"] {
+  grid-column: 1 / -1;
+  width: min(100%, 960px);
+  min-height: 0;
+  margin-inline: auto;
+}
+
+.execution-page .plan-editor-head-actions {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.execution-page .revision-advanced {
+  overflow: hidden;
+  background: rgba(248, 250, 251, 0.82);
+  border: 1px solid rgba(107, 122, 166, 0.11);
+  border-radius: 15px;
+}
+
+.execution-page .revision-advanced summary {
+  display: flex;
+  min-height: 56px;
+  padding: 10px 14px;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  list-style: none;
+}
+
+.execution-page .revision-advanced summary::-webkit-details-marker {
+  display: none;
+}
+
+.execution-page .revision-advanced summary > span {
+  display: grid;
+  gap: 3px;
+}
+
+.execution-page .revision-advanced summary strong {
+  color: #53617b;
+  font-size: 11px;
+}
+
+.execution-page .revision-advanced summary small {
+  color: #929baa;
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.execution-page .revision-advanced summary b {
+  color: #789f9b;
+  font-size: 18px;
+  transition: transform 180ms ease;
+}
+
+.execution-page .revision-advanced[open] summary b {
+  transform: rotate(45deg);
+}
+
+.execution-page .revision-advanced-body {
+  display: grid;
+  gap: 11px;
+  padding: 0 12px 12px;
+}
+
 @media (max-width: 759px) {
   .home-page main {
     padding-bottom: 14px;
@@ -12859,6 +13189,62 @@ body.sheet-open {
 
   .execution-page .site-footer {
     padding: 24px 20px calc(84px + env(safe-area-inset-bottom));
+  }
+
+  .execution-page .plan-view-head {
+    grid-template-columns: minmax(0, 1fr) 82px;
+    min-height: 118px;
+    padding: 16px 18px;
+  }
+
+  .execution-page .plan-view-head h1 {
+    font-size: 27px;
+  }
+
+  .execution-page .plan-view-head img {
+    width: 82px;
+    height: 96px;
+  }
+
+  .execution-page .plan-overview-card {
+    padding: 18px 16px;
+  }
+
+  .execution-page .plan-overview-metrics {
+    gap: 6px;
+    margin-top: 16px;
+  }
+
+  .execution-page .plan-overview-metrics > div {
+    padding: 10px 8px;
+  }
+
+  .execution-page .plan-overview-metrics strong {
+    font-size: 10px;
+  }
+
+  .execution-page .plan-week-preview-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .execution-page .plan-subview-header {
+    gap: 10px;
+    padding-inline: 4px;
+  }
+
+  .execution-page .plan-editor-card {
+    padding: 16px;
+  }
+
+  .execution-page .plan-editor-card > .card-title {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .execution-page .plan-editor-head-actions {
+    width: 100%;
+    justify-content: space-between;
   }
 }
 
