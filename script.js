@@ -76,7 +76,6 @@ const energyChargeOverlay = document.querySelector("#energyChargeOverlay");
 const energyChargeSheet = document.querySelector("#energyChargeSheet");
 const closeEnergyChargeButton = document.querySelector("#closeEnergyCharge");
 const energyChargeBalance = document.querySelector("#energyChargeBalance");
-const energyPackButtons = document.querySelectorAll("[data-energy-pack]");
 const weeklyOptimizeButton = document.querySelector("#weeklyOptimizeButton");
 const executionGoal = document.querySelector("#executionGoal");
 const executionStyle = document.querySelector("#executionStyle");
@@ -263,12 +262,13 @@ function startTrialAccess() {
 
 function lockTrialExperience(mode) {
   if (!trialPaywall) return;
+  const wasHidden = trialPaywall.hidden;
   trialPaywall.hidden = false;
   document.body.classList.add("trial-locked");
-  const executionApp = document.querySelector(".execution-app");
-  const executionTabs = document.querySelector(".execution-tabbar");
-  if (executionApp) executionApp.inert = true;
-  if (executionTabs) executionTabs.inert = true;
+  [...document.body.children].forEach((element) => {
+    if (element !== trialPaywall) element.inert = true;
+  });
+  if (wasHidden) window.setTimeout(() => trialPaywall.focus({ preventScroll: true }), 0);
 
   if (mode === "expired") {
     if (trialPaywallKicker) trialPaywallKicker.textContent = "체험이 종료되었어요";
@@ -903,22 +903,6 @@ function refundOllieEnergy(amount) {
   state.remaining = Math.min(Number(state.allocation) || 0, Number(state.remaining || 0) + refund);
   saveOllieEnergyState(state);
   renderOllieEnergy();
-}
-
-function chargeOllieEnergy(amount) {
-  const state = readOllieEnergyState();
-  const charge = Math.max(0, Number(amount) || 0);
-  state.remaining = Number(state.remaining || 0) + charge;
-  if (state.remaining > Number(state.allocation || 0)) state.allocation = state.remaining;
-  saveOllieEnergyState(state);
-  renderOllieEnergy();
-  if (ollieEnergyMeter) {
-    ollieEnergyMeter.classList.remove("is-charged");
-    void ollieEnergyMeter.offsetWidth;
-    ollieEnergyMeter.classList.add("is-charged");
-    window.setTimeout(() => ollieEnergyMeter.classList.remove("is-charged"), 1200);
-  }
-  announce(`올리 에너지 ${charge}를 충전했습니다. ${state.remaining} 남았습니다.`);
 }
 
 renderOllieEnergy();
@@ -1814,14 +1798,13 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
       openFirstStepResult();
       return;
     }
-    console.error("Unable to generate AI goal plan", error);
     preview = buildLocalAiPreview(payload);
     usedFallback = true;
   }
   renderAiPreview(preview);
   if (showLoading) planPreviewPanel?.classList.add("is-ready");
 
-  if (aiPreviewStatus) aiPreviewStatus.textContent = usedFallback ? "올리가 입력 내용을 바탕으로 준비한 계획" : "올리가 AI로 만든 맞춤 계획";
+  if (aiPreviewStatus) aiPreviewStatus.textContent = usedFallback ? "AI 연결 없이 제공하는 기본 계획 템플릿" : "올리가 AI로 만든 맞춤 계획";
   if (aiPreviewButton) {
     aiPreviewButton.disabled = false;
     aiPreviewButton.textContent = "이대로 1일 체험 시작하기";
@@ -1844,6 +1827,7 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
         manseSummary: manse.summary,
         mbtiSummary,
         aiPreview: preview,
+        planSource: usedFallback ? "local-template" : "ai",
         createdAt: new Date().toISOString(),
       }),
     );
@@ -1862,7 +1846,7 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
       }
     }
   }
-  if (showLoading && usedFallback) showToast("연결이 잠시 느려 입력 내용을 바탕으로 맞춤 계획을 완성했어요.");
+  if (showLoading && usedFallback) showToast("AI 연결에 실패해 기본 계획 템플릿을 보여드려요 · 나중에 AI 계획을 다시 만들 수 있어요");
   if (showLoading) openFirstStepResult();
   if (showLoading && readTrialAccess()?.plan !== "pro") {
     try {
@@ -2081,8 +2065,17 @@ function safeJsonParse(value, fallback = {}) {
   }
 }
 
+function getLocalDateKey(value = new Date()) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return getLocalDateKey(new Date());
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function getTodayKey() {
-  return new Date().toISOString().slice(0, 10);
+  return getLocalDateKey();
 }
 
 function readStorageObject(key, fallback = {}) {
@@ -2103,61 +2096,114 @@ function writeStorageObject(key, value) {
 
 function readExecutionPlan() {
   const plan = readStorageObject("omwExecutionPlan", {});
-  if (!plan || typeof plan !== "object") return {};
+  if (!plan || typeof plan !== "object" || Array.isArray(plan)) return {};
   return plan;
+}
+
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function normalizeArrayRecord(value, normalizeItems) {
+  if (!isPlainObject(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([, items]) => Array.isArray(items))
+      .map(([key, items]) => [key, normalizeItems(items, key)]),
+  );
+}
+
+function normalizeObjectRecord(value, normalizeValue) {
+  if (!isPlainObject(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([, item]) => isPlainObject(item))
+      .map(([key, item]) => [key, Object.fromEntries(Object.entries(item).map(([itemKey, itemValue]) => [itemKey, normalizeValue(itemValue)]))]),
+  );
+}
+
+function normalizeCustomTasks(value) {
+  if (!isPlainObject(value)) return {};
+  const seenIds = new Set();
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([, items]) => Array.isArray(items))
+      .map(([dayKey, items]) => [
+        dayKey,
+        items
+          .filter(isPlainObject)
+          .map((task, index) => {
+            const text = String(task.text || "").trim().slice(0, 80);
+            if (!text) return null;
+            const time = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(task.time || "")) ? String(task.time) : "";
+            const requestedId = String(task.id || `custom-recovered-${dayKey}-${index}`).slice(0, 120);
+            const id = seenIds.has(requestedId) ? `${requestedId}-${dayKey}-${index}` : requestedId;
+            seenIds.add(id);
+            return {
+              ...task,
+              id,
+              text,
+              time,
+              durationMinutes: Math.max(5, Math.min(180, Number(task.durationMinutes) || 20)),
+              completionRule: String(task.completionRule || "정한 시간만큼 실행하면 완료").trim().slice(0, 160),
+              custom: true,
+            };
+          })
+          .filter(Boolean)
+          .slice(0, 100),
+      ]),
+  );
+}
+
+function dedupeStoredRecords(value, limit, getKey, keyField) {
+  if (!Array.isArray(value)) return [];
+  const records = new Map();
+  value.filter(isPlainObject).forEach((item, index) => {
+    const key = String(getKey(item, index) || `recovered-${index}`);
+    records.set(key, { ...item, [keyField]: key });
+  });
+  return [...records.values()].slice(-limit);
 }
 
 function migrateExecutionState(rawState) {
   const todayKey = getTodayKey();
-  const state = rawState && typeof rawState === "object" ? { ...rawState } : {};
-  const checkedByDay =
-    state.checkedByDay && typeof state.checkedByDay === "object" && !Array.isArray(state.checkedByDay)
-      ? state.checkedByDay
-      : {};
+  const state = isPlainObject(rawState) ? { ...rawState } : {};
+  const checkedByDay = normalizeArrayRecord(state.checkedByDay, (items) => items.slice(0, 200).map(Boolean));
+  const lastSeenDate = /^\d{4}-\d{2}-\d{2}$/.test(String(state.lastSeenDate || "")) ? state.lastSeenDate : todayKey;
 
   const migrated = {
     version: appStateVersion,
     scheduleKey: state.scheduleKey || "",
     planText: typeof state.planText === "string" ? state.planText : "",
     revisionRequest: typeof state.revisionRequest === "string" ? state.revisionRequest : "",
-    revisionDetails: state.revisionDetails && typeof state.revisionDetails === "object" ? state.revisionDetails : {},
+    revisionDetails: isPlainObject(state.revisionDetails) ? state.revisionDetails : {},
     weeklySchedule: Array.isArray(state.weeklySchedule) ? state.weeklySchedule.slice(0, 7) : [],
     pendingPlanText: typeof state.pendingPlanText === "string" ? state.pendingPlanText : "",
     pendingRevisionRequest: typeof state.pendingRevisionRequest === "string" ? state.pendingRevisionRequest : "",
-    pendingRevisionDetails: state.pendingRevisionDetails && typeof state.pendingRevisionDetails === "object" ? state.pendingRevisionDetails : {},
-    pendingRevisionSummary: state.pendingRevisionSummary && typeof state.pendingRevisionSummary === "object" ? state.pendingRevisionSummary : {},
+    pendingRevisionDetails: isPlainObject(state.pendingRevisionDetails) ? state.pendingRevisionDetails : {},
+    pendingRevisionSummary: isPlainObject(state.pendingRevisionSummary) ? state.pendingRevisionSummary : {},
     pendingWeeklySchedule: Array.isArray(state.pendingWeeklySchedule) ? state.pendingWeeklySchedule.slice(0, 7) : [],
-    status: state.status || "AI 제안",
-    selectedDay: Math.max(1, Number(state.selectedDay) || 1),
+    status: typeof state.status === "string" && state.status.trim() ? state.status.trim().slice(0, 40) : "AI 제안",
+    selectedDay: Math.max(1, Math.min(366, Number(state.selectedDay) || 1)),
     checkedByDay,
-    customTasksByDay:
-      state.customTasksByDay && typeof state.customTasksByDay === "object" && !Array.isArray(state.customTasksByDay)
-        ? state.customTasksByDay
-        : {},
-    scheduleModeByDay:
-      state.scheduleModeByDay && typeof state.scheduleModeByDay === "object" && !Array.isArray(state.scheduleModeByDay)
-        ? state.scheduleModeByDay
-        : {},
-    taskOrderByDay:
-      state.taskOrderByDay && typeof state.taskOrderByDay === "object" && !Array.isArray(state.taskOrderByDay)
-        ? state.taskOrderByDay
-        : {},
-    taskTimeByDay:
-      state.taskTimeByDay && typeof state.taskTimeByDay === "object" && !Array.isArray(state.taskTimeByDay)
-        ? state.taskTimeByDay
-        : {},
-    checkedTaskKeysByDay:
-      state.checkedTaskKeysByDay && typeof state.checkedTaskKeysByDay === "object" && !Array.isArray(state.checkedTaskKeysByDay)
-        ? state.checkedTaskKeysByDay
-        : {},
-    recoveryActions: Array.isArray(state.recoveryActions) ? state.recoveryActions.slice(-30) : [],
-    completedLog: Array.isArray(state.completedLog) ? state.completedLog.slice(-80) : [],
-    dailyMemories: Array.isArray(state.dailyMemories) ? state.dailyMemories.slice(-365) : [],
-    lastCompletion: state.lastCompletion || null,
-    planStartDate: state.planStartDate || "",
-    lastSeenDate: state.lastSeenDate || todayKey,
-    rolloverNotice: state.rolloverNotice || null,
-    updatedAt: state.updatedAt || new Date().toISOString(),
+    customTasksByDay: normalizeCustomTasks(state.customTasksByDay),
+    scheduleModeByDay: isPlainObject(state.scheduleModeByDay)
+      ? Object.fromEntries(Object.entries(state.scheduleModeByDay).map(([key, mode]) => [key, mode === "priority" ? "priority" : "time"]))
+      : {},
+    taskOrderByDay: normalizeArrayRecord(state.taskOrderByDay, (items) => items.map(String).filter(Boolean).slice(0, 200)),
+    taskTimeByDay: normalizeObjectRecord(state.taskTimeByDay, (time) => (/^([01]\d|2[0-3]):[0-5]\d$/.test(String(time || "")) ? String(time) : "")),
+    checkedTaskKeysByDay: normalizeObjectRecord(state.checkedTaskKeysByDay, Boolean),
+    dailyCompletionRewardedByDay: isPlainObject(state.dailyCompletionRewardedByDay)
+      ? Object.fromEntries(Object.entries(state.dailyCompletionRewardedByDay).map(([key, rewarded]) => [key, Boolean(rewarded)]))
+      : {},
+    recoveryActions: Array.isArray(state.recoveryActions) ? state.recoveryActions.filter(isPlainObject).slice(-30) : [],
+    completedLog: dedupeStoredRecords(state.completedLog, 80, (item, index) => item.taskKey || `${item.day || "day"}:${item.taskIndex ?? index}`, "taskKey"),
+    dailyMemories: dedupeStoredRecords(state.dailyMemories, 365, (item, index) => item.id || item.diaryDate || item.createdAt || `memory-${index}`, "id"),
+    lastCompletion: isPlainObject(state.lastCompletion) ? state.lastCompletion : null,
+    planStartDate: typeof state.planStartDate === "string" ? state.planStartDate : "",
+    lastSeenDate,
+    rolloverNotice: isPlainObject(state.rolloverNotice) ? state.rolloverNotice : null,
+    updatedAt: typeof state.updatedAt === "string" ? state.updatedAt : new Date().toISOString(),
   };
 
   if (migrated.lastSeenDate !== todayKey) {
@@ -2195,11 +2241,6 @@ function hashText(text) {
     hash |= 0;
   }
   return Math.abs(hash).toString(36);
-}
-
-function getLocalDateKey(value) {
-  const date = value ? new Date(value) : new Date();
-  return Number.isNaN(date.getTime()) ? getTodayKey() : date.toLocaleDateString("en-CA");
 }
 
 function getDefaultPlanText(plan) {
@@ -2481,7 +2522,7 @@ function getPlanBundle({ reset = false, customText, revisionRequest, revisionDet
         pendingRevisionDetails: previous.pendingRevisionDetails || {},
         pendingRevisionSummary: previous.pendingRevisionSummary || {},
         pendingWeeklySchedule: previous.pendingWeeklySchedule || [],
-        status: previous.status || "AI 제안",
+        status: previous.scheduleKey ? previous.status || "AI 제안" : plan.planSource === "local-template" ? "기본 템플릿" : "AI 제안",
         selectedDay: previous.selectedDay || 1,
         checkedByDay: checkedForSchedule,
         customTasksByDay,
@@ -2489,6 +2530,7 @@ function getPlanBundle({ reset = false, customText, revisionRequest, revisionDet
         taskOrderByDay: previous.taskOrderByDay || {},
         taskTimeByDay: previous.taskTimeByDay || {},
         checkedTaskKeysByDay: reset ? {} : previous.checkedTaskKeysByDay || {},
+        dailyCompletionRewardedByDay: previous.dailyCompletionRewardedByDay || {},
         recoveryActions: previous.recoveryActions || [],
         completedLog: previous.completedLog || [],
         dailyMemories: previous.dailyMemories || [],
@@ -2512,6 +2554,7 @@ function getPlanBundle({ reset = false, customText, revisionRequest, revisionDet
   state.taskOrderByDay = state.taskOrderByDay || {};
   state.taskTimeByDay = state.taskTimeByDay || {};
   state.checkedTaskKeysByDay = state.checkedTaskKeysByDay || {};
+  state.dailyCompletionRewardedByDay = state.dailyCompletionRewardedByDay || {};
   applySchedulePreferences(schedule, state, { resetChecks: reset });
 
   return { plan, planText, schedule, state };
@@ -2587,12 +2630,22 @@ function getDefaultCompanionState() {
 
 function getCompanionState() {
   try {
+    const stored = JSON.parse(localStorage.getItem(companionStateKey)) || {};
     const state = {
       ...getDefaultCompanionState(),
-      ...(JSON.parse(localStorage.getItem(companionStateKey)) || {}),
+      ...(isPlainObject(stored) ? stored : {}),
       name: "올리",
     };
-    return replaceLegacyCompanionName(state);
+    return replaceLegacyCompanionName({
+      ...state,
+      level: Math.max(1, Math.min(100, Number(state.level) || 1)),
+      xp: Math.max(0, Number(state.xp) || 0),
+      relationship: Math.max(1, Number(state.relationship) || 1),
+      touched: Math.max(0, Number(state.touched) || 0),
+      energy: ["good", "normal", "tired"].includes(state.energy) ? state.energy : "normal",
+      mood: typeof state.mood === "string" ? state.mood.slice(0, 30) : "ready",
+      recentDialogueIds: Array.isArray(state.recentDialogueIds) ? state.recentDialogueIds.map(String).slice(-20) : [],
+    });
   } catch (error) {
     return getDefaultCompanionState();
   }
@@ -2644,10 +2697,6 @@ function getCompanionBondInfo(state) {
   return companionBondLevels.find((item) => item.level === Math.min(level, companionBondLevels.length)) || companionBondLevels[0];
 }
 
-function getTodayKey() {
-  return new Date().toLocaleDateString("en-CA");
-}
-
 function addCompanionXp(amount, mood = "happy") {
   const state = getCompanionState();
   let nextXp = Math.max(0, (state.xp || 0) + amount);
@@ -2670,7 +2719,7 @@ function addCompanionXp(amount, mood = "happy") {
 
 function trackCompanionEvent(type, detail = {}) {
   try {
-    const events = JSON.parse(localStorage.getItem(companionEventKey)) || [];
+    const events = readCompanionEvents();
     events.push({ type, detail, dayKey: getTodayKey(), createdAt: new Date().toISOString() });
     localStorage.setItem(companionEventKey, JSON.stringify(events.slice(-80)));
   } catch (error) {
@@ -2977,6 +3026,7 @@ function populateRevisionDetails(details = {}, goalText = "") {
 }
 
 let activeSheet = null;
+let activeSheetOverlay = null;
 let previousFocusElement = null;
 
 function getFocusableElements(container) {
@@ -2989,19 +3039,30 @@ function getFocusableElements(container) {
 function setSheetOpen(sheet, overlay, open) {
   if (!sheet || !overlay) return;
 
+  const isSwitchingSheets = open && activeSheet && activeSheet !== sheet;
+  if (isSwitchingSheets) {
+    activeSheet.hidden = true;
+    if (activeSheetOverlay) activeSheetOverlay.hidden = true;
+    if (activeSheet === authSheet) document.body.classList.remove("account-auth-open");
+    activeSheet = null;
+    activeSheetOverlay = null;
+  }
+
   sheet.hidden = !open;
   overlay.hidden = !open;
   document.body.classList.toggle("sheet-open", open);
   if (sheet === authSheet) document.body.classList.toggle("account-auth-open", open);
   if (open) {
-    previousFocusElement = document.activeElement;
+    if (!previousFocusElement) previousFocusElement = document.activeElement;
     activeSheet = sheet;
+    activeSheetOverlay = overlay;
     window.setTimeout(() => {
       const focusTarget = getFocusableElements(sheet)[0] || sheet;
       focusTarget.focus();
     }, 0);
   } else if (activeSheet === sheet) {
     activeSheet = null;
+    activeSheetOverlay = null;
     previousFocusElement?.focus?.();
     previousFocusElement = null;
   }
@@ -3020,7 +3081,7 @@ function closeCompanionChat() {
 function openEnergyCharge() {
   renderOllieEnergy();
   setSheetOpen(energyChargeSheet, energyChargeOverlay, true);
-  trackCompanionEvent("energy_charge_opened");
+  trackCompanionEvent("energy_info_opened");
 }
 
 function closeEnergyCharge() {
@@ -3243,7 +3304,7 @@ function setTaskCheckedState(state, dayPlan, taskIndex, isChecked) {
 
 function recordTaskCompletion(state, dayPlan, taskIndex) {
   const task = dayPlan.tasks[taskIndex];
-  if (!task) return;
+  if (!task) return false;
   const taskKey = getTaskKey(dayPlan.day, taskIndex, task);
   const exists = (state.completedLog || []).some((item) => item.taskKey === taskKey);
   if (!exists) {
@@ -3260,6 +3321,17 @@ function recordTaskCompletion(state, dayPlan, taskIndex) {
     ].slice(-80);
   }
   state.lastCompletion = { taskKey, day: dayPlan.day, taskIndex, text: task.text };
+  return !exists;
+}
+
+function claimDailyCompletionBonus(state, dayPlan) {
+  if (!dayPlan?.tasks.length) return 0;
+  const dayKey = String(dayPlan.day);
+  const checked = state.checkedByDay[dayKey] || [];
+  if (!dayPlan.tasks.every((_, index) => Boolean(checked[index]))) return 0;
+  if (state.dailyCompletionRewardedByDay?.[dayKey]) return 0;
+  state.dailyCompletionRewardedByDay = { ...(state.dailyCompletionRewardedByDay || {}), [dayKey]: true };
+  return 8;
 }
 
 function completeFocusTask() {
@@ -3270,9 +3342,10 @@ function completeFocusTask() {
   const wasUnchecked = !checked[activeFocusTaskIndex];
 
   setTaskCheckedState(bundle.state, dayPlan, activeFocusTaskIndex, true);
-  if (wasUnchecked) recordTaskCompletion(bundle.state, dayPlan, activeFocusTaskIndex);
+  const newlyRecorded = wasUnchecked && recordTaskCompletion(bundle.state, dayPlan, activeFocusTaskIndex);
+  const completionBonus = wasUnchecked ? claimDailyCompletionBonus(bundle.state, dayPlan) : 0;
   savePlanBundleState(bundle.state);
-  if (wasUnchecked) addCompanionXp(10, "happy");
+  if (newlyRecorded || completionBonus) addCompanionXp((newlyRecorded ? 10 : 0) + completionBonus, "happy");
   clearFocusTimerInterval();
   try {
     localStorage.removeItem(focusSessionKey);
@@ -3282,9 +3355,9 @@ function completeFocusTask() {
   focusSession = { taskKey: "", status: "idle", durationSeconds: 15 * 60, remainingSeconds: 15 * 60, endAt: null };
   closeFocusMode();
   pulseCompanion();
-  if (wasUnchecked) showOllieStarShower(dayPlan.tasks[activeFocusTaskIndex]?.text);
-  showToast(wasUnchecked ? "일정 하나를 완료했어요 · 올리의 별빛과 10 XP를 받았어요" : "이미 완료된 일정이에요");
-  trackCompanionEvent("focus_completed", { day: dayPlan.day, taskIndex: activeFocusTaskIndex, rewarded: wasUnchecked });
+  if (newlyRecorded) showOllieStarShower(dayPlan.tasks[activeFocusTaskIndex]?.text);
+  showToast(newlyRecorded ? `일정 하나를 완료했어요 · 올리가 ${10 + completionBonus} XP를 받았어요` : completionBonus ? "오늘 계획을 모두 완료했어요 · 올리가 8 XP를 받았어요" : wasUnchecked ? "완료 상태를 다시 표시했어요 · XP는 중복 지급되지 않아요" : "이미 완료된 일정이에요");
+  trackCompanionEvent("focus_completed", { day: dayPlan.day, taskIndex: activeFocusTaskIndex, rewarded: Boolean(newlyRecorded || completionBonus), completionBonus });
   renderExecutionPage(bundle);
 }
 
@@ -4402,8 +4475,9 @@ function renderExecutionPage(bundle) {
       : "✣ 시작 시간을 눌러 오늘 상황에 맞게 바로 조정할 수 있어요.";
   }
   if (completeTodayButton) {
-    completeTodayButton.disabled = isRestDay;
-    completeTodayButton.textContent = isRestDay ? "오늘은 계획된 휴식일" : "오늘 계획 한 번에 완료";
+    const isDayComplete = !isRestDay && selectedCompletion.percent === 100;
+    completeTodayButton.disabled = isRestDay || isDayComplete;
+    completeTodayButton.textContent = isRestDay ? "오늘은 계획된 휴식일" : isDayComplete ? "오늘 계획 완료" : "오늘 계획 한 번에 완료";
   }
 
   if (executionMessage) {
@@ -4668,15 +4742,17 @@ executionChecklist?.addEventListener("change", (event) => {
   const checked = bundle.state.checkedByDay[selectedDay] || Array(dayPlan.tasks.length).fill(false);
   const wasUnchecked = !checked[taskIndex];
   setTaskCheckedState(bundle.state, dayPlan, taskIndex, event.target.checked);
+  const newlyRecorded = event.target.checked && wasUnchecked && recordTaskCompletion(bundle.state, dayPlan, taskIndex);
+  const completionBonus = event.target.checked && wasUnchecked ? claimDailyCompletionBonus(bundle.state, dayPlan) : 0;
   savePlanBundleState(bundle.state);
-  if (event.target.checked && wasUnchecked) {
-    recordTaskCompletion(bundle.state, dayPlan, taskIndex);
-    savePlanBundleState(bundle.state);
-    addCompanionXp(10, "happy");
+  if (newlyRecorded || completionBonus) {
+    addCompanionXp((newlyRecorded ? 10 : 0) + completionBonus, "happy");
     pulseCompanion();
     showOllieStarShower(dayPlan.tasks[taskIndex]?.text);
-    showToast("일정 하나를 완료했어요 · 올리의 별빛과 10 XP를 받았어요");
-    trackCompanionEvent("task_completed", { day: dayPlan.day, taskIndex });
+    showToast(`일정 하나를 완료했어요 · 올리가 ${(newlyRecorded ? 10 : 0) + completionBonus} XP를 받았어요`);
+    trackCompanionEvent("task_completed", { day: dayPlan.day, taskIndex, completionBonus });
+  } else if (event.target.checked && wasUnchecked) {
+    showToast("완료 상태를 다시 표시했어요 · XP는 중복 지급되지 않아요");
   }
   renderExecutionPage(bundle);
 });
@@ -4686,18 +4762,26 @@ completeTodayButton?.addEventListener("click", () => {
   const selectedDay = String(bundle.state.selectedDay);
   const dayPlan = bundle.schedule[bundle.state.selectedDay - 1];
   const current = bundle.state.checkedByDay[selectedDay] || [];
-  const newlyCompleted = dayPlan.tasks.filter((_, index) => !current[index]).length;
+  let newlyCompleted = 0;
+  let restoredCompleted = 0;
   dayPlan.tasks.forEach((_, index) => {
     setTaskCheckedState(bundle.state, dayPlan, index, true);
-    if (!current[index]) recordTaskCompletion(bundle.state, dayPlan, index);
+    if (!current[index]) {
+      if (recordTaskCompletion(bundle.state, dayPlan, index)) newlyCompleted += 1;
+      else restoredCompleted += 1;
+    }
   });
+  const completionBonus = claimDailyCompletionBonus(bundle.state, dayPlan);
   savePlanBundleState(bundle.state);
-  if (newlyCompleted > 0) {
-    addCompanionXp(newlyCompleted * 10 + 8, "happy");
+  if (newlyCompleted > 0 || completionBonus > 0) {
+    const xpEarned = newlyCompleted * 10 + completionBonus;
+    addCompanionXp(xpEarned, "happy");
     pulseCompanion();
     showOllieStarShower("오늘의 AI 스케줄");
-    showToast(`오늘 계획 완료 · 올리가 ${newlyCompleted * 10 + 8} XP를 얻었어요`);
-    trackCompanionEvent("all_day_completed", { day: dayPlan.day, newlyCompleted });
+    showToast(`오늘 계획 완료 · 올리가 ${xpEarned} XP를 얻었어요`);
+    trackCompanionEvent("all_day_completed", { day: dayPlan.day, newlyCompleted, completionBonus });
+  } else if (restoredCompleted > 0) {
+    showToast("오늘 계획의 완료 상태를 복원했어요 · XP는 중복 지급되지 않아요");
   }
   renderExecutionPage(bundle);
 });
@@ -4718,11 +4802,26 @@ addScheduleForm?.addEventListener("submit", (event) => {
   const dayKey = String(bundle.state.selectedDay);
   const customTasksByDay = { ...(bundle.state.customTasksByDay || {}) };
   const tasks = Array.isArray(customTasksByDay[dayKey]) ? [...customTasksByDay[dayKey]] : [];
+  const taskText = newScheduleName?.value.trim() || "";
+  const taskTime = newScheduleTime?.value || "";
+  if (!taskText) {
+    showToast("일정 제목을 입력해 주세요");
+    newScheduleName?.focus();
+    return;
+  }
+  const isDuplicate = tasks.some(
+    (task) => String(task.text || "").trim().toLocaleLowerCase("ko-KR") === taskText.toLocaleLowerCase("ko-KR") && String(task.time || "") === taskTime,
+  );
+  if (isDuplicate) {
+    showToast("같은 시간에 같은 일정이 이미 있어요 · 제목이나 시간을 바꿔 주세요");
+    newScheduleName?.focus();
+    return;
+  }
   const newTask = {
-    id: `custom-${Date.now()}`,
-    time: newScheduleTime?.value || "",
+    id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    time: taskTime,
     durationMinutes: Math.max(5, Number(newScheduleDuration?.value) || 20),
-    text: newScheduleName?.value.trim() || "새 일정",
+    text: taskText,
     completionRule: newScheduleMemo?.value.trim() || "정한 시간만큼 실행하면 완료",
     custom: true,
   };
@@ -4822,10 +4921,17 @@ companionActionButtons.forEach((button) => {
 
     if (!actionText) return;
     const state = getCompanionState();
-    saveCompanionState({ ...state, energy: action === "hard" ? "tired" : action === "light" ? "normal" : "good", mood: "thinking" });
+    const todayKey = getTodayKey();
+    const shouldReward = state.lastEnergyCheckInDate !== todayKey;
+    saveCompanionState({
+      ...state,
+      energy: action === "hard" ? "tired" : action === "light" ? "normal" : "good",
+      mood: "thinking",
+      lastEnergyCheckInDate: todayKey,
+    });
     appendRevisionRequest(actionText, "좋아요. 올리가 그 요청을 기준으로 새 스케줄 제안을 준비할게요.");
-    addCompanionXp(2, "thinking");
-    trackCompanionEvent("energy_selected", { action });
+    if (shouldReward) addCompanionXp(2, "thinking");
+    trackCompanionEvent("energy_selected", { action, rewarded: shouldReward });
   });
 });
 
@@ -4840,19 +4946,6 @@ openEnergyChargeButton?.addEventListener("click", openEnergyCharge);
 warningChargeButton?.addEventListener("click", openEnergyCharge);
 closeEnergyChargeButton?.addEventListener("click", closeEnergyCharge);
 energyChargeOverlay?.addEventListener("click", closeEnergyCharge);
-
-energyPackButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    const amount = Number(button.dataset.energyPack) || 0;
-    if (!amount) return;
-    chargeOllieEnergy(amount);
-    trackCompanionEvent("energy_pack_purchased", { amount });
-    window.setTimeout(() => {
-      closeEnergyCharge();
-      showToast(`올리 에너지 +${amount} 충전 완료 · 올리와의 대화와 계획 조정에 사용할 수 있어요`);
-    }, 450);
-  });
-});
 
 touchCompanionButton?.addEventListener("click", () => {
   const state = getCompanionState();
@@ -4894,18 +4987,20 @@ energyButtons.forEach((button) => {
   button.addEventListener("click", () => {
     const energy = button.dataset.energy;
     const state = getCompanionState();
+    const todayKey = getTodayKey();
+    const shouldReward = state.lastEnergyCheckInDate !== todayKey;
     const copy = {
       good: { headline: "좋은 흐름이에요!", message: "좋아요. 지금 흐름이면 첫 번째 행동부터 바로 시작해도 괜찮겠어요." },
       normal: { headline: "무리하지 않아도 괜찮아요.", message: "보통인 날은 기준을 작게 잡으면 오래 갑니다." },
       tired: { headline: "지친 날은 줄이는 것도 실행이에요.", message: "지친 날은 하나만 남기고 나머지는 내일로 보내는 제안을 만들 수 있어요." },
     }[energy];
 
-    saveCompanionState({ ...state, energy, mood: energy === "tired" ? "caring" : "ready" });
+    saveCompanionState({ ...state, energy, mood: energy === "tired" ? "caring" : "ready", lastEnergyCheckInDate: todayKey });
     energyButtons.forEach((item) => item.classList.toggle("active", item === button));
     if (companionChatResponse) companionChatResponse.textContent = copy.message;
     showOllieReaction(copy.message, copy.headline);
-    addCompanionXp(2, "ready");
-    trackCompanionEvent("chat_energy_selected", { energy });
+    if (shouldReward) addCompanionXp(2, "ready");
+    trackCompanionEvent("chat_energy_selected", { energy, rewarded: shouldReward });
   });
 });
 
@@ -5025,9 +5120,7 @@ recoveryButtons.forEach((button) => {
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && activeSheet) {
     event.preventDefault();
-    if (activeSheet === companionChatSheet) closeCompanionChat();
-    if (activeSheet === energyChargeSheet) closeEnergyCharge();
-    if (activeSheet === focusMode) closeFocusMode();
+    setSheetOpen(activeSheet, activeSheetOverlay, false);
   }
 
   if (event.key !== "Tab" || !activeSheet) return;

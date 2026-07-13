@@ -41,7 +41,7 @@
           <span class="energy-leaf" aria-hidden="true">◆</span>
           <div><small>올리 에너지</small><strong id="ollieEnergyBalance">10 / 10</strong></div>
           <div class="ollie-energy-track" aria-hidden="true"><span id="ollieEnergyBar" style="width: 100%"></span></div>
-          <button class="energy-charge-button" id="openEnergyCharge" type="button" aria-label="올리 에너지 충전하기" title="올리 에너지 충전하기"><span aria-hidden="true">＋</span><em>충전</em></button>
+          <button class="energy-charge-button" id="openEnergyCharge" type="button" aria-label="올리 에너지 이용 안내" title="올리 에너지 이용 안내"><span aria-hidden="true">＋</span><em>안내</em></button>
         </div>
         <a class="ghost-link" href="index.html#designFlow">설계 수정</a>
         <button class="menu-toggle" id="menuToggle" type="button" aria-label="메뉴 열기" aria-expanded="false" aria-controls="appMenuDrawer">
@@ -178,8 +178,8 @@
 
     <div class="ollie-energy-warning" id="ollieEnergyWarning" role="status" aria-live="polite" hidden>
       <span aria-hidden="true">●</span>
-      <p><strong>올리 에너지가 얼마 남지 않았어요.</strong> 지금 바로 충전하고 올리와 계속 함께해요.</p>
-      <button type="button" id="warningChargeButton">지금 충전하기</button>
+      <p><strong>올리 에너지가 얼마 남지 않았어요.</strong> 개별 충전은 준비 중이며 PRO에서는 매월 에너지가 제공돼요.</p>
+      <button type="button" id="warningChargeButton">이용 안내</button>
     </div>
 
     <div class="trial-status-banner" id="trialStatusBanner" role="status" hidden>
@@ -805,7 +805,7 @@
       <div class="sheet-title-row">
         <div>
           <span>올리 에너지</span>
-          <h2 id="energyChargeTitle">에너지 충전하기</h2>
+          <h2 id="energyChargeTitle">에너지 이용 안내</h2>
         </div>
         <button id="closeEnergyCharge" type="button" aria-label="충전 닫기">×</button>
       </div>
@@ -813,13 +813,13 @@
         <span class="energy-leaf" aria-hidden="true">◆</span>
         <div><small>남은 에너지</small><strong id="energyChargeBalance">10 / 10</strong></div>
       </div>
-      <div class="energy-pack-list" aria-label="충전 상품 선택">
-        <button type="button" class="energy-pack" data-energy-pack="10"><strong>+10</strong><span>가볍게</span><em>₩1,000</em></button>
-        <button type="button" class="energy-pack is-featured" data-energy-pack="30"><strong>+30</strong><span>가장 인기</span><em>₩2,500</em></button>
-        <button type="button" class="energy-pack" data-energy-pack="100"><strong>+100</strong><span>넉넉하게</span><em>₩6,900</em></button>
+      <div class="energy-pack-list" aria-label="준비 중인 추가 에너지 상품">
+        <button type="button" class="energy-pack" disabled><strong>+10</strong><span>준비 중</span><em>₩1,000 예정</em></button>
+        <button type="button" class="energy-pack is-featured" disabled><strong>+30</strong><span>준비 중</span><em>₩2,500 예정</em></button>
+        <button type="button" class="energy-pack" disabled><strong>+100</strong><span>준비 중</span><em>₩6,900 예정</em></button>
       </div>
       <a class="energy-pro-link" href="index.html#pricing">매달 300 에너지가 필요하다면 <strong>프로 플랜 보기 →</strong></a>
-      <p class="chat-response">에너지는 올리와의 대화, 일정 다시 만들기, 주간 최적화에 사용돼요.</p>
+      <p class="chat-response" role="status">개별 에너지 결제는 아직 준비 중이에요. 실제 결제가 연결되기 전에는 에너지가 충전되지 않습니다.</p>
     </aside>
 
     <div class="sheet-overlay" id="addScheduleOverlay" hidden></div>
@@ -869,7 +869,7 @@
 
     <div class="sr-only" id="appLiveRegion" aria-live="polite"></div>
 
-    <section class="trial-paywall" id="trialPaywall" role="dialog" aria-modal="true" aria-labelledby="trialPaywallTitle" hidden>
+    <section class="trial-paywall" id="trialPaywall" role="dialog" aria-modal="true" aria-labelledby="trialPaywallTitle" tabindex="-1" hidden>
       <div class="trial-paywall-card">
         <img src="assets/ollie-comfort.png" alt="" aria-hidden="true" />
         <span id="trialPaywallKicker">1일 무료 체험</span>
@@ -920,6 +920,19 @@
 
         tabs.forEach((tab) => {
           tab.addEventListener("click", () => setView(tab.dataset.view));
+          tab.addEventListener("keydown", (event) => {
+            if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+            event.preventDefault();
+            const currentIndex = tabs.indexOf(tab);
+            const nextIndex =
+              event.key === "Home"
+                ? 0
+                : event.key === "End"
+                  ? tabs.length - 1
+                  : (currentIndex + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+            tabs[nextIndex].focus();
+            setView(tabs[nextIndex].dataset.view, { scroll: false });
+          });
         });
 
         // In-view shortcuts (e.g. "이번 주 계획 다듬기 →")

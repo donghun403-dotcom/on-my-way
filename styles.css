@@ -14324,3 +14324,64 @@ body.sheet-open {
     padding-inline: 14px;
   }
 }
+
+/* MVP 1.0 interaction and small-screen hardening. */
+.execution-page {
+  min-height: 100dvh;
+}
+
+.execution-page .companion-chat-sheet {
+  bottom: max(12px, env(safe-area-inset-bottom));
+  max-height: calc(100dvh - 28px);
+}
+
+.execution-page .focus-mode {
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
+}
+
+.execution-page .sheet-title-row button,
+.execution-page .focus-mode > button {
+  width: 44px;
+  height: 44px;
+}
+
+.execution-page .energy-options button,
+.execution-page .quick-adjustments button,
+.execution-page .today-add-button {
+  min-height: 44px;
+}
+
+.execution-page .energy-pack:disabled {
+  cursor: not-allowed;
+  filter: grayscale(0.2);
+  opacity: 0.58;
+  box-shadow: none;
+  transform: none;
+}
+
+.execution-page .energy-pack:disabled:hover {
+  border-color: var(--routine-line, #e0e7e3);
+  box-shadow: none;
+  transform: none;
+}
+
+@media (max-width: 620px) {
+  .execution-page .energy-charge-button,
+  .execution-page .menu-toggle {
+    min-height: 44px;
+  }
+
+  .execution-page .today-welcome p,
+  .execution-page .today-goal-copy > p,
+  .execution-page .today-next-action p,
+  .execution-page .today-order-hint,
+  .execution-page .plan-overview-head p,
+  .execution-page .plan-week-preview-head span,
+  .execution-page .view-head p,
+  .execution-page .memory-list-head p,
+  .execution-page .memory-pattern-head p {
+    font-size: 11px;
+    line-height: 1.5;
+  }
+}
