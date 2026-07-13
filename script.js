@@ -58,7 +58,6 @@ const appFeatureCounter = document.querySelector("#appFeatureCounter");
 const trialPhoneInput = document.querySelector("#trialPhone");
 const trialServiceConsent = document.querySelector("#trialServiceConsent");
 const trialMarketingConsent = document.querySelector("#trialMarketingConsent");
-const trialStartLink = document.querySelector("#trialStartLink");
 const trialStartInlineLink = document.querySelector("#trialStartInlineLink");
 const trialStatusBanner = document.querySelector("#trialStatusBanner");
 const trialTimeRemaining = document.querySelector("#trialTimeRemaining");
@@ -318,7 +317,6 @@ function initializeTrialAccess() {
   window.setInterval(() => updateTrialStatus(Number(access.expiresAt)), 60 * 1000);
 }
 
-trialStartLink?.addEventListener("click", startTrialAccess);
 trialStartInlineLink?.addEventListener("click", startTrialAccess);
 
 trialPhoneInput?.addEventListener("input", () => {
@@ -743,7 +741,7 @@ function handleAuthQueryParams() {
   if (authParam) params.delete("auth");
   if (adminDenied) params.delete("admin");
   const query = params.toString();
-  window.history.replaceState(null, "", `${location.pathname}${query ? `?${query}` : ""}`);
+  window.history.replaceState(null, "", `${location.pathname}${query ? `?${query}` : ""}${location.hash}`);
 }
 
 async function handleBillingQueryParams() {
@@ -768,7 +766,7 @@ async function handleBillingQueryParams() {
   } finally {
     ["billing", "authKey", "customerKey", "code", "message"].forEach((key) => params.delete(key));
     const query = params.toString();
-    window.history.replaceState(null, "", `${location.pathname}${query ? `?${query}` : ""}`);
+    window.history.replaceState(null, "", `${location.pathname}${query ? `?${query}` : ""}${location.hash}`);
   }
 }
 
