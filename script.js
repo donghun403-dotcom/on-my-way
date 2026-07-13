@@ -1065,6 +1065,9 @@ function getInvalidDiagnosisField() {
     [goalPeriodInput, routineTimeInput, routineReadinessInput],
     [birthDateInput, birthTimeInput, birthPlaceInput, mbtiInput],
   ];
+  if (designGoal) {
+    designGoal.setCustomValidity(designGoal.value.trim() ? "" : "목표를 한 글자 이상 입력해 주세요.");
+  }
   return (fieldsByStep[diagnosisStepIndex] || []).find((field) => field && !field.checkValidity()) || null;
 }
 
@@ -4796,6 +4799,7 @@ addScheduleOverlay?.addEventListener("click", closeAddSchedule);
 
 addScheduleForm?.addEventListener("submit", (event) => {
   event.preventDefault();
+  if (addScheduleForm.dataset.submitting === "true") return;
   if (!addScheduleForm.reportValidity()) return;
 
   const bundle = getPlanBundle();
@@ -4825,6 +4829,7 @@ addScheduleForm?.addEventListener("submit", (event) => {
     completionRule: newScheduleMemo?.value.trim() || "정한 시간만큼 실행하면 완료",
     custom: true,
   };
+  addScheduleForm.dataset.submitting = "true";
   const currentDayPlan = bundle.schedule[bundle.state.selectedDay - 1];
   tasks.push(newTask);
   customTasksByDay[dayKey] = tasks;
@@ -4846,6 +4851,7 @@ addScheduleForm?.addEventListener("submit", (event) => {
   addScheduleForm.reset();
   renderExecutionPage(getPlanBundle());
   showToast("오늘 일정에 새 항목을 추가했어요");
+  window.setTimeout(() => delete addScheduleForm.dataset.submitting, 0);
 });
 
 scheduleCalendar?.addEventListener("click", (event) => {
@@ -4998,7 +5004,9 @@ energyButtons.forEach((button) => {
     saveCompanionState({ ...state, energy, mood: energy === "tired" ? "caring" : "ready", lastEnergyCheckInDate: todayKey });
     energyButtons.forEach((item) => item.classList.toggle("active", item === button));
     if (companionChatResponse) companionChatResponse.textContent = copy.message;
-    showOllieReaction(copy.message, copy.headline);
+    if (companionMessage) companionMessage.textContent = copy.message;
+    if (companionMoodLine) companionMoodLine.textContent = copy.headline;
+    pulseCompanion();
     if (shouldReward) addCompanionXp(2, "ready");
     trackCompanionEvent("chat_energy_selected", { energy, rewarded: shouldReward });
   });

@@ -1,0 +1,15 @@
+{
+  "name": "on-my-way",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test": "node --test *.test.mjs",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0"
+  }
+}
