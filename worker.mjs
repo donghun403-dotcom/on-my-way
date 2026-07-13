@@ -25,6 +25,35 @@ function accountResultToResponse(result) {
   return new Response(JSON.stringify(result.json ?? {}), { status: result.status || 200, headers });
 }
 
+const CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "base-uri 'self'",
+  "object-src 'none'",
+  "frame-ancestors 'none'",
+  "form-action 'self'",
+  "script-src 'self' 'unsafe-inline' https://js.tosspayments.com",
+  "style-src 'self' 'unsafe-inline' https://fastly.jsdelivr.net",
+  "font-src 'self' data: https://fastly.jsdelivr.net",
+  "img-src 'self' data: https:",
+  "connect-src 'self' https://*.tosspayments.com",
+  "frame-src https://*.tosspayments.com",
+  "upgrade-insecure-requests",
+].join("; ");
+
+function secureResponse(response) {
+  const secured = new Response(response.body, response);
+  secured.headers.set("Content-Security-Policy", CONTENT_SECURITY_POLICY);
+  secured.headers.set("Referrer-Policy", "no-referrer");
+  secured.headers.set("X-Content-Type-Options", "nosniff");
+  secured.headers.set("X-Frame-Options", "DENY");
+  secured.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(self)");
+  secured.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  if (secured.headers.get("Content-Type")?.includes("text/html")) {
+    secured.headers.set("Cache-Control", "no-cache, no-store, must-revalidate");
+  }
+  return secured;
+}
+
 const FUNNEL_STEPS = new Set(["step1_enter", "step2_enter", "step3_enter", "step4_enter", "trial_start"]);
 
 function funnelDateKey(now = Date.now()) {
@@ -69,9 +98,15 @@ export async function createGoalPlanForUser({ input, env, userStore, user, gener
   return result;
 }
 
-export default {
-  async fetch(request, env) {
+async function handleFetch(request, env) {
     const url = new URL(request.url);
+
+    if (url.pathname.startsWith("/api/")) {
+      const origin = request.headers.get("origin");
+      if (origin && origin !== url.origin) return json({ error: "허용되지 않은 요청 출처입니다." }, 403);
+      if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: { Allow: "GET, POST, OPTIONS" } });
+    }
+
     const cookies = parseCookies(request.headers.get("cookie"));
     const accountContext = {
       method: request.method,
@@ -118,8 +153,13 @@ export default {
     if (url.pathname === "/api/ai/goal-plan") {
       if (request.method !== "POST") return json({ error: "POST 요청만 사용할 수 있어요." }, 405);
 
+      if (!env.USERS_KV) return json({ error: "회원 저장소 설정이 필요합니다." }, 503);
+      const userStore = createKvStore(env.USERS_KV);
+      const user = await currentSessionUser({ ...accountContext, store: userStore });
+      if (!user) return json({ error: "로그인 후 AI 기능을 이용할 수 있어요." }, 401);
+
       if (env.AI_RATE_LIMITER) {
-        const actor = request.headers.get("cf-connecting-ip") || "anonymous";
+        const actor = `${user.id}:${request.headers.get("cf-connecting-ip") || "unknown"}`;
         const { success } = await env.AI_RATE_LIMITER.limit({ key: `goal-plan:${actor}` });
         if (!success) return json({ error: "AI 요청이 잠시 많아요. 1분 후 다시 시도해 주세요." }, 429);
       }
@@ -129,8 +169,6 @@ export default {
 
       try {
         const input = await request.json();
-        const userStore = createKvStore(env.USERS_KV);
-        const user = await currentSessionUser({ ...accountContext, store: userStore });
         const result = await createGoalPlanForUser({ input, env, userStore, user });
         return json(result);
       } catch (error) {
@@ -143,8 +181,12 @@ export default {
     if (url.pathname === "/api/ai/companion-chat") {
       if (request.method !== "POST") return json({ error: "POST 요청만 사용할 수 있어요." }, 405);
 
+      if (!env.USERS_KV) return json({ error: "회원 저장소 설정이 필요합니다." }, 503);
+      const user = await currentSessionUser(accountContext);
+      if (!user) return json({ error: "로그인 후 AI 기능을 이용할 수 있어요." }, 401);
+
       if (env.AI_RATE_LIMITER) {
-        const actor = request.headers.get("cf-connecting-ip") || "anonymous";
+        const actor = `${user.id}:${request.headers.get("cf-connecting-ip") || "unknown"}`;
         const { success } = await env.AI_RATE_LIMITER.limit({ key: `companion-chat:${actor}` });
         if (!success) return json({ error: "올리가 잠시 바빠요. 1분 후 다시 말 걸어주세요." }, 429);
       }
@@ -168,8 +210,12 @@ export default {
     if (url.pathname === "/api/ai/plan-revision") {
       if (request.method !== "POST") return json({ error: "POST 요청만 사용할 수 있어요." }, 405);
 
+      if (!env.USERS_KV) return json({ error: "회원 저장소 설정이 필요합니다." }, 503);
+      const user = await currentSessionUser(accountContext);
+      if (!user) return json({ error: "로그인 후 AI 기능을 이용할 수 있어요." }, 401);
+
       if (env.AI_RATE_LIMITER) {
-        const actor = request.headers.get("cf-connecting-ip") || "anonymous";
+        const actor = `${user.id}:${request.headers.get("cf-connecting-ip") || "unknown"}`;
         const { success } = await env.AI_RATE_LIMITER.limit({ key: `plan-revision:${actor}` });
         if (!success) return json({ error: "AI 수정 요청이 잠시 많아요. 1분 후 다시 시도해 주세요." }, 429);
       }
@@ -202,6 +248,11 @@ export default {
     }
 
     return env.ASSETS.fetch(request);
+}
+
+export default {
+  async fetch(request, env) {
+    return secureResponse(await handleFetch(request, env));
   },
   async scheduled(_controller, env, ctx) {
     if (!env.USERS_KV) return;
