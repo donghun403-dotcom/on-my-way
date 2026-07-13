@@ -13,3 +13,4 @@ playwright-report/
 test-results/
 blob-report/
 debug.log
+.wrangler/preview-dry-run/

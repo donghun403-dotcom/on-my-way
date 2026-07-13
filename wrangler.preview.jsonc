@@ -1,9 +1,9 @@
 {
-  "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "on-my-way",
+  "name": "on-my-way-pr-3",
   "main": "./worker.mjs",
   "compatibility_date": "2026-07-11",
-  "preview_urls": false,
+  "workers_dev": true,
+  "preview_urls": true,
   "assets": {
     "directory": ".",
     "binding": "ASSETS",
@@ -11,25 +11,25 @@
     "html_handling": "none"
   },
   "vars": {
-    "OPENAI_MODEL": "gpt-5.4-mini"
+    "OPENAI_MODEL": "gpt-5.4-mini",
+    "ALLOW_DEV_LOGIN": "false",
+    "ALLOW_DEMO_BILLING": "false",
+    "APP_ENV": "preview"
   },
   "kv_namespaces": [
     {
       "binding": "USERS_KV",
-      "id": "04d136e6bcef4de7bb8a515856dd48f6"
+      "id": "dcc40a9a86414ac8814ef59a7e78ab80"
     }
   ],
   "ratelimits": [
     {
       "name": "AI_RATE_LIMITER",
-      "namespace_id": "48117",
+      "namespace_id": "48118",
       "simple": {
         "limit": 5,
         "period": 60
       }
     }
-  ],
-  "triggers": {
-    "crons": ["15 0 * * *"]
-  }
+  ]
 }
