@@ -3067,7 +3067,7 @@ function renderFocusTimer() {
   }
   if (focusTimerPauseButton) focusTimerPauseButton.disabled = focusSession.status !== "running";
   if (focusModeKicker) {
-    focusModeKicker.textContent = focusSession.status === "running" ? "올리와 함께 집중하는 중" : focusSession.status === "paused" ? "잠시 멈췄어요" : focusSession.status === "finished" ? "집중 시간 완료" : "한 가지에 집중할 시간";
+    focusModeKicker.textContent = focusSession.status === "running" ? "올리랑 똑딱, 함께 집중하는 중" : focusSession.status === "paused" ? "올리도 잠깐 숨 고르는 중" : focusSession.status === "finished" ? "올리와 함께한 집중 시간 완료!" : "올리랑 똑딱, 집중할 시간";
   }
   focusMode?.classList.toggle("is-running", focusSession.status === "running");
   focusMode?.classList.toggle("is-paused", focusSession.status === "paused");
@@ -3289,13 +3289,13 @@ function renderFocusTask(dayPlan, selectedCompletion) {
   const suggestedMinutes = getSuggestedFocusMinutes(task);
   if (focusTaskTitle) focusTaskTitle.textContent = task?.text || "오늘 기록 돌아보기";
   const taskPosition = dayPlan.scheduleMode === "priority" ? `${taskIndex + 1}순위` : task?.time || "시간 미정";
-  if (focusTaskMeta) focusTaskMeta.textContent = selectedCompletion.percent === 100 ? "오늘 AI 스케줄을 모두 완료했어요" : `${taskPosition} · 지금 시작하면 좋은 다음 일정`;
+  if (focusTaskMeta) focusTaskMeta.textContent = selectedCompletion.percent === 100 ? "오늘 AI 스케줄을 모두 완료했어요" : `${taskPosition} · 타이머를 켜고 올리와 함께 시작해요`;
   if (minimumGoalText) minimumGoalText.textContent = selectedCompletion.percent === 100 ? "오늘 일정 모두 완료" : `집중 시간 ${suggestedMinutes}분`;
   if (focusProgressText) focusProgressText.textContent = `${selectedCompletion.completed}/${selectedCompletion.total} 완료`;
   if (startFocusButton) {
     startFocusButton.disabled = false;
     startFocusButton.dataset.taskIndex = String(taskIndex);
-    startFocusButton.textContent = selectedCompletion.percent === 100 ? "오늘 일정 다시 보기" : "이 일정 시작하기";
+    startFocusButton.textContent = selectedCompletion.percent === 100 ? "오늘 일정 다시 보기" : "올리랑 시간 재기";
   }
 }
 
