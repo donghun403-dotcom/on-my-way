@@ -1,6 +1,8 @@
 name: PR Preview
 
 on:
+  push:
+    branches: ["codex/**"]
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened]
@@ -15,7 +17,7 @@ permissions:
 
 jobs:
   validate-and-preview:
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 35
 
