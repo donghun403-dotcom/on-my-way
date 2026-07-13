@@ -226,13 +226,16 @@
               <h2 id="selectedScheduleTitle">오늘의 일정</h2>
               <span id="selectedScheduleMeta">순서대로 하나씩 체크해 보세요</span>
             </div>
-            <div class="today-schedule-actions">
-              <div class="schedule-mode-switch" role="group" aria-label="오늘 일정 정렬 방식">
-                <button type="button" class="active" data-schedule-mode="time" aria-pressed="true">시간순</button>
-                <button type="button" data-schedule-mode="priority" aria-pressed="false">우선순위</button>
-              </div>
-              <button class="text-button" id="completeTodayButton" type="button">모두 완료</button>
+            <button class="today-add-button" id="addTodayScheduleButton" type="button" aria-label="오늘에 새 일정 추가">
+              <span aria-hidden="true">＋</span><strong>새 일정 추가</strong>
+            </button>
+          </div>
+          <div class="today-schedule-actions" aria-label="오늘 일정 도구">
+            <div class="schedule-mode-switch" role="group" aria-label="오늘 일정 정렬 방식">
+              <button type="button" class="active" data-schedule-mode="time" aria-pressed="true">시간순</button>
+              <button type="button" data-schedule-mode="priority" aria-pressed="false">우선순위</button>
             </div>
+            <button class="text-button" id="completeTodayButton" type="button">모두 완료</button>
           </div>
           <div class="today-next-action" aria-labelledby="focusTaskTitle">
             <div>
@@ -326,7 +329,6 @@
             <h2 id="dailyCoachTitle">오늘 할 수 있는 한 가지부터 시작해요.</h2>
             <p id="dailyCoachMessage">어제의 기록과 오늘의 스케줄을 살펴보고 올리가 가장 필요한 응원을 전해드려요.</p>
           </div>
-          <button class="today-add-button" id="addTodayScheduleButton" type="button" aria-label="새 일정 추가"><span aria-hidden="true">＋</span><strong>일정 추가</strong></button>
         </section>
       </div>
 

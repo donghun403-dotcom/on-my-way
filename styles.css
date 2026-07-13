@@ -12513,7 +12513,8 @@ body.sheet-open {
 .execution-page .today-goal-progress > strong { color: #65738c; font-size: 10px; white-space: nowrap; }
 
 .execution-page #view-today .today-card { order: 3; padding: 26px; }
-.execution-page .today-schedule-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.execution-page #view-today .today-card > .card-title { align-items: center; }
+.execution-page .today-schedule-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: -2px; flex-wrap: wrap; }
 .execution-page .schedule-mode-switch {
   display: inline-grid;
   grid-template-columns: repeat(2, 1fr);
@@ -12660,27 +12661,31 @@ body.sheet-open {
 
 .execution-page #view-today .coach-card {
   order: 5;
-  grid-template-columns: 86px minmax(0, 1fr) 76px;
+  grid-template-columns: 86px minmax(0, 1fr);
   min-height: 132px;
   padding-right: 22px;
 }
 .execution-page #view-today .coach-card > img { width: 88px; height: 108px; }
 .execution-page .today-add-button {
-  display: grid;
-  width: 66px;
-  height: 66px;
-  padding: 0;
-  place-items: center;
-  align-content: center;
+  display: inline-flex;
+  width: auto;
+  min-height: 38px;
+  padding: 0 13px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
   color: #ffffff;
   background: linear-gradient(145deg, #789f9b, #8993ad);
   border: 0;
-  border-radius: 50%;
-  box-shadow: 0 14px 28px rgba(91, 106, 151, 0.22);
+  border-radius: 12px;
+  box-shadow: 0 9px 20px rgba(91, 106, 151, 0.18);
   cursor: pointer;
+  white-space: nowrap;
 }
-.execution-page .today-add-button span { font-size: 26px; line-height: 0.8; }
-.execution-page .today-add-button strong { margin-top: 4px; font-size: 8px; }
+.execution-page .today-add-button:hover { transform: translateY(-1px); box-shadow: 0 12px 24px rgba(91, 106, 151, 0.22); }
+.execution-page .today-add-button:focus-visible { outline: 2px solid rgba(120, 159, 155, 0.5); outline-offset: 3px; }
+.execution-page .today-add-button span { font-size: 16px; line-height: 1; }
+.execution-page .today-add-button strong { font-size: 9px; }
 
 .execution-page #view-today .trial-reminder-card,
 .execution-page #view-today .personality-nudge-card,
@@ -12716,17 +12721,17 @@ body.sheet-open {
   .execution-page #view-today .today-ollie-stage span { display: none; }
   .execution-page .today-next-action { grid-template-columns: minmax(0, 1fr) auto; }
   .execution-page .today-next-action .focus-task-goal { display: none; }
-  .execution-page #view-today .today-card > .card-title { align-items: stretch; flex-direction: column; gap: 12px; }
+  .execution-page #view-today .today-card > .card-title { align-items: flex-start; flex-direction: row; gap: 10px; }
+  .execution-page #view-today .today-card > .card-title > div { min-width: 0; }
   .execution-page .today-schedule-actions { justify-content: space-between; }
   .execution-page .schedule-mode-switch { flex: 1; }
   .execution-page #view-today .execution-checklist .task-row { grid-template-columns: 60px 8px minmax(0, 1fr) 30px; gap: 8px; padding: 11px 10px; }
   .execution-page #view-today .execution-checklist[data-mode="priority"] .task-row { grid-template-columns: 48px 26px minmax(0, 1fr) 30px; }
   .execution-page #view-today .task-time input { width: 58px; font-size: 10px; }
   .execution-page .task-drag-handle { width: 26px; height: 36px; }
-  .execution-page #view-today .coach-card { grid-template-columns: 70px minmax(0, 1fr) 58px; gap: 10px; padding: 18px 14px; }
+  .execution-page #view-today .coach-card { grid-template-columns: 70px minmax(0, 1fr); gap: 10px; padding: 18px 14px; }
   .execution-page #view-today .coach-card > img { width: 72px; height: 90px; }
-  .execution-page .today-add-button { width: 54px; height: 54px; }
-  .execution-page .today-add-button strong { display: none; }
+  .execution-page .today-add-button { min-height: 36px; padding-inline: 10px; }
   .execution-page .add-schedule-form > div { grid-template-columns: 1fr; }
 }
 
