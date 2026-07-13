@@ -3372,12 +3372,14 @@ function renderChecklist(dayPlan, state) {
       const timeInput = document.createElement("input");
       const timeMatch = String(task.time || "").match(/^(\d{1,2}):(\d{2})$/);
       const validTime = timeMatch ? `${String(Number(timeMatch[1])).padStart(2, "0")}:${timeMatch[2]}` : "";
+      startTime.className = "task-time-value";
+      startTime.textContent = validTime || "시간 설정";
       timeInput.type = "time";
       timeInput.value = validTime;
       timeInput.dataset.taskTime = task._taskKey;
       timeInput.setAttribute("aria-label", `${task.text} 시작 시간`);
       endTime.textContent = validTime ? `${getTaskEndTime(validTime, task.durationMinutes)} 종료` : "시간 미정";
-      time.append(timeInput, endTime);
+      time.append(startTime, endTime, timeInput);
     }
     periodBadge.textContent = `${period.icon} ${period.label}`;
     text.textContent = task.text;

@@ -12575,25 +12575,28 @@ body.sheet-open {
   box-shadow: 0 9px 22px rgba(91, 106, 151, 0.06);
   cursor: default;
 }
-.execution-page #view-today .task-time { display: grid; gap: 3px; align-self: center; text-align: left; }
+.execution-page #view-today .task-time { position: relative; display: grid; gap: 3px; align-self: center; text-align: left; }
 .execution-page #view-today .task-time strong { color: #53617b; font-size: 11px; }
 .execution-page #view-today .task-time small { color: #a0a8b6; font-size: 9px; font-weight: 700; }
 .execution-page #view-today .task-time input {
-  width: 64px;
-  min-width: 0;
-  padding: 3px 2px;
-  color: #53617b;
-  background: transparent;
-  border: 0;
-  border-bottom: 1px dashed rgba(83, 97, 123, 0.28);
-  border-radius: 0;
-  outline: 0;
-  font: inherit;
-  font-size: 11px;
-  font-weight: 900;
+  position: absolute;
+  inset: -5px 0;
+  width: 100%;
+  height: calc(100% + 10px);
+  padding: 0;
+  opacity: 0;
   cursor: pointer;
 }
-.execution-page #view-today .task-time input:focus { border-bottom-color: #789f9b; box-shadow: 0 2px 0 rgba(120, 159, 155, 0.16); }
+.execution-page #view-today .task-time::after {
+  position: absolute;
+  right: 0;
+  bottom: -2px;
+  left: 0;
+  height: 1px;
+  background: rgba(83, 97, 123, 0.18);
+  content: "";
+}
+.execution-page #view-today .task-time:focus-within::after { height: 2px; background: #789f9b; }
 .execution-page #view-today .execution-checklist[data-mode="priority"] .task-row {
   grid-template-columns: 54px 28px minmax(0, 1fr) 34px;
   user-select: none;
@@ -12727,7 +12730,7 @@ body.sheet-open {
   .execution-page .schedule-mode-switch { flex: 1; }
   .execution-page #view-today .execution-checklist .task-row { grid-template-columns: 60px 8px minmax(0, 1fr) 30px; gap: 8px; padding: 11px 10px; }
   .execution-page #view-today .execution-checklist[data-mode="priority"] .task-row { grid-template-columns: 48px 26px minmax(0, 1fr) 30px; }
-  .execution-page #view-today .task-time input { width: 58px; font-size: 10px; }
+  .execution-page #view-today .task-time strong { font-size: 10px; }
   .execution-page .task-drag-handle { width: 26px; height: 36px; }
   .execution-page #view-today .coach-card { grid-template-columns: 70px minmax(0, 1fr); gap: 10px; padding: 18px 14px; }
   .execution-page #view-today .coach-card > img { width: 72px; height: 90px; }
