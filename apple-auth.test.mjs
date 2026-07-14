@@ -42,6 +42,16 @@ async function appleToken(privateKey, overrides = {}) {
   return `${headerPart}.${payloadPart}.${base64url(Buffer.from(signature))}`;
 }
 
+function tamperJwtSignature(token) {
+  const parts = token.split(".");
+  assert.equal(parts.length, 3);
+  const signature = Buffer.from(parts[2], "base64url");
+  assert.ok(signature.length > 0);
+  const tamperedSignature = Buffer.from(signature);
+  tamperedSignature[0] ^= 0x01;
+  return `${parts[0]}.${parts[1]}.${base64url(tamperedSignature)}`;
+}
+
 function memoryStore() {
   const users = new Map();
   const identities = new Map();
@@ -99,7 +109,8 @@ test("Apple identity token은 서명, issuer, audience, 만료, nonce와 subject
     const token = await appleToken(providerKeys.privateKey, overrides);
     await assert.rejects(verifyAppleIdentityToken(token, { clientId: "com.example.web", nonce: options.nonce || "expected-nonce", fetcher }), undefined, name);
   }
-  await assert.rejects(verifyAppleIdentityToken(`${valid.slice(0, -1)}x`, { clientId: "com.example.web", nonce: "expected-nonce", fetcher }));
+  const tampered = tamperJwtSignature(valid);
+  await assert.rejects(verifyAppleIdentityToken(tampered, { clientId: "com.example.web", nonce: "expected-nonce", fetcher }));
 });
 
 test("Apple callback은 최초 이름·private email을 저장하고 이후 누락 시 유지한다", async () => {
