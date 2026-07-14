@@ -113,6 +113,10 @@ test("callback 성공과 실패 query를 안내한 뒤 주소창에서 제거한
 
   await page.goto("/app.html?auth=deletion_pending&provider=google");
   await expect(page.locator(".app-toast")).toContainText("탈퇴 처리 중");
+  await expect(page.locator("#trialPaywall")).toBeHidden();
+  await expect(page.locator("#authSheet")).toBeVisible();
+  await expect(page.locator("#authSheetTitle")).toHaveText("계정 탈퇴 처리 중");
+  await expect(page.locator("#authProviderStatus")).toContainText("삭제가 완료될 때까지 다시 로그인할 수 없습니다");
   await expect(page).not.toHaveURL(/auth=|provider=/);
   diagnostics.expectClean();
 });

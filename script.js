@@ -892,6 +892,7 @@ async function logoutAccount() {
 function handleAuthQueryParams() {
   const params = new URLSearchParams(location.search);
   const authParam = params.get("auth");
+  const deletionPending = authParam === "deletion_pending";
   const redirectToAdmin = params.get("redirect") === "admin";
   const adminDenied = params.get("admin") === "denied";
 
@@ -905,6 +906,13 @@ function handleAuthQueryParams() {
     error: "로그인에 실패했어요. 다시 시도해 주세요.",
   };
   if (authParam && authMessages[authParam]) showToast(authMessages[authParam]);
+  if (deletionPending && !authUiState.user) {
+    setDrawerOpen(false);
+    setSheetOpen(authSheet, accountSheetOverlay, true);
+    if (authSheetTitle) authSheetTitle.textContent = "계정 탈퇴 처리 중";
+    if (authSheetCopy) authSheetCopy.textContent = "삭제가 완료될 때까지 해당 계정으로 다시 로그인할 수 없습니다.";
+    setAuthProviderMessage(authMessages.deletion_pending);
+  }
   if (adminDenied) showToast("관리자 권한이 있는 계정만 접근할 수 있어요.");
   if (redirectToAdmin && authUiState.user?.role === "admin") {
     location.replace("/admin.html");
@@ -954,7 +962,7 @@ async function initAccountExperience() {
   const accountOnlyRoute =
     initialParams.get("redirect") === "admin" ||
     initialParams.get("admin") === "denied" ||
-    ["login", "my"].includes(initialParams.get("auth"));
+    ["login", "my", "deletion_pending"].includes(initialParams.get("auth"));
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), 10_000);
   try {
