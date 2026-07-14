@@ -125,7 +125,7 @@
         <p id="adminPasswordError" role="alert"></p>
       </form>
       <div class="auth-trust-list" aria-label="로그인 안내"><span>결제정보 없음</span><span>24시간 무료 체험</span><span>언제든 PRO 전환</span></div>
-      <p class="auth-sheet-terms">계속하면 <u>서비스 이용약관</u>과 <u>개인정보 처리방침</u>에 동의하게 됩니다.<br />로그인 없이도 1일 무료 체험을 먼저 이용할 수 있어요.</p>
+      <p class="auth-sheet-terms">계속하면 <a href="/terms" target="_blank" rel="noopener">서비스 이용약관</a>과 <a href="/privacy" target="_blank" rel="noopener">개인정보 처리방침</a>에 동의하게 됩니다.<br />로그인 없이도 1일 무료 체험을 먼저 이용할 수 있어요.</p>
     </aside>
 
     <aside class="companion-chat-sheet account-sheet" id="myPageSheet" role="dialog" aria-modal="true" aria-labelledby="myPageTitle" tabindex="-1" hidden>
@@ -158,6 +158,9 @@
         <button type="button" id="myPageCancelPro" hidden>구독 해지</button>
         <button type="button" id="myPageLogout">로그아웃</button>
       </div>
+      <nav class="mypage-legal-links" aria-label="계정 및 법적 문서">
+        <a href="/privacy">개인정보 처리방침</a><a href="/terms">이용약관</a><a href="/support">고객지원</a><a class="danger" href="/delete-account">계정 탈퇴</a>
+      </nav>
       <p class="auth-sheet-terms" id="myPagePaymentNote">PRO는 월 2,900원 정기결제이며, 해지해도 결제한 이용 기간까지 계속 사용할 수 있어요.</p>
     </aside>
 
@@ -775,6 +778,7 @@
       </div>
       <div class="footer-information">
         <p>작은 시작이 오래 이어지도록 돕는 목표 성장 앱</p>
+        <nav class="footer-legal-links" aria-label="법적 문서"><a href="/privacy">개인정보 처리방침</a><a href="/terms">이용약관</a><a href="/support">고객지원</a><a href="/delete-account">계정 탈퇴</a></nav>
         <small>© 2026 Olive&amp;Rich. All rights reserved. On My Way is a service of Olive&amp;Rich.</small>
       </div>
     </footer>

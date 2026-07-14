@@ -816,6 +816,7 @@ function openMyPageSheet() {
 function authRedirectTarget() {
   const params = new URLSearchParams(location.search);
   if (params.get("redirect") === "admin") return "/admin.html";
+  if (params.get("return") === "/delete-account") return "/delete-account";
   return location.pathname || "/app.html";
 }
 

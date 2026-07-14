@@ -1,7 +1,15 @@
 import { createAiGoalPlan } from "./ai-goal-plan.mjs";
 import { createCompanionReply } from "./ai-companion-chat.mjs";
 import { createAiPlanRevision } from "./ai-plan-revision.mjs";
-import { handleAccountApi, parseCookies, createKvStore, currentSessionUser, renewDueSubscriptions } from "./auth-service.mjs";
+import {
+  handleAccountApi,
+  parseCookies,
+  createKvStore,
+  createLegalRetentionStore,
+  currentSessionUser,
+  renewDueSubscriptions,
+  purgeDueAccountDeletions,
+} from "./auth-service.mjs";
 
 function json(body, status = 200) {
   return Response.json(body, {
@@ -119,6 +127,8 @@ async function handleFetch(request, env) {
       readForm: async () => Object.fromEntries((await request.formData()).entries()),
       env,
       store: createKvStore(env.USERS_KV),
+      // 전용 binding이 구성되면 물리적으로 분리하고, 그 전에는 USERS_KV의 legal: namespace로 논리 분리한다.
+      legalStore: createLegalRetentionStore(env.LEGAL_RETENTION_KV || env.USERS_KV),
     };
 
     if (url.pathname === "/admin.html" || url.pathname === "/admin") {
@@ -136,7 +146,7 @@ async function handleFetch(request, env) {
       }
     }
 
-    if (url.pathname.startsWith("/api/auth/") || url.pathname.startsWith("/api/billing/") || url.pathname.startsWith("/api/admin/")) {
+    if (url.pathname.startsWith("/api/auth/") || url.pathname.startsWith("/api/account/") || url.pathname.startsWith("/api/billing/") || url.pathname.startsWith("/api/admin/")) {
       if (!env.USERS_KV && url.pathname !== "/api/auth/providers") return json({ error: "회원 저장소 설정이 필요합니다." }, 503);
       try {
         if (url.pathname === "/api/admin/login" && request.method === "POST" && env.AI_RATE_LIMITER) {
@@ -254,9 +264,17 @@ async function handleFetch(request, env) {
       return json({ error: "요청한 API 경로를 찾을 수 없어요." }, 404);
     }
 
-    if ((request.method === "GET" || request.method === "HEAD") && (url.pathname === "/" || url.pathname === "/app")) {
+    const staticEntries = new Map([
+      ["/", "/index.html"],
+      ["/app", "/app.html"],
+      ["/privacy", "/privacy.html"],
+      ["/terms", "/terms.html"],
+      ["/support", "/support.html"],
+      ["/delete-account", "/delete-account.html"],
+    ]);
+    if ((request.method === "GET" || request.method === "HEAD") && staticEntries.has(url.pathname)) {
       const assetUrl = new URL(request.url);
-      assetUrl.pathname = url.pathname === "/" ? "/index.html" : "/app.html";
+      assetUrl.pathname = staticEntries.get(url.pathname);
       return env.ASSETS.fetch(new Request(assetUrl.toString(), request));
     }
 
@@ -269,8 +287,12 @@ export default {
   },
   async scheduled(_controller, env, ctx) {
     if (!env.USERS_KV) return;
+    const userStore = createKvStore(env.USERS_KV);
     ctx.waitUntil(
-      renewDueSubscriptions({ env, store: createKvStore(env.USERS_KV) }).then((result) => console.log("Subscription renewal completed", result)),
+      Promise.all([
+        renewDueSubscriptions({ env, store: userStore }).then((result) => console.log("Subscription renewal completed", result)),
+        purgeDueAccountDeletions({ store: userStore }).then((result) => console.log("Account deletion purge completed", result)),
+      ]),
     );
   },
 };

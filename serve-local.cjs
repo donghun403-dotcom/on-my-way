@@ -59,12 +59,24 @@ const localUserStore = {
   async listUsers() {
     return Object.values(readDevUsers());
   },
+  async deleteUser(id) {
+    const users = readDevUsers();
+    delete users[id];
+    writeDevUsers(users);
+  },
   async getIdentity(provider, providerUserId) {
     return readDevSettings()[`identity:${provider}:${encodeURIComponent(providerUserId)}`] || null;
   },
   async putIdentity(identity) {
     const settings = readDevSettings();
     settings[`identity:${identity.provider}:${encodeURIComponent(identity.providerUserId)}`] = identity;
+    writeDevSettings(settings);
+  },
+  async deleteIdentitiesByUserId(userId) {
+    const settings = readDevSettings();
+    for (const [key, value] of Object.entries(settings)) {
+      if (key.startsWith("identity:") && value?.userId === userId) delete settings[key];
+    }
     writeDevSettings(settings);
   },
   async getSession(id) {
@@ -78,6 +90,13 @@ const localUserStore = {
   async deleteSession(id) {
     const settings = readDevSettings();
     delete settings[`session:${id}`];
+    writeDevSettings(settings);
+  },
+  async deleteSessionsByUserId(userId) {
+    const settings = readDevSettings();
+    for (const [key, value] of Object.entries(settings)) {
+      if (key.startsWith("session:") && value?.userId === userId) delete settings[key];
+    }
     writeDevSettings(settings);
   },
   async getOAuthTransaction(state) {
@@ -99,6 +118,14 @@ const localUserStore = {
   async putSetting(name, value) {
     const settings = readDevSettings();
     settings[name] = value;
+    writeDevSettings(settings);
+  },
+};
+
+const localLegalStore = {
+  async put(record, retainedUntil) {
+    const settings = readDevSettings();
+    settings[`legal:${record.id}`] = { ...record, retainedUntil };
     writeDevSettings(settings);
   },
 };
@@ -174,7 +201,7 @@ const server = http.createServer(async (request, response) => {
     pathname = "/";
   }
 
-  if (pathname.startsWith("/api/auth/") || pathname.startsWith("/api/billing/") || pathname.startsWith("/api/admin/")) {
+  if (pathname.startsWith("/api/auth/") || pathname.startsWith("/api/account/") || pathname.startsWith("/api/billing/") || pathname.startsWith("/api/admin/")) {
     try {
       const { handleAccountApi, parseCookies } = await authServiceModule;
       const cookies = parseCookies(request.headers.cookie);
@@ -187,6 +214,7 @@ const server = http.createServer(async (request, response) => {
         readForm: () => readFormBody(request, 10000).catch(() => ({})),
         env: localEnv,
         store: localUserStore,
+        legalStore: localLegalStore,
       });
 
       if (!result) {
@@ -320,9 +348,15 @@ const server = http.createServer(async (request, response) => {
     return;
   }
 
-  if (pathname === "/") {
-    pathname = "/index.html";
-  }
+  const staticEntries = {
+    "/": "/index.html",
+    "/app": "/app.html",
+    "/privacy": "/privacy.html",
+    "/terms": "/terms.html",
+    "/support": "/support.html",
+    "/delete-account": "/delete-account.html",
+  };
+  pathname = staticEntries[pathname] || pathname;
 
   const requestedPath = path.resolve(root, decodeURIComponent(pathname).replace(/^\/+/, ""));
   const relativePath = path.relative(root, requestedPath);

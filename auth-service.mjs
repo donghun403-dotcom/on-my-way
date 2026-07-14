@@ -9,6 +9,8 @@ const SESSION_ISSUER = "on-my-way";
 const SESSION_AUDIENCE = "on-my-way-app";
 const OAUTH_TRANSACTION_TTL_MS = 10 * 60 * 1000;
 const TRIAL_DURATION_MS = 24 * 60 * 60 * 1000;
+const ACCOUNT_DELETION_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
+const LEGAL_PAYMENT_RETENTION_MS = 5 * 365 * 24 * 60 * 60 * 1000;
 
 const textEncoder = new TextEncoder();
 
@@ -207,7 +209,7 @@ function safeRedirectPath(value) {
   if (!candidate.startsWith("/") || candidate.startsWith("//")) return "/app.html";
   try {
     const parsed = new URL(candidate, "https://app.invalid");
-    if (!["/", "/app.html", "/admin.html"].includes(parsed.pathname)) return "/app.html";
+    if (!["/", "/app.html", "/admin.html", "/delete-account"].includes(parsed.pathname)) return "/app.html";
     return `${parsed.pathname}${parsed.search}${parsed.hash}`;
   } catch {
     return "/app.html";
@@ -251,6 +253,12 @@ export async function upsertUserFromProfile(userStore, env, provider, profile) {
   const now = Date.now();
   const legacy = existingIdentity ? null : await userStore.getUser(`${provider}:${providerUserId}`);
   const existing = await userStore.getUser(id);
+  if (existing?.status === "deletion_pending") {
+    const error = new Error("탈퇴 처리 중인 계정입니다. 지원팀에 문의해 주세요.");
+    error.status = 409;
+    error.code = "ACCOUNT_DELETION_PENDING";
+    throw error;
+  }
   const isAdminEmail = profile.email && adminEmails(env).includes(profile.email.toLowerCase());
 
   const user = existing || (legacy ? { ...legacy, id } : {
@@ -360,10 +368,10 @@ function addBillingMonth(value) {
   return date.getTime();
 }
 
-async function tossBillingRequest(env, path, { method = "POST", body } = {}) {
+async function tossBillingRequest(env, path, { method = "POST", body, fetcher = fetch } = {}) {
   const config = billingConfig(env);
   if (!config.configured) throw new Error("자동결제 환경 변수가 설정되지 않았습니다.");
-  const response = await fetch(`https://api.tosspayments.com${path}`, {
+  const response = await fetcher(`https://api.tosspayments.com${path}`, {
     method,
     headers: {
       Authorization: `Basic ${btoa(`${config.secretKey}:`)}`,
@@ -703,6 +711,75 @@ export async function handleAccountApi(ctx) {
     return { status: 200, json: { ok: true }, cookies: [cookie(SESSION_COOKIE, "", { maxAgeSeconds: 0, secure: ctx.secure })] };
   }
 
+  if (path === "/api/account/delete" && method === "POST") {
+    const user = await currentSessionUser(ctx);
+    if (!user) return { status: 401, json: { error: "로그인 후 계정을 삭제할 수 있어요." } };
+    if (user.role === "admin" || user.id === "admin:password") {
+      return { status: 403, json: { error: "관리자 계정은 관리자 권한을 해제한 뒤 삭제해 주세요." } };
+    }
+    const body = await ctx.readJson();
+    if (String(body.confirmation || "").trim() !== "계정 삭제") {
+      return { status: 400, json: { error: "확인란에 ‘계정 삭제’를 정확히 입력해 주세요." } };
+    }
+    const userStore = store(ctx);
+    if (typeof userStore.deleteIdentitiesByUserId !== "function" || typeof userStore.deleteSessionsByUserId !== "function") {
+      return { status: 503, json: { error: "계정 삭제 저장소가 준비되지 않았습니다." } };
+    }
+
+    const hasPaymentRecord = Boolean(user.billingKey || user.lastPaymentKey || user.lastOrderId || user.lastPaymentAt);
+    if (hasPaymentRecord && !ctx.legalStore) {
+      return { status: 503, json: { error: "법정 보관 저장소가 준비되지 않아 지금은 탈퇴를 처리할 수 없습니다." } };
+    }
+
+    if (user.billingKey && !billingConfig(ctx.env).configured) {
+      return { status: 503, json: { error: "정기결제 해지 설정을 확인할 수 없어 탈퇴를 중단했습니다. 고객지원에 문의해 주세요." } };
+    }
+    if (user.billingKey) {
+      try {
+        await tossBillingRequest(ctx.env, `/v1/billing/${encodeURIComponent(user.billingKey)}`, {
+          method: "DELETE",
+          fetcher: ctx.fetcher || fetch,
+        });
+      } catch (error) {
+        console.error("Billing cancellation before account deletion failed", { code: error?.code, message: error?.message });
+        return { status: 502, json: { error: "정기결제 해지를 확인하지 못해 탈퇴를 중단했습니다. 잠시 후 다시 시도해 주세요." } };
+      }
+    }
+
+    const now = Date.now();
+    if (hasPaymentRecord) {
+      const retainedUntil = now + LEGAL_PAYMENT_RETENTION_MS;
+      await ctx.legalStore.put({
+        id: `payment_${randomId(28)}`,
+        subjectRef: (await hmacSign(`legal-retention:${user.id}`, String(ctx.env.IDENTITY_SECRET || sessionSecret(ctx.env)))).slice(0, 32),
+        email: user.email || "",
+        recordType: "payment_and_contract",
+        subscriptionStatus: user.subscriptionStatus || null,
+        proSince: user.proSince || null,
+        currentPeriodEnd: user.currentPeriodEnd || null,
+        lastPaymentKey: user.lastPaymentKey || null,
+        lastOrderId: user.lastOrderId || null,
+        lastPaymentAt: user.lastPaymentAt || null,
+        deletionRequestedAt: now,
+        retainedUntil,
+      }, retainedUntil);
+    }
+
+    await userStore.deleteIdentitiesByUserId(user.id);
+    await userStore.deleteSessionsByUserId(user.id);
+    await userStore.putUser({
+      id: user.id,
+      status: "deletion_pending",
+      deletionRequestedAt: now,
+      deletionScheduledAt: now + ACCOUNT_DELETION_GRACE_MS,
+    });
+    return {
+      status: 202,
+      json: { ok: true, deletionScheduledAt: now + ACCOUNT_DELETION_GRACE_MS },
+      cookies: [cookie(SESSION_COOKIE, "", { maxAgeSeconds: 0, secure: ctx.secure })],
+    };
+  }
+
   if (path === "/api/admin/login" && method === "POST") {
     const setting = await adminPasswordSetting(ctx);
     if (!setting && !ctx.env.ADMIN_PASSWORD) return { status: 503, json: { error: "관리자 로그인이 아직 설정되지 않았습니다." } };
@@ -884,6 +961,19 @@ export async function renewDueSubscriptions({ env, store: userStore, now = Date.
   return { processed, renewed, failed };
 }
 
+export async function purgeDueAccountDeletions({ store: userStore, now = Date.now() }) {
+  const users = await userStore.listUsers();
+  let purged = 0;
+  for (const user of users) {
+    if (user.status !== "deletion_pending" || Number(user.deletionScheduledAt || 0) > now) continue;
+    if (typeof userStore.deleteIdentitiesByUserId === "function") await userStore.deleteIdentitiesByUserId(user.id);
+    if (typeof userStore.deleteSessionsByUserId === "function") await userStore.deleteSessionsByUserId(user.id);
+    if (typeof userStore.deleteUser === "function") await userStore.deleteUser(user.id);
+    purged += 1;
+  }
+  return { purged };
+}
+
 export function parseCookies(header) {
   const cookies = {};
   String(header || "")
@@ -918,11 +1008,17 @@ export function createKvStore(kv) {
       async listUsers() {
         return [...memoryUsers.values()];
       },
+      async deleteUser(id) {
+        memoryUsers.delete(id);
+      },
       async getIdentity(provider, providerUserId) {
         return memoryIdentities.get(identityStorageKey(provider, providerUserId)) || null;
       },
       async putIdentity(identity) {
         memoryIdentities.set(identityStorageKey(identity.provider, identity.providerUserId), identity);
+      },
+      async deleteIdentitiesByUserId(userId) {
+        for (const [key, identity] of memoryIdentities) if (identity.userId === userId) memoryIdentities.delete(key);
       },
       async getSession(id) {
         return memorySessions.get(id) || null;
@@ -932,6 +1028,9 @@ export function createKvStore(kv) {
       },
       async deleteSession(id) {
         memorySessions.delete(id);
+      },
+      async deleteSessionsByUserId(userId) {
+        for (const [key, session] of memorySessions) if (session.userId === userId) memorySessions.delete(key);
       },
       async getOAuthTransaction(state) {
         return memoryOAuthTransactions.get(state) || null;
@@ -970,11 +1069,25 @@ export function createKvStore(kv) {
       } while (cursor);
       return users;
     },
+    async deleteUser(id) {
+      await kv.delete(`user:${id}`);
+    },
     async getIdentity(provider, providerUserId) {
       return kv.get(identityStorageKey(provider, providerUserId), "json");
     },
     async putIdentity(identity) {
       await kv.put(identityStorageKey(identity.provider, identity.providerUserId), JSON.stringify(identity));
+    },
+    async deleteIdentitiesByUserId(userId) {
+      let cursor;
+      do {
+        const page = await kv.list({ prefix: "identity:", cursor });
+        for (const key of page.keys) {
+          const identity = await kv.get(key.name, "json");
+          if (identity?.userId === userId) await kv.delete(key.name);
+        }
+        cursor = page.list_complete ? undefined : page.cursor;
+      } while (cursor);
     },
     async getSession(id) {
       return kv.get(`session:${id}`, "json");
@@ -985,6 +1098,17 @@ export function createKvStore(kv) {
     },
     async deleteSession(id) {
       await kv.delete(`session:${id}`);
+    },
+    async deleteSessionsByUserId(userId) {
+      let cursor;
+      do {
+        const page = await kv.list({ prefix: "session:", cursor });
+        for (const key of page.keys) {
+          const session = await kv.get(key.name, "json");
+          if (session?.userId === userId) await kv.delete(key.name);
+        }
+        cursor = page.list_complete ? undefined : page.cursor;
+      } while (cursor);
     },
     async getOAuthTransaction(state) {
       return kv.get(`oauth:${state}`, "json");
@@ -1000,6 +1124,16 @@ export function createKvStore(kv) {
     },
     async putSetting(name, value) {
       await kv.put(`setting:${name}`, JSON.stringify(value));
+    },
+  };
+}
+
+export function createLegalRetentionStore(kv) {
+  if (!kv) return null;
+  return {
+    async put(record, retainedUntil) {
+      const ttl = Math.max(60, Math.ceil((Number(retainedUntil) - Date.now()) / 1000));
+      await kv.put(`legal:${record.id}`, JSON.stringify(record), { expirationTtl: ttl });
     },
   };
 }

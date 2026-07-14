@@ -6,6 +6,7 @@ import {
   handleAccountApi,
   parseCookies,
   renewDueSubscriptions,
+  purgeDueAccountDeletions,
   upsertUserFromProfile,
 } from "./auth-service.mjs";
 import worker, { createGoalPlanForUser } from "./worker.mjs";
@@ -25,11 +26,18 @@ function memoryStore(seed = []) {
     async getUser(id) { return users.get(id) || null; },
     async putUser(user) { users.set(user.id, user); },
     async listUsers() { return [...users.values()]; },
+    async deleteUser(id) { users.delete(id); },
     async getIdentity(provider, providerUserId) { return identities.get(`${provider}:${providerUserId}`) || null; },
     async putIdentity(identity) { identities.set(`${identity.provider}:${identity.providerUserId}`, identity); },
+    async deleteIdentitiesByUserId(userId) {
+      for (const [key, identity] of identities) if (identity.userId === userId) identities.delete(key);
+    },
     async getSession(id) { return sessions.get(id) || null; },
     async putSession(session) { sessions.set(session.id, session); },
     async deleteSession(id) { sessions.delete(id); },
+    async deleteSessionsByUserId(userId) {
+      for (const [key, session] of sessions) if (session.userId === userId) sessions.delete(key);
+    },
     async getOAuthTransaction(state) { return oauth.get(state) || null; },
     async putOAuthTransaction(transaction) { oauth.set(transaction.state, transaction); },
     async deleteOAuthTransaction(state) { oauth.delete(state); },
@@ -41,7 +49,7 @@ function memoryStore(seed = []) {
 const TEST_SECRET = "test-session-secret-that-is-longer-than-32-characters";
 const testEnv = (overrides = {}) => ({ APP_ENV: "test", SESSION_SECRET: TEST_SECRET, ...overrides });
 
-function context({ path, method = "GET", env = {}, store, body = {}, form = {}, cookie = "", fetcher }) {
+function context({ path, method = "GET", env = {}, store, legalStore, body = {}, form = {}, cookie = "", fetcher }) {
   const cookies = parseCookies(cookie);
   return {
     method,
@@ -53,6 +61,7 @@ function context({ path, method = "GET", env = {}, store, body = {}, form = {}, 
     fetcher,
     env,
     store,
+    legalStore,
   };
 }
 
@@ -218,6 +227,10 @@ test("OAuth 시작은 allowlist, redirect allowlist, PKCE와 일회용 transacti
   assert.equal(transaction.redirect, "/app.html");
   assert.ok(transaction.codeVerifier);
   assert.match(result.cookies[0], /HttpOnly/);
+
+  const deleteReturnStore = memoryStore();
+  await handleAccountApi(context({ path: "/api/auth/google/start?redirect=%2Fdelete-account", env, store: deleteReturnStore }));
+  assert.equal([...deleteReturnStore.oauth.values()][0].redirect, "/delete-account");
 });
 
 test("Apple OAuth 시작은 nonce와 form_post를 사용한다", async () => {
@@ -359,6 +372,93 @@ test("해지된 구독은 결제 기간 종료 후 체험 상태로 내려간다
   const result = await renewDueSubscriptions({ env: {}, store });
   assert.equal(result.processed, 1);
   assert.equal(store.users.get(user.id).plan, "trial");
+});
+
+test("계정 탈퇴는 인증과 정확한 확인 문구를 요구한다", async () => {
+  const env = testEnv({ ALLOW_DEV_LOGIN: "true" });
+  const store = memoryStore();
+  const unauthenticated = await handleAccountApi(context({ path: "/api/account/delete", method: "POST", env, store, body: { confirmation: "계정 삭제" } }));
+  assert.equal(unauthenticated.status, 401);
+  const login = await handleAccountApi(context({ path: "/api/auth/dev-login", method: "POST", env, store, body: { provider: "google", name: "회원" } }));
+  const invalid = await handleAccountApi(context({ path: "/api/account/delete", method: "POST", env, store, cookie: login.cookies[0], body: { confirmation: "삭제" } }));
+  assert.equal(invalid.status, 400);
+  assert.equal((await store.getUser(login.json.user.id)).status, "active");
+});
+
+test("무료 회원 탈퇴는 모든 인증 연결과 세션을 제거하고 최소 대기 표식만 남긴다", async () => {
+  const env = testEnv({ ALLOW_DEV_LOGIN: "true" });
+  const store = memoryStore();
+  const login = await handleAccountApi(context({ path: "/api/auth/dev-login", method: "POST", env, store, body: { provider: "google", name: "탈퇴회원", email: "delete@example.com" } }));
+  const result = await handleAccountApi(context({ path: "/api/account/delete", method: "POST", env, store, cookie: login.cookies[0], body: { confirmation: "계정 삭제" } }));
+  assert.equal(result.status, 202);
+  assert.equal(store.sessions.size, 0);
+  assert.equal(store.identities.size, 0);
+  assert.deepEqual(Object.keys(await store.getUser(login.json.user.id)).sort(), ["deletionRequestedAt", "deletionScheduledAt", "id", "status"]);
+  assert.match(result.cookies[0], /Max-Age=0/);
+});
+
+test("결제 회원 탈퇴는 결제를 먼저 해지하고 법정 기록에서 billingKey를 제외한다", async () => {
+  const env = testEnv({ ALLOW_DEV_LOGIN: "true", TOSS_CLIENT_KEY: "test_ck", TOSS_SECRET_KEY: "test_sk" });
+  const store = memoryStore();
+  const retained = [];
+  const legalStore = { async put(record, retainedUntil) { retained.push({ record, retainedUntil }); } };
+  const login = await handleAccountApi(context({ path: "/api/auth/dev-login", method: "POST", env, store, body: { provider: "google", name: "결제회원", email: "paid@example.com" } }));
+  const user = await store.getUser(login.json.user.id);
+  Object.assign(user, { billingKey: "billing-secret", customerKey: "customer-1", subscriptionStatus: "active", lastOrderId: "order-1", lastPaymentKey: "payment-1", lastPaymentAt: 100 });
+  await store.putUser(user);
+  const requests = [];
+  const result = await handleAccountApi(context({
+    path: "/api/account/delete", method: "POST", env, store, legalStore, cookie: login.cookies[0], body: { confirmation: "계정 삭제" },
+    fetcher: async (url, options) => { requests.push({ url, options }); return Response.json({}); },
+  }));
+  assert.equal(result.status, 202);
+  assert.equal(requests[0].options.method, "DELETE");
+  assert.equal(retained.length, 1);
+  assert.equal(retained[0].record.lastOrderId, "order-1");
+  assert.equal("billingKey" in retained[0].record, false);
+});
+
+test("결제 해지 실패 시 회원 정보와 로그인은 유지된다", async () => {
+  const env = testEnv({ ALLOW_DEV_LOGIN: "true", TOSS_CLIENT_KEY: "test_ck", TOSS_SECRET_KEY: "test_sk" });
+  const store = memoryStore();
+  const login = await handleAccountApi(context({ path: "/api/auth/dev-login", method: "POST", env, store, body: { provider: "google", name: "결제회원" } }));
+  const user = await store.getUser(login.json.user.id);
+  Object.assign(user, { billingKey: "billing-secret", customerKey: "customer-1", subscriptionStatus: "active" });
+  await store.putUser(user);
+  const result = await handleAccountApi(context({
+    path: "/api/account/delete", method: "POST", env, store, legalStore: { async put() {} }, cookie: login.cookies[0], body: { confirmation: "계정 삭제" },
+    fetcher: async () => Response.json({ code: "FAIL", message: "failed" }, { status: 500 }),
+  }));
+  assert.equal(result.status, 502);
+  assert.equal((await store.getUser(user.id)).status, "active");
+  assert.equal(store.sessions.size, 1);
+});
+
+test("billingKey가 있는데 결제사 설정이 없으면 탈퇴하지 않는다", async () => {
+  const env = testEnv({ ALLOW_DEV_LOGIN: "true" });
+  const store = memoryStore();
+  const login = await handleAccountApi(context({ path: "/api/auth/dev-login", method: "POST", env, store, body: { provider: "google", name: "설정누락" } }));
+  const user = await store.getUser(login.json.user.id);
+  user.billingKey = "billing-secret";
+  await store.putUser(user);
+  const result = await handleAccountApi(context({
+    path: "/api/account/delete", method: "POST", env, store, legalStore: { async put() {} }, cookie: login.cookies[0], body: { confirmation: "계정 삭제" },
+  }));
+  assert.equal(result.status, 503);
+  assert.equal((await store.getUser(user.id)).status, "active");
+});
+
+test("7일이 지난 삭제 대기 계정은 영구 삭제되고 재로그인으로 복구되지 않는다", async () => {
+  const store = memoryStore();
+  const pending = await upsertUserFromProfile(store, testEnv(), "google", { providerUserId: "pending", name: "복구금지" });
+  await store.putUser({ id: pending.id, status: "deletion_pending", deletionScheduledAt: 100 });
+  await assert.rejects(
+    upsertUserFromProfile(store, testEnv(), "google", { providerUserId: "pending", name: "복구금지" }),
+    (error) => error.code === "ACCOUNT_DELETION_PENDING",
+  );
+  const result = await purgeDueAccountDeletions({ store, now: 101 });
+  assert.equal(result.purged, 1);
+  assert.equal(await store.getUser(pending.id), null);
 });
 
 test("AI endpoints reject unauthenticated requests before invoking providers", async () => {

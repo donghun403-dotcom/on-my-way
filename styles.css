@@ -5596,7 +5596,7 @@ body.sheet-open {
 .admin-password-control button:disabled { opacity: .6; cursor: wait; }
 .admin-password-form > p { min-height: 14px; margin: 0; color: #b35e70; font-size: 9px; font-weight: 750; }
 .execution-page .auth-sheet-terms { margin: 0; padding: 0 28px 22px; color: #929d99; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; font-size: 10px; font-weight: 500; line-height: 1.6; text-align: center; word-break: keep-all; }
-.execution-page .auth-sheet-terms u { color: #667a73; text-underline-offset: 2px; }
+.execution-page .auth-sheet-terms a { color: #667a73; text-underline-offset: 2px; }
 
 /* Account drawer */
 .execution-page .app-menu-backdrop { position: fixed; inset: 0; z-index: 68; background: rgba(31, 44, 51, 0.26); backdrop-filter: blur(5px); }
@@ -5637,6 +5637,9 @@ body.sheet-open {
 .mypage-benefit-list li::before { margin-right: 8px; content: "✓"; color: #719989; font-weight: 900; }
 .mypage-actions { display: flex; justify-content: flex-end; gap: 7px; }
 .mypage-actions button { min-height: 36px; padding: 0 11px; color: #77857f; background: #f3f5f4; border: 0; border-radius: 10px; font-size: 10px; font-weight: 700; cursor: pointer; }
+.mypage-legal-links { display:flex; flex-wrap:wrap; justify-content:center; gap:7px 12px; margin-top:14px; padding-top:12px; border-top:1px solid #edf0ed; }
+.mypage-legal-links a { color:#75847f; font-size:10px; font-weight:700; text-underline-offset:3px; }
+.mypage-legal-links a.danger { color:#a65c5c; }
 .execution-page #myPageSheet .auth-sheet-terms { padding: 14px 4px 0; }
 
 @media (max-width: 480px) {
@@ -7923,6 +7926,9 @@ body.sheet-open {
   }
 
 }
+
+.footer-legal-links { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:7px 14px; }
+.footer-legal-links a { color:#697488; font-size:10px; font-weight:700; text-underline-offset:3px; }
 
 /* First-use trial setup: one decision at a time, with optional detail folded away. */
 .home-page .story-flow:not(.showing-first-step) > .section-heading {
