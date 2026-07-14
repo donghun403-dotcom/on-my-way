@@ -121,6 +121,25 @@ test("callback 성공과 실패 query를 안내한 뒤 주소창에서 제거한
   diagnostics.expectClean();
 });
 
+test("첫 화면에서 연 로그인은 X, 배경, ESC로 취소하면 첫 화면으로 돌아간다", async ({ page }) => {
+  const diagnostics = monitorPage(page);
+  await mockAccountApi(page);
+
+  const cancelLogin = async (cancel) => {
+    await page.goto("/");
+    await page.getByRole("link", { name: "로그인" }).click();
+    await expect(page.locator("#authSheet")).toBeVisible();
+    await cancel();
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.locator("#top")).toBeVisible();
+  };
+
+  await cancelLogin(() => page.locator("#closeAuthSheet").click());
+  await cancelLogin(() => page.locator("#accountSheetOverlay").click({ position: { x: 4, y: 4 } }));
+  await cancelLogin(() => page.keyboard.press("Escape"));
+  diagnostics.expectClean();
+});
+
 test("세션 복원 후 로그아웃하면 회원 UI와 활성 데이터가 초기화된다", async ({ page }) => {
   const diagnostics = monitorPage(page);
   const state = {

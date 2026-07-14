@@ -742,7 +742,7 @@ function renderAccountUi() {
       navLoginLink.href = "app.html?auth=my";
     } else {
       navLoginLink.textContent = "로그인";
-      navLoginLink.href = "app.html?auth=login";
+      navLoginLink.href = "app.html?auth=login&return=%2F";
     }
   }
 
@@ -805,6 +805,15 @@ function openAuthSheet() {
   setDrawerOpen(false);
   setSheetOpen(authSheet, accountSheetOverlay, true);
   loadAuthProviders().catch(() => setAuthProviderMessage("로그인 설정을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요."));
+}
+
+function closeAuthSheet() {
+  const params = new URLSearchParams(location.search);
+  if (params.get("return") === "/") {
+    location.assign("/");
+    return;
+  }
+  setSheetOpen(authSheet, accountSheetOverlay, false);
 }
 
 function openMyPageSheet() {
@@ -996,11 +1005,12 @@ drawerLoginButton?.addEventListener("click", openAuthSheet);
 drawerMyPage?.addEventListener("click", openMyPageSheet);
 drawerUpgrade?.addEventListener("click", startSubscription);
 drawerLogout?.addEventListener("click", logoutAccount);
-closeAuthSheetButton?.addEventListener("click", () => setSheetOpen(authSheet, accountSheetOverlay, false));
+closeAuthSheetButton?.addEventListener("click", closeAuthSheet);
 closeMyPageSheetButton?.addEventListener("click", () => setSheetOpen(myPageSheet, accountSheetOverlay, false));
 accountSheetOverlay?.addEventListener("click", () => {
   const openSheetElement = [authSheet, myPageSheet, personalitySheet].find((sheet) => sheet && sheet.hidden === false);
-  if (openSheetElement) setSheetOpen(openSheetElement, accountSheetOverlay, false);
+  if (openSheetElement === authSheet) closeAuthSheet();
+  else if (openSheetElement) setSheetOpen(openSheetElement, accountSheetOverlay, false);
 });
 myPageSubscribeButton?.addEventListener("click", startSubscription);
 myPageCancelProButton?.addEventListener("click", cancelProSubscription);
@@ -5327,7 +5337,8 @@ recoveryButtons.forEach((button) => {
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && activeSheet) {
     event.preventDefault();
-    setSheetOpen(activeSheet, activeSheetOverlay, false);
+    if (activeSheet === authSheet) closeAuthSheet();
+    else setSheetOpen(activeSheet, activeSheetOverlay, false);
   }
 
   if (event.key !== "Tab" || !activeSheet) return;
