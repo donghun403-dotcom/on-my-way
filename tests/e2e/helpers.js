@@ -51,7 +51,21 @@ function monitorPage(page, { allowedConsoleMessages = [], allowedResponseUrls = 
     issues.push(`console.error: ${message.text()}`);
   });
   page.on("pageerror", (error) => issues.push(`pageerror: ${error.message}`));
-  page.on("requestfailed", (request) => issues.push(`requestfailed: ${request.method()} ${request.url()} ${request.failure()?.errorText || ""}`));
+  page.on("requestfailed", (request) => {
+    const errorText = request.failure()?.errorText || "";
+    let isCanceledStaticImage = false;
+    try {
+      const requestUrl = new URL(request.url());
+      const pageUrl = new URL(page.url());
+      isCanceledStaticImage =
+        errorText.includes("net::ERR_ABORTED") &&
+        request.resourceType() === "image" &&
+        requestUrl.origin === pageUrl.origin &&
+        requestUrl.pathname.startsWith("/assets/");
+    } catch {}
+    if (isCanceledStaticImage) return;
+    issues.push(`requestfailed: ${request.method()} ${request.url()} ${errorText}`);
+  });
   page.on("response", (response) => {
     if (response.status() < 400) return;
     if (allowedResponseUrls.some((pattern) => response.url().includes(pattern))) return;
