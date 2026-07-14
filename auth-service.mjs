@@ -681,6 +681,9 @@ export async function handleAccountApi(ctx) {
         cookies: [await issueSession(ctx, user), clearStateCookie],
       };
     } catch (error) {
+      if (error?.code === "ACCOUNT_DELETION_PENDING") {
+        return { status: 302, redirect: authErrorRedirect("deletion_pending", provider), cookies: [clearStateCookie] };
+      }
       console.error(`${provider} OAuth callback failed`, { name: error?.name, message: error?.message });
       return { status: 302, redirect: authErrorRedirect("callback_error", provider), cookies: [clearStateCookie] };
     }

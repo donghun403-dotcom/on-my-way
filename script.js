@@ -901,6 +901,7 @@ function handleAuthQueryParams() {
     invalid_state: "로그인 확인 시간이 만료되었어요. 다시 시도해 주세요.",
     provider_error: "로그인 제공자에서 요청을 완료하지 못했어요. 다시 시도해 주세요.",
     callback_error: "로그인 정보를 확인하지 못했어요. 다시 시도하거나 다른 방법을 선택해 주세요.",
+    deletion_pending: "탈퇴 처리 중인 계정이에요. 삭제가 완료될 때까지 다시 로그인할 수 없습니다.",
     error: "로그인에 실패했어요. 다시 시도해 주세요.",
   };
   if (authParam && authMessages[authParam]) showToast(authMessages[authParam]);

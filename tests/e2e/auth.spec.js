@@ -110,6 +110,10 @@ test("callback 성공과 실패 query를 안내한 뒤 주소창에서 제거한
   await page.goto("/app.html?auth=success&provider=google");
   await expect(page.locator(".app-toast")).toContainText("로그인되었어요");
   await expect(page).not.toHaveURL(/auth=|provider=/);
+
+  await page.goto("/app.html?auth=deletion_pending&provider=google");
+  await expect(page.locator(".app-toast")).toContainText("탈퇴 처리 중");
+  await expect(page).not.toHaveURL(/auth=|provider=/);
   diagnostics.expectClean();
 });
 

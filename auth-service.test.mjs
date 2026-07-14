@@ -49,11 +49,11 @@ function memoryStore(seed = []) {
 const TEST_SECRET = "test-session-secret-that-is-longer-than-32-characters";
 const testEnv = (overrides = {}) => ({ APP_ENV: "test", SESSION_SECRET: TEST_SECRET, ...overrides });
 
-function context({ path, method = "GET", env = {}, store, legalStore, body = {}, form = {}, cookie = "", fetcher }) {
+function context({ path, method = "GET", env = {}, store, legalStore, body = {}, form = {}, cookie = "", fetcher, origin = "https://example.test" }) {
   const cookies = parseCookies(cookie);
   return {
     method,
-    url: new URL(`https://example.test${path}`),
+    url: new URL(path, `${origin}/`),
     secure: true,
     getCookie: (name) => cookies[name],
     readJson: async () => body,
@@ -207,6 +207,21 @@ test("Provider 목록은 네 로그인을 노출하고 외부 설정 상태만 �
   assert.equal(result.json.providers.every(({ configured }) => configured === false), true);
 });
 
+test("Google provider is configured only when both expected client variables exist", async () => {
+  const configurations = [
+    [{}, false],
+    [{ GOOGLE_CLIENT_ID: "test-google-client-id" }, false],
+    [{ GOOGLE_CLIENT_SECRET: "test-google-client-secret" }, false],
+    [{ GOOGLE_CLIENT_ID: "test-google-client-id", GOOGLE_CLIENT_SECRET: "test-google-client-secret" }, true],
+  ];
+  for (const [overrides, expected] of configurations) {
+    const result = await handleAccountApi(context({ path: "/api/auth/providers", env: testEnv(overrides), store: memoryStore() }));
+    const google = result.json.providers.find(({ id }) => id === "google");
+    assert.equal(google.configured, expected);
+    assert.deepEqual(Object.keys(google).sort(), ["configured", "id", "label"]);
+  }
+});
+
 test("OAuth 시작은 allowlist, redirect allowlist, PKCE와 일회용 transaction을 적용한다", async () => {
   const store = memoryStore();
   const env = testEnv({ GOOGLE_CLIENT_ID: "google-client", GOOGLE_CLIENT_SECRET: "google-secret" });
@@ -231,6 +246,95 @@ test("OAuth 시작은 allowlist, redirect allowlist, PKCE와 일회용 transacti
   const deleteReturnStore = memoryStore();
   await handleAccountApi(context({ path: "/api/auth/google/start?redirect=%2Fdelete-account", env, store: deleteReturnStore }));
   assert.equal([...deleteReturnStore.oauth.values()][0].redirect, "/delete-account");
+});
+
+test("Google OAuth uses the Preview callback, PKCE, secure host-only cookies, and blocks deletion-pending relogin", async () => {
+  const previewOrigin = "https://on-my-way-pr-3.jungslawyer.workers.dev";
+  const expectedCallback = `${previewOrigin}/api/auth/callback/google`;
+  const env = testEnv({
+    GOOGLE_CLIENT_ID: "test-google-client-id",
+    GOOGLE_CLIENT_SECRET: "test-google-client-secret",
+    IDENTITY_SECRET: "test-identity-secret-that-is-longer-than-32-characters",
+  });
+  const store = memoryStore();
+  let expectedCodeVerifier = "";
+
+  const startGoogleLogin = async () => {
+    const start = await handleAccountApi(context({
+      path: "/api/auth/google/start?redirect=%2Fapp.html",
+      env,
+      store,
+      origin: previewOrigin,
+    }));
+    assert.equal(start.status, 302);
+    const authorization = new URL(start.redirect);
+    assert.equal(authorization.origin, "https://accounts.google.com");
+    assert.equal(authorization.searchParams.get("redirect_uri"), expectedCallback);
+    assert.equal(authorization.searchParams.get("scope"), "openid email profile");
+    assert.equal(authorization.searchParams.get("response_type"), "code");
+    assert.equal(authorization.searchParams.get("code_challenge_method"), "S256");
+    assert.ok(authorization.searchParams.get("code_challenge"));
+    assert.equal(authorization.searchParams.has("nonce"), false);
+    assert.match(start.cookies[0], /Path=\//);
+    assert.match(start.cookies[0], /SameSite=Lax/);
+    assert.match(start.cookies[0], /HttpOnly/);
+    assert.match(start.cookies[0], /Secure/);
+    assert.doesNotMatch(start.cookies[0], /Domain=/i);
+    return { authorization, transaction: store.oauth.get(authorization.searchParams.get("state")) };
+  };
+
+  const fetcher = async (url, options = {}) => {
+    if (String(url) === "https://oauth2.googleapis.com/token") {
+      const body = new URLSearchParams(options.body);
+      assert.equal(options.method, "POST");
+      assert.equal(body.get("grant_type"), "authorization_code");
+      assert.equal(body.get("redirect_uri"), expectedCallback);
+      assert.equal(body.get("code_verifier"), expectedCodeVerifier);
+      return Response.json({ access_token: "test-access-token" });
+    }
+    assert.equal(String(url), "https://openidconnect.googleapis.com/v1/userinfo");
+    assert.equal(options.headers.Authorization, "Bearer test-access-token");
+    return Response.json({ sub: "google-preview-subject", name: "Google Preview User", email: "preview@example.com" });
+  };
+
+  const first = await startGoogleLogin();
+  assert.ok(first.transaction);
+  assert.equal(first.transaction.codeVerifier.length, 64);
+  expectedCodeVerifier = first.transaction.codeVerifier;
+  const firstState = first.authorization.searchParams.get("state");
+  const success = await handleAccountApi(context({
+    path: `/api/auth/callback/google?code=test-code&state=${encodeURIComponent(firstState)}`,
+    env,
+    store,
+    cookie: `omw_oauth_state=${firstState}`,
+    fetcher,
+    origin: previewOrigin,
+  }));
+  assert.equal(success.redirect, "/app.html?auth=success");
+  assert.equal(store.oauth.has(firstState), false);
+  assert.equal(store.sessions.size, 1);
+  assert.match(success.cookies[0], /Path=\//);
+  assert.match(success.cookies[0], /SameSite=Lax/);
+  assert.match(success.cookies[0], /HttpOnly/);
+  assert.match(success.cookies[0], /Secure/);
+  assert.doesNotMatch(success.cookies[0], /Domain=/i);
+
+  const createdUser = [...store.users.values()][0];
+  await store.putUser({ id: createdUser.id, status: "deletion_pending", deletionScheduledAt: Date.now() + 86_400_000 });
+  const second = await startGoogleLogin();
+  expectedCodeVerifier = second.transaction.codeVerifier;
+  const secondState = second.authorization.searchParams.get("state");
+  const blocked = await handleAccountApi(context({
+    path: `/api/auth/callback/google?code=test-code&state=${encodeURIComponent(secondState)}`,
+    env,
+    store,
+    cookie: `omw_oauth_state=${secondState}`,
+    fetcher,
+    origin: previewOrigin,
+  }));
+  assert.match(blocked.redirect, /auth=deletion_pending/);
+  assert.equal(store.sessions.size, 1);
+  assert.equal(store.oauth.has(secondState), false);
 });
 
 test("Apple OAuth 시작은 nonce와 form_post를 사용한다", async () => {
