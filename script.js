@@ -229,14 +229,18 @@ function captureAccountStorage() {
 }
 
 function readAccountSnapshot(scope) {
-  try {
-    const current = JSON.parse(localStorage.getItem(accountSnapshotKey(scope)) || "null");
-    if (current && typeof current === "object" && !Array.isArray(current)) return current;
-    const legacy = JSON.parse(localStorage.getItem(`${LEGACY_ACCOUNT_STORAGE_SNAPSHOT_PREFIX}${scope}`) || "null");
-    return legacy && typeof legacy === "object" && !Array.isArray(legacy) ? legacy : {};
-  } catch {
-    return {};
+  for (const key of [accountSnapshotKey(scope), `${LEGACY_ACCOUNT_STORAGE_SNAPSHOT_PREFIX}${scope}`]) {
+    const raw = localStorage.getItem(key);
+    if (raw === null) continue;
+    try {
+      const snapshot = JSON.parse(raw);
+      if (snapshot && typeof snapshot === "object" && !Array.isArray(snapshot)) return snapshot;
+      localStorage.removeItem(key);
+    } catch {
+      localStorage.removeItem(key);
+    }
   }
+  return {};
 }
 
 function restoreAccountSnapshot(snapshot) {

@@ -57,15 +57,15 @@ test("a corrupt account snapshot recovers without a reload loop", async ({ page 
   await mockExternalAssets(page);
   await page.goto("/app.html");
   const result = await page.evaluate(() => {
-    localStorage.setItem("omwAccountStorageScope", "user:account-a");
+    localStorage.setItem("onmyway:active-scope", "user:account-a");
     localStorage.setItem("omwExecutionPlan", JSON.stringify({ goal: "A-only goal" }));
-    localStorage.setItem("omwAccountStorageSnapshot:user:account-b", "{bad-json");
+    localStorage.setItem("onmyway:user:account-b:state", "{bad-json");
     const changed = switchAccountStorageScope("user:account-b");
     return {
       changed,
-      scope: localStorage.getItem("omwAccountStorageScope"),
+      scope: localStorage.getItem("onmyway:active-scope"),
       plan: localStorage.getItem("omwExecutionPlan"),
-      corruptSnapshot: localStorage.getItem("omwAccountStorageSnapshot:user:account-b"),
+      corruptSnapshot: localStorage.getItem("onmyway:user:account-b:state"),
     };
   });
 
