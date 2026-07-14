@@ -13,6 +13,7 @@ test("법적 페이지 네 곳이 공개 경로에서 열리고 서로 연결된
       await page.route("**/api/auth/me", (route) => route.fulfill({ status: 200, contentType: "application/json", body: '{"user":null}' }));
     }
     await page.goto(pathname);
+    await page.waitForLoadState("networkidle");
     await expect(page.getByRole("heading", { level: 1, name: heading })).toBeVisible();
     await expectNoHorizontalOverflow(page);
   }
