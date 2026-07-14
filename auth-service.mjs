@@ -1,10 +1,13 @@
 // On My Way 회원/인증 서비스 코어.
 // Cloudflare Worker(worker.mjs)와 로컬 서버(serve-local.cjs)가 같은 로직을 공유한다.
-// 카카오/네이버/구글 OAuth 키가 설정되면 실제 소셜 로그인으로, 없으면 데모 로그인 페이지로 동작한다.
+// 네 소셜 Provider의 Authorization Code 흐름, 내부 identity, 폐기 가능한 앱 세션을 관리한다.
 
 const SESSION_COOKIE = "omw_session";
 const STATE_COOKIE = "omw_oauth_state";
 const SESSION_DAYS = 30;
+const SESSION_ISSUER = "on-my-way";
+const SESSION_AUDIENCE = "on-my-way-app";
+const OAUTH_TRANSACTION_TTL_MS = 10 * 60 * 1000;
 const TRIAL_DURATION_MS = 24 * 60 * 60 * 1000;
 
 const textEncoder = new TextEncoder();
@@ -33,7 +36,7 @@ async function hmacVerify(payload, signature, secret) {
 }
 
 export async function createSessionToken(payload, secret) {
-  const body = base64UrlEncode(textEncoder.encode(JSON.stringify(payload)));
+  const body = base64UrlEncode(textEncoder.encode(JSON.stringify({ iss: SESSION_ISSUER, aud: SESSION_AUDIENCE, ...payload })));
   const signature = await hmacSign(body, secret);
   return `v1.${body}.${signature}`;
 }
@@ -44,11 +47,31 @@ export async function verifySessionToken(token, secret) {
     if (version !== "v1" || !body || !signature) return null;
     if (!(await hmacVerify(body, signature, secret))) return null;
     const payload = JSON.parse(new TextDecoder().decode(base64UrlDecode(body)));
-    if (!payload?.uid || Number(payload.exp || 0) < Date.now()) return null;
+    if (!payload?.sid || !payload.sub || payload.iss !== SESSION_ISSUER || payload.aud !== SESSION_AUDIENCE || Number(payload.exp || 0) < Date.now()) return null;
     return payload;
   } catch {
     return null;
   }
+}
+
+async function sha256Base64Url(value) {
+  return base64UrlEncode(new Uint8Array(await crypto.subtle.digest("SHA-256", textEncoder.encode(String(value)))));
+}
+
+function decodeJwtPart(value) {
+  return JSON.parse(new TextDecoder().decode(base64UrlDecode(value)));
+}
+
+function parseJwt(value) {
+  const [headerPart, payloadPart, signaturePart] = String(value || "").split(".");
+  if (!headerPart || !payloadPart || !signaturePart) throw new Error("잘못된 identity token입니다.");
+  return {
+    headerPart,
+    payloadPart,
+    signaturePart,
+    header: decodeJwtPart(headerPart),
+    payload: decodeJwtPart(payloadPart),
+  };
 }
 
 function randomId(length = 24) {
@@ -132,12 +155,25 @@ const PROVIDERS = {
       };
     },
   },
+  apple: {
+    label: "Apple",
+    authorizeUrl: "https://appleid.apple.com/auth/authorize",
+    tokenUrl: "https://appleid.apple.com/auth/token",
+    scope: "name email",
+  },
 };
 
 function providerConfig(env, provider) {
   const upper = provider.toUpperCase();
-  const clientId = env[`${upper}_CLIENT_ID`] || "";
-  const clientSecret = env[`${upper}_CLIENT_SECRET`] || "";
+  const clientId = String(env[`${upper}_CLIENT_ID`] || "");
+  const clientSecret = String(env[`${upper}_CLIENT_SECRET`] || "");
+  if (provider === "kakao") return { clientId, clientSecret, configured: Boolean(clientId) };
+  if (provider === "apple") {
+    const teamId = String(env.APPLE_TEAM_ID || "");
+    const keyId = String(env.APPLE_KEY_ID || "");
+    const privateKey = String(env.APPLE_PRIVATE_KEY || "");
+    return { clientId, clientSecret: "", teamId, keyId, privateKey, configured: Boolean(clientId && teamId && keyId && privateKey) };
+  }
   return { clientId, clientSecret, configured: Boolean(clientId && clientSecret) };
 }
 
@@ -167,9 +203,15 @@ function cookie(name, value, { maxAgeSeconds, path = "/", httpOnly = true, secur
 }
 
 function safeRedirectPath(value) {
-  const path = String(value || "/app.html");
-  if (!path.startsWith("/") || path.startsWith("//")) return "/app.html";
-  return path;
+  const candidate = String(value || "/app.html");
+  if (!candidate.startsWith("/") || candidate.startsWith("//")) return "/app.html";
+  try {
+    const parsed = new URL(candidate, "https://app.invalid");
+    if (!["/", "/app.html", "/admin.html"].includes(parsed.pathname)) return "/app.html";
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return "/app.html";
+  }
 }
 
 function publicUser(user) {
@@ -193,22 +235,35 @@ function publicUser(user) {
   };
 }
 
-async function upsertUserFromProfile(store, env, provider, profile) {
-  const id = `${provider}:${profile.providerUserId}`;
+async function internalUserId(env, provider, providerUserId) {
+  const digest = await hmacSign(`${provider}:${providerUserId}`, String(env.IDENTITY_SECRET || sessionSecret(env)));
+  return `usr_${digest.slice(0, 32)}`;
+}
+
+export async function upsertUserFromProfile(userStore, env, provider, profile) {
+  const providerUserId = String(profile.providerUserId || "").trim();
+  if (!PROVIDERS[provider] || !providerUserId || providerUserId === "undefined" || providerUserId === "null") {
+    throw new Error("Provider 사용자 식별자를 확인하지 못했습니다.");
+  }
+
+  const existingIdentity = typeof userStore.getIdentity === "function" ? await userStore.getIdentity(provider, providerUserId) : null;
+  const id = existingIdentity?.userId || (await internalUserId(env, provider, providerUserId));
   const now = Date.now();
-  const existing = await store.getUser(id);
+  const legacy = existingIdentity ? null : await userStore.getUser(`${provider}:${providerUserId}`);
+  const existing = await userStore.getUser(id);
   const isAdminEmail = profile.email && adminEmails(env).includes(profile.email.toLowerCase());
 
-  const user = existing || {
+  const user = existing || (legacy ? { ...legacy, id } : {
     id,
     provider,
+    status: "active",
     role: isAdminEmail ? "admin" : "member",
     roleSource: isAdminEmail ? "admin_email" : "default",
     plan: "trial",
     trialStartedAt: now,
     trialExpiresAt: now + TRIAL_DURATION_MS,
     createdAt: now,
-  };
+  });
 
   user.name = profile.name || user.name || "회원";
   user.email = profile.email || user.email || "";
@@ -222,13 +277,33 @@ async function upsertUserFromProfile(store, env, provider, profile) {
     user.roleSource = "default";
   }
 
-  await store.putUser(user);
+  user.updatedAt = now;
+  await userStore.putUser(user);
+  if (typeof userStore.putIdentity === "function") {
+    await userStore.putIdentity({
+      id: `${provider}:${providerUserId}`,
+      userId: id,
+      provider,
+      providerUserId,
+      providerEmail: profile.email || "",
+      displayName: profile.name || "",
+      profileImageUrl: profile.avatar || "",
+      createdAt: existingIdentity?.createdAt || now,
+      updatedAt: now,
+    });
+  }
   return user;
 }
 
 async function issueSession(ctx, user) {
+  const sessionId = randomId(40);
+  const now = Date.now();
+  const expiresAt = now + SESSION_DAYS * 24 * 60 * 60 * 1000;
+  if (typeof store(ctx).putSession === "function") {
+    await store(ctx).putSession({ id: sessionId, userId: user.id, createdAt: now, expiresAt, revokedAt: null });
+  }
   const token = await createSessionToken(
-    { uid: user.id, role: user.role || "member", exp: Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000 },
+    { sid: sessionId, sub: user.id, role: user.role || "member", iat: now, exp: expiresAt },
     sessionSecret(ctx.env),
   );
   return cookie(SESSION_COOKIE, token, { maxAgeSeconds: SESSION_DAYS * 24 * 60 * 60, secure: ctx.secure });
@@ -240,12 +315,24 @@ export async function currentSessionUser(ctx) {
   const payload = await verifySessionToken(token, sessionSecret(ctx.env));
   if (!payload) return null;
 
-  if (payload.uid === "admin:password") {
+  if (payload.sid && typeof store(ctx).getSession === "function") {
+    const session = await store(ctx).getSession(payload.sid);
+    if (!session || session.revokedAt || session.userId !== payload.sub || Number(session.expiresAt || 0) < Date.now()) return null;
+  }
+
+  if (payload.sub === "admin:password") {
     return { id: "admin:password", provider: "password", name: "관리자", email: "", role: "admin", plan: "pro", createdAt: 0, lastLoginAt: Date.now() };
   }
 
-  const user = await store(ctx).getUser(payload.uid);
-  return user || null;
+  const user = await store(ctx).getUser(payload.sub);
+  return user && (user.status || "active") === "active" ? user : null;
+}
+
+async function revokeCurrentSession(ctx) {
+  const token = ctx.getCookie(SESSION_COOKIE);
+  if (!token) return;
+  const payload = await verifySessionToken(token, sessionSecret(ctx.env));
+  if (payload?.sid && typeof store(ctx).deleteSession === "function") await store(ctx).deleteSession(payload.sid);
 }
 
 function store(ctx) {
@@ -253,7 +340,8 @@ function store(ctx) {
 }
 
 function devLoginAllowed(env) {
-  return String(env.ALLOW_DEV_LOGIN || "").toLowerCase() === "true";
+  const environment = String(env.APP_ENV || "production").toLowerCase();
+  return ["local", "test"].includes(environment) && String(env.ALLOW_DEV_LOGIN || "").toLowerCase() === "true";
 }
 
 function demoBillingAllowed(env) {
@@ -360,30 +448,123 @@ document.querySelector('#devLoginForm').addEventListener('submit', async (event)
 </script></body></html>`;
 }
 
-async function exchangeOAuthCode(env, provider, code, redirectUri, state) {
+function pemToBytes(value) {
+  const base64 = String(value || "")
+    .replace(/-----BEGIN PRIVATE KEY-----/g, "")
+    .replace(/-----END PRIVATE KEY-----/g, "")
+    .replace(/\s+/g, "");
+  if (!base64) throw new Error("Apple private key 설정이 필요합니다.");
+  const binary = atob(base64);
+  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+}
+
+async function createAppleClientSecret(config, now = Date.now()) {
+  const issuedAt = Math.floor(now / 1000);
+  const headerPart = base64UrlEncode(textEncoder.encode(JSON.stringify({ alg: "ES256", kid: config.keyId, typ: "JWT" })));
+  const payloadPart = base64UrlEncode(textEncoder.encode(JSON.stringify({
+    iss: config.teamId,
+    iat: issuedAt,
+    exp: issuedAt + 5 * 60,
+    aud: "https://appleid.apple.com",
+    sub: config.clientId,
+  })));
+  const privateKey = await crypto.subtle.importKey(
+    "pkcs8",
+    pemToBytes(config.privateKey),
+    { name: "ECDSA", namedCurve: "P-256" },
+    false,
+    ["sign"],
+  );
+  const signature = await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, privateKey, textEncoder.encode(`${headerPart}.${payloadPart}`));
+  return `${headerPart}.${payloadPart}.${base64UrlEncode(new Uint8Array(signature))}`;
+}
+
+export async function verifyAppleIdentityToken(idToken, { clientId, nonce, fetcher = fetch, now = Date.now() }) {
+  const parsed = parseJwt(idToken);
+  if (parsed.header.alg !== "RS256" || !parsed.header.kid) throw new Error("Apple identity token header가 올바르지 않습니다.");
+  const response = await fetcher("https://appleid.apple.com/auth/keys", { headers: { Accept: "application/json" } });
+  if (!response.ok) throw new Error("Apple 공개키를 가져오지 못했습니다.");
+  const jwks = await response.json();
+  const jwk = Array.isArray(jwks.keys) ? jwks.keys.find((candidate) => candidate.kid === parsed.header.kid && candidate.kty === "RSA") : null;
+  if (!jwk) throw new Error("Apple identity token 공개키를 찾지 못했습니다.");
+  const publicKey = await crypto.subtle.importKey("jwk", jwk, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["verify"]);
+  const validSignature = await crypto.subtle.verify(
+    "RSASSA-PKCS1-v1_5",
+    publicKey,
+    base64UrlDecode(parsed.signaturePart),
+    textEncoder.encode(`${parsed.headerPart}.${parsed.payloadPart}`),
+  );
+  const audience = Array.isArray(parsed.payload.aud) ? parsed.payload.aud : [parsed.payload.aud];
+  if (!validSignature) throw new Error("Apple identity token 서명이 올바르지 않습니다.");
+  if (parsed.payload.iss !== "https://appleid.apple.com") throw new Error("Apple identity token issuer가 올바르지 않습니다.");
+  if (!audience.includes(clientId)) throw new Error("Apple identity token audience가 올바르지 않습니다.");
+  if (Number(parsed.payload.exp || 0) * 1000 < now) throw new Error("Apple identity token이 만료되었습니다.");
+  if (!nonce || parsed.payload.nonce !== nonce) throw new Error("Apple identity token nonce가 올바르지 않습니다.");
+  if (!parsed.payload.sub) throw new Error("Apple 사용자 식별자가 없습니다.");
+  return parsed.payload;
+}
+
+async function exchangeOAuthCode(env, provider, code, redirectUri, transaction, firstPartyProfile = {}, fetcher = fetch) {
   const meta = PROVIDERS[provider];
-  const { clientId, clientSecret } = providerConfig(env, provider);
+  const config = providerConfig(env, provider);
+  const { clientId, clientSecret } = config;
   const params = new URLSearchParams({
     grant_type: "authorization_code",
     client_id: clientId,
-    client_secret: clientSecret,
     redirect_uri: redirectUri,
     code,
   });
-  if (provider === "naver") params.set("state", state);
-  const tokenResponse = await fetch(meta.tokenUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: params.toString(),
-  });
-  const tokenData = await tokenResponse.json();
-  if (!tokenData.access_token) throw new Error(`${meta.label} 토큰 발급에 실패했어요.`);
+  if (provider === "apple") params.set("client_secret", await createAppleClientSecret(config));
+  else if (clientSecret) params.set("client_secret", clientSecret);
+  if (provider === "naver") params.set("state", transaction.state);
+  if (transaction.codeVerifier) params.set("code_verifier", transaction.codeVerifier);
 
-  const profileResponse = await fetch(meta.profileUrl, {
+  let tokenUrl = meta.tokenUrl;
+  let tokenOptions = { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: params.toString() };
+  if (provider === "naver") {
+    tokenUrl = `${meta.tokenUrl}?${params}`;
+    tokenOptions = { method: "GET", headers: { Accept: "application/json" } };
+  }
+  const tokenResponse = await fetcher(tokenUrl, tokenOptions);
+  const tokenData = await tokenResponse.json().catch(() => ({}));
+  if (!tokenResponse.ok || (!tokenData.access_token && !tokenData.id_token)) throw new Error(`${meta.label} 토큰 발급에 실패했어요.`);
+
+  if (provider === "apple") {
+    const claims = await verifyAppleIdentityToken(tokenData.id_token, { clientId, nonce: transaction.nonce, fetcher });
+    return {
+      providerUserId: String(claims.sub),
+      name: firstPartyProfile.name || "",
+      email: claims.email || firstPartyProfile.email || "",
+      avatar: "",
+    };
+  }
+
+  const profileResponse = await fetcher(meta.profileUrl, {
     headers: { Authorization: `Bearer ${tokenData.access_token}` },
   });
-  const profileData = await profileResponse.json();
+  const profileData = await profileResponse.json().catch(() => ({}));
+  if (!profileResponse.ok) throw new Error(`${meta.label} 프로필을 가져오지 못했어요.`);
   return meta.normalizeProfile(profileData);
+}
+
+function authErrorRedirect(code, provider = "") {
+  const params = new URLSearchParams({ auth: code });
+  if (provider) params.set("provider", provider);
+  return `/app.html?${params}`;
+}
+
+async function readOAuthCallback(ctx, provider) {
+  if (provider === "apple" && ctx.method === "POST" && typeof ctx.readForm === "function") return ctx.readForm();
+  return Object.fromEntries(ctx.url.searchParams.entries());
+}
+
+async function consumeOAuthTransaction(ctx, provider, state) {
+  if (!state || state !== (ctx.getCookie(STATE_COOKIE) || "")) return null;
+  if (typeof store(ctx).getOAuthTransaction !== "function") return null;
+  const transaction = await store(ctx).getOAuthTransaction(state);
+  if (!transaction || transaction.provider !== provider || Number(transaction.expiresAt || 0) < Date.now() || transaction.usedAt) return null;
+  if (typeof store(ctx).deleteOAuthTransaction === "function") await store(ctx).deleteOAuthTransaction(state);
+  return transaction;
 }
 
 // ctx: {
@@ -408,8 +589,9 @@ export async function handleAccountApi(ctx) {
     };
   }
 
-  if (path === "/api/auth/start" && method === "GET") {
-    const provider = String(url.searchParams.get("provider") || "");
+  const providerStartMatch = path.match(/^\/api\/auth\/(kakao|naver|google|apple)\/start$/);
+  if ((path === "/api/auth/start" || providerStartMatch) && method === "GET") {
+    const provider = providerStartMatch?.[1] || String(url.searchParams.get("provider") || "");
     const redirect = safeRedirectPath(url.searchParams.get("redirect"));
     if (!PROVIDERS[provider]) return { status: 400, json: { error: "지원하지 않는 로그인 방식이에요." } };
 
@@ -419,7 +601,20 @@ export async function handleAccountApi(ctx) {
       return { status: 200, html: devLoginPage(provider, redirect) };
     }
 
-    const state = `${randomId(20)}.${base64UrlEncode(textEncoder.encode(redirect))}`;
+    const state = randomId(40);
+    const codeVerifier = provider === "google" ? randomId(64) : "";
+    const nonce = provider === "apple" ? randomId(40) : "";
+    const transaction = {
+      state,
+      provider,
+      redirect,
+      codeVerifier,
+      nonce,
+      createdAt: Date.now(),
+      expiresAt: Date.now() + OAUTH_TRANSACTION_TTL_MS,
+    };
+    if (typeof store(ctx).putOAuthTransaction !== "function") return { status: 503, json: { error: "로그인 상태 저장소가 아직 준비되지 않았습니다." } };
+    await store(ctx).putOAuthTransaction(transaction);
     const redirectUri = `${url.origin}/api/auth/callback/${provider}`;
     const authorize = new URL(PROVIDERS[provider].authorizeUrl);
     authorize.searchParams.set("client_id", config.clientId);
@@ -427,6 +622,12 @@ export async function handleAccountApi(ctx) {
     authorize.searchParams.set("response_type", "code");
     authorize.searchParams.set("state", state);
     if (PROVIDERS[provider].scope) authorize.searchParams.set("scope", PROVIDERS[provider].scope);
+    if (codeVerifier) {
+      authorize.searchParams.set("code_challenge", await sha256Base64Url(codeVerifier));
+      authorize.searchParams.set("code_challenge_method", "S256");
+    }
+    if (nonce) authorize.searchParams.set("nonce", nonce);
+    if (provider === "apple") authorize.searchParams.set("response_mode", "form_post");
 
     return {
       status: 302,
@@ -435,35 +636,45 @@ export async function handleAccountApi(ctx) {
     };
   }
 
-  const callbackMatch = path.match(/^\/api\/auth\/callback\/(kakao|naver|google)$/);
-  if (callbackMatch && method === "GET") {
+  const callbackMatch = path.match(/^\/api\/auth\/callback\/(kakao|naver|google|apple)$/);
+  if (callbackMatch && (method === "GET" || (callbackMatch[1] === "apple" && method === "POST"))) {
     const provider = callbackMatch[1];
-    const code = url.searchParams.get("code") || "";
-    const state = url.searchParams.get("state") || "";
-    const savedState = ctx.getCookie(STATE_COOKIE) || "";
-    if (!code || !state || state !== savedState) {
-      return { status: 302, redirect: "/app.html?auth=error", cookies: [cookie(STATE_COOKIE, "", { maxAgeSeconds: 0, secure: ctx.secure })] };
+    const callback = await readOAuthCallback(ctx, provider);
+    const code = String(callback.code || "");
+    const state = String(callback.state || "");
+    const clearStateCookie = cookie(STATE_COOKIE, "", { maxAgeSeconds: 0, secure: ctx.secure });
+    if (callback.error) {
+      return { status: 302, redirect: authErrorRedirect(callback.error === "user_cancelled_authorize" ? "cancelled" : "provider_error", provider), cookies: [clearStateCookie] };
+    }
+    const transaction = await consumeOAuthTransaction(ctx, provider, state);
+    if (!code || !transaction) {
+      return { status: 302, redirect: authErrorRedirect("invalid_state", provider), cookies: [clearStateCookie] };
     }
 
-    let redirect = "/app.html";
-    try {
-      redirect = safeRedirectPath(new TextDecoder().decode(base64UrlDecode(state.split(".")[1] || "")));
-    } catch {
-      redirect = "/app.html";
+    const redirect = safeRedirectPath(transaction.redirect);
+    let firstPartyProfile = {};
+    if (provider === "apple" && callback.user) {
+      try {
+        const appleUser = JSON.parse(String(callback.user));
+        firstPartyProfile = {
+          name: [appleUser.name?.firstName, appleUser.name?.lastName].filter(Boolean).join(" ").trim(),
+          email: String(appleUser.email || ""),
+        };
+      } catch {}
     }
 
     try {
       const redirectUri = `${url.origin}/api/auth/callback/${provider}`;
-      const profile = await exchangeOAuthCode(ctx.env, provider, code, redirectUri, state);
+      const profile = await exchangeOAuthCode(ctx.env, provider, code, redirectUri, transaction, firstPartyProfile, ctx.fetcher || fetch);
       const user = await upsertUserFromProfile(store(ctx), ctx.env, provider, profile);
       return {
         status: 302,
         redirect: `${redirect}${redirect.includes("?") ? "&" : "?"}auth=success`,
-        cookies: [await issueSession(ctx, user), cookie(STATE_COOKIE, "", { maxAgeSeconds: 0, secure: ctx.secure })],
+        cookies: [await issueSession(ctx, user), clearStateCookie],
       };
     } catch (error) {
-      console.error(`${provider} OAuth callback failed`, error);
-      return { status: 302, redirect: "/app.html?auth=error", cookies: [cookie(STATE_COOKIE, "", { maxAgeSeconds: 0, secure: ctx.secure })] };
+      console.error(`${provider} OAuth callback failed`, { name: error?.name, message: error?.message });
+      return { status: 302, redirect: authErrorRedirect("callback_error", provider), cookies: [clearStateCookie] };
     }
   }
 
@@ -482,12 +693,13 @@ export async function handleAccountApi(ctx) {
     return { status: 200, json: { user: publicUser(user) }, cookies: [await issueSession(ctx, user)] };
   }
 
-  if (path === "/api/auth/me" && method === "GET") {
+  if ((path === "/api/auth/me" || path === "/api/auth/session") && method === "GET") {
     const user = await currentSessionUser(ctx);
     return { status: 200, json: { user: publicUser(user) } };
   }
 
   if (path === "/api/auth/logout" && method === "POST") {
+    await revokeCurrentSession(ctx);
     return { status: 200, json: { ok: true }, cookies: [cookie(SESSION_COOKIE, "", { maxAgeSeconds: 0, secure: ctx.secure })] };
   }
 
@@ -686,6 +898,13 @@ export function parseCookies(header) {
 // Cloudflare KV 저장소 (없으면 인메모리 폴백 — 배포 전 KV 바인딩 권장)
 const memoryUsers = new Map();
 const memorySettings = new Map();
+const memoryIdentities = new Map();
+const memorySessions = new Map();
+const memoryOAuthTransactions = new Map();
+
+function identityStorageKey(provider, providerUserId) {
+  return `identity:${provider}:${encodeURIComponent(providerUserId)}`;
+}
 
 export function createKvStore(kv) {
   if (!kv) {
@@ -698,6 +917,30 @@ export function createKvStore(kv) {
       },
       async listUsers() {
         return [...memoryUsers.values()];
+      },
+      async getIdentity(provider, providerUserId) {
+        return memoryIdentities.get(identityStorageKey(provider, providerUserId)) || null;
+      },
+      async putIdentity(identity) {
+        memoryIdentities.set(identityStorageKey(identity.provider, identity.providerUserId), identity);
+      },
+      async getSession(id) {
+        return memorySessions.get(id) || null;
+      },
+      async putSession(session) {
+        memorySessions.set(session.id, session);
+      },
+      async deleteSession(id) {
+        memorySessions.delete(id);
+      },
+      async getOAuthTransaction(state) {
+        return memoryOAuthTransactions.get(state) || null;
+      },
+      async putOAuthTransaction(transaction) {
+        memoryOAuthTransactions.set(transaction.state, transaction);
+      },
+      async deleteOAuthTransaction(state) {
+        memoryOAuthTransactions.delete(state);
       },
       async getSetting(name) {
         return memorySettings.get(name) || null;
@@ -726,6 +969,31 @@ export function createKvStore(kv) {
         cursor = page.list_complete ? undefined : page.cursor;
       } while (cursor);
       return users;
+    },
+    async getIdentity(provider, providerUserId) {
+      return kv.get(identityStorageKey(provider, providerUserId), "json");
+    },
+    async putIdentity(identity) {
+      await kv.put(identityStorageKey(identity.provider, identity.providerUserId), JSON.stringify(identity));
+    },
+    async getSession(id) {
+      return kv.get(`session:${id}`, "json");
+    },
+    async putSession(session) {
+      const ttl = Math.max(60, Math.ceil((Number(session.expiresAt) - Date.now()) / 1000));
+      await kv.put(`session:${session.id}`, JSON.stringify(session), { expirationTtl: ttl });
+    },
+    async deleteSession(id) {
+      await kv.delete(`session:${id}`);
+    },
+    async getOAuthTransaction(state) {
+      return kv.get(`oauth:${state}`, "json");
+    },
+    async putOAuthTransaction(transaction) {
+      await kv.put(`oauth:${transaction.state}`, JSON.stringify(transaction), { expirationTtl: 600 });
+    },
+    async deleteOAuthTransaction(state) {
+      await kv.delete(`oauth:${state}`);
     },
     async getSetting(name) {
       return kv.get(`setting:${name}`, "json");

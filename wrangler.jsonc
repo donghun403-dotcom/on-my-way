@@ -11,7 +11,10 @@
     "html_handling": "none"
   },
   "vars": {
-    "OPENAI_MODEL": "gpt-5.4-mini"
+    "OPENAI_MODEL": "gpt-5.4-mini",
+    "APP_ENV": "production",
+    "ALLOW_DEV_LOGIN": "false",
+    "ALLOW_DEMO_BILLING": "false"
   },
   "kv_namespaces": [
     {

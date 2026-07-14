@@ -103,7 +103,9 @@ async function handleFetch(request, env) {
 
     if (url.pathname.startsWith("/api/")) {
       const origin = request.headers.get("origin");
-      if (origin && origin !== url.origin) return json({ error: "허용되지 않은 요청 출처입니다." }, 403);
+      const isAppleCallback = url.pathname === "/api/auth/callback/apple" && request.method === "POST";
+      const trustedApplePost = isAppleCallback && origin === "https://appleid.apple.com";
+      if (origin && origin !== url.origin && !trustedApplePost) return json({ error: "허용되지 않은 요청 출처입니다." }, 403);
       if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: { Allow: "GET, POST, OPTIONS" } });
     }
 
@@ -114,6 +116,7 @@ async function handleFetch(request, env) {
       secure: url.protocol === "https:",
       getCookie: (name) => cookies[name],
       readJson: () => request.json().catch(() => ({})),
+      readForm: async () => Object.fromEntries((await request.formData()).entries()),
       env,
       store: createKvStore(env.USERS_KV),
     };
