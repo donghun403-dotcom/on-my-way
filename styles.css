@@ -5564,6 +5564,8 @@ body.sheet-open {
 }
 .auth-provider:hover { transform: translateY(-1px); filter: brightness(0.985); }
 .auth-provider:active { transform: translateY(0) scale(0.992); }
+.auth-provider:disabled { cursor: not-allowed; filter: grayscale(.15); opacity: .58; transform: none; }
+.auth-provider.is-loading .provider-arrow { width: 16px; height: 16px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; font-size: 0; opacity: .55; animation: auth-spin .7s linear infinite; }
 .auth-provider .provider-mark { display: grid; width: 24px; height: 24px; place-items: center; justify-self: start; }
 .auth-provider .provider-mark svg { display: block; width: 22px; height: 22px; }
 .auth-provider .provider-arrow { justify-self: end; font-family: Arial, sans-serif; font-size: 24px; font-weight: 400; line-height: 1; opacity: 0.48; }
@@ -5573,6 +5575,10 @@ body.sheet-open {
 .auth-provider .naver-mark { color: #fff; font-family: Arial, sans-serif; font-size: 18px; font-weight: 900; letter-spacing: -0.12em; }
 .auth-provider.google { color: #1f1f1f; background: #fff; border: 1px solid #747775; box-shadow: 0 6px 14px rgba(60, 64, 67, 0.08); }
 .auth-provider.google { font-family: "Google Sans", Roboto, Arial, sans-serif; font-weight: 500; }
+.auth-provider.apple { color: #fff; background: #000; border: 1px solid #000; box-shadow: 0 6px 14px rgba(0, 0, 0, 0.12); }
+.auth-provider.apple svg { fill: currentColor; }
+.auth-provider-status { min-height: 18px; margin: 0; padding: 0 24px 8px; color: #9a4f5b; font-size: 11px; font-weight: 700; line-height: 1.45; text-align: center; }
+@keyframes auth-spin { to { transform: rotate(360deg); } }
 
 .auth-trust-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; padding: 4px 24px 12px; }
 .auth-trust-list span { display: inline-flex; align-items: center; gap: 4px; padding: 6px 9px; color: #71847d; background: #f0f6f3; border-radius: 999px; font-size: 10px; font-weight: 700; }

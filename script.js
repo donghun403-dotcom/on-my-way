@@ -183,8 +183,10 @@ const TRIAL_LEAD_KEY = "omwTrialLead";
 const TRIAL_DURATION_MS = 24 * 60 * 60 * 1000;
 const OLLIE_ENERGY_KEY = "omwOllieEnergy";
 const FREE_PLAN_GENERATED_KEY = "omwFreePlanGenerated";
-const ACCOUNT_STORAGE_SCOPE_KEY = "omwAccountStorageScope";
-const ACCOUNT_STORAGE_SNAPSHOT_PREFIX = "omwAccountStorageSnapshot:";
+const ACCOUNT_STORAGE_SCOPE_KEY = "onmyway:active-scope";
+const ANONYMOUS_DEVICE_KEY = "onmyway:anonymous-device";
+const LEGACY_ACCOUNT_STORAGE_SCOPE_KEY = "omwAccountStorageScope";
+const LEGACY_ACCOUNT_STORAGE_SNAPSHOT_PREFIX = "omwAccountStorageSnapshot:";
 const ACCOUNT_SCOPED_STORAGE_KEYS = [
   TRIAL_ACCESS_KEY,
   TRIAL_LEAD_KEY,
@@ -203,7 +205,21 @@ const ACCOUNT_SCOPED_STORAGE_KEYS = [
 let activePlanScreen = "home";
 
 function getAccountStorageScope(user) {
-  return user?.id ? `user:${user.id}` : "guest";
+  if (user?.id) return `user:${user.id}`;
+  let deviceId = localStorage.getItem(ANONYMOUS_DEVICE_KEY);
+  if (!deviceId) {
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    deviceId = [...bytes].map((value) => value.toString(16).padStart(2, "0")).join("");
+    localStorage.setItem(ANONYMOUS_DEVICE_KEY, deviceId);
+  }
+  return `anonymous:${deviceId}`;
+}
+
+function accountSnapshotKey(scope) {
+  if (scope.startsWith("user:")) return `onmyway:user:${scope.slice(5)}:state`;
+  if (scope.startsWith("anonymous:")) return `onmyway:anonymous:${scope.slice(10)}:state`;
+  return `${LEGACY_ACCOUNT_STORAGE_SNAPSHOT_PREFIX}${scope}`;
 }
 
 function captureAccountStorage() {
@@ -212,30 +228,51 @@ function captureAccountStorage() {
   );
 }
 
-function switchAccountStorageScope(targetScope, { clearTarget = false } = {}) {
+function readAccountSnapshot(scope) {
   try {
-    const currentScope = localStorage.getItem(ACCOUNT_STORAGE_SCOPE_KEY);
-    if (!currentScope) {
-      localStorage.setItem(ACCOUNT_STORAGE_SCOPE_KEY, targetScope);
-      return false;
-    }
-    if (currentScope === targetScope && !clearTarget) return false;
+    const current = JSON.parse(localStorage.getItem(accountSnapshotKey(scope)) || "null");
+    if (current && typeof current === "object" && !Array.isArray(current)) return current;
+    const legacy = JSON.parse(localStorage.getItem(`${LEGACY_ACCOUNT_STORAGE_SNAPSHOT_PREFIX}${scope}`) || "null");
+    return legacy && typeof legacy === "object" && !Array.isArray(legacy) ? legacy : {};
+  } catch {
+    return {};
+  }
+}
 
-    localStorage.setItem(`${ACCOUNT_STORAGE_SNAPSHOT_PREFIX}${currentScope}`, JSON.stringify(captureAccountStorage()));
+function restoreAccountSnapshot(snapshot) {
+  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return;
+  Object.entries(snapshot).forEach(([key, value]) => {
+    if (ACCOUNT_SCOPED_STORAGE_KEYS.includes(key) && typeof value === "string") localStorage.setItem(key, value);
+  });
+}
+
+function switchAccountStorageScope(targetScope, { allowAnonymousMerge = false } = {}) {
+  try {
+    let currentScope = localStorage.getItem(ACCOUNT_STORAGE_SCOPE_KEY);
+    if (!currentScope) {
+      const legacyScope = localStorage.getItem(LEGACY_ACCOUNT_STORAGE_SCOPE_KEY);
+      currentScope = legacyScope?.startsWith("user:") ? legacyScope : getAccountStorageScope(null);
+      localStorage.setItem(ACCOUNT_STORAGE_SCOPE_KEY, currentScope);
+    }
+    if (currentScope === targetScope) return false;
+
+    const currentSnapshot = captureAccountStorage();
+    localStorage.setItem(accountSnapshotKey(currentScope), JSON.stringify(currentSnapshot));
     ACCOUNT_SCOPED_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
 
-    const targetSnapshotKey = `${ACCOUNT_STORAGE_SNAPSHOT_PREFIX}${targetScope}`;
-    if (clearTarget) {
-      localStorage.removeItem(targetSnapshotKey);
-    } else {
-      const snapshot = JSON.parse(localStorage.getItem(targetSnapshotKey) || "{}");
-      if (snapshot && typeof snapshot === "object" && !Array.isArray(snapshot)) {
-        Object.entries(snapshot).forEach(([key, value]) => {
-          if (ACCOUNT_SCOPED_STORAGE_KEYS.includes(key) && typeof value === "string") localStorage.setItem(key, value);
-        });
+    let targetSnapshot = readAccountSnapshot(targetScope);
+    const hasAnonymousData = currentScope.startsWith("anonymous:") && Object.keys(currentSnapshot).length > 0;
+    const targetIsEmpty = Object.keys(targetSnapshot).length === 0;
+    if (allowAnonymousMerge && targetScope.startsWith("user:") && hasAnonymousData && targetIsEmpty) {
+      const shouldImport = window.confirm("로그인 전에 만든 목표와 기록을 이 계정으로 가져올까요? 가져오지 않아도 익명 기록은 이 기기에 보관됩니다.");
+      if (shouldImport) {
+        targetSnapshot = { ...currentSnapshot };
+        localStorage.setItem(accountSnapshotKey(targetScope), JSON.stringify(targetSnapshot));
       }
     }
+    restoreAccountSnapshot(targetSnapshot);
     localStorage.setItem(ACCOUNT_STORAGE_SCOPE_KEY, targetScope);
+    localStorage.removeItem(LEGACY_ACCOUNT_STORAGE_SCOPE_KEY);
     return true;
   } catch (error) {
     console.warn("Unable to isolate account storage", error);
@@ -245,7 +282,6 @@ function switchAccountStorageScope(targetScope, { clearTarget = false } = {}) {
       } catch {}
     });
     try {
-      localStorage.removeItem(`${ACCOUNT_STORAGE_SNAPSHOT_PREFIX}${targetScope}`);
       localStorage.setItem(ACCOUNT_STORAGE_SCOPE_KEY, targetScope);
     } catch {}
     return true;
@@ -553,6 +589,7 @@ const authSheet = document.querySelector("#authSheet");
 const authSheetTitle = document.querySelector("#authSheetTitle");
 const authSheetCopy = document.querySelector("#authSheetCopy");
 const authProviderList = document.querySelector("#authProviderList");
+const authProviderStatus = document.querySelector("#authProviderStatus");
 const adminPasswordForm = document.querySelector("#adminPasswordForm");
 const adminAccessPassword = document.querySelector("#adminAccessPassword");
 const adminPasswordError = document.querySelector("#adminPasswordError");
@@ -577,7 +614,11 @@ const myPageCancelProButton = document.querySelector("#myPageCancelPro");
 const myPageLogoutButton = document.querySelector("#myPageLogout");
 const navLoginLink = document.querySelector("#navLoginLink");
 
-const AUTH_PROVIDER_LABELS = { kakao: "카카오 계정", naver: "네이버 계정", google: "구글 계정", password: "운영자 계정" };
+const AUTH_PROVIDER_LABELS = { kakao: "카카오 계정", naver: "네이버 계정", google: "Google 계정", apple: "Apple 계정", password: "운영자 계정" };
+const AUTH_PROVIDER_IDS = new Set(["kakao", "naver", "google", "apple"]);
+const authProviderAvailability = new Map();
+let authProviderRequest = null;
+let activeAuthProvider = null;
 
 async function accountRequest(url, options = {}) {
   const response = await fetch(url, {
@@ -586,7 +627,18 @@ async function accountRequest(url, options = {}) {
     ...options,
   });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || "요청을 처리하지 못했어요.");
+  if (!response.ok) {
+    const fallback = response.status === 401
+      ? "로그인 시간이 만료되었어요. 다시 로그인해 주세요."
+      : response.status === 403
+        ? "이 요청을 수행할 권한이 없어요. 계정을 확인해 주세요."
+        : response.status === 429
+          ? "요청이 잠시 많아요. 잠시 후 다시 시도해 주세요."
+          : "요청을 처리하지 못했어요.";
+    const error = new Error(data.error || fallback);
+    error.status = response.status;
+    throw error;
+  }
   return data;
 }
 
@@ -701,9 +753,54 @@ function setDrawerOpen(open) {
   menuToggle.classList.toggle("open", open);
 }
 
+function setAuthProviderMessage(message = "") {
+  if (authProviderStatus) authProviderStatus.textContent = message;
+}
+
+function setAuthProviderBusy(provider = null) {
+  activeAuthProvider = provider;
+  authProviderButtons.forEach((button) => {
+    button.disabled = Boolean(provider);
+    button.classList.toggle("is-loading", button.dataset.authProvider === provider);
+    button.setAttribute("aria-busy", button.dataset.authProvider === provider ? "true" : "false");
+  });
+}
+
+async function loadAuthProviders() {
+  if (authProviderRequest) return authProviderRequest;
+  authProviderRequest = accountRequest("/api/auth/providers")
+    .then((data) => {
+      (data.providers || []).forEach((provider) => authProviderAvailability.set(provider.id, Boolean(provider.configured)));
+      return data;
+    })
+    .catch((error) => {
+      authProviderRequest = null;
+      throw error;
+    });
+  return authProviderRequest;
+}
+
+async function startOAuth(provider) {
+  if (!AUTH_PROVIDER_IDS.has(provider) || activeAuthProvider) return;
+  setAuthProviderMessage("");
+  setAuthProviderBusy(provider);
+  try {
+    await loadAuthProviders();
+    if (!authProviderAvailability.get(provider)) {
+      throw new Error(`${AUTH_PROVIDER_LABELS[provider] || "소셜 로그인"} 설정이 아직 완료되지 않았습니다. 다른 로그인 방법을 선택해 주세요.`);
+    }
+    const redirect = encodeURIComponent(authRedirectTarget());
+    location.assign(`/api/auth/${provider}/start?redirect=${redirect}`);
+  } catch (error) {
+    setAuthProviderBusy(null);
+    setAuthProviderMessage(error.message || "로그인을 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+  }
+}
+
 function openAuthSheet() {
   setDrawerOpen(false);
   setSheetOpen(authSheet, accountSheetOverlay, true);
+  loadAuthProviders().catch(() => setAuthProviderMessage("로그인 설정을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요."));
 }
 
 function openMyPageSheet() {
@@ -783,7 +880,7 @@ async function logoutAccount() {
       localStorage.removeItem(TRIAL_ACCESS_KEY);
     } catch {}
   }
-  switchAccountStorageScope("guest", { clearTarget: true });
+  switchAccountStorageScope(getAccountStorageScope(null));
   location.href = location.pathname;
 }
 
@@ -793,8 +890,15 @@ function handleAuthQueryParams() {
   const redirectToAdmin = params.get("redirect") === "admin";
   const adminDenied = params.get("admin") === "denied";
 
-  if (authParam === "success") showToast("로그인되었어요 · 올리가 기억할게요!");
-  if (authParam === "error") showToast("로그인에 실패했어요. 다시 시도해 주세요.");
+  const authMessages = {
+    success: "로그인되었어요 · 올리가 기억할게요!",
+    cancelled: "로그인이 취소되었어요. 다른 로그인 방법을 선택할 수 있어요.",
+    invalid_state: "로그인 확인 시간이 만료되었어요. 다시 시도해 주세요.",
+    provider_error: "로그인 제공자에서 요청을 완료하지 못했어요. 다시 시도해 주세요.",
+    callback_error: "로그인 정보를 확인하지 못했어요. 다시 시도하거나 다른 방법을 선택해 주세요.",
+    error: "로그인에 실패했어요. 다시 시도해 주세요.",
+  };
+  if (authParam && authMessages[authParam]) showToast(authMessages[authParam]);
   if (adminDenied) showToast("관리자 권한이 있는 계정만 접근할 수 있어요.");
   if (redirectToAdmin && authUiState.user?.role === "admin") {
     location.replace("/admin.html");
@@ -807,6 +911,7 @@ function handleAuthQueryParams() {
   }
 
   if (authParam) params.delete("auth");
+  params.delete("provider");
   if (adminDenied) params.delete("admin");
   const query = params.toString();
   window.history.replaceState(null, "", `${location.pathname}${query ? `?${query}` : ""}${location.hash}`);
@@ -855,7 +960,7 @@ async function initAccountExperience() {
     window.clearTimeout(timeoutId);
   }
 
-  if (switchAccountStorageScope(getAccountStorageScope(authUiState.user))) {
+  if (switchAccountStorageScope(getAccountStorageScope(authUiState.user), { allowAnonymousMerge: Boolean(authUiState.user) })) {
     location.reload();
     return false;
   }
@@ -888,10 +993,7 @@ myPageCancelProButton?.addEventListener("click", cancelProSubscription);
 myPageLogoutButton?.addEventListener("click", logoutAccount);
 
 authProviderButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    const provider = button.dataset.authProvider;
-    location.href = `/api/auth/start?provider=${provider}&redirect=${encodeURIComponent(authRedirectTarget())}`;
-  });
+  button.addEventListener("click", () => startOAuth(button.dataset.authProvider));
 });
 
 const accountExperienceReady = initAccountExperience();
