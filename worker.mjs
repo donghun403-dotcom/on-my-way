@@ -254,6 +254,12 @@ async function handleFetch(request, env) {
       return json({ error: "요청한 API 경로를 찾을 수 없어요." }, 404);
     }
 
+    if ((request.method === "GET" || request.method === "HEAD") && (url.pathname === "/" || url.pathname === "/app")) {
+      const assetUrl = new URL(request.url);
+      assetUrl.pathname = url.pathname === "/" ? "/index.html" : "/app.html";
+      return env.ASSETS.fetch(new Request(assetUrl.toString(), request));
+    }
+
     return env.ASSETS.fetch(request);
 }
 
