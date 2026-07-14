@@ -250,6 +250,10 @@ async function handleFetch(request, env) {
       return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
     }
 
+    if (url.pathname.startsWith("/api/")) {
+      return json({ error: "요청한 API 경로를 찾을 수 없어요." }, 404);
+    }
+
     return env.ASSETS.fetch(request);
 }
 
