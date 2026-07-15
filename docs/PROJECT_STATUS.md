@@ -6,6 +6,12 @@
 - 판단 기준: 현재 소스와 작업 트리 → 테스트/CI → Git 커밋·PR → 배포 근거 → 기존 문서
 - 이번 조사에서는 소스·테스트·설정 파일을 수정하거나 테스트를 실행하지 않았다.
 
+## 최신 검증
+
+- PR #7은 `d09e508d8a1f34e7af52adda5645eb5b40a3bc68`로 `main`에 병합되었다.
+- Preview 정적 자산 수정 PR #8의 `validate-and-preview` 재실행이 unit test, 문법 검사, CI 서버 Playwright, Preview 배포, `plan-policy.mjs` Preview 응답, Preview Playwright까지 모두 성공했다.
+- Preview의 `/plan-policy.mjs`는 `200 OK`와 `text/javascript`를 반환하며, 존재하지 않는 `.mjs` 요청은 HTML fallback 없이 `404`를 반환한다.
+
 ## 현재 저장소
 
 - 현재 브랜치: `codex/detailed-plan-editor`
