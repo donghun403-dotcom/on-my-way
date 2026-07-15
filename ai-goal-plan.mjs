@@ -129,7 +129,9 @@ export async function createAiGoalPlan(input, { apiKey, model = "gpt-5.4-mini", 
     throw error;
   }
 
-  const response = await fetchAiResponse("https://api.openai.com/v1/responses", {
+  let response;
+  try {
+    response = await fetchAiResponse("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -160,12 +162,19 @@ export async function createAiGoalPlan(input, { apiKey, model = "gpt-5.4-mini", 
         },
       },
     }),
-  }, { fetchImpl, timeoutMs });
+    }, { fetchImpl, timeoutMs });
+  } catch (error) {
+    error.providerCalled = true;
+    throw error;
+  }
 
   const responseBody = await response.json().catch(() => ({}));
   if (!response.ok) {
     const error = new Error(responseBody.error?.message || "OpenAI API 요청에 실패했어요.");
     error.status = response.status >= 400 && response.status < 500 ? 502 : response.status;
+    error.providerUsage = responseBody.usage || null;
+    error.providerRequestId = response.headers.get("x-request-id") || "";
+    error.providerCalled = true;
     throw error;
   }
 
@@ -173,6 +182,9 @@ export async function createAiGoalPlan(input, { apiKey, model = "gpt-5.4-mini", 
   if (!outputText) {
     const error = new Error("AI 응답에서 계획을 확인하지 못했어요.");
     error.status = 502;
+    error.providerUsage = responseBody.usage || null;
+    error.providerRequestId = response.headers.get("x-request-id") || "";
+    error.providerCalled = true;
     throw error;
   }
 
@@ -181,6 +193,9 @@ export async function createAiGoalPlan(input, { apiKey, model = "gpt-5.4-mini", 
   } catch {
     const error = new Error("AI 계획 응답을 해석하지 못했어요.");
     error.status = 502;
+    error.providerUsage = responseBody.usage || null;
+    error.providerRequestId = response.headers.get("x-request-id") || "";
+    error.providerCalled = true;
     throw error;
   }
 }

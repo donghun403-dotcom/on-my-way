@@ -55,9 +55,6 @@ const appFeaturePrev = document.querySelector("#appFeaturePrev");
 const appFeatureNext = document.querySelector("#appFeatureNext");
 const appFeatureTitle = document.querySelector("#appFeatureTitle");
 const appFeatureCounter = document.querySelector("#appFeatureCounter");
-const trialPhoneInput = document.querySelector("#trialPhone");
-const trialServiceConsent = document.querySelector("#trialServiceConsent");
-const trialMarketingConsent = document.querySelector("#trialMarketingConsent");
 const trialStartInlineLink = document.querySelector("#trialStartInlineLink");
 const trialStatusBanner = document.querySelector("#trialStatusBanner");
 const trialTimeRemaining = document.querySelector("#trialTimeRemaining");
@@ -66,6 +63,7 @@ const trialPaywallKicker = document.querySelector("#trialPaywallKicker");
 const trialPaywallTitle = document.querySelector("#trialPaywallTitle");
 const trialPaywallCopy = document.querySelector("#trialPaywallCopy");
 const trialPaywallAction = document.querySelector("#trialPaywallAction");
+const trialPaywallPrice = document.querySelector("#trialPaywallPrice");
 const ollieEnergyMeter = document.querySelector("#ollieEnergyMeter");
 const ollieEnergyBalance = document.querySelector("#ollieEnergyBalance");
 const ollieEnergyBar = document.querySelector("#ollieEnergyBar");
@@ -76,6 +74,20 @@ const energyChargeOverlay = document.querySelector("#energyChargeOverlay");
 const energyChargeSheet = document.querySelector("#energyChargeSheet");
 const closeEnergyChargeButton = document.querySelector("#closeEnergyCharge");
 const energyChargeBalance = document.querySelector("#energyChargeBalance");
+const pricingPolicyStatus = document.querySelector("#pricingPolicyStatus");
+const pricingFreeCard = document.querySelector("#pricingFreeCard");
+const pricingProCard = document.querySelector("#pricingProCard");
+const pricingFreeCta = document.querySelector("#pricingFreeCta");
+const pricingProCta = document.querySelector("#pricingProCta");
+const pricingBottomCta = document.querySelector("#pricingBottomCta");
+const pricingBottomProCta = document.querySelector("#pricingBottomProCta");
+const pricingProCtaStatus = document.querySelector("#pricingProCtaStatus");
+const pricingPaymentState = document.querySelector("#pricingPaymentState");
+const pricingUsagePanel = document.querySelector("#pricingUsagePanel");
+const pricingUsageStatus = document.querySelector("#pricingUsageStatus");
+const pricingTrialUsage = document.querySelector("#pricingTrialUsage");
+const pricingDailyProgress = document.querySelector("#pricingDailyProgress");
+const pricingMonthlyProgress = document.querySelector("#pricingMonthlyProgress");
 const weeklyOptimizeButton = document.querySelector("#weeklyOptimizeButton");
 const executionGoal = document.querySelector("#executionGoal");
 const executionStyle = document.querySelector("#executionStyle");
@@ -179,9 +191,7 @@ const companionMessage = document.querySelector("#companionMessage");
 const companionName = document.querySelector("#companionName");
 const DEFAULT_ROUTINE_READINESS = "계획이 있으면 실행해요";
 const TRIAL_ACCESS_KEY = "omwTrialAccess";
-const TRIAL_LEAD_KEY = "omwTrialLead";
-const TRIAL_DURATION_MS = 24 * 60 * 60 * 1000;
-const OLLIE_ENERGY_KEY = "omwOllieEnergy";
+const LEGACY_OLLIE_ENERGY_KEY = "omwOllieEnergy";
 const FREE_PLAN_GENERATED_KEY = "omwFreePlanGenerated";
 const ACCOUNT_STORAGE_SCOPE_KEY = "onmyway:active-scope";
 const ANONYMOUS_DEVICE_KEY = "onmyway:anonymous-device";
@@ -189,10 +199,7 @@ const LEGACY_ACCOUNT_STORAGE_SCOPE_KEY = "omwAccountStorageScope";
 const LEGACY_ACCOUNT_STORAGE_SNAPSHOT_PREFIX = "omwAccountStorageSnapshot:";
 const ACCOUNT_SCOPED_STORAGE_KEYS = [
   TRIAL_ACCESS_KEY,
-  TRIAL_LEAD_KEY,
-  OLLIE_ENERGY_KEY,
   FREE_PLAN_GENERATED_KEY,
-  "omwTrialReminderDismissed",
   "omwPersonalityProfile",
   "omwPersonalityNudgeDismissed",
   "omwExecutionPlan",
@@ -203,7 +210,6 @@ const ACCOUNT_SCOPED_STORAGE_KEYS = [
   "omwExecutionTheme",
 ];
 const SERVER_SYNC_STORAGE_KEYS = [
-  OLLIE_ENERGY_KEY,
   "omwPersonalityProfile",
   "omwExecutionPlan",
   "omwExecutionState",
@@ -211,6 +217,33 @@ const SERVER_SYNC_STORAGE_KEYS = [
   "omwCompanionEvents",
   "omwExecutionTheme",
 ];
+try {
+  // 실제 알림 전송 경로 없이 로컬에만 남던 이전 연락처·동의 캐시를 폐기한다.
+  localStorage.removeItem("omwTrialLead");
+  localStorage.removeItem("omwTrialReminderDismissed");
+} catch {}
+let pricingPolicy = null;
+let pricingPolicyError = "";
+let aiUsageState = null;
+let aiUsageRequest = null;
+let aiUsageError = "";
+let paymentsEnabled = false;
+let pendingRevisionAction = "revise_plan";
+const pricingPolicyRequest = import("./plan-policy.mjs")
+  .then((module) => {
+    pricingPolicy = module;
+    hydratePolicyValues();
+    renderOllieEnergy();
+    renderPricingExperience();
+    renderPlanFeatureAccess();
+    return module;
+  })
+  .catch((error) => {
+    console.error("Unable to load pricing policy", error);
+    pricingPolicyError = "플랜 정책을 불러오지 못했어요. 새로고침 후 다시 확인해 주세요.";
+    if (pricingPolicyStatus) pricingPolicyStatus.textContent = pricingPolicyError;
+    return null;
+  });
 let activePlanScreen = "home";
 let accountSyncTimer = null;
 let accountSyncInFlight = false;
@@ -438,11 +471,12 @@ function readTrialAccess() {
 
 const FUNNEL_ENDPOINT = "/api/funnel";
 const sentFunnelEvents = new Set();
+const repeatableFunnelEvents = new Set(["pricing_plan_selected", "pro_cta_clicked", "ai_credit_insufficient", "ai_credit_charged", "usage_details_opened"]);
 
 // 수집 실패가 사용자 흐름을 막지 않도록 fire-and-forget으로만 보낸다
 function sendFunnelEvent(step) {
-  if (sentFunnelEvents.has(step)) return;
-  sentFunnelEvents.add(step);
+  if (!repeatableFunnelEvents.has(step) && sentFunnelEvents.has(step)) return;
+  if (!repeatableFunnelEvents.has(step)) sentFunnelEvents.add(step);
   try {
     const body = JSON.stringify({ step });
     if (navigator.sendBeacon) {
@@ -455,57 +489,36 @@ function sendFunnelEvent(step) {
   }
 }
 
-function saveTrialLead() {
-  if (!trialPhoneInput?.value.trim() || !trialServiceConsent?.checked) return;
-  const phoneDigits = trialPhoneInput.value.replace(/\D/g, "");
-  try {
-    localStorage.setItem(
-      TRIAL_LEAD_KEY,
-      JSON.stringify({
-        phoneLast4: phoneDigits.slice(-4),
-        serviceConsent: true,
-        marketingConsent: Boolean(trialMarketingConsent?.checked),
-        consentedAt: new Date().toISOString(),
-      }),
-    );
-  } catch (error) {
-    console.warn("Unable to save trial contact preferences", error);
+async function startTrialAccess() {
+  if (!authUiState.user) {
+    if (document.body.classList.contains("execution-page")) openAuthSheet();
+    else location.assign("app.html?auth=login&return=%2F");
+    return null;
   }
-}
-
-function startTrialAccess() {
-  const currentAccess = readTrialAccess();
-  if (currentAccess?.plan === "pro" || Number(currentAccess?.expiresAt || 0) > Date.now()) return currentAccess;
-  const startedAt = Date.now();
-  saveTrialLead();
-  const access = { startedAt, expiresAt: startedAt + TRIAL_DURATION_MS, plan: "trial" };
   try {
-    localStorage.setItem(TRIAL_ACCESS_KEY, JSON.stringify(access));
+    const data = await accountRequest("/api/ai/trial/start", { method: "POST", body: "{}" });
+    if (data.user) authUiState.user = data.user;
+    if (data.usage) applyAiUsage(data.usage);
+    syncServerPlanToLocal();
+    renderAccountUi();
+    sendFunnelEvent("trial_started");
+    showToast("24시간 Pro 체험이 시작됐어요 · 체험용 AI 크레딧을 확인해 보세요");
+    return data;
   } catch (error) {
-    console.warn("Unable to save trial access", error);
+    showToast(error.message || "Pro 체험을 시작하지 못했어요.");
+    return null;
   }
-  sendFunnelEvent("trial_start");
-  return access;
 }
 
 function lockTrialExperience(mode) {
-  if (!trialPaywall) return;
-  const wasHidden = trialPaywall.hidden;
-  trialPaywall.hidden = false;
-  document.body.classList.add("trial-locked");
+  // Free 플랜은 체험 전후에도 계속 이용할 수 있으므로 앱 전체를 잠그지 않는다.
+  document.body.classList.remove("trial-locked");
   [...document.body.children].forEach((element) => {
-    if (element !== trialPaywall) element.inert = true;
+    if (element !== trialPaywall) element.inert = false;
   });
-  if (wasHidden) window.setTimeout(() => trialPaywall.focus({ preventScroll: true }), 0);
-
+  if (trialPaywall) trialPaywall.hidden = true;
   if (mode === "expired") {
-    if (trialPaywallKicker) trialPaywallKicker.textContent = "체험이 종료되었어요";
-    if (trialPaywallTitle) trialPaywallTitle.textContent = "만든 계획을 그대로 이어갈까요?";
-    if (trialPaywallCopy) trialPaywallCopy.textContent = "24시간 무료 체험이 끝나 앱 이용이 잠시 멈췄어요. PRO를 시작하면 계획과 기록이 그대로 이어져요.";
-    if (trialPaywallAction) {
-      trialPaywallAction.textContent = "PRO 월 2,900원으로 계속하기";
-      trialPaywallAction.href = "index.html#pricing";
-    }
+    showToast("24시간 Pro 체험이 종료되었어요 · Free 플랜으로 계속 이용할 수 있어요");
   }
 }
 
@@ -525,74 +538,27 @@ function updateTrialStatus(expiresAt) {
 
 function initializeTrialAccess() {
   if (!document.body.classList.contains("execution-page")) return;
+  lockTrialExperience("free");
   const access = readTrialAccess();
-  if (access?.plan === "pro") {
+  if (!authUiState.user || access?.plan === "pro" || access?.plan === "free") {
     if (trialStatusBanner) trialStatusBanner.hidden = true;
     initializePersonalityNudge();
     return;
   }
-  if (!access?.expiresAt) {
-    lockTrialExperience("not-started");
-    return;
-  }
+  if (!access?.expiresAt) return;
   if (Date.now() >= Number(access.expiresAt)) {
     lockTrialExperience("expired");
     return;
   }
   updateTrialStatus(Number(access.expiresAt));
-  initializeTrialReminderCard(access);
   initializePersonalityNudge();
   window.setInterval(() => updateTrialStatus(Number(access.expiresAt)), 60 * 1000);
 }
 
-trialStartInlineLink?.addEventListener("click", startTrialAccess);
-
-trialPhoneInput?.addEventListener("input", () => {
-  const digits = trialPhoneInput.value.replace(/\D/g, "").slice(0, 11);
-  if (digits.length <= 3) {
-    trialPhoneInput.value = digits;
-  } else if (digits.length <= 7) {
-    trialPhoneInput.value = `${digits.slice(0, 3)}-${digits.slice(3)}`;
-  } else {
-    trialPhoneInput.value = `${digits.slice(0, 3)}-${digits.slice(3, digits.length - 4)}-${digits.slice(-4)}`;
-  }
-});
-
-const trialReminderCard = document.querySelector("#trialReminderCard");
-const trialReminderSave = document.querySelector("#trialReminderSave");
-const trialReminderDismiss = document.querySelector("#trialReminderDismiss");
-const TRIAL_REMINDER_DISMISSED_KEY = "omwTrialReminderDismissed";
-
-function readTrialLead() {
-  try {
-    return JSON.parse(localStorage.getItem(TRIAL_LEAD_KEY) || "null");
-  } catch (error) {
-    return null;
-  }
-}
-
-function initializeTrialReminderCard(access) {
-  if (!trialReminderCard) return;
-  const dismissed = localStorage.getItem(TRIAL_REMINDER_DISMISSED_KEY) === "true";
-  if (access?.plan !== "trial" || dismissed || readTrialLead()?.serviceConsent) return;
-  trialReminderCard.hidden = false;
-}
-
-trialReminderSave?.addEventListener("click", () => {
-  if (!trialPhoneInput?.reportValidity()) return;
-  if (!trialServiceConsent?.reportValidity()) return;
-  saveTrialLead();
-  if (trialReminderCard) trialReminderCard.hidden = true;
-  showToast("좋아요! 체험이 끝나기 전에 알려드릴게요.");
-});
-
-trialReminderDismiss?.addEventListener("click", () => {
-  try {
-    localStorage.setItem(TRIAL_REMINDER_DISMISSED_KEY, "true");
-  } catch (error) {
-    /* storage unavailable — ignore */
-  }
-  if (trialReminderCard) trialReminderCard.hidden = true;
+trialStartInlineLink?.addEventListener("click", async (event) => {
+  event.preventDefault();
+  const started = await startTrialAccess();
+  if (started) location.assign(trialStartInlineLink.href);
 });
 
 // ===== 성향 프로필: 앱 안에서 언제든 입력·수정 =====
@@ -609,6 +575,8 @@ const drawerPersonalityButton = document.querySelector("#drawerPersonality");
 const personalityNudgeCard = document.querySelector("#personalityNudgeCard");
 const personalityNudgeOpenButton = document.querySelector("#personalityNudgeOpen");
 const personalityNudgeDismissButton = document.querySelector("#personalityNudgeDismiss");
+const memoryPatternPanel = document.querySelector("#memoryPatternPanel");
+const memoryPatternLock = document.querySelector("#memoryPatternLock");
 
 function readPersonalityProfile() {
   try {
@@ -627,6 +595,11 @@ function hasPersonalityInfo() {
 
 function openPersonalitySheet() {
   if (!personalitySheet) return;
+  if (!planHasFeature("companionPersonalization")) {
+    showToast("올리 개인화는 Pro 또는 Pro 체험에서 이용할 수 있어요.");
+    openEnergyCharge();
+    return;
+  }
   const profile = readPersonalityProfile() || {};
   const plan = readExecutionPlan();
   if (profileBirthDateInput) profileBirthDateInput.value = profile.birthDate || "";
@@ -638,6 +611,10 @@ function openPersonalitySheet() {
 }
 
 function savePersonalityProfileFromSheet() {
+  if (!planHasFeature("companionPersonalization")) {
+    showToast("올리 개인화는 Pro 또는 Pro 체험에서 이용할 수 있어요.");
+    return;
+  }
   const profile = {
     birthDate: profileBirthDateInput?.value || "",
     birthTime: profileBirthTimeInput?.value || "",
@@ -667,6 +644,10 @@ function savePersonalityProfileFromSheet() {
 
 function initializePersonalityNudge() {
   if (!personalityNudgeCard) return;
+  if (!planHasFeature("companionPersonalization")) {
+    personalityNudgeCard.hidden = true;
+    return;
+  }
   if (localStorage.getItem(PERSONALITY_NUDGE_DISMISSED_KEY) === "true") return;
   if (hasPersonalityInfo() || !readExecutionPlan().goal) return;
   personalityNudgeCard.hidden = false;
@@ -737,6 +718,15 @@ const myPagePlanMeta = document.querySelector("#myPagePlanMeta");
 const myPageSubscribeButton = document.querySelector("#myPageSubscribe");
 const myPageCancelProButton = document.querySelector("#myPageCancelPro");
 const myPageLogoutButton = document.querySelector("#myPageLogout");
+const myPageUsageCard = document.querySelector("#myPageUsageCard");
+const myPageUsageStatus = document.querySelector("#myPageUsageStatus");
+const myPageDailyUsage = document.querySelector("#myPageDailyUsage");
+const myPageDailyReset = document.querySelector("#myPageDailyReset");
+const myPageDailyProgress = document.querySelector("#myPageDailyProgress");
+const myPageMonthlyUsage = document.querySelector("#myPageMonthlyUsage");
+const myPageMonthlyReset = document.querySelector("#myPageMonthlyReset");
+const myPageMonthlyProgress = document.querySelector("#myPageMonthlyProgress");
+const myPageTrialUsage = document.querySelector("#myPageTrialUsage");
 const navLoginLink = document.querySelector("#navLoginLink");
 
 const AUTH_PROVIDER_LABELS = { kakao: "카카오 계정", naver: "네이버 계정", google: "Google 계정", apple: "Apple 계정", password: "운영자 계정" };
@@ -762,6 +752,10 @@ async function accountRequest(url, options = {}) {
           : "요청을 처리하지 못했어요.";
     const error = new Error(data.error || fallback);
     error.status = response.status;
+    error.code = data.code || "";
+    error.details = data.details || null;
+    error.usage = data.usage || null;
+    applyUsageFromApiResult(data);
     throw error;
   }
   return data;
@@ -770,6 +764,12 @@ async function accountRequest(url, options = {}) {
 function syncServerPlanToLocal() {
   const user = authUiState.user;
   if (!user) return;
+
+  try {
+    localStorage.removeItem(LEGACY_OLLIE_ENERGY_KEY);
+  } catch (error) {
+    console.warn("Unable to remove legacy client credit state", error);
+  }
 
   try {
     if (user.plan === "pro" || user.goalPlanGeneratedAt) localStorage.setItem(FREE_PLAN_GENERATED_KEY, "true");
@@ -792,8 +792,7 @@ function syncServerPlanToLocal() {
     return;
   }
 
-  const local = readTrialAccess();
-  if (user.trialExpiresAt && (!local || local.plan === "pro" || Number(user.trialExpiresAt) > Number(local.expiresAt || 0))) {
+  if (user.plan === "trial" && user.trialExpiresAt) {
     try {
       localStorage.setItem(
         TRIAL_ACCESS_KEY,
@@ -802,6 +801,13 @@ function syncServerPlanToLocal() {
     } catch (error) {
       console.warn("Unable to sync trial plan", error);
     }
+    return;
+  }
+
+  try {
+    localStorage.setItem(TRIAL_ACCESS_KEY, JSON.stringify({ plan: "free", startedAt: null, expiresAt: null }));
+  } catch (error) {
+    console.warn("Unable to sync Free plan", error);
   }
 }
 
@@ -823,20 +829,35 @@ function renderMyPageSheet() {
   if (myPageEmail) myPageEmail.textContent = user.email || "이메일 미등록";
   if (myPageProvider) myPageProvider.textContent = AUTH_PROVIDER_LABELS[user.provider] || "소셜 계정";
 
-  const isPro = user.plan === "pro";
-  if (myPagePlanTitle) myPagePlanTitle.textContent = isPro ? "PRO 구독 중" : "1일 무료 체험";
+  const plan = aiUsageState?.plan || user.plan || "free";
+  const isPro = plan === "pro";
+  const isTrial = plan === "trial";
+  const isComplimentary = isPro && user.subscriptionStatus === "complimentary";
+  if (myPagePlanTitle) myPagePlanTitle.textContent = isPro ? (isComplimentary ? "Pro 이용 중" : "Pro 구독 중") : isTrial ? "Pro 체험 중" : "Free 플랜";
   if (myPagePlanMeta) {
     if (isPro) {
-      myPagePlanMeta.textContent = `${formatAccountDate(user.proSince)}부터 이용 중 · 월 2,900원`;
+      const price = pricingPolicy?.PLAN_CONFIG?.pro?.priceKRW;
+      myPagePlanMeta.textContent = isComplimentary
+        ? `${formatAccountDate(user.proSince)}부터 무료·관리자 제공으로 이용 중 · 결제 없음`
+        : `${formatAccountDate(user.proSince)}부터 이용 중${price ? ` · 월 ${formatWon(price)}` : ""}`;
+    } else if (isTrial) {
+      myPagePlanMeta.textContent = `체험 종료 ${formatUsageTime(aiUsageState?.trial?.endsAt || user.trialExpiresAt, aiUsageState?.timeZone)} · 자동 결제 없음`;
     } else {
-      const remaining = Math.max(0, Number(user.trialExpiresAt || 0) - Date.now());
-      const hours = Math.floor(remaining / 3600000);
-      const minutes = Math.floor((remaining % 3600000) / 60000);
-      myPagePlanMeta.textContent = remaining > 0 ? `체험 종료까지 ${hours}시간 ${minutes}분` : "체험이 종료되었어요. PRO로 이어가 보세요.";
+      myPagePlanMeta.textContent = aiUsageState?.trial?.eligible
+        ? "Free로 계속 이용 · 원할 때 24시간 Pro 체험 1회"
+        : "Free로 계속 이용 · Pro 결제는 현재 출시 준비 중";
     }
   }
-  if (myPageSubscribeButton) myPageSubscribeButton.hidden = isPro;
-  if (myPageCancelProButton) myPageCancelProButton.hidden = !isPro;
+  if (myPageSubscribeButton) {
+    myPageSubscribeButton.hidden = isPro || isTrial;
+    const eligible = Boolean(aiUsageState?.trial?.eligible);
+    myPageSubscribeButton.disabled = !eligible && !paymentsEnabled;
+    myPageSubscribeButton.childNodes[0].textContent = eligible ? "24시간 Pro 체험 " : paymentsEnabled ? "Pro 시작하기 " : "Pro 출시 준비 중 ";
+    const meta = myPageSubscribeButton.querySelector("em");
+    if (meta) meta.textContent = eligible ? "15크레딧 · 자동 결제 없음" : pricingPolicy ? `월 ${formatWon(pricingPolicy.PLAN_CONFIG.pro.priceKRW)}` : "월 요금 확인 중";
+  }
+  if (myPageCancelProButton) myPageCancelProButton.hidden = !isPro || isComplimentary;
+  renderMyPageUsage();
 }
 
 function renderAccountUi() {
@@ -848,13 +869,19 @@ function renderAccountUi() {
     if (drawerAvatar) drawerAvatar.textContent = accountInitial(user);
     if (drawerName) drawerName.textContent = user.name;
     if (drawerPlanBadge) {
-      drawerPlanBadge.textContent = user.plan === "pro" ? "PRO 이용 중" : "무료 체험 중";
-      drawerPlanBadge.classList.toggle("pro", user.plan === "pro");
+      const plan = aiUsageState?.plan || user.plan || "free";
+      drawerPlanBadge.textContent = plan === "pro" ? "Pro 이용 중" : plan === "trial" ? "Pro 체험 중" : "Free 이용 중";
+      drawerPlanBadge.classList.toggle("pro", plan === "pro" || plan === "trial");
     }
   }
   if (drawerMyPage) drawerMyPage.hidden = !user;
   if (drawerLogout) drawerLogout.hidden = !user;
-  if (drawerUpgrade) drawerUpgrade.hidden = !user || user.plan === "pro";
+  if (drawerUpgrade) {
+    const plan = aiUsageState?.plan || user?.plan;
+    drawerUpgrade.hidden = !user || plan === "pro" || plan === "trial";
+    drawerUpgrade.disabled = Boolean(user && !aiUsageState?.trial?.eligible && !paymentsEnabled);
+    drawerUpgrade.textContent = aiUsageState?.trial?.eligible ? "⭐ 24시간 Pro 체험" : paymentsEnabled ? "⭐ Pro 시작하기" : "⭐ Pro 출시 준비 중";
+  }
   if (drawerAdminLink) drawerAdminLink.hidden = user?.role !== "admin";
 
   if (navLoginLink) {
@@ -941,6 +968,7 @@ function openMyPageSheet() {
   setDrawerOpen(false);
   renderMyPageSheet();
   setSheetOpen(myPageSheet, accountSheetOverlay, true);
+  sendFunnelEvent("usage_details_opened");
 }
 
 function authRedirectTarget() {
@@ -948,6 +976,25 @@ function authRedirectTarget() {
   if (params.get("redirect") === "admin") return "/admin.html";
   if (params.get("return") === "/delete-account") return "/delete-account";
   return location.pathname || "/app.html";
+}
+
+let tossPaymentsSdkPromise = null;
+
+function loadTossPaymentsSdk() {
+  if (typeof window.TossPayments === "function") return Promise.resolve();
+  if (tossPaymentsSdkPromise) return tossPaymentsSdkPromise;
+  tossPaymentsSdkPromise = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://js.tosspayments.com/v2/standard";
+    script.async = true;
+    script.onload = () => typeof window.TossPayments === "function" ? resolve() : reject(new Error("결제 모듈을 확인하지 못했습니다."));
+    script.onerror = () => reject(new Error("결제 모듈을 불러오지 못했습니다."));
+    document.head.append(script);
+  }).catch((error) => {
+    tossPaymentsSdkPromise = null;
+    throw error;
+  });
+  return tossPaymentsSdkPromise;
 }
 
 async function startSubscription() {
@@ -958,6 +1005,7 @@ async function startSubscription() {
   try {
     const config = await accountRequest("/api/billing/config");
     if (config.configured) {
+      await loadTossPaymentsSdk();
       if (typeof window.TossPayments !== "function") throw new Error("결제 모듈을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
       const tossPayments = window.TossPayments(config.clientKey);
       const payment = tossPayments.payment({ customerKey: config.customerKey });
@@ -1114,6 +1162,12 @@ async function initAccountExperience() {
   }
   authUiState.loaded = true;
 
+  await Promise.allSettled([
+    pricingPolicyRequest,
+    loadPaymentAvailability(),
+    authUiState.user ? loadAiUsage({ force: true }) : Promise.resolve(null),
+  ]);
+
   if (authUiState.user) {
     try {
       await initializeAccountStateSync();
@@ -1137,7 +1191,7 @@ menuToggle?.addEventListener("click", () => setDrawerOpen(appMenuDrawer?.hidden 
 appMenuBackdrop?.addEventListener("click", () => setDrawerOpen(false));
 drawerLoginButton?.addEventListener("click", openAuthSheet);
 drawerMyPage?.addEventListener("click", openMyPageSheet);
-drawerUpgrade?.addEventListener("click", startSubscription);
+drawerUpgrade?.addEventListener("click", handleProPricingCta);
 drawerLogout?.addEventListener("click", logoutAccount);
 closeAuthSheetButton?.addEventListener("click", closeAuthSheet);
 closeMyPageSheetButton?.addEventListener("click", () => setSheetOpen(myPageSheet, accountSheetOverlay, false));
@@ -1146,7 +1200,7 @@ accountSheetOverlay?.addEventListener("click", () => {
   if (openSheetElement === authSheet) closeAuthSheet();
   else if (openSheetElement) setSheetOpen(openSheetElement, accountSheetOverlay, false);
 });
-myPageSubscribeButton?.addEventListener("click", startSubscription);
+myPageSubscribeButton?.addEventListener("click", handleProPricingCta);
 myPageCancelProButton?.addEventListener("click", cancelProSubscription);
 myPageLogoutButton?.addEventListener("click", logoutAccount);
 
@@ -1156,95 +1210,368 @@ authProviderButtons.forEach((button) => {
 
 const accountExperienceReady = initAccountExperience();
 
-function getMonthlyEnergyReset() {
-  const reset = new Date();
-  reset.setMonth(reset.getMonth() + 1, 1);
-  reset.setHours(0, 0, 0, 0);
-  return reset.getTime();
+function formatWon(value) {
+  return `₩${Number(value || 0).toLocaleString("ko-KR")}`;
 }
 
-function getOllieEnergyPlan() {
-  const access = readTrialAccess();
-  return access?.plan === "pro" ? { plan: "pro", allocation: 300 } : { plan: "trial", allocation: 10 };
-}
-
-function readOllieEnergyState() {
-  const energyPlan = getOllieEnergyPlan();
-  let state = null;
-  try {
-    state = JSON.parse(localStorage.getItem(OLLIE_ENERGY_KEY) || "null");
-  } catch (error) {
-    state = null;
-  }
-
-  const shouldReset =
-    !state ||
-    state.plan !== energyPlan.plan ||
-    !Number.isFinite(Number(state.remaining)) ||
-    (energyPlan.plan === "pro" && Date.now() >= Number(state.resetAt || 0));
-
-  if (shouldReset) {
-    state = {
-      plan: energyPlan.plan,
-      allocation: energyPlan.allocation,
-      remaining: energyPlan.allocation,
-      resetAt: energyPlan.plan === "pro" ? getMonthlyEnergyReset() : Number(readTrialAccess()?.expiresAt || Date.now() + TRIAL_DURATION_MS),
+function hydratePolicyValues() {
+  if (!pricingPolicy) return;
+  const { PLAN_CONFIG, AI_CREDIT_COSTS } = pricingPolicy;
+  document.querySelectorAll("[data-policy-plan][data-policy-field]").forEach((element) => {
+    const plan = PLAN_CONFIG[element.dataset.policyPlan];
+    if (!plan) return;
+    const values = {
+      price: formatWon(plan.priceKRW),
+      "signup-credits": `${plan.signupCredits}개`,
+      "monthly-credits": `${plan.monthlyCredits}개`,
+      "daily-limit": `${plan.dailyCreditLimit}크레딧`,
+      "max-goals": plan.maxGoals === null ? "제한 없음" : `목표 ${plan.maxGoals}개`,
+      "max-active-plans": plan.maxActivePlans === null ? "제한 없음" : `활성 계획 ${plan.maxActivePlans}개`,
+      "trial-duration": plan.trial ? `${plan.trial.durationHours}시간` : "—",
+      "trial-credits": plan.trial ? `${plan.trial.credits}개` : "—",
+      "daily-price": plan.priceKRW ? `${Math.round(plan.priceKRW / 30).toLocaleString("ko-KR")}원` : "0원",
     };
-    saveOllieEnergyState(state);
-  }
-
-  return state;
+    if (Object.hasOwn(values, element.dataset.policyField)) element.textContent = values[element.dataset.policyField];
+  });
+  document.querySelectorAll("[data-policy-cost]").forEach((element) => {
+    const cost = AI_CREDIT_COSTS[element.dataset.policyCost];
+    if (Number.isFinite(cost)) element.textContent = `${cost}크레딧`;
+  });
+  document.querySelectorAll("[data-ai-credit-cost]").forEach((element) => {
+    const cost = AI_CREDIT_COSTS[element.dataset.aiCreditCost];
+    if (Number.isFinite(cost)) element.textContent = String(cost);
+  });
+  if (trialPaywallPrice) trialPaywallPrice.textContent = `월 ${formatWon(PLAN_CONFIG.pro.priceKRW)}`;
+  if (pricingPolicyStatus) pricingPolicyStatus.textContent = `Free와 Pro 정책을 확인했어요 · ${pricingPolicy.POLICY_VERSION}`;
 }
 
-function saveOllieEnergyState(state) {
-  try {
-    localStorage.setItem(OLLIE_ENERGY_KEY, JSON.stringify(state));
-  } catch (error) {
-    console.warn("Unable to save Ollie Energy", error);
+function formatUsageTime(value, timeZone = aiUsageState?.timeZone) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "—";
+  return date.toLocaleString("ko-KR", {
+    timeZone: timeZone || "Asia/Seoul",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function setUsageProgress(element, bucket) {
+  if (!element || !bucket) return;
+  const limit = Math.max(1, Number(bucket.limit) || 1);
+  const used = Math.max(0, Number(bucket.used) || 0);
+  const percent = Math.max(0, Math.min(100, (used / limit) * 100));
+  element.setAttribute("aria-valuemin", "0");
+  element.setAttribute("aria-valuemax", String(limit));
+  element.setAttribute("aria-valuenow", String(Math.min(used, limit)));
+  element.setAttribute("aria-valuetext", `${limit}크레딧 중 ${used}크레딧 사용, ${Math.max(0, Number(bucket.remaining) || 0)}크레딧 남음`);
+  const bar = element.querySelector("span");
+  if (bar) bar.style.width = `${percent}%`;
+}
+
+function applyAiUsage(usage) {
+  if (!usage?.daily || !usage?.monthly) return;
+  const previousUsage = aiUsageState;
+  aiUsageState = usage;
+  aiUsageError = "";
+  if (authUiState.user && usage.plan) authUiState.user.plan = usage.plan;
+  if (previousUsage?.plan === "trial" && usage.plan === "free") {
+    sendFunnelEvent("trial_completed");
+    if (new Date(previousUsage.trial?.endsAt || 0).getTime() > Date.now()) sendFunnelEvent("trial_credit_exhausted");
   }
+  syncServerPlanToLocal();
+  renderOllieEnergy();
+  renderMyPageUsage();
+  renderPricingExperience();
+  renderPlanFeatureAccess();
+  renderAccountUi();
+}
+
+async function loadAiUsage({ force = false } = {}) {
+  if (!authUiState.user) {
+    aiUsageState = null;
+    aiUsageError = "";
+    renderOllieEnergy();
+    renderMyPageUsage();
+    renderPricingExperience();
+    return null;
+  }
+  if (aiUsageState && !force) return aiUsageState;
+  if (aiUsageRequest) return aiUsageRequest;
+  aiUsageError = "";
+  renderMyPageUsage();
+  renderPricingExperience();
+  aiUsageRequest = accountRequest("/api/ai/usage")
+    .then((usage) => {
+      applyAiUsage(usage);
+      return usage;
+    })
+    .catch((error) => {
+      aiUsageError = error.message || "AI 크레딧 사용량을 불러오지 못했어요.";
+      renderOllieEnergy();
+      renderMyPageUsage();
+      renderPricingExperience();
+      throw error;
+    })
+    .finally(() => {
+      aiUsageRequest = null;
+    });
+  return aiUsageRequest;
 }
 
 function renderOllieEnergy() {
   if (!ollieEnergyMeter) return;
-  const state = readOllieEnergyState();
-  const allocation = Math.max(1, Number(state.allocation) || 1);
-  const remaining = Math.max(0, Number(state.remaining) || 0);
-  const percent = Math.max(0, Math.min(100, (remaining / allocation) * 100));
-  const isLow = percent <= 20;
-
-  if (ollieEnergyBalance) ollieEnergyBalance.textContent = `${remaining} / ${allocation}`;
-  if (energyChargeBalance) energyChargeBalance.textContent = `${remaining} / ${allocation}`;
+  const bucket = aiUsageState?.monthly;
+  if (!authUiState.loaded || (authUiState.user && !bucket)) {
+    if (ollieEnergyBalance) ollieEnergyBalance.textContent = "확인 중";
+    if (energyChargeBalance) energyChargeBalance.textContent = "확인 중";
+    ollieEnergyMeter.setAttribute("aria-busy", "true");
+    return;
+  }
+  if (!authUiState.user) {
+    if (ollieEnergyBalance) ollieEnergyBalance.textContent = "로그인 필요";
+    if (energyChargeBalance) energyChargeBalance.textContent = "로그인 후 확인";
+    if (ollieEnergyBar) ollieEnergyBar.style.width = "0%";
+    ollieEnergyMeter.setAttribute("aria-busy", "false");
+    return;
+  }
+  const limit = Math.max(1, Number(bucket.limit) || 1);
+  const remaining = Math.max(0, Number(bucket.remaining) || 0);
+  const percent = Math.max(0, Math.min(100, (remaining / limit) * 100));
+  const isLow = remaining === 0 || percent <= 20;
+  if (ollieEnergyBalance) ollieEnergyBalance.textContent = `${remaining} / ${bucket.limit}`;
+  if (energyChargeBalance) energyChargeBalance.textContent = `${remaining} / ${bucket.limit}`;
   if (ollieEnergyBar) ollieEnergyBar.style.width = `${percent}%`;
+  ollieEnergyMeter.setAttribute("aria-busy", "false");
+  ollieEnergyMeter.setAttribute("aria-label", `AI 크레딧 ${remaining}개 남음, ${bucket.limit}개 중`);
   ollieEnergyMeter.classList.toggle("is-low", isLow);
   if (ollieEnergyWarning) ollieEnergyWarning.hidden = !isLow;
 }
 
-function consumeOllieEnergy(amount, label) {
-  const state = readOllieEnergyState();
-  const cost = Math.max(0, Number(amount) || 0);
-  if (Number(state.remaining) < cost) {
-    if (ollieEnergyWarning) ollieEnergyWarning.hidden = false;
-    showToast(`${label}에 필요한 올리 에너지가 부족해요`);
-    announce(`${label}에 필요한 올리 에너지가 부족합니다.`);
+function renderMyPageUsage() {
+  if (!myPageUsageCard) return;
+  const usage = aiUsageState;
+  myPageUsageCard.setAttribute("aria-busy", authUiState.user && !usage && !aiUsageError ? "true" : "false");
+  if (!authUiState.user) return;
+  if (!usage) {
+    if (myPageUsageStatus) myPageUsageStatus.textContent = aiUsageError || "사용량을 불러오는 중이에요.";
+    return;
+  }
+  if (myPageUsageStatus) myPageUsageStatus.textContent = `${usage.planLabel || usage.plan} · 오늘 ${usage.daily.remaining}크레딧 남음`;
+  if (myPageDailyUsage) myPageDailyUsage.textContent = `${usage.daily.used} / ${usage.daily.limit}크레딧 사용`;
+  if (myPageDailyReset) myPageDailyReset.textContent = `다음 초기화 ${formatUsageTime(usage.daily.resetsAt, usage.timeZone)}`;
+  if (myPageMonthlyUsage) myPageMonthlyUsage.textContent = `${usage.monthly.used} / ${usage.monthly.limit}크레딧 사용`;
+  if (myPageMonthlyReset) myPageMonthlyReset.textContent = `${usage.plan === "trial" ? "체험 종료" : "다음 제공"} ${formatUsageTime(usage.monthly.resetsAt, usage.timeZone)}`;
+  setUsageProgress(myPageDailyProgress, usage.daily);
+  setUsageProgress(myPageMonthlyProgress, usage.monthly);
+  if (myPageTrialUsage) {
+    myPageTrialUsage.hidden = !usage.trial?.active;
+    if (usage.trial?.active) myPageTrialUsage.textContent = `Pro 체험 ${usage.trial.remainingCredits}크레딧 남음 · ${formatUsageTime(usage.trial.endsAt, usage.timeZone)} 종료`;
+  }
+}
+
+function setPolicyUsageValue(path, value) {
+  document.querySelectorAll(`[data-policy-usage="${path}"]`).forEach((element) => {
+    element.textContent = String(value);
+  });
+}
+
+function setPricingCta(element, label, { disabled = false, href = null } = {}) {
+  if (!element) return;
+  element.textContent = label;
+  element.classList.toggle("is-disabled", disabled);
+  element.setAttribute("aria-disabled", disabled ? "true" : "false");
+  if (element instanceof HTMLButtonElement) element.disabled = disabled;
+  if (element instanceof HTMLAnchorElement) {
+    if (disabled) element.removeAttribute("href");
+    else element.href = href || element.dataset.defaultHref || "#designFlow";
+  }
+}
+
+function renderPricingUsage() {
+  if (!pricingUsagePanel) return;
+  pricingUsagePanel.hidden = !authUiState.user;
+  if (!authUiState.user) return;
+  const usage = aiUsageState;
+  if (!usage) {
+    if (pricingUsageStatus) pricingUsageStatus.textContent = aiUsageError || "사용량을 불러오는 중이에요.";
+    return;
+  }
+  if (pricingUsageStatus) pricingUsageStatus.textContent = `오늘 ${usage.daily.remaining}크레딧, ${usage.plan === "trial" ? "체험" : "이번 달"} ${usage.monthly.remaining}크레딧 남았어요.`;
+  setPolicyUsageValue("plan", usage.planLabel || usage.plan);
+  setPolicyUsageValue("daily.used", usage.daily.used);
+  setPolicyUsageValue("daily.limit", usage.daily.limit);
+  setPolicyUsageValue("daily.resetsAt", formatUsageTime(usage.daily.resetsAt, usage.timeZone));
+  setPolicyUsageValue("monthly.used", usage.monthly.used);
+  setPolicyUsageValue("monthly.limit", usage.monthly.limit);
+  setPolicyUsageValue("monthly.resetsAt", formatUsageTime(usage.monthly.resetsAt, usage.timeZone));
+  setPolicyUsageValue("trial.remainingCredits", usage.trial?.remainingCredits ?? 0);
+  setPolicyUsageValue("trial.endsAt", formatUsageTime(usage.trial?.endsAt, usage.timeZone));
+  setUsageProgress(pricingDailyProgress, usage.daily);
+  setUsageProgress(pricingMonthlyProgress, usage.monthly);
+  document.querySelectorAll("[data-policy-usage-bar='daily']").forEach((bar) => { bar.style.width = `${Math.min(100, usage.daily.used / Math.max(1, usage.daily.limit) * 100)}%`; });
+  document.querySelectorAll("[data-policy-usage-bar='monthly']").forEach((bar) => { bar.style.width = `${Math.min(100, usage.monthly.used / Math.max(1, usage.monthly.limit) * 100)}%`; });
+  if (pricingTrialUsage) pricingTrialUsage.hidden = !usage.trial?.active;
+}
+
+function renderPricingExperience() {
+  if (!pricingFreeCard && !pricingProCard) return;
+  const user = authUiState.user;
+  const usage = aiUsageState;
+  const plan = usage?.plan || user?.plan || null;
+  pricingFreeCard?.setAttribute("aria-current", plan === "free" ? "true" : "false");
+  pricingProCard?.setAttribute("aria-current", plan === "trial" || plan === "pro" ? "true" : "false");
+  pricingFreeCard?.querySelectorAll("[data-current-plan-label]").forEach((label) => { label.hidden = plan !== "free"; });
+  pricingProCard?.querySelectorAll("[data-current-plan-label]").forEach((label) => { label.hidden = plan !== "trial" && plan !== "pro"; label.textContent = plan === "trial" ? "체험 중" : "현재 플랜"; });
+
+  if (!user) {
+    setPricingCta(pricingFreeCta, "무료로 시작하기", { href: "#designFlow" });
+    setPricingCta(pricingBottomCta, "무료로 시작하기", { href: "#designFlow" });
+    setPricingCta(pricingProCta, "무료 체험 시작하기");
+    setPricingCta(pricingBottomProCta, "무료 체험 시작하기");
+  } else {
+    setPricingCta(pricingFreeCta, plan === "free" ? "현재 플랜" : "Free 플랜", { disabled: plan === "free", href: "#designFlow" });
+    setPricingCta(pricingBottomCta, plan === "free" ? "현재 Free 플랜" : "Free 플랜 보기", { disabled: plan === "free", href: "#designFlow" });
+    let proLabel = "Pro 출시 준비 중";
+    let proDisabled = true;
+    if (plan === "trial") proLabel = "Pro 체험 중";
+    else if (plan === "pro") proLabel = "현재 플랜";
+    else if (usage?.trial?.eligible) {
+      proLabel = "24시간 무료 체험";
+      proDisabled = false;
+    } else if (paymentsEnabled) {
+      proLabel = "Pro 시작하기";
+      proDisabled = false;
+    }
+    setPricingCta(pricingProCta, proLabel, { disabled: proDisabled });
+    setPricingCta(pricingBottomProCta, proLabel, { disabled: proDisabled });
+  }
+  if (pricingPaymentState) pricingPaymentState.textContent = paymentsEnabled ? "결제 연결 상태를 확인한 뒤 Pro를 시작할 수 있어요." : "현재 운영 결제는 비활성화되어 있어요. 실제 결제는 발생하지 않습니다.";
+  if (pricingProCtaStatus) pricingProCtaStatus.textContent = paymentsEnabled ? "운영 결제 승인 상태" : "Pro 결제는 출시 준비 중이며 자동 결제되지 않아요.";
+  renderPricingUsage();
+}
+
+async function loadPaymentAvailability() {
+  try {
+    const health = await accountRequest("/api/health");
+    paymentsEnabled = Boolean(health.services?.payments);
+  } catch {
+    paymentsEnabled = false;
+  }
+  renderPricingExperience();
+  return paymentsEnabled;
+}
+
+function newAiRequestId(action) {
+  if (typeof crypto.randomUUID === "function") return `${action}:${crypto.randomUUID()}`;
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return `${action}:${[...bytes].map((value) => value.toString(16).padStart(2, "0")).join("")}`;
+}
+
+function applyUsageFromApiResult(result) {
+  if (result?.usage?.daily && result?.usage?.monthly) applyAiUsage(result.usage);
+}
+
+function aiCreditCost(action) {
+  return Number(aiUsageState?.creditCosts?.[action] ?? pricingPolicy?.AI_CREDIT_COSTS?.[action] ?? 0);
+}
+
+function planHasFeature(feature) {
+  const plan = aiUsageState?.plan || authUiState.user?.plan || "free";
+  return Boolean(pricingPolicy?.getPlanConfig?.(plan)?.features?.[feature]);
+}
+
+function renderPlanFeatureAccess() {
+  const detailedInsights = planHasFeature("detailedInsights");
+  if (memoryPatternPanel) memoryPatternPanel.classList.toggle("is-plan-locked", !detailedInsights);
+  if (memoryPatternLock) memoryPatternLock.hidden = detailedInsights;
+  if (patternList) patternList.hidden = !detailedInsights;
+  const personalization = planHasFeature("companionPersonalization");
+  if (drawerPersonalityButton) {
+    drawerPersonalityButton.classList.toggle("is-plan-locked", !personalization);
+    drawerPersonalityButton.setAttribute("aria-disabled", personalization ? "false" : "true");
+    drawerPersonalityButton.title = personalization ? "성향 설정" : "Pro 또는 Pro 체험에서 이용할 수 있어요";
+  }
+  if (!personalization && personalityNudgeCard) personalityNudgeCard.hidden = true;
+}
+
+async function ensureAiActionAvailable(action) {
+  await pricingPolicyRequest;
+  if (!pricingPolicy) {
+    showToast(pricingPolicyError || "AI 크레딧 정책을 확인하지 못했어요. 새로고침 후 다시 시도해 주세요.");
     return false;
   }
-
-  state.remaining = Number(state.remaining) - cost;
-  saveOllieEnergyState(state);
-  renderOllieEnergy();
-  announce(`${label}에 올리 에너지 ${cost}를 사용했습니다. ${state.remaining} 남았습니다.`);
+  if (!authUiState.user) {
+    showToast("로그인하면 AI 크레딧과 기능을 안전하게 사용할 수 있어요.");
+    if (document.body.classList.contains("execution-page")) openAuthSheet();
+    else location.assign("app.html?auth=login&return=%2F");
+    return false;
+  }
+  const usage = await loadAiUsage().catch(() => null);
+  if (!usage) {
+    showToast(aiUsageError || "AI 크레딧 사용량을 확인하지 못했어요. 잠시 후 다시 시도해 주세요.");
+    return false;
+  }
+  const cost = aiCreditCost(action);
+  const requiredFeature = pricingPolicy?.AI_ACTION_REQUIRED_FEATURE?.[action];
+  const plan = pricingPolicy?.getPlanConfig?.(usage.plan);
+  if (requiredFeature && !plan?.features?.[requiredFeature]) {
+    const expiredPlan = authUiState.user?.subscriptionStatus && authUiState.user.subscriptionStatus !== "active" && authUiState.user.proSince;
+    showToast(expiredPlan
+      ? `Pro 이용 기간이 종료되어 Free로 전환되었어요. 이 기능에는 ${cost}크레딧과 Pro 플랜이 필요해요.`
+      : `이 기능에는 ${cost}크레딧이 필요하며 Pro 플랜에서 이용할 수 있어요.`);
+    sendFunnelEvent("ai_credit_insufficient");
+    openEnergyCharge();
+    return false;
+  }
+  if (Number(usage.daily.remaining) < cost) {
+    const trialEnded = usage.plan === "free" && !usage.trial?.eligible && authUiState.user?.trialUsedAt;
+    showToast(trialEnded && action === "create_plan"
+      ? `24시간 Pro 체험이 종료되었거나 체험 크레딧을 모두 사용했어요. Free 플랜으로 계속 이용할 수 있어요.`
+      : `이 기능에는 ${cost}크레딧이 필요해요. 오늘 사용할 수 있는 크레딧이 부족하며 ${formatUsageTime(usage.daily.resetsAt, usage.timeZone)}에 다시 제공돼요.`);
+    sendFunnelEvent("ai_credit_insufficient");
+    openEnergyCharge();
+    return false;
+  }
+  if (Number(usage.monthly.remaining) < cost) {
+    const message = usage.plan === "trial"
+      ? `체험 AI 크레딧이 부족해요. Free 플랜으로 계속 이용할 수 있어요.`
+      : `이번 달 AI 크레딧이 부족해요. ${formatUsageTime(usage.monthly.resetsAt, usage.timeZone)}에 다시 제공돼요.`;
+    showToast(message);
+    sendFunnelEvent("ai_credit_insufficient");
+    openEnergyCharge();
+    return false;
+  }
   return true;
 }
 
-function refundOllieEnergy(amount) {
-  const state = readOllieEnergyState();
-  const refund = Math.max(0, Number(amount) || 0);
-  state.remaining = Math.min(Number(state.allocation) || 0, Number(state.remaining || 0) + refund);
-  saveOllieEnergyState(state);
-  renderOllieEnergy();
+async function handleProPricingCta() {
+  sendFunnelEvent("pricing_plan_selected");
+  if (!authUiState.user) {
+    location.assign("app.html?auth=login&return=%2F");
+    return;
+  }
+  if (aiUsageState?.trial?.eligible) {
+    await startTrialAccess();
+    return;
+  }
+  if (paymentsEnabled) {
+    sendFunnelEvent("pro_cta_clicked");
+    await startSubscription();
+    return;
+  }
+  showToast("Pro 결제는 현재 출시 준비 중이에요. 실제 결제는 발생하지 않습니다.");
 }
 
-renderOllieEnergy();
+pricingProCta?.addEventListener("click", handleProPricingCta);
+pricingBottomProCta?.addEventListener("click", handleProPricingCta);
+[pricingFreeCta, pricingBottomCta].forEach((cta) => cta?.addEventListener("click", (event) => {
+  if (cta.getAttribute("aria-disabled") === "true") event.preventDefault();
+  else sendFunnelEvent("pricing_plan_selected");
+}));
 
 function needsLowFrictionStart(readiness = DEFAULT_ROUTINE_READINESS) {
   return ["준비", "미뤄", "중단"].some((keyword) => readiness.includes(keyword));
@@ -1654,6 +1981,7 @@ function showPageView(hash, scrollToTarget = false) {
   const normalizedHash = hash || "#top";
   const pageView = getPageView(normalizedHash);
   document.body.dataset.pageView = pageView;
+  if (pageView === "pricing") sendFunnelEvent("pricing_viewed");
 
   pageViewSections.forEach((section) => {
     section.hidden = section.dataset.pageView !== pageView;
@@ -1920,25 +2248,34 @@ function buildLocalAiPreview(payload) {
 }
 
 async function requestAiPlan(payload) {
+  if (!(await ensureAiActionAvailable("create_plan"))) {
+    const error = new Error("새 목표 계획을 만들 수 있는 AI 크레딧을 확인해 주세요.");
+    error.code = "AI_CREDIT_UNAVAILABLE";
+    throw error;
+  }
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), 60000);
+  const requestId = newAiRequestId("create_plan");
 
   try {
     const response = await fetch("/api/ai/goal-plan", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Accept: "application/json", "X-Request-ID": requestId },
+      credentials: "same-origin",
       body: JSON.stringify(payload.input),
       signal: controller.signal,
     });
     const result = await response.json().catch(() => ({}));
+    applyUsageFromApiResult(result);
 
     if (!response.ok) {
       const error = new Error(result.error || "AI 계획을 만드는 중 문제가 생겼어요.");
       error.status = response.status;
       error.code = result.code || "";
+      error.details = result.details || null;
       throw error;
     }
-
+    sendFunnelEvent("ai_credit_charged");
     return result.plan || result;
   } catch (error) {
     if (error.name === "AbortError") throw new Error("AI 응답 시간이 길어졌어요. 잠시 후 다시 시도해 주세요.");
@@ -1949,30 +2286,50 @@ async function requestAiPlan(payload) {
 }
 
 async function requestCompanionReply(message) {
+  if (!(await ensureAiActionAvailable("companion_chat"))) {
+    const error = new Error("올리와 대화할 수 있는 AI 크레딧을 확인해 주세요.");
+    error.code = "AI_CREDIT_UNAVAILABLE";
+    throw error;
+  }
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), 30000);
+  const timeoutId = window.setTimeout(() => controller.abort(), 60000);
+  const requestId = newAiRequestId("companion_chat");
 
   try {
     const bundle = getPlanBundle();
     const companionState = getCompanionState();
+    const profile = planHasFeature("companionPersonalization") ? (readPersonalityProfile() || {}) : {};
     const response = await fetch("/api/ai/companion-chat", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Accept: "application/json", "X-Request-ID": requestId },
+      credentials: "same-origin",
       body: JSON.stringify({
         message,
         context: {
           goal: bundle.plan?.goal || "",
           energy: companionState.energy || "",
           todayFocus: bundle.plan?.firstAction || "",
+          personalization: {
+            mbti: profile.mbti || bundle.plan?.mbti || "",
+            planningStyle: bundle.plan?.style || "",
+            preferenceSummary: bundle.plan?.mbtiSummary || bundle.plan?.manseSummary || "",
+          },
         },
       }),
       signal: controller.signal,
     });
     const result = await response.json().catch(() => ({}));
+    applyUsageFromApiResult(result);
 
-    if (!response.ok) throw new Error(result.error || "올리가 답을 만들지 못했어요.");
+    if (!response.ok) {
+      const error = new Error(result.error || "올리가 답을 만들지 못했어요.");
+      error.status = response.status;
+      error.code = result.code || "";
+      throw error;
+    }
     const reply = String(result.reply || "").trim();
     if (!reply) throw new Error("올리가 답을 만들지 못했어요.");
+    sendFunnelEvent("ai_credit_charged");
     return { reply, headline: String(result.headline || "").trim() };
   } catch (error) {
     if (error.name === "AbortError") throw new Error("올리의 답이 늦어지고 있어요. 잠시 후 다시 말 걸어주세요.");
@@ -2065,17 +2422,40 @@ function renderAiPreview(preview) {
   if (dashboardPaceText) dashboardPaceText.textContent = preview.dashboard.pace;
 }
 
+function setAiPreviewButtonLabel(label, { showCost = true } = {}) {
+  if (!aiPreviewButton) return;
+  aiPreviewButton.replaceChildren(document.createTextNode(label));
+  if (!showCost) return;
+  const cost = document.createElement("span");
+  cost.className = "button-energy-cost";
+  cost.textContent = ` · ${aiCreditCost("create_plan") || "—"}크레딧`;
+  aiPreviewButton.append(cost);
+}
+
 async function runPersonalityAnalysis({ showLoading = false } = {}) {
   if (!personalityForm) return;
 
-  if (showLoading && readTrialAccess()?.plan !== "pro") {
+  if (showLoading) {
+    await accountExperienceReady;
+    if (!authUiState.user) {
+      showToast("로그인 후 24시간 Pro 체험과 AI 계획 생성을 시작할 수 있어요.");
+      openAuthSheet();
+      return;
+    }
+    const usage = await loadAiUsage().catch(() => null);
+    if (usage?.plan === "free" && usage.trial?.eligible) {
+      const trial = await startTrialAccess();
+      if (!trial) return;
+    }
+  }
+
+  if (showLoading && (aiUsageState?.plan || authUiState.user?.plan) === "free") {
     try {
-      const serverSaysGenerated = authUiState.user?.plan !== "pro" && Boolean(authUiState.user?.goalPlanGeneratedAt);
-      const guestDeviceSaysGenerated = !authUiState.user && localStorage.getItem(FREE_PLAN_GENERATED_KEY) === "true";
-      if (serverSaysGenerated || guestDeviceSaysGenerated) {
+      const serverSaysGenerated = Boolean(authUiState.user?.goalPlanGeneratedAt);
+      if (serverSaysGenerated) {
         if (aiPreviewStatus) aiPreviewStatus.textContent = "무료 목표 계획 1개를 이미 만들었어요";
         planPreviewPanel?.classList.add("is-ready");
-        showToast("무료 플랜은 목표 계획 1개를 만들 수 있어요. 앱에서 올리 에너지로 수정해 보세요.");
+        showToast("Free 플랜은 목표와 활성 계획을 1개까지 이용할 수 있어요. 기존 계획을 AI 크레딧으로 수정해 보세요.");
         openFirstStepResult();
         return;
       }
@@ -2120,7 +2500,7 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
   if (showLoading) {
     aiPreviewStatus.textContent = "AI가 목표 설계 중";
     aiPreviewButton.disabled = true;
-    aiPreviewButton.textContent = "올리가 오늘 계획을 만드는 중...";
+    setAiPreviewButtonLabel("올리가 오늘 계획을 만드는 중...", { showCost: false });
     await playAnalysisLoading();
   }
 
@@ -2133,11 +2513,20 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
       if (aiPreviewStatus) aiPreviewStatus.textContent = "무료 목표 계획 1개를 이미 만들었어요";
       if (aiPreviewButton) {
         aiPreviewButton.disabled = false;
-        aiPreviewButton.textContent = "이대로 1일 체험 시작하기";
+        setAiPreviewButtonLabel("24시간 Pro 체험으로 계획 만들기");
       }
       planPreviewPanel?.classList.add("is-ready");
       showToast(error.message);
       openFirstStepResult();
+      return;
+    }
+    if (showLoading) {
+      if (aiPreviewStatus) aiPreviewStatus.textContent = error.message || "AI 계획을 만들지 못했어요.";
+      if (aiPreviewButton) {
+        aiPreviewButton.disabled = false;
+        setAiPreviewButtonLabel("AI 계획 다시 만들기");
+      }
+      showToast(`${error.message || "AI 계획을 만들지 못했어요."} 실패한 요청은 AI 크레딧으로 확정 차감되지 않아요.`);
       return;
     }
     preview = buildLocalAiPreview(payload);
@@ -2149,7 +2538,7 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
   if (aiPreviewStatus) aiPreviewStatus.textContent = usedFallback ? "AI 연결 없이 제공하는 기본 계획 템플릿" : "올리가 AI로 만든 맞춤 계획";
   if (aiPreviewButton) {
     aiPreviewButton.disabled = false;
-    aiPreviewButton.textContent = "이대로 1일 체험 시작하기";
+    setAiPreviewButtonLabel("24시간 Pro 체험으로 계획 만들기");
   }
 
   try {
@@ -2178,8 +2567,6 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
   }
 
   if (showLoading) {
-    saveTrialLead();
-    startTrialAccess();
     if (birthDate || birthPlace || mbti) {
       try {
         localStorage.setItem(PERSONALITY_PROFILE_KEY, JSON.stringify({ birthDate, birthTime, birthPlace, mbti, updatedAt: new Date().toISOString() }));
@@ -2264,15 +2651,23 @@ async function loadAdminMembers() {
     }
     memberTableBody.innerHTML = users
       .map((user) => {
-        const trialEnded = user.plan !== "pro" && Number(user.trialExpiresAt || 0) <= Date.now();
-        const planLabel = user.plan === "pro" ? "PRO" : trialEnded ? "체험 종료" : "체험 중";
+        const usage = user.aiUsage;
+        const effectivePlan = usage?.plan || user.plan || "free";
+        const planLabel = effectivePlan === "pro" ? "Pro" : effectivePlan === "trial" ? "Pro 체험" : "Free";
+        const usageSummary = usage
+          ? `오늘 ${usage.daily.used}/${usage.daily.limit} · ${effectivePlan === "trial" ? "체험" : "월"} ${usage.monthly.used}/${usage.monthly.limit}`
+          : "사용량 확인 불가";
+        const metricsSummary = usage
+          ? `호출 ${usage.metrics.apiCalls}회 · 토큰 ${usage.metrics.totalTokens.toLocaleString("ko-KR")} · ${Number(usage.metrics.estimatedCostUsd || 0) > 0 ? `추정 $${Number(usage.metrics.estimatedCostUsd).toFixed(4)}` : "추정 비용 미설정"} · ${usage.policyVersion}`
+          : "";
+        const trialSummary = usage?.trial?.active ? `체험 종료 ${formatUsageTime(usage.trial.endsAt, usage.timeZone)}` : "";
         return `<tr data-member-id="${escapeAccountText(user.id)}">
           <td><strong>${escapeAccountText(user.name)}</strong><small>${escapeAccountText(user.email || user.id)}</small></td>
           <td>${escapeAccountText(AUTH_PROVIDER_LABELS[user.provider] || user.provider)}</td>
-          <td><span class="plan-pill ${user.plan === "pro" ? "pro" : "trial"}">${planLabel}</span></td>
+          <td><span class="plan-pill ${effectivePlan === "pro" ? "pro" : effectivePlan === "trial" ? "trial" : "free"}">${planLabel}</span><small>${escapeAccountText(usageSummary)}</small>${trialSummary ? `<small>${escapeAccountText(trialSummary)}</small>` : ""}${metricsSummary ? `<small>${escapeAccountText(metricsSummary)}</small>` : ""}</td>
           <td>${formatAdminDate(user.createdAt)}</td><td>${formatAdminDate(user.lastLoginAt)}</td>
           <td>${user.role === "admin" ? "관리자" : "회원"}</td>
-          <td><button type="button" data-member-action="plan" data-next-value="${user.plan === "pro" ? "trial" : "pro"}">${user.plan === "pro" ? "PRO 해제" : "PRO 전환"}</button>
+          <td><button type="button" data-member-action="plan" data-next-value="${effectivePlan === "pro" ? "free" : "pro"}">${effectivePlan === "pro" ? "Pro 해제" : "Pro 전환"}</button>
           <button type="button" data-member-action="role" data-next-value="${user.role === "admin" ? "member" : "admin"}">${user.role === "admin" ? "관리자 해제" : "관리자 지정"}</button></td>
         </tr>`;
       })
@@ -3009,19 +3404,38 @@ function getXpRequirement(level) {
   return 40 + Math.max(0, level - 1) * 18;
 }
 
-async function requestAiPlanRevision(payload) {
+async function requestAiPlanRevision(payload, action = "revise_plan") {
+  if (!(await ensureAiActionAvailable(action))) {
+    const error = new Error("이 변경안을 만들 수 있는 AI 크레딧과 플랜을 확인해 주세요.");
+    error.code = "AI_CREDIT_UNAVAILABLE";
+    throw error;
+  }
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), 60000);
+  const requestId = newAiRequestId(action);
+  const endpoint = {
+    revise_plan: "/api/ai/plan-revision",
+    recovery_plan: "/api/ai/recovery-plan",
+    reschedule_plan: "/api/ai/reschedule-plan",
+  }[action] || "/api/ai/plan-revision";
 
   try {
-    const response = await fetch("/api/ai/plan-revision", {
+    const response = await fetch(endpoint, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Accept: "application/json", "X-Request-ID": requestId },
+      credentials: "same-origin",
       body: JSON.stringify(payload),
       signal: controller.signal,
     });
     const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result.error || "AI 변경안을 만드는 중 문제가 생겼어요.");
+    applyUsageFromApiResult(result);
+    if (!response.ok) {
+      const error = new Error(result.error || "AI 변경안을 만드는 중 문제가 생겼어요.");
+      error.status = response.status;
+      error.code = result.code || "";
+      throw error;
+    }
+    sendFunnelEvent("ai_credit_charged");
     return result.revision || result;
   } catch (error) {
     if (error.name === "AbortError") throw new Error("AI 변경안 작성이 길어지고 있어요. 잠시 후 다시 시도해 주세요.");
@@ -3164,9 +3578,10 @@ function showOllieReaction(message, headline) {
   }, 80);
 }
 
-function appendRevisionRequest(text, response = "좋아요. 그 요청을 플랜 수정 요청에 넣어둘게요.") {
+function appendRevisionRequest(text, response = "좋아요. 그 요청을 플랜 수정 요청에 넣어둘게요.", action = "revise_plan") {
   if (!text || !planRevisionRequest) return;
 
+  pendingRevisionAction = action;
   const current = planRevisionRequest.value.trim();
   planRevisionRequest.value = current ? `${current}\n${text}` : text;
   updateRevisionButtonState();
@@ -3428,6 +3843,7 @@ function openEnergyCharge() {
   renderOllieEnergy();
   setSheetOpen(energyChargeSheet, energyChargeOverlay, true);
   trackCompanionEvent("energy_info_opened");
+  sendFunnelEvent("usage_details_opened");
 }
 
 function closeEnergyCharge() {
@@ -5408,7 +5824,7 @@ sendCompanionMessage?.addEventListener("click", async () => {
   }
 
   if (sendCompanionMessage.disabled) return;
-  if (!consumeOllieEnergy(1, "올리와 대화")) return;
+  if (!(await ensureAiActionAvailable("companion_chat"))) return;
 
   appendRevisionRequest(`사용자 추가 요청: ${message}`, "올리가 답을 생각하고 있어요…");
   companionChatInput.value = "";
@@ -5427,8 +5843,7 @@ sendCompanionMessage?.addEventListener("click", async () => {
       reply: reply.slice(0, 240),
     });
   } catch (error) {
-    refundOllieEnergy(1);
-    const fallback = "지금은 답을 만들지 못했어요. 방금 이야기는 계획 수정 요청에 담아뒀고, 에너지는 돌려드렸어요. 잠시 후 다시 말 걸어주세요.";
+    const fallback = `${error.message || "지금은 답을 만들지 못했어요."} 실패한 요청은 AI 크레딧으로 확정 차감되지 않아요.`;
     if (companionChatResponse) companionChatResponse.textContent = fallback;
     showOllieReaction(fallback, "잠시 생각을 고르고 있어요.");
   } finally {
@@ -5447,7 +5862,8 @@ increaseFocusTime?.addEventListener("click", () => adjustFocusMinutes(5));
 focusMinutesInput?.addEventListener("change", () => setFocusMinutes(focusMinutesInput.value));
 
 recoveryButtons.forEach((button) => {
-  button.addEventListener("click", () => {
+  button.addEventListener("click", async () => {
+    if (!(await ensureAiActionAvailable("recovery_plan"))) return;
     const action = button.dataset.recoveryAction;
     const request = {
       tomorrow: "놓친 일정은 내일 첫 번째 할 일로 옮겨줘.",
@@ -5462,7 +5878,7 @@ recoveryButtons.forEach((button) => {
     ].slice(-30);
     bundle.state.rolloverNotice = null;
     savePlanBundleState(bundle.state);
-    appendRevisionRequest(request, "좋아요. 놓친 일정은 실패가 아니라 변경안으로 다시 연결할게요.");
+    appendRevisionRequest(request, "좋아요. 놓친 일정은 실패가 아니라 변경안으로 다시 연결할게요.", "recovery_plan");
     trackCompanionEvent("missed_task_recovery_selected", { action });
     renderExecutionPage(getPlanBundle());
   });
@@ -5524,10 +5940,9 @@ regeneratePlanButton?.addEventListener("click", async () => {
     updateRevisionButtonState();
     return;
   }
-  if (!consumeOllieEnergy(3, "AI 계획 수정")) {
-    openEnergyCharge();
-    return;
-  }
+  const revisionAction = pendingRevisionAction || "revise_plan";
+  if (!(await ensureAiActionAvailable(revisionAction))) return;
+  const revisionCost = aiCreditCost(revisionAction);
 
   const plan = currentBundle.plan || readExecutionPlan();
   const buttonMarkup = regeneratePlanButton.innerHTML;
@@ -5535,7 +5950,8 @@ regeneratePlanButton?.addEventListener("click", async () => {
   regeneratePlanButton.textContent = "올리가 AI 변경안을 만들고 있어요…";
   if (planEditorMessage) planEditorMessage.textContent = "추억과 실행 기록을 읽고 목표에 맞는 변경안을 설계하고 있어요.";
   trackCompanionEvent("ai_plan_revision_requested", {
-    energy: 3,
+    credits: revisionCost,
+    action: revisionAction,
     requestLength: revisionRequest.length,
     goalType: revisionDetails.goalType,
     hasResources: Boolean(revisionDetails.resources),
@@ -5557,7 +5973,7 @@ regeneratePlanButton?.addEventListener("click", async () => {
       revisionRequest,
       revisionDetails,
       completedTasks: (currentBundle.state.completedLog || []).map((item) => item.text),
-    });
+    }, revisionAction);
 
     const revisedTasks = Array.isArray(revision.revisedTasks) ? revision.revisedTasks.map((task) => String(task).trim()).filter(Boolean) : [];
     if (revisedTasks.length < 3) throw new Error("AI 변경안의 실행 항목이 충분하지 않아요. 다시 시도해 주세요.");
@@ -5582,27 +5998,29 @@ regeneratePlanButton?.addEventListener("click", async () => {
       planEditorMessage.textContent = `${revision.ollieMessage || "올리가 AI 변경안을 만들었어요."} ${changes}${assumptions} 아직 적용 전이며, 아래에서 확인 후 승인할 수 있어요.`;
     }
     showToast("AI 변경안이 준비됐어요 · 확인 후 적용하기를 눌러 주세요");
-    trackCompanionEvent("ai_plan_revision_ready", { energy: 3, taskCount: revisedTasks.length });
+    trackCompanionEvent("ai_plan_revision_ready", { credits: revisionCost, action: revisionAction, taskCount: revisedTasks.length });
     renderExecutionPage(bundle);
   } catch (error) {
-    refundOllieEnergy(3);
-    if (planEditorMessage) planEditorMessage.textContent = `${error.message || "AI 변경안을 만들지 못했어요."} 사용한 올리 에너지는 돌려드렸어요.`;
-    showToast("AI 변경안을 만들지 못했어요 · 올리 에너지 3을 돌려드렸어요");
+    if (planEditorMessage) planEditorMessage.textContent = `${error.message || "AI 변경안을 만들지 못했어요."} 실패한 요청은 AI 크레딧으로 확정 차감되지 않아요.`;
+    showToast("AI 변경안을 만들지 못했어요 · 실패한 요청은 확정 차감되지 않아요");
     trackCompanionEvent("ai_plan_revision_failed", { message: String(error.message || error).slice(0, 160) });
   } finally {
+    pendingRevisionAction = "revise_plan";
     regeneratePlanButton.innerHTML = buttonMarkup;
     updateRevisionButtonState();
   }
 });
 
-weeklyOptimizeButton?.addEventListener("click", () => {
-  if (!consumeOllieEnergy(5, "주간 최적화")) return;
+weeklyOptimizeButton?.addEventListener("click", async () => {
+  if (!(await ensureAiActionAvailable("reschedule_plan"))) return;
   appendRevisionRequest(
     "이번 주 완료율과 남은 일정을 기준으로 다음 7일의 실행 순서와 난이도를 최적화해줘.",
     "이번 주 흐름을 살펴보고, 무리 없이 이어갈 수 있는 변경안을 준비했어요.",
+    "reschedule_plan",
   );
-  showToast("주간 최적화 제안을 준비했어요 · 올리 에너지 5 사용");
-  trackCompanionEvent("weekly_optimization_requested", { energy: 5 });
+  setPlanScreen("editor");
+  showToast("전체 일정 재조정 요청을 담았어요 · 생성 시 AI 크레딧 4개");
+  trackCompanionEvent("weekly_optimization_requested", { credits: aiCreditCost("reschedule_plan") });
 });
 
 reviseAgainButton?.addEventListener("click", () => {

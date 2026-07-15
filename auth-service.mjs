@@ -1,3 +1,6 @@
+import { ensureAiTrialAbuseMarker, getAiCreditUsage, withAiCreditUserLock } from "./ai-credits-service.mjs";
+import { PLAN_CONFIG } from "./plan-policy.mjs";
+
 // On My Way 회원/인증 서비스 코어.
 // Cloudflare Worker(worker.mjs)와 로컬 서버(serve-local.cjs)가 같은 로직을 공유한다.
 // 네 소셜 Provider의 Authorization Code 흐름, 내부 identity, 폐기 가능한 앱 세션을 관리한다.
@@ -8,14 +11,12 @@ const SESSION_DAYS = 30;
 const SESSION_ISSUER = "on-my-way";
 const SESSION_AUDIENCE = "on-my-way-app";
 const OAUTH_TRANSACTION_TTL_MS = 10 * 60 * 1000;
-const TRIAL_DURATION_MS = 24 * 60 * 60 * 1000;
 const ACCOUNT_DELETION_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
 const LEGAL_PAYMENT_RETENTION_MS = 5 * 365 * 24 * 60 * 60 * 1000;
 const PAYMENT_RETRY_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const MAX_PAYMENT_RETRIES = 3;
 const MAX_APP_STATE_BYTES = 250_000;
 const SYNCED_APP_STATE_KEYS = new Set([
-  "omwOllieEnergy",
   "omwPersonalityProfile",
   "omwExecutionPlan",
   "omwExecutionState",
@@ -248,9 +249,11 @@ function publicUser(user) {
     email: user.email,
     avatar: user.avatar || "",
     role: user.role || "member",
-    plan: user.plan || "trial",
+    plan: user.plan || "free",
     trialStartedAt: user.trialStartedAt || null,
     trialExpiresAt: user.trialExpiresAt || null,
+    trialUsedAt: user.trialUsedAt || null,
+    trialEndedAt: user.trialEndedAt || null,
     proSince: user.proSince || null,
     subscriptionStatus: user.subscriptionStatus || null,
     currentPeriodEnd: user.currentPeriodEnd || null,
@@ -273,6 +276,7 @@ export async function upsertUserFromProfile(userStore, env, provider, profile) {
 
   const existingIdentity = typeof userStore.getIdentity === "function" ? await userStore.getIdentity(provider, providerUserId) : null;
   const id = existingIdentity?.userId || (await internalUserId(env, provider, providerUserId));
+  return withAiCreditUserLock(id, async () => {
   const now = Date.now();
   const legacy = existingIdentity ? null : await userStore.getUser(`${provider}:${providerUserId}`);
   const existing = await userStore.getUser(id);
@@ -290,9 +294,11 @@ export async function upsertUserFromProfile(userStore, env, provider, profile) {
     status: "active",
     role: isAdminEmail ? "admin" : "member",
     roleSource: isAdminEmail ? "admin_email" : "default",
-    plan: "trial",
-    trialStartedAt: now,
-    trialExpiresAt: now + TRIAL_DURATION_MS,
+    plan: "free",
+    trialStartedAt: null,
+    trialExpiresAt: null,
+    trialUsedAt: null,
+    trialEndedAt: null,
     createdAt: now,
   });
 
@@ -324,6 +330,7 @@ export async function upsertUserFromProfile(userStore, env, provider, profile) {
     });
   }
   return user;
+  });
 }
 
 async function issueSession(ctx, user) {
@@ -431,7 +438,7 @@ async function chargeSubscription(env, user, { orderId = createPaymentOrderId(),
     fetcher,
     body: {
       customerKey: user.customerKey,
-      amount: 2900,
+      amount: PLAN_CONFIG.pro.priceKRW,
       orderId,
       orderName: "On My Way PRO 월정액",
       customerEmail: user.email || undefined,
@@ -873,18 +880,31 @@ export async function handleAccountApi(ctx) {
       }, retainedUntil);
     }
 
-    await userStore.deleteIdentitiesByUserId(user.id);
-    await userStore.deleteSessionsByUserId(user.id);
-    if (typeof userStore.deleteAppState === "function") await userStore.deleteAppState(user.id);
-    await userStore.putUser({
-      id: user.id,
-      status: "deletion_pending",
-      deletionRequestedAt: now,
-      deletionScheduledAt: now + ACCOUNT_DELETION_GRACE_MS,
+    const deletionScheduledAt = now + ACCOUNT_DELETION_GRACE_MS;
+    const deleted = await withAiCreditUserLock(user.id, async () => {
+      const latestUser = await userStore.getUser(user.id);
+      if (!latestUser || (latestUser.status && latestUser.status !== "active")) return false;
+      await ensureAiTrialAbuseMarker({
+        store: userStore,
+        userId: latestUser.id,
+        usedAt: latestUser.aiCredits?.trial?.usedAt || latestUser.trialUsedAt,
+        now,
+      });
+      await userStore.deleteIdentitiesByUserId(user.id);
+      await userStore.deleteSessionsByUserId(user.id);
+      if (typeof userStore.deleteAppState === "function") await userStore.deleteAppState(user.id);
+      await userStore.putUser({
+        id: user.id,
+        status: "deletion_pending",
+        deletionRequestedAt: now,
+        deletionScheduledAt,
+      }, { expiresAt: deletionScheduledAt });
+      return true;
     });
+    if (!deleted) return { status: 409, json: { error: "계정 상태가 변경되어 탈퇴 요청을 다시 확인해야 합니다." } };
     return {
       status: 202,
-      json: { ok: true, deletionScheduledAt: now + ACCOUNT_DELETION_GRACE_MS },
+      json: { ok: true, deletionScheduledAt },
       cookies: [cookie(SESSION_COOKIE, "", { maxAgeSeconds: 0, secure: ctx.secure })],
     };
   }
@@ -1001,7 +1021,7 @@ export async function handleAccountApi(ctx) {
     }
     user.billingKey = null;
     user.subscriptionStatus = "canceled";
-    if (!user.currentPeriodEnd || Number(user.currentPeriodEnd) <= Date.now()) user.plan = "trial";
+    if (!user.currentPeriodEnd || Number(user.currentPeriodEnd) <= Date.now()) user.plan = "free";
     await store(ctx).putUser(user);
     return { status: 200, json: { user: publicUser(user) } };
   }
@@ -1011,7 +1031,11 @@ export async function handleAccountApi(ctx) {
     if (user?.role !== "admin") return { status: 403, json: { error: "관리자만 볼 수 있어요." } };
     const users = await store(ctx).listUsers();
     users.sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0));
-    return { status: 200, json: { users: users.map(publicUser) } };
+    const publicUsers = await Promise.all(users.map(async (member) => ({
+      ...publicUser(member),
+      aiUsage: await getAiCreditUsage({ store: store(ctx), userId: member.id }).catch(() => null),
+    })));
+    return { status: 200, json: { users: publicUsers } };
   }
 
   if (path === "/api/admin/users/update" && method === "POST") {
@@ -1025,7 +1049,7 @@ export async function handleAccountApi(ctx) {
       target.plan = "pro";
       target.proSince = Date.now();
       target.subscriptionStatus = target.billingKey ? "active" : "complimentary";
-    } else if (body.plan === "trial") {
+    } else if (body.plan === "free" || body.plan === "trial") {
       if (target.billingKey && !billingConfig(ctx.env).configured) {
         return { status: 503, json: { error: "결제사 해지 설정을 확인할 수 없어 회원 구독을 유지했습니다." } };
       }
@@ -1036,7 +1060,7 @@ export async function handleAccountApi(ctx) {
           return { status: 502, json: { error: "결제사 해지를 확인하지 못해 회원 구독을 유지했습니다." } };
         }
       }
-      target.plan = "trial";
+      target.plan = "free";
       target.proSince = null;
       target.billingKey = null;
       target.subscriptionStatus = "canceled";
@@ -1063,7 +1087,7 @@ export async function renewDueSubscriptions({ env, store: userStore, now = Date.
   let retrying = 0;
   for (const user of users) {
     if (user.subscriptionStatus === "canceled" && user.plan === "pro" && Number(user.currentPeriodEnd || 0) <= now) {
-      user.plan = "trial";
+      user.plan = "free";
       await userStore.putUser(user);
       processed += 1;
       continue;
@@ -1090,7 +1114,7 @@ export async function renewDueSubscriptions({ env, store: userStore, now = Date.
         user.paymentFailure = { code: error.code || "BILLING_ERROR", at: now };
         if (retryCount >= MAX_PAYMENT_RETRIES) {
           user.subscriptionStatus = "payment_failed";
-          user.plan = "trial";
+          user.plan = "free";
           user.nextPaymentRetryAt = null;
           failed += 1;
         } else {
@@ -1201,7 +1225,11 @@ export function createKvStore(kv) {
         return memorySettings.get(name) || null;
       },
       async putSetting(name, value) {
-        memorySettings.set(name, value);
+        if (value === null || value === undefined) memorySettings.delete(name);
+        else memorySettings.set(name, value);
+      },
+      async deleteSetting(name) {
+        memorySettings.delete(name);
       },
     };
   }
@@ -1209,8 +1237,13 @@ export function createKvStore(kv) {
     async getUser(id) {
       return kv.get(`user:${id}`, "json");
     },
-    async putUser(user) {
-      await kv.put(`user:${user.id}`, JSON.stringify(user));
+    async putUser(user, options = {}) {
+      const expiresAt = Number(options.expiresAt);
+      if (Number.isFinite(expiresAt)) {
+        await kv.put(`user:${user.id}`, JSON.stringify(user), { expiration: Math.floor(expiresAt / 1000) });
+      } else {
+        await kv.put(`user:${user.id}`, JSON.stringify(user));
+      }
     },
     async listUsers() {
       const users = [];
@@ -1287,8 +1320,21 @@ export function createKvStore(kv) {
     async getSetting(name) {
       return kv.get(`setting:${name}`, "json");
     },
-    async putSetting(name, value) {
-      await kv.put(`setting:${name}`, JSON.stringify(value));
+    async putSetting(name, value, options = {}) {
+      const key = `setting:${name}`;
+      if (value === null || value === undefined) {
+        await kv.delete(key);
+        return;
+      }
+      const expiresAt = Number(options.expiresAt);
+      if (Number.isFinite(expiresAt)) {
+        await kv.put(key, JSON.stringify(value), { expiration: Math.floor(expiresAt / 1000) });
+      } else {
+        await kv.put(key, JSON.stringify(value));
+      }
+    },
+    async deleteSetting(name) {
+      await kv.delete(`setting:${name}`);
     },
   };
 }

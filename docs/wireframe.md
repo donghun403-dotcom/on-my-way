@@ -1,5 +1,7 @@
 # On My Way Homepage Wireframe
 
+> **과거 설계 문서:** 이 문서의 가격·체험·상품 아이디어는 현재 운영 정책이 아닙니다. 현재 확정 정책은 [`pricing-and-credits.md`](pricing-and-credits.md)만 기준으로 사용합니다.
+
 ## 1. Wireframe Principle
 
 On My Way의 홈페이지는 사용자가 먼저 자신의 목표를 말하게 하고, 그다음 성향 정보를 입력하게 하는 구조로 설계한다.
