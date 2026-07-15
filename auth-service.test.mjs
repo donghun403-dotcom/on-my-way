@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  createKvStore,
   createSessionToken,
   verifySessionToken,
   handleAccountApi,
@@ -9,6 +10,7 @@ import {
   purgeDueAccountDeletions,
   upsertUserFromProfile,
 } from "./auth-service.mjs";
+import { commitAiCredits, getAiCreditUsage, reserveAiCredits, startAiTrial } from "./ai-credits-service.mjs";
 import worker, { createGoalPlanForUser } from "./worker.mjs";
 
 function memoryStore(seed = []) {
@@ -93,7 +95,7 @@ test("배포 기본값에서는 데모 로그인을 허용하지 않는다", asy
   assert.equal(result.status, 403);
 });
 
-test("신규 소셜 회원은 24시간 체험으로 생성된다", async () => {
+test("신규 소셜 회원은 체험을 자동 시작하지 않고 Free로 생성된다", async () => {
   const store = memoryStore();
   const result = await handleAccountApi(context({
     path: "/api/auth/dev-login",
@@ -103,10 +105,59 @@ test("신규 소셜 회원은 24시간 체험으로 생성된다", async () => {
     body: { provider: "kakao", name: "테스트", email: "member@example.com" },
   }));
   assert.equal(result.status, 200);
-  assert.equal(result.json.user.plan, "trial");
-  assert.equal(result.json.user.trialExpiresAt - result.json.user.trialStartedAt, 24 * 60 * 60 * 1000);
+  assert.equal(result.json.user.plan, "free");
+  assert.equal(result.json.user.trialStartedAt, null);
+  assert.equal(result.json.user.trialExpiresAt, null);
+  assert.equal(result.json.user.trialUsedAt, null);
   assert.match(result.cookies[0], /HttpOnly/);
   assert.match(result.cookies[0], /Secure/);
+});
+
+test("KV 저장소는 삭제 tombstone과 체험 표식에 절대 만료 시각을 적용한다", async () => {
+  const writes = [];
+  const deletes = [];
+  const kv = {
+    async put(key, value, options) { writes.push({ key, value, options }); },
+    async delete(key) { deletes.push(key); },
+  };
+  const store = createKvStore(kv);
+  const expiresAt = Date.parse("2027-01-15T03:00:00.000Z");
+
+  await store.putUser({ id: "pending-user", status: "deletion_pending" }, { expiresAt });
+  await store.putSetting("ai-trial-used:pending-user", { usedAt: 1, expiresAt }, { expiresAt });
+  await store.deleteSetting("ai-trial-used:pending-user");
+
+  assert.deepEqual(writes.map(({ key, options }) => ({ key, options })), [
+    { key: "user:pending-user", options: { expiration: Math.floor(expiresAt / 1000) } },
+    { key: "setting:ai-trial-used:pending-user", options: { expiration: Math.floor(expiresAt / 1000) } },
+  ]);
+  assert.deepEqual(deletes, ["setting:ai-trial-used:pending-user"]);
+});
+
+test("Free 회원의 Pro 체험은 명시적으로 한 번만 시작되고 24시간 뒤 Free로 돌아간다", async () => {
+  const now = Date.parse("2026-01-15T03:00:00.000Z");
+  const user = { id: "google:explicit-trial", status: "active", role: "member", plan: "free", createdAt: now - 1 };
+  const store = memoryStore([user]);
+
+  const started = await startAiTrial({ store, userId: user.id, now });
+  assert.equal(started.started, true);
+  assert.equal(started.usage.plan, "trial");
+  assert.equal(user.plan, "trial");
+  assert.equal(user.trialExpiresAt - user.trialStartedAt, 24 * 60 * 60 * 1000);
+
+  const repeated = await startAiTrial({ store, userId: user.id, now: now + 1 });
+  assert.equal(repeated.started, false);
+  assert.equal(repeated.idempotent, true);
+  assert.equal(user.trialExpiresAt, now + 24 * 60 * 60 * 1000);
+
+  const expired = await getAiCreditUsage({ store, userId: user.id, now: now + 24 * 60 * 60 * 1000 });
+  assert.equal(expired.plan, "free");
+  assert.equal(expired.trial.eligible, false);
+  assert.equal(user.plan, "free");
+  await assert.rejects(
+    startAiTrial({ store, userId: user.id, now: now + 24 * 60 * 60 * 1000 + 1 }),
+    (error) => error.status === 409 && error.code === "TRIAL_ALREADY_USED",
+  );
 });
 
 test("허용 목록 이메일만 관리자가 된다", async () => {
@@ -191,6 +242,49 @@ test("Provider identity는 이메일이 아니라 서버 내부 사용자 ID에 
   assert.notEqual(googleUser.id, kakaoUser.id);
   assert.equal(store.identities.get("google:google-subject").userId, googleUser.id);
   assert.equal(store.identities.get("kakao:kakao-subject").userId, kakaoUser.id);
+});
+
+test("OAuth 프로필 갱신과 AI 차감이 겹쳐도 최신 사용자 필드를 서로 덮어쓰지 않는다", async () => {
+  const store = memoryStore();
+  const env = testEnv();
+  const user = await upsertUserFromProfile(store, env, "google", {
+    providerUserId: "profile-credit-race",
+    name: "이전 이름",
+    email: "race@example.com",
+  });
+  const originalGetUser = store.getUser.bind(store);
+  let releaseProfileRead;
+  let markProfileRead;
+  let pauseNextProfileRead = true;
+  const profileRead = new Promise((resolve) => { markProfileRead = resolve; });
+  const profileGate = new Promise((resolve) => { releaseProfileRead = resolve; });
+  store.getUser = async (id) => {
+    const snapshot = JSON.parse(JSON.stringify(await originalGetUser(id)));
+    if (pauseNextProfileRead && id === user.id) {
+      pauseNextProfileRead = false;
+      markProfileRead();
+      await profileGate;
+    }
+    return snapshot;
+  };
+
+  const profilePromise = upsertUserFromProfile(store, env, "google", {
+    providerUserId: "profile-credit-race",
+    name: "새 이름",
+    email: "race@example.com",
+  });
+  await profileRead;
+  const creditPromise = (async () => {
+    await reserveAiCredits({ store, userId: user.id, action: "companion_chat", requestId: "profile-race-credit" });
+    await commitAiCredits({ store, userId: user.id, requestId: "profile-race-credit" });
+  })();
+  releaseProfileRead();
+  await Promise.all([profilePromise, creditPromise]);
+
+  const latest = await originalGetUser(user.id);
+  assert.equal(latest.name, "새 이름");
+  assert.equal(latest.aiCredits.requests["profile-race-credit"].status, "committed");
+  assert.equal(latest.aiCredits.usage.day.used, 1);
 });
 
 test("클라이언트가 전달한 userId는 데모 identity 생성에 사용되지 않는다", async () => {
@@ -434,9 +528,9 @@ test("로그아웃은 서버 세션을 폐기하고 같은 쿠키 재사용을 �
   assert.equal((await handleAccountApi(context({ path: "/api/auth/session", env, store, cookie: sessionCookie }))).json.user, null);
 });
 
-test("무료 체험 회원의 첫 계획 생성은 서버 회원 기록에 저장된다", async () => {
+test("Free 회원의 첫 계획 생성은 서버 회원 기록에 저장된다", async () => {
   const store = memoryStore();
-  const user = { id: "google:first-plan", role: "member", plan: "trial" };
+  const user = { id: "google:first-plan", role: "member", plan: "free" };
   await store.putUser(user);
   const result = await createGoalPlanForUser({
     input: { goal: "영어 공부" },
@@ -450,9 +544,9 @@ test("무료 체험 회원의 첫 계획 생성은 서버 회원 기록에 저�
   assert.equal((await store.getUser(user.id)).goalPlanGeneratedAt, 123456);
 });
 
-test("계획을 만든 무료 체험 회원은 다른 브라우저에서도 추가 생성할 수 없다", async () => {
+test("계획을 만든 Free 회원은 다른 브라우저에서도 추가 생성할 수 없다", async () => {
   const store = memoryStore();
-  const user = { id: "google:limited", role: "member", plan: "trial", goalPlanGeneratedAt: 123456 };
+  const user = { id: "google:limited", role: "member", plan: "free", goalPlanGeneratedAt: 123456 };
   let generated = false;
   await assert.rejects(
     createGoalPlanForUser({
@@ -470,7 +564,27 @@ test("계획을 만든 무료 체험 회원은 다른 브라우저에서도 추�
   assert.equal(generated, false);
 });
 
-test("해지된 구독은 결제 기간 종료 후 체험 상태로 내려간다", async () => {
+test("Pro와 Pro 체험 회원은 Free 전용 계획 1개 제한을 적용받지 않는다", async () => {
+  for (const plan of ["trial", "pro"]) {
+    const user = { id: `google:unlimited-${plan}`, role: "member", plan, goalPlanGeneratedAt: 123456 };
+    const store = memoryStore([user]);
+    let generated = false;
+    const result = await createGoalPlanForUser({
+      input: { goal: "추가 계획" },
+      env: {},
+      userStore: store,
+      user,
+      generatePlan: async () => {
+        generated = true;
+        return { plan: { goal: "추가 계획" } };
+      },
+    });
+    assert.equal(generated, true);
+    assert.equal(result.plan.goal, "추가 계획");
+  }
+});
+
+test("해지된 구독은 결제 기간 종료 후 Free로 내려간다", async () => {
   const user = {
     id: "google:paid",
     plan: "pro",
@@ -480,7 +594,7 @@ test("해지된 구독은 결제 기간 종료 후 체험 상태로 내려간다
   const store = memoryStore([user]);
   const result = await renewDueSubscriptions({ env: {}, store });
   assert.equal(result.processed, 1);
-  assert.equal(store.users.get(user.id).plan, "trial");
+  assert.equal(store.users.get(user.id).plan, "free");
 });
 
 test("운영 승인 스위치가 꺼져 있으면 결제 키가 있어도 결제창을 열지 않는다", async () => {
@@ -555,7 +669,7 @@ test("갱신 실패는 같은 주문으로 하루 간격 재시도하고 세 번
   const third = await renewDueSubscriptions({ env, store, now: now + 2 * 24 * 60 * 60 * 1000, fetcher });
   assert.equal(third.failed, 1);
   assert.equal(user.subscriptionStatus, "payment_failed");
-  assert.equal(user.plan, "trial");
+  assert.equal(user.plan, "free");
   assert.equal(new Set(orderIds).size, 1);
 });
 
@@ -660,12 +774,24 @@ test("회원 앱 상태는 허용된 키만 동기화하고 revision 충돌과 �
 test("무료 회원 탈퇴는 모든 인증 연결과 세션을 제거하고 최소 대기 표식만 남긴다", async () => {
   const env = testEnv({ ALLOW_DEV_LOGIN: "true" });
   const store = memoryStore();
+  const putUser = store.putUser.bind(store);
+  let lastPutOptions;
+  store.putUser = async (user, options) => {
+    lastPutOptions = options;
+    return putUser(user);
+  };
   const login = await handleAccountApi(context({ path: "/api/auth/dev-login", method: "POST", env, store, body: { provider: "google", name: "탈퇴회원", email: "delete@example.com" } }));
+  const usedAt = Date.now() - 1_000;
+  const activeUser = await store.getUser(login.json.user.id);
+  activeUser.trialUsedAt = usedAt;
+  await store.putUser(activeUser);
   const result = await handleAccountApi(context({ path: "/api/account/delete", method: "POST", env, store, cookie: login.cookies[0], body: { confirmation: "계정 삭제" } }));
   assert.equal(result.status, 202);
   assert.equal(store.sessions.size, 0);
   assert.equal(store.identities.size, 0);
   assert.deepEqual(Object.keys(await store.getUser(login.json.user.id)).sort(), ["deletionRequestedAt", "deletionScheduledAt", "id", "status"]);
+  assert.equal(store.settings.get(`ai-trial-used:${login.json.user.id}`).usedAt, usedAt);
+  assert.equal(lastPutOptions.expiresAt, result.json.deletionScheduledAt);
   assert.match(result.cookies[0], /Max-Age=0/);
 });
 

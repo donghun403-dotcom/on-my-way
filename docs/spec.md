@@ -1,5 +1,7 @@
 # On My Way Homepage Spec
 
+> **과거 설계 문서:** 이 문서의 가격·체험·상품 아이디어는 현재 운영 정책이 아닙니다. 현재 확정 정책은 [`pricing-and-credits.md`](pricing-and-credits.md)만 기준으로 사용합니다.
+
 ## 1. Project Summary
 
 On My Way는 사용자가 일정 기간 안에 이루고 싶은 목표를 구체화하고, 본인의 성향에 맞는 방식으로 실행 계획을 세우고, 진행 상황을 함께 체크하며 목표 달성 확률을 높이도록 돕는 서비스다.

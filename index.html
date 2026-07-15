@@ -49,7 +49,7 @@
         <a href="#top">처음으로</a>
         <a href="#appTour">앱 구경</a>
         <a href="#pricing">가격</a>
-        <a href="#designFlow">1일 무료 체험</a>
+        <a href="#designFlow">24시간 Pro 체험</a>
         <a class="nav-login-link" id="navLoginLink" href="app.html?auth=login&amp;return=%2F">로그인</a>
       </nav>
     </header>
@@ -63,7 +63,7 @@
               <h1><span>Dream Big.</span><span>Start Tiny.</span></h1>
               <p>혼자서는 미루던 목표도<br />오늘은 시작할 수 있어요.</p>
               <div class="hero-cta">
-                <a class="hero-trial-button" href="#designFlow">내 목표로 1일 무료 체험 시작하기</a>
+                <a class="hero-trial-button" href="#designFlow">내 목표로 24시간 Pro 체험 시작하기</a>
                 <span class="hero-cta-note">결제정보 없음 · 30초면 충분해요</span>
               </div>
             </div>
@@ -190,15 +190,15 @@
                     </select>
                   </label>
                 </div>
-                <div class="privacy-note"><span aria-hidden="true">✓</span> 입력 내용은 목표 계획을 만드는 데만 사용됩니다.</div>
+                <div class="privacy-note"><span aria-hidden="true">✓</span> 입력 내용은 계획·루틴·코칭과 로그인 기기 간 동기화에 사용돼요.</div>
               </details>
-              <div class="trial-terms-note"><span aria-hidden="true">✓</span> 결제정보 없이 24시간 이용 · 자동 결제 없음 · 체험 종료 후 결제 전까지 이용 일시 중단</div>
+              <div class="trial-terms-note"><span aria-hidden="true">✓</span> 결제정보 없이 24시간 Pro 체험 · 자동 결제 없음 · 종료 후 Free로 계속 이용</div>
             </section>
 
             <footer class="builder-actions">
               <button class="builder-back" type="button" id="diagnosisBackButton" hidden>이전</button>
               <button class="builder-next" type="button" id="diagnosisNextButton">다음 단계</button>
-              <button type="submit" id="aiPreviewButton" hidden>이대로 1일 체험 시작하기</button>
+              <button type="submit" id="aiPreviewButton" hidden>24시간 Pro 체험으로 계획 만들기 · <span class="button-energy-cost"><b data-ai-credit-cost="create_plan">—</b>크레딧</span></button>
             </footer>
           </form>
 
@@ -240,11 +240,11 @@
                   <a id="trialStartInlineLink" href="app.html" aria-label="방금 만든 오늘의 맞춤 계획 바로 시작하기"><span>오늘 계획 바로 시작</span><b aria-hidden="true">→</b></a>
                 </div>
                 <details class="result-details-disclosure">
-                  <summary>
+                  <summary aria-controls="resultDetailsContent" aria-expanded="false">
                     <span><strong>내 계획 자세히 보기</strong><small>오늘 스케줄 · 첫 주 로드맵 · 맞춤 분석</small></span>
                     <b aria-hidden="true">보기</b>
                   </summary>
-                  <div class="result-details-content">
+                  <div class="result-details-content" id="resultDetailsContent">
                     <article class="result-schedule-card" aria-labelledby="todayScheduleTitle">
                       <div class="result-section-head"><span>DAY 1</span><strong id="todayScheduleTitle">오늘의 맞춤 스케줄</strong></div>
                       <ol id="aiTodaySchedule" class="result-schedule-list">
@@ -382,98 +382,181 @@
             <li><span>01</span><strong>앱 구경</strong><small>기능을 먼저 확인해요</small></li>
             <li><span>02</span><strong>내 목표 입력</strong><small>올리가 계획을 만들어요</small></li>
             <li><span>03</span><strong>24시간 체험</strong><small>결제정보는 필요 없어요</small></li>
-            <li><span>04</span><strong>계속할지 결정</strong><small>PRO 월 2,900원</small></li>
+            <li><span>04</span><strong>계속할지 결정</strong><small>Pro 플랜 확인</small></li>
           </ol>
-          <a class="feature-app-link" href="#designFlow">내 목표로 1일 무료 체험하기 <span aria-hidden="true">↑</span></a>
+          <a class="feature-app-link" href="#designFlow">내 목표로 24시간 Pro 체험하기 <span aria-hidden="true">↑</span></a>
         </div>
       </section>
 
-      <section class="pricing section-band" id="pricing" data-page-view="pricing" hidden>
-        <div class="section-heading">
-          <p class="eyebrow">Pricing</p>
-          <h2>하루 써본 뒤, 계속할지 결정하세요</h2>
-          <p>결제정보 없이 충분히 체험하고, 계속 필요할 때만 월 2,900원으로 이어가세요.</p>
-        </div>
-        <div class="pricing-offers" aria-label="결제 플랜">
-          <article class="pricing-option muted">
-            <div>
-              <h3>1일 무료 체험</h3>
-              <p>내 목표로 핵심 기능을 직접 써보는 하루</p>
-            </div>
-            <ul class="pricing-benefits">
-              <li>AI 목표 계획 1개 생성</li>
-              <li>AI 간단 수정 10회</li>
-              <li>매일 맞춤 일정</li>
-              <li>결제정보·자동 결제 없음</li>
-            </ul>
-            <strong>0원</strong>
-          </article>
-          <article class="pricing-option selected">
-            <span class="discount-badge">월 구독</span>
-            <div>
-              <h3>PRO</h3>
-              <p>체험 후 올리와 목표를 계속 이어가고 싶을 때</p>
-            </div>
-            <ul class="pricing-benefits">
-              <li>목표와 일정 무제한 생성</li>
-              <li>매월 올리 에너지 300</li>
-              <li>넉넉한 월간 AI 도움</li>
-              <li>주간 회고와 올리 성장</li>
-              <li>전체 기록과 프리미엄 위젯</li>
-            </ul>
-            <strong>월 2,900원</strong>
-          </article>
+      <section class="pricing pricing-v2 section-band" id="pricing" data-page-view="pricing" aria-labelledby="pricingTitle" hidden>
+        <header class="section-heading pricing-v2-heading">
+          <p class="eyebrow">Plans &amp; AI Credits</p>
+          <h2 id="pricingTitle">내 속도에 맞는 플랜을 선택하세요</h2>
+          <p>설계는 직접 결정하고, AI는 오늘 실행할 수 있는 크기로 정리해 드려요.</p>
+          <p class="pricing-policy-status" id="pricingPolicyStatus" role="status" aria-live="polite">플랜 정보를 불러오는 중이에요.</p>
+        </header>
 
-          <section class="ollie-energy-system" aria-labelledby="ollieEnergyTitle">
-            <div class="energy-system-heading">
-              <div>
-                <span>Ollie Energy</span>
-                <h3 id="ollieEnergyTitle">필요한 만큼만, 올리 에너지</h3>
+        <div class="pricing-v2-layout">
+          <section class="pricing-plan-grid" aria-label="Free와 Pro 플랜">
+            <article class="pricing-plan-card pricing-plan-free" id="pricingFreeCard" data-policy-plan="free" aria-labelledby="pricingFreeTitle" aria-current="false">
+              <div class="pricing-plan-card-head">
+                <div>
+                  <span class="pricing-plan-kicker">가볍게 시작</span>
+                  <h3 id="pricingFreeTitle">Free</h3>
+                </div>
+                <span class="pricing-current-marker" data-current-plan-label hidden>현재 플랜</span>
               </div>
-              <p>PRO는 매월 300 에너지가 충전돼요. 평균적인 사용 패턴이라면 매달 충분히 이용할 수 있어요.</p>
-            </div>
-            <div class="energy-cost-grid" aria-label="기능별 올리 에너지 사용량">
-              <article><span>1</span><strong>간단한 수정</strong><small>문구·시간·순서 조정</small></article>
-              <article><span>3</span><strong>오늘 일정 다시 만들기</strong><small>하루 계획 전체 재생성</small></article>
-              <article><span>5</span><strong>주간 최적화</strong><small>한 주 흐름 다시 맞추기</small></article>
-              <article><span>10</span><strong>목표 전체 재설계</strong><small>목표 구조 처음부터 재구성</small></article>
-            </div>
-            <p class="energy-reset-note"><span aria-hidden="true">↻</span> 올리 에너지는 매월 새로 충전되며, 남은 에너지는 다음 달로 이월되지 않아요.</p>
+              <p class="pricing-plan-price">
+                <strong id="pricingFreePrice" data-policy-plan="free" data-policy-field="price" aria-live="polite">—</strong>
+                <span>계속 무료</span>
+              </p>
+              <p class="pricing-plan-summary">부담 없이 기본 기능을 써보며 나만의 실행 리듬을 만들어요.</p>
+              <ul class="pricing-plan-benefits">
+                <li><span>가입 첫 달 AI 크레딧</span><strong data-policy-plan="free" data-policy-field="signup-credits">—</strong></li>
+                <li><span>이후 매월 AI 크레딧</span><strong data-policy-plan="free" data-policy-field="monthly-credits">—</strong></li>
+                <li><span>하루 사용 한도</span><strong data-policy-plan="free" data-policy-field="daily-limit">—</strong></li>
+                <li><span>목표와 활성 계획</span><strong><b data-policy-plan="free" data-policy-field="max-goals">—</b> · <b data-policy-plan="free" data-policy-field="max-active-plans">—</b></strong></li>
+                <li class="pricing-benefit-copy">기본 기록 기능 제공</li>
+              </ul>
+              <div class="pricing-plan-limit" role="note">
+                <strong>알아두세요</strong>
+                <p>사용하지 않은 월간 크레딧은 다음 달로 이월되지 않으며, 일부 고급 AI 기능은 Pro에서 이용할 수 있어요.</p>
+              </div>
+              <a class="pricing-plan-cta" id="pricingFreeCta" data-pricing-cta="free" data-default-href="#designFlow" href="#designFlow" aria-describedby="pricingFreeCtaStatus">무료로 시작하기</a>
+              <span class="pricing-cta-status" id="pricingFreeCtaStatus" role="status" aria-live="polite"></span>
+            </article>
+
+            <article class="pricing-plan-card pricing-plan-pro" id="pricingProCard" data-policy-plan="pro" aria-labelledby="pricingProTitle" aria-describedby="pricingProRecommendation" aria-current="false">
+              <span class="pricing-recommended-badge" id="pricingProRecommendation">추천</span>
+              <div class="pricing-plan-card-head">
+                <div>
+                  <span class="pricing-plan-kicker">더 깊게 이어가기</span>
+                  <h3 id="pricingProTitle">Pro</h3>
+                </div>
+                <span class="pricing-current-marker" data-current-plan-label hidden>현재 플랜</span>
+              </div>
+              <p class="pricing-plan-price">
+                <strong id="pricingProPrice" data-policy-plan="pro" data-policy-field="price" aria-live="polite">—</strong>
+                <span>/월</span>
+                <small>하루 약 <b id="pricingProDailyPrice" data-policy-plan="pro" data-policy-field="daily-price">—</b></small>
+              </p>
+              <p class="pricing-plan-summary">자주 조정하고 기록하며, 내 방식에 맞는 계획을 오래 이어가요.</p>
+              <div class="pricing-trial-chip" role="note">
+                <span>결제 전 무료 체험</span>
+                <strong><b data-policy-plan="pro" data-policy-field="trial-duration">—</b> · AI 크레딧 <b data-policy-plan="pro" data-policy-field="trial-credits">—</b></strong>
+              </div>
+              <ul class="pricing-plan-benefits">
+                <li><span>매월 AI 크레딧</span><strong data-policy-plan="pro" data-policy-field="monthly-credits">—</strong></li>
+                <li><span>하루 사용 한도</span><strong data-policy-plan="pro" data-policy-field="daily-limit">—</strong></li>
+                <li class="pricing-benefit-copy">목표와 활성 계획 개수 제한 없음</li>
+                <li class="pricing-benefit-copy">전체 일정 재조정과 회복 계획</li>
+                <li class="pricing-benefit-copy">상세 기록·통계와 올리 개인화</li>
+              </ul>
+              <div class="pricing-plan-limit" role="note">
+                <strong>알아두세요</strong>
+                <p>월간 크레딧과 체험 크레딧은 이월되지 않아요. 체험이 끝나면 남은 체험 크레딧도 소멸해요.</p>
+              </div>
+              <button class="pricing-plan-cta" id="pricingProCta" data-pricing-cta="pro" type="button" aria-describedby="pricingProCtaStatus">Pro 출시 준비 중</button>
+              <span class="pricing-cta-status" id="pricingProCtaStatus" role="status" aria-live="polite">결제 기능 상태를 확인하고 있어요.</span>
+            </article>
           </section>
 
-          <section class="energy-packs" aria-labelledby="energyPackTitle">
-            <div>
-              <span>Extra Energy</span>
-              <h3 id="energyPackTitle">추가 에너지는 준비 중이에요</h3>
-              <p>아래 구성은 출시 예정안이며, 현재는 실제 구매나 충전을 지원하지 않아요.</p>
+          <section class="pricing-usage-panel" id="pricingUsagePanel" aria-labelledby="pricingUsageTitle" aria-live="polite" hidden>
+            <div class="pricing-section-head">
+              <div><span>MY USAGE</span><h3 id="pricingUsageTitle">현재 AI 크레딧</h3></div>
+              <strong id="pricingUsagePlan" data-policy-usage="plan">—</strong>
             </div>
-            <div class="energy-pack-grid">
-              <article><span>출시 예정</span><strong>100 에너지</strong><b>990원 예정</b></article>
-              <article class="recommended"><span>출시 예정</span><strong>300 에너지</strong><b>1,990원 예정</b></article>
-              <article><span>출시 예정</span><strong>1,000 에너지</strong><b>4,900원 예정</b></article>
+            <p class="pricing-usage-status" id="pricingUsageStatus" role="status">사용량을 불러오는 중이에요.</p>
+            <div class="pricing-usage-grid">
+              <article>
+                <div><strong>오늘</strong><span><b data-policy-usage="daily.used">—</b> / <b data-policy-usage="daily.limit">—</b> 사용</span></div>
+                <div class="pricing-usage-track" id="pricingDailyProgress" role="progressbar" aria-label="오늘 AI 크레딧 사용량" aria-valuetext="사용량을 불러오는 중"><span data-policy-usage-bar="daily"></span></div>
+                <small>다음 초기화 <time data-policy-usage="daily.resetsAt">—</time></small>
+              </article>
+              <article>
+                <div><strong>이번 달</strong><span><b data-policy-usage="monthly.used">—</b> / <b data-policy-usage="monthly.limit">—</b> 사용</span></div>
+                <div class="pricing-usage-track" id="pricingMonthlyProgress" role="progressbar" aria-label="이번 달 AI 크레딧 사용량" aria-valuetext="사용량을 불러오는 중"><span data-policy-usage-bar="monthly"></span></div>
+                <small>다음 충전 <time data-policy-usage="monthly.resetsAt">—</time></small>
+              </article>
+              <article id="pricingTrialUsage" data-policy-usage-section="trial" hidden>
+                <div><strong>체험</strong><span>남은 크레딧 <b data-policy-usage="trial.remainingCredits">—</b></span></div>
+                <small>체험 종료 <time data-policy-usage="trial.endsAt">—</time></small>
+              </article>
             </div>
           </section>
 
-          <div class="trial-expiry-policy">
-            <span aria-hidden="true">24h</span>
-            <p><strong>체험 종료 후에는 이용이 잠시 멈춰요.</strong> 자동 결제는 없으며, PRO 결제를 완료하면 기존 계획과 기록을 그대로 이어갈 수 있어요.</p>
-          </div>
-          <a class="coupon-strip" href="#designFlow" aria-label="결제정보 없이 1일 무료 체험 시작하기">
-            <span>1 Day</span>
-            <strong>결제정보 없이 무료 체험 시작하기</strong>
-            <b aria-hidden="true">›</b>
-          </a>
+          <section class="pricing-comparison" aria-labelledby="pricingComparisonTitle">
+            <div class="pricing-section-head">
+              <div><span>COMPARE</span><h3 id="pricingComparisonTitle">핵심 차이를 한눈에 비교해요</h3></div>
+            </div>
+            <div class="pricing-comparison-list" role="list">
+              <article class="pricing-comparison-row" role="listitem"><h4>월 AI 크레딧</h4><dl><div><dt>Free</dt><dd data-policy-plan="free" data-policy-field="monthly-credits">—</dd></div><div><dt>Pro</dt><dd data-policy-plan="pro" data-policy-field="monthly-credits">—</dd></div></dl></article>
+              <article class="pricing-comparison-row" role="listitem"><h4>일일 사용 한도</h4><dl><div><dt>Free</dt><dd data-policy-plan="free" data-policy-field="daily-limit">—</dd></div><div><dt>Pro</dt><dd data-policy-plan="pro" data-policy-field="daily-limit">—</dd></div></dl></article>
+              <article class="pricing-comparison-row" role="listitem"><h4>목표 개수</h4><dl><div><dt>Free</dt><dd data-policy-plan="free" data-policy-field="max-goals">—</dd></div><div><dt>Pro</dt><dd>제한 없음</dd></div></dl></article>
+              <article class="pricing-comparison-row" role="listitem"><h4>활성 계획 개수</h4><dl><div><dt>Free</dt><dd data-policy-plan="free" data-policy-field="max-active-plans">—</dd></div><div><dt>Pro</dt><dd>제한 없음</dd></div></dl></article>
+              <article class="pricing-comparison-row" role="listitem"><h4>전체 일정 재조정</h4><dl><div><dt>Free</dt><dd>제한</dd></div><div><dt>Pro</dt><dd>제공</dd></div></dl></article>
+              <article class="pricing-comparison-row" role="listitem"><h4>회복 계획</h4><dl><div><dt>Free</dt><dd>제한</dd></div><div><dt>Pro</dt><dd>제공</dd></div></dl></article>
+              <article class="pricing-comparison-row" role="listitem"><h4>상세 기록·통계</h4><dl><div><dt>Free</dt><dd>기본</dd></div><div><dt>Pro</dt><dd>전체</dd></div></dl></article>
+              <article class="pricing-comparison-row" role="listitem"><h4>올리 개인화</h4><dl><div><dt>Free</dt><dd>제한</dd></div><div><dt>Pro</dt><dd>제공</dd></div></dl></article>
+            </div>
+          </section>
+
+          <section class="pricing-credit-guide" aria-labelledby="pricingCreditsTitle">
+            <div class="pricing-section-head pricing-credit-heading">
+              <div><span>AI CREDITS</span><h3 id="pricingCreditsTitle">AI 크레딧은 어떻게 사용하나요?</h3></div>
+              <p>기능마다 필요한 작업량에 따라 사용하는 크레딧이 달라요.</p>
+            </div>
+            <div class="pricing-credit-grid" aria-label="대표 기능별 AI 크레딧">
+              <article><span aria-hidden="true">✦</span><div><strong>올리와 지금 대화</strong><small>마음과 실행 상황을 나눠요</small></div><b data-policy-cost="companion_chat">—</b></article>
+              <article><span aria-hidden="true">＋</span><div><strong>오늘의 한 걸음 생성</strong><small>오늘 바로 할 행동을 만들어요</small></div><b data-policy-cost="create_daily_step">—</b></article>
+              <article><span aria-hidden="true">↻</span><div><strong>계획 일부 수정</strong><small>남은 계획의 일부를 다듬어요</small></div><b data-policy-cost="revise_plan">—</b></article>
+            </div>
+            <details class="pricing-credit-details">
+              <summary>전체 기능별 크레딧 보기</summary>
+              <div class="pricing-credit-grid pricing-credit-more-grid">
+                <article><span aria-hidden="true">↗</span><div><strong>회복 계획 생성</strong><small>놓친 흐름을 다시 이어가요</small></div><b data-policy-cost="recovery_plan">—</b></article>
+                <article><span aria-hidden="true">◎</span><div><strong>새 목표 계획 생성</strong><small>목표를 실행 계획으로 바꿔요</small></div><b data-policy-cost="create_plan">—</b></article>
+                <article><span aria-hidden="true">≋</span><div><strong>전체 일정 재조정</strong><small>남은 일정을 다시 배치해요</small></div><b data-policy-cost="reschedule_plan">—</b></article>
+              </div>
+            </details>
+            <p class="pricing-credit-note"><span aria-hidden="true">✓</span> AI가 변경안을 제안해도 사용자가 확인하고 승인하기 전에는 기존 계획이 바뀌지 않아요.</p>
+          </section>
+
+          <section class="pricing-notices" aria-label="체험 및 결제 안내">
+            <article>
+              <span class="pricing-notice-icon" aria-hidden="true">◇</span>
+              <div><h3>무료 체험 안내</h3><p>체험은 계정당 한 번 제공돼요. 시작 후 <b data-policy-plan="pro" data-policy-field="trial-duration">—</b> 동안 체험 크레딧 <b data-policy-plan="pro" data-policy-field="trial-credits">—</b>을 사용할 수 있고, 종료 후에는 Free 플랜으로 이어져요.</p></div>
+            </article>
+            <article id="pricingPaymentNotice">
+              <span class="pricing-notice-icon" aria-hidden="true">▣</span>
+              <div><h3>결제 안내</h3><strong id="pricingPaymentState" data-policy-payment-status role="status" aria-live="polite">서비스 준비 상태를 확인하고 있어요.</strong><p>결제 기능이 연결되기 전에는 결제가 완료된 것처럼 처리하지 않아요.</p></div>
+            </article>
+          </section>
+
+          <section class="pricing-faq" aria-labelledby="pricingFaqTitle">
+            <div class="pricing-section-head"><div><span>FAQ</span><h3 id="pricingFaqTitle">자주 묻는 질문</h3></div></div>
+            <div class="pricing-faq-list">
+              <details><summary>AI 크레딧은 무엇인가요?</summary><p>계획 생성이나 수정처럼 AI가 수행하는 작업에 사용하는 단위예요. 작업 종류에 따라 필요한 크레딧이 달라요.</p></details>
+              <details><summary>사용하지 않은 크레딧은 이월되나요?</summary><p>월간 크레딧과 체험 크레딧은 다음 기간으로 이월되지 않아요.</p></details>
+              <details><summary>무료 체험이 끝나면 자동 결제되나요?</summary><p>결제수단을 등록하지 않았다면 자동 결제되지 않으며, Free 플랜으로 계속 이용할 수 있어요.</p></details>
+              <details><summary>AI가 계획을 자동으로 바꾸나요?</summary><p>아니요. AI는 변경안을 제안하고, 사용자가 확인하고 승인한 뒤에만 계획에 반영해요.</p></details>
+              <details><summary>일일 한도와 월간 한도가 모두 있나요?</summary><p>네. 짧은 시간에 크레딧이 모두 소진되는 것을 막는 일일 한도와, 플랜별 월간 한도가 함께 적용돼요.</p></details>
+            </div>
+          </section>
         </div>
       </section>
 
-      <section class="final-cta section-band" data-page-view="pricing" hidden>
+      <section class="final-cta pricing-final-cta section-band" data-page-view="pricing" aria-labelledby="pricingFinalTitle" hidden>
         <img class="final-cta-mascot" src="assets/ollie-comfort.png" alt="" aria-hidden="true" />
         <div>
-          <p class="eyebrow">Start</p>
-          <h2>오늘 하루, 올리와 직접 해보세요</h2>
-          <p>결제정보 없이 내 목표 계획을 만들고 24시간 동안 핵심 기능을 체험할 수 있어요.</p>
+          <p class="eyebrow">Start Your Way</p>
+          <h2 id="pricingFinalTitle">작은 한 걸음부터 시작해 보세요</h2>
+          <p>Free로 가볍게 시작하고, 더 깊은 조정이 필요할 때 Pro를 확인할 수 있어요.</p>
         </div>
-        <a href="#designFlow">1일 무료 체험 시작하기</a>
+        <div class="pricing-final-actions">
+          <a id="pricingBottomCta" data-pricing-cta="free" data-default-href="#designFlow" href="#designFlow">무료로 시작하기</a>
+          <button id="pricingBottomProCta" data-pricing-cta="pro" type="button">Pro 이용 안내</button>
+        </div>
       </section>
     </main>
 

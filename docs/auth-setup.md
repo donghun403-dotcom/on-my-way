@@ -231,15 +231,18 @@ Provider별:
 
 ## 19. 사용자 탈퇴 및 identity 삭제 고려사항
 
-현재 계정 탈퇴 API는 구현하지 않았다. 출시 전에 다음 원자적 흐름이 필요하다.
+`POST /api/account/delete`와 `/delete-account` 화면이 구현되어 있다. 인증된 일반 회원이 “계정 삭제” 확인 문구를 입력하면 서버는 다음 순서로 처리한다.
 
-1. 최근 인증 또는 재인증
-2. 모든 app session 폐기
-3. 결제·구독 상태 확인 및 정책에 따른 해지
-4. Provider identity 매핑 삭제
-5. user와 서버 데이터 삭제 또는 법적 보존 분리
-6. Apple 사용 시 token revoke 및 server-to-server notification 검토
-7. 감사 로그에는 최소 정보만 보존
+1. 활성 빌링키가 있으면 결제사 해지를 먼저 확인한다. 해지 또는 결제사 설정 확인에 실패하면 탈퇴를 성공으로 표시하지 않는다.
+2. 결제·계약 기록이 있으면 이메일, 가명화 회원 참조값, 주문·결제 식별자, 구독 상태와 결제 시각 등 법적 보존 항목만 별도 `legal:` namespace에 기록한다. 빌링키는 보존하지 않으며 KV TTL로 5년 뒤 파기한다.
+3. Provider identity 매핑, 모든 app session과 서버 동기화 app state를 삭제한다.
+4. 일반 user 레코드는 사용자 ID와 삭제 요청·예정 시각만 있는 `deletion_pending` tombstone으로 교체한다. tombstone 자체에 7일 KV 만료를 지정하고 운영 cron도 만료 레코드 삭제를 재확인한다.
+5. 체험을 이미 사용한 계정은 반복 발급 방지용 가명 표식만 일반 회원 데이터와 분리해 유지하며, 체험 사용 시점부터 1년 KV 만료를 지정한다.
+6. 성공 응답 후 현재 브라우저의 localStorage와 sessionStorage를 지운다. 다른 기기의 브라우저 저장 데이터는 서버에서 원격 삭제할 수 없다.
+
+이 흐름은 Cloudflare KV의 여러 key를 순차 변경하므로 데이터베이스 트랜잭션처럼 원자적이지 않다. 성공 응답은 위 서버 작업이 모두 완료된 뒤에만 반환하지만, 중간 실패나 이미 시작된 동기화·AI 요청과의 경합에서는 일부 단계가 먼저 반영될 수 있다. 결제 활성화나 트래픽 증가 전에는 사용자별 삭제 잠금 또는 Durable Object/D1 트랜잭션과 실패 작업 재처리·감사 절차를 추가한다.
+
+현재 탈퇴 확인은 최대 30일 세션과 확인 문구를 사용하며 최근 인증 또는 Provider 재인증은 아직 요구하지 않는다. 공유 기기·탈취 세션 위험을 줄이기 위해 재인증 UX를 추가해야 한다. 또한 Apple 로그인을 활성화하기 전에는 Apple refresh/access token 보관 범위를 결정하고 계정 삭제 시 token revoke 및 server-to-server notification 처리를 구현·검증해야 한다. 현재 `LEGAL_RETENTION_KV` 전용 binding이 없어 운영에서도 `USERS_KV`의 `legal:` prefix로 논리 분리하므로, 결제 활성화 전에 전용 binding과 접근 권한 분리를 권장한다.
 
 ## 20. 출시 전 체크리스트
 
@@ -257,4 +260,10 @@ Provider별:
 - [ ] 로그아웃·만료·401 재로그인 QA
 - [ ] iPhone Safari·Galaxy Chrome QA
 - [ ] 운영 CSP/CORS와 브라우저 Network 점검
-- [ ] 계정 탈퇴와 서버 데이터 동기화 구현 여부에 따른 출시 범위 결정
+- [x] 계정 탈퇴 API·화면, app state·identity·session 삭제와 자동 테스트 구현
+- [x] 7일 tombstone·1년 체험 표식·5년 결제 기록에 KV 만료 적용
+- [ ] Preview/Production에서 탈퇴 성공·실패·7일 후 파기를 수동 QA하고 cron 실행 로그 확인
+- [ ] 탈퇴 직전 Provider 재인증 또는 최근 인증 정책과 UX 구현
+- [ ] Apple 로그인 활성화 전 token revoke와 server-to-server notification 검증
+- [ ] 결제 활성화 전 `LEGAL_RETENTION_KV` 전용 binding·접근 권한·보존 레코드 조회/파기 절차 검증
+- [ ] 동기화·AI 요청과 탈퇴의 경합, 중간 실패 재처리와 감사 절차 검증

@@ -1,5 +1,7 @@
 # On My Way Homepage Plan
 
+> **과거 설계 문서:** 이 문서의 가격·체험·상품 아이디어는 현재 운영 정책이 아닙니다. 현재 확정 정책은 [`pricing-and-credits.md`](pricing-and-credits.md)만 기준으로 사용합니다.
+
 ## 1. Current Phase
 
 현재 단계는 홈페이지 제작 전 설계 단계다.

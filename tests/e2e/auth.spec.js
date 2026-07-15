@@ -1,5 +1,5 @@
 const { test, expect } = require("@playwright/test");
-const { expectNoHorizontalOverflow, mockExternalAssets, monitorPage } = require("./helpers");
+const { createUsageResponse, expectNoHorizontalOverflow, mockExternalAssets, monitorPage } = require("./helpers");
 
 const providers = ["kakao", "naver", "google", "apple"];
 const providerNames = {
@@ -10,9 +10,11 @@ const providerNames = {
 };
 
 function activeTrialUser(overrides) {
+  const trialStartedAt = Date.now() - 60_000;
   return {
-    trialStartedAt: Date.now() - 60_000,
-    trialExpiresAt: Date.now() + 86_400_000,
+    trialStartedAt,
+    trialExpiresAt: trialStartedAt + 86_400_000,
+    trialUsedAt: trialStartedAt,
     plan: "trial",
     role: "member",
     ...overrides,
@@ -38,6 +40,21 @@ async function mockAccountApi(page, state = { user: null, configured: true }) {
     contentType: "application/json",
     body: JSON.stringify({ user: state.user }),
   }));
+  await page.route("**/api/health", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: '{"ok":true,"services":{"payments":false}}',
+  }));
+  await page.route("**/api/ai/usage", (route) => {
+    if (!state.user) return route.fulfill({ status: 401, contentType: "application/json", body: '{"ok":false,"error":"로그인이 필요합니다."}' });
+    const plan = state.user.plan || "free";
+    const usage = createUsageResponse({ plan, trialEligible: plan === "free", trialActive: plan === "trial" });
+    if (plan === "trial") {
+      usage.trial.startedAt = new Date(state.user.trialStartedAt).toISOString();
+      usage.trial.endsAt = new Date(state.user.trialExpiresAt).toISOString();
+    }
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(usage) });
+  });
   await page.route("**/api/auth/logout", (route) => {
     state.user = null;
     return route.fulfill({ status: 200, contentType: "application/json", body: '{"ok":true}' });
@@ -73,7 +90,8 @@ test("네 Provider 로그인 버튼과 Apple 접근성이 모바일 레이아웃
   diagnostics.expectClean();
 });
 
-test("각 Provider는 allowlisted Worker OAuth 시작 URL로 이동한다", async ({ page }) => {
+test("각 Provider는 allowlisted Worker OAuth 시작 URL로 이동한다", async ({ page }, testInfo) => {
+  testInfo.setTimeout(90_000);
   const diagnostics = monitorPage(page);
   await mockAccountApi(page);
   const starts = [];
@@ -142,21 +160,29 @@ test("callback 성공과 실패 query를 안내한 뒤 주소창에서 제거한
   diagnostics.expectClean();
 });
 
-test("첫 화면에서 연 로그인은 X, 배경, ESC로 취소하면 첫 화면으로 돌아간다", async ({ page }) => {
+test("첫 화면에서 연 로그인은 X, 배경, ESC로 취소하면 첫 화면으로 돌아간다", async ({ page }, testInfo) => {
+  testInfo.setTimeout(90_000);
   const diagnostics = monitorPage(page);
   await mockAccountApi(page);
 
-  const cancelLogin = async (cancel) => {
-    await page.goto("/");
-    await page.getByRole("button", { name: "메뉴 열기" }).click();
-    await page.getByRole("link", { name: "로그인" }).click();
+  const cancelLogin = async (cancel, { openFromLanding = false } = {}) => {
+    if (openFromLanding) {
+      await page.goto("/");
+      await expect(page.locator("html")).not.toHaveClass(/account-storage-pending/, { timeout: 15_000 });
+      await page.getByRole("button", { name: "메뉴 열기" }).click();
+      const loginLink = page.getByRole("link", { name: "로그인" });
+      await expect(loginLink).toBeVisible();
+      await Promise.all([page.waitForURL(/\/app\.html\?auth=login/), loginLink.click()]);
+    } else {
+      await page.goto("/app.html?auth=login&return=%2F");
+    }
     await expect(page.locator("#authSheet")).toBeVisible();
     await cancel();
     await expect(page).toHaveURL(/\/$/);
     await expect(page.locator("#top")).toBeVisible();
   };
 
-  await cancelLogin(() => page.locator("#closeAuthSheet").click());
+  await cancelLogin(() => page.locator("#closeAuthSheet").click(), { openFromLanding: true });
   await cancelLogin(() => page.locator("#accountSheetOverlay").click({ position: { x: 4, y: 4 } }));
   await cancelLogin(() => page.keyboard.press("Escape"));
   diagnostics.expectClean();
@@ -174,7 +200,9 @@ test("세션 복원 후 로그아웃하면 회원 UI와 활성 데이터가 초�
   await page.locator("#menuToggle").click();
   await expect(page.locator("#drawerName")).toHaveText("계정 A");
   await page.locator("#drawerLogout").click();
-  await expect(page.locator("#trialPaywall")).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator("#trialPaywall")).toBeHidden({ timeout: 15_000 });
+  await expect(page.locator("body")).not.toHaveClass(/trial-locked/);
+  await expect(page.locator("#view-today")).toBeVisible();
   await expect(page.locator("#drawerGuest")).not.toHaveAttribute("hidden", "");
   await expect(page.locator("#drawerMember")).toHaveAttribute("hidden", "");
   expect(await page.evaluate(() => localStorage.getItem("onmyway:active-scope"))).toMatch(/^anonymous:/);

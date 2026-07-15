@@ -5,8 +5,9 @@ const path = require("path");
 const port = Number(process.env.PORT || 8765);
 const host = "127.0.0.1";
 const root = path.resolve(__dirname);
-const aiGoalPlanModule = import("./ai-goal-plan.mjs");
+const aiCompanionChatModule = import("./ai-companion-chat.mjs");
 const aiPlanRevisionModule = import("./ai-plan-revision.mjs");
+const aiCreditsServiceModule = import("./ai-credits-service.mjs");
 const authServiceModule = import("./auth-service.mjs");
 const workerModule = import("./worker.mjs");
 const localEnv = {
@@ -49,7 +50,14 @@ function writeDevSettings(settings) {
 
 const localUserStore = {
   async getUser(id) {
-    return readDevUsers()[id] || null;
+    const users = readDevUsers();
+    const user = users[id] || null;
+    if (user?.status === "deletion_pending" && Number(user.deletionScheduledAt || 0) <= Date.now()) {
+      delete users[id];
+      writeDevUsers(users);
+      return null;
+    }
+    return user;
   },
   async putUser(user) {
     const users = readDevUsers();
@@ -57,7 +65,16 @@ const localUserStore = {
     writeDevUsers(users);
   },
   async listUsers() {
-    return Object.values(readDevUsers());
+    const users = readDevUsers();
+    let changed = false;
+    for (const [id, user] of Object.entries(users)) {
+      if (user?.status === "deletion_pending" && Number(user.deletionScheduledAt || 0) <= Date.now()) {
+        delete users[id];
+        changed = true;
+      }
+    }
+    if (changed) writeDevUsers(users);
+    return Object.values(users);
   },
   async deleteUser(id) {
     const users = readDevUsers();
@@ -113,11 +130,30 @@ const localUserStore = {
     writeDevSettings(settings);
   },
   async getSetting(name) {
-    return readDevSettings()[name] || null;
-  },
-  async putSetting(name, value) {
     const settings = readDevSettings();
-    settings[name] = value;
+    const expiryKey = `setting-expiry:${name}`;
+    if (Number(settings[expiryKey] || 0) > 0 && Number(settings[expiryKey]) <= Date.now()) {
+      delete settings[name];
+      delete settings[expiryKey];
+      writeDevSettings(settings);
+      return null;
+    }
+    return settings[name] || null;
+  },
+  async putSetting(name, value, options = {}) {
+    const settings = readDevSettings();
+    const expiryKey = `setting-expiry:${name}`;
+    if (value === null || value === undefined) delete settings[name];
+    else settings[name] = value;
+    const expiresAt = Number(options.expiresAt);
+    if (Number.isFinite(expiresAt)) settings[expiryKey] = expiresAt;
+    else delete settings[expiryKey];
+    writeDevSettings(settings);
+  },
+  async deleteSetting(name) {
+    const settings = readDevSettings();
+    delete settings[name];
+    delete settings[`setting-expiry:${name}`];
     writeDevSettings(settings);
   },
 };
@@ -134,9 +170,18 @@ const contentTypes = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
+  ".mjs": "text/javascript; charset=utf-8",
   ".svg": "image/svg+xml",
   ".png": "image/png",
 };
+
+const AI_GENERATION_ROUTES = Object.freeze({
+  "/api/ai/goal-plan": { action: "create_plan", kind: "goal", maxBytes: 50_000 },
+  "/api/ai/companion-chat": { action: "companion_chat", kind: "companion", maxBytes: 5_000 },
+  "/api/ai/plan-revision": { action: "revise_plan", kind: "revision", maxBytes: 20_000 },
+  "/api/ai/recovery-plan": { action: "recovery_plan", kind: "revision", maxBytes: 20_000 },
+  "/api/ai/reschedule-plan": { action: "reschedule_plan", kind: "revision", maxBytes: 20_000 },
+});
 
 function sendJson(response, status, body) {
   response.writeHead(status, {
@@ -146,47 +191,225 @@ function sendJson(response, status, body) {
   response.end(JSON.stringify(body));
 }
 
+function aiErrorBody(error, usage = null) {
+  const body = {
+    ok: false,
+    error: error?.message || "AI 요청을 처리하지 못했어요.",
+    code: error?.code || "AI_REQUEST_FAILED",
+  };
+  if (error?.details) body.details = error.details;
+  if (usage) body.usage = usage;
+  return body;
+}
+
+function providerMetadata(result, model) {
+  return {
+    providerUsage: result?.usage || {},
+    providerRequestId: result?.requestId || "",
+    model,
+  };
+}
+
+function publicAiResult(result) {
+  if (!result || typeof result !== "object") return { data: result };
+  const payload = { ...result };
+  delete payload.usage;
+  delete payload.requestId;
+  return payload;
+}
+
+async function currentLocalUser(request) {
+  const { currentSessionUser, parseCookies } = await authServiceModule;
+  const cookies = parseCookies(request.headers.cookie);
+  return currentSessionUser({
+    getCookie: (name) => cookies[name],
+    env: localEnv,
+    store: localUserStore,
+  });
+}
+
+async function handleLocalAiGenerationRequest({ request, response, route }) {
+  if (request.method !== "POST") {
+    sendJson(response, 405, { ok: false, error: "POST 요청만 사용할 수 있어요.", code: "METHOD_NOT_ALLOWED" });
+    return;
+  }
+
+  const user = await currentLocalUser(request).catch(() => null);
+  if (!user) {
+    sendJson(response, 401, { ok: false, error: "로그인 후 AI 기능을 이용할 수 있어요.", code: "AUTH_REQUIRED" });
+    return;
+  }
+
+  const requestId = String(request.headers["x-request-id"] || "").trim();
+  if (!requestId) {
+    sendJson(response, 400, { ok: false, error: "X-Request-ID 헤더가 필요해요.", code: "INVALID_REQUEST_ID" });
+    return;
+  }
+
+  const contentLength = Number(request.headers["content-length"] || 0);
+  if (contentLength > route.maxBytes) {
+    sendJson(response, 413, { ok: false, error: "요청 내용이 너무 커요.", code: "AI_REQUEST_TOO_LARGE" });
+    return;
+  }
+
+  let input;
+  try {
+    input = await readJsonBody(request, route.maxBytes);
+  } catch (error) {
+    sendJson(response, error.status || 400, {
+      ok: false,
+      error: error.message || "요청 형식이 올바르지 않아요.",
+      code: error.status === 413 ? "AI_REQUEST_TOO_LARGE" : "INVALID_JSON",
+    });
+    return;
+  }
+
+  const {
+    commitAiCredits,
+    getAiCreditUsage,
+    releaseAiCredits,
+    reserveAiCredits,
+  } = await aiCreditsServiceModule;
+  let reservation = null;
+  let providerCalled = false;
+  const model = localEnv.OPENAI_MODEL || "gpt-5.4-mini";
+
+  try {
+    reservation = await reserveAiCredits({
+      store: localUserStore,
+      userId: user.id,
+      action: route.action,
+      requestId,
+    });
+
+    let result;
+    if (route.kind === "goal") {
+      const { createGoalPlanForUser } = await workerModule;
+      const creditAwareUser = await localUserStore.getUser(user.id);
+      result = await createGoalPlanForUser({
+        input,
+        env: localEnv,
+        userStore: localUserStore,
+        user: creditAwareUser,
+      });
+    } else if (route.kind === "companion") {
+      const { createCompanionReply } = await aiCompanionChatModule;
+      result = await createCompanionReply(input, {
+        apiKey: localEnv.OPENAI_API_KEY,
+        model,
+        allowPersonalization: ["pro", "trial"].includes(reservation.usage.plan),
+      });
+    } else {
+      const { createAiPlanRevision } = await aiPlanRevisionModule;
+      result = await createAiPlanRevision(input, {
+        apiKey: localEnv.OPENAI_API_KEY,
+        model,
+      });
+    }
+    providerCalled = true;
+
+    const committed = await commitAiCredits({
+      store: localUserStore,
+      userId: user.id,
+      requestId,
+      ...providerMetadata(result, model),
+    });
+    sendJson(response, 200, {
+      ok: true,
+      ...publicAiResult(result),
+      requestId,
+      chargedCredits: committed.chargedCredits,
+      usage: committed.usage,
+    });
+  } catch (error) {
+    console.error(`AI ${route.action} request failed`, error);
+    if (reservation?.shouldExecute) {
+      try {
+        await releaseAiCredits({
+          store: localUserStore,
+          userId: user.id,
+          requestId,
+          providerCalled: error?.providerCalled ?? providerCalled,
+          providerUsage: error?.providerUsage || {},
+          providerRequestId: error?.providerRequestId || "",
+          errorCode: error?.code || "AI_REQUEST_FAILED",
+          model,
+        });
+      } catch (releaseError) {
+        console.error("AI credit reservation release failed", releaseError);
+      }
+    }
+    const usage = await getAiCreditUsage({ store: localUserStore, userId: user.id }).catch(() => null);
+    sendJson(response, error?.status || 500, aiErrorBody(error, usage));
+  }
+}
+
 function readJsonBody(request, maxBytes = 50000) {
   return new Promise((resolve, reject) => {
     let body = "";
+    let bytes = 0;
+    let settled = false;
     request.setEncoding("utf8");
     request.on("data", (chunk) => {
-      body += chunk;
-      if (Buffer.byteLength(body, "utf8") > maxBytes) {
+      if (settled) return;
+      bytes += Buffer.byteLength(chunk, "utf8");
+      if (bytes > maxBytes) {
+        settled = true;
         const error = new Error("요청 내용이 너무 커요.");
         error.status = 413;
         reject(error);
-        request.destroy();
+        return;
       }
+      body += chunk;
     });
     request.on("end", () => {
+      if (settled) return;
       try {
+        settled = true;
         resolve(JSON.parse(body || "{}"));
       } catch {
+        settled = true;
         const error = new Error("요청 형식이 올바르지 않아요.");
         error.status = 400;
         reject(error);
       }
     });
-    request.on("error", reject);
+    request.on("error", (error) => {
+      if (settled) return;
+      settled = true;
+      reject(error);
+    });
   });
 }
 
 function readFormBody(request, maxBytes = 10000) {
   return new Promise((resolve, reject) => {
     let body = "";
+    let bytes = 0;
+    let settled = false;
     request.setEncoding("utf8");
     request.on("data", (chunk) => {
-      body += chunk;
-      if (Buffer.byteLength(body, "utf8") > maxBytes) {
+      if (settled) return;
+      bytes += Buffer.byteLength(chunk, "utf8");
+      if (bytes > maxBytes) {
+        settled = true;
         const error = new Error("요청 내용이 너무 커요.");
         error.status = 413;
         reject(error);
-        request.destroy();
+        return;
       }
+      body += chunk;
     });
-    request.on("end", () => resolve(Object.fromEntries(new URLSearchParams(body))));
-    request.on("error", reject);
+    request.on("end", () => {
+      if (settled) return;
+      settled = true;
+      resolve(Object.fromEntries(new URLSearchParams(body)));
+    });
+    request.on("error", (error) => {
+      if (settled) return;
+      settled = true;
+      reject(error);
+    });
   });
 }
 
@@ -199,6 +422,20 @@ const server = http.createServer(async (request, response) => {
     pathname = requestUrl.pathname;
   } catch {
     pathname = "/";
+  }
+
+  if (pathname === "/api/health" && request.method === "GET") {
+    const billingConfigured = Boolean(localEnv.TOSS_CLIENT_KEY && localEnv.TOSS_SECRET_KEY);
+    sendJson(response, 200, {
+      ok: true,
+      environment: String(localEnv.APP_ENV || "local"),
+      services: {
+        accountStorage: true,
+        ai: Boolean(localEnv.OPENAI_API_KEY),
+        payments: billingConfigured && String(localEnv.PAYMENTS_ENABLED || "").toLowerCase() === "true",
+      },
+    });
+    return;
   }
 
   if (pathname.startsWith("/api/auth/") || pathname.startsWith("/api/account/") || pathname.startsWith("/api/billing/") || pathname.startsWith("/api/admin/")) {
@@ -266,46 +503,67 @@ const server = http.createServer(async (request, response) => {
     }
   }
 
-  if (pathname === "/api/ai/goal-plan") {
-    if (request.method !== "POST") {
-      sendJson(response, 405, { error: "POST 요청만 사용할 수 있어요." });
+  if (pathname === "/api/ai/usage") {
+    if (request.method !== "GET") {
+      sendJson(response, 405, { ok: false, error: "GET 요청만 사용할 수 있어요.", code: "METHOD_NOT_ALLOWED" });
       return;
     }
-
+    const user = await currentLocalUser(request).catch(() => null);
+    if (!user) {
+      sendJson(response, 401, { ok: false, error: "로그인 후 사용량을 확인할 수 있어요.", code: "AUTH_REQUIRED" });
+      return;
+    }
     try {
-      const input = await readJsonBody(request);
-      const { createAiGoalPlan } = await aiGoalPlanModule;
-      const result = await createAiGoalPlan(input, {
-        apiKey: process.env.OPENAI_API_KEY,
-        model: process.env.OPENAI_MODEL || "gpt-5.4-mini",
-      });
-      sendJson(response, 200, result);
+      const { getAiCreditUsage } = await aiCreditsServiceModule;
+      sendJson(response, 200, await getAiCreditUsage({ store: localUserStore, userId: user.id }));
     } catch (error) {
-      console.error("AI goal plan request failed", error);
-      const message = error.status === 503 ? "올리가 계획을 준비하는 동안 연결이 지연되고 있어요." : error.message || "AI 계획을 만들지 못했어요.";
-      sendJson(response, error.status || 500, { error: message });
+      sendJson(response, error?.status || 500, aiErrorBody(error));
     }
     return;
   }
 
-  if (pathname === "/api/ai/plan-revision") {
+  if (pathname === "/api/ai/trial/start") {
     if (request.method !== "POST") {
-      sendJson(response, 405, { error: "POST 요청만 사용할 수 있어요." });
+      sendJson(response, 405, { ok: false, error: "POST 요청만 사용할 수 있어요.", code: "METHOD_NOT_ALLOWED" });
       return;
     }
-
-    try {
-      const input = await readJsonBody(request, 20000);
-      const { createAiPlanRevision } = await aiPlanRevisionModule;
-      const result = await createAiPlanRevision(input, {
-        apiKey: process.env.OPENAI_API_KEY,
-        model: process.env.OPENAI_MODEL || "gpt-5.4-mini",
-      });
-      sendJson(response, 200, result);
-    } catch (error) {
-      console.error("AI plan revision request failed", error);
-      sendJson(response, error.status || 500, { error: error.message || "AI 변경안을 만들지 못했어요." });
+    const user = await currentLocalUser(request).catch(() => null);
+    if (!user) {
+      sendJson(response, 401, { ok: false, error: "로그인 후 무료 체험을 시작할 수 있어요.", code: "AUTH_REQUIRED" });
+      return;
     }
+    try {
+      const { startAiTrial } = await aiCreditsServiceModule;
+      const result = await startAiTrial({ store: localUserStore, userId: user.id });
+      const refreshedUser = await localUserStore.getUser(user.id);
+      sendJson(response, 200, {
+        ...result,
+        user: refreshedUser ? {
+          id: refreshedUser.id,
+          name: refreshedUser.name,
+          email: refreshedUser.email || "",
+          provider: refreshedUser.provider,
+          role: refreshedUser.role || "user",
+          status: refreshedUser.status || "active",
+          plan: refreshedUser.plan || "free",
+          trialStartedAt: refreshedUser.trialStartedAt || null,
+          trialExpiresAt: refreshedUser.trialExpiresAt || null,
+          trialUsedAt: refreshedUser.trialUsedAt || null,
+          trialEndedAt: refreshedUser.trialEndedAt || null,
+          goalPlanGeneratedAt: refreshedUser.goalPlanGeneratedAt || null,
+        } : null,
+      });
+    } catch (error) {
+      const { getAiCreditUsage } = await aiCreditsServiceModule;
+      const usage = await getAiCreditUsage({ store: localUserStore, userId: user.id }).catch(() => null);
+      sendJson(response, error?.status || 500, aiErrorBody(error, usage));
+    }
+    return;
+  }
+
+  const aiGenerationRoute = AI_GENERATION_ROUTES[pathname];
+  if (aiGenerationRoute) {
+    await handleLocalAiGenerationRequest({ request, response, route: aiGenerationRoute });
     return;
   }
 

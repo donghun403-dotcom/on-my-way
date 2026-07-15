@@ -2,6 +2,14 @@ import { createAiGoalPlan } from "./ai-goal-plan.mjs";
 import { createCompanionReply } from "./ai-companion-chat.mjs";
 import { createAiPlanRevision } from "./ai-plan-revision.mjs";
 import {
+  commitAiCredits,
+  getAiCreditUsage,
+  releaseAiCredits,
+  reserveAiCredits,
+  startAiTrial,
+  withAiCreditUserLock,
+} from "./ai-credits-service.mjs";
+import {
   handleAccountApi,
   parseCookies,
   createKvStore,
@@ -62,7 +70,22 @@ function secureResponse(response) {
   return secured;
 }
 
-const FUNNEL_STEPS = new Set(["step1_enter", "step2_enter", "step3_enter", "step4_enter", "trial_start"]);
+const FUNNEL_STEPS = new Set([
+  "step1_enter",
+  "step2_enter",
+  "step3_enter",
+  "step4_enter",
+  "trial_start",
+  "pricing_viewed",
+  "pricing_plan_selected",
+  "trial_started",
+  "trial_completed",
+  "trial_credit_exhausted",
+  "pro_cta_clicked",
+  "ai_credit_insufficient",
+  "ai_credit_charged",
+  "usage_details_opened",
+]);
 
 function funnelDateKey(now = Date.now()) {
   // 한국 시간 기준 일자 버킷
@@ -86,9 +109,9 @@ export async function recordFunnelEvent({ step, kv, now = Date.now() }) {
 }
 
 export async function createGoalPlanForUser({ input, env, userStore, user, generatePlan = createAiGoalPlan, now = Date.now() }) {
-  const hasTrialLimit = user && user.role !== "admin" && user.plan !== "pro";
-  if (hasTrialLimit && user.goalPlanGeneratedAt) {
-    const error = new Error("무료 체험에서는 AI 목표 계획을 1개 만들 수 있어요. 기존 계획을 앱에서 이어가 주세요.");
+  const hasFreeLimit = user && user.role !== "admin" && user.plan === "free";
+  if (hasFreeLimit && user.goalPlanGeneratedAt) {
+    const error = new Error("Free 플랜에서는 목표와 활성 계획을 1개까지 이용할 수 있어요. 기존 계획의 수정에서 이어가 주세요.");
     error.status = 409;
     error.code = "GOAL_PLAN_LIMIT_REACHED";
     throw error;
@@ -99,11 +122,190 @@ export async function createGoalPlanForUser({ input, env, userStore, user, gener
     model: env.OPENAI_MODEL || "gpt-5.4-mini",
   });
 
-  if (hasTrialLimit) {
-    user.goalPlanGeneratedAt = now;
-    await userStore.putUser(user);
+  if (user && user.role !== "admin") {
+    await withAiCreditUserLock(user.id, async () => {
+      const latestUser = await userStore.getUser(user.id);
+      if (!latestUser || (latestUser.status && latestUser.status !== "active")) {
+        const error = new Error("계정 상태가 변경되어 생성한 계획을 저장하지 않았어요.");
+        error.status = 409;
+        error.code = "ACCOUNT_INACTIVE";
+        throw error;
+      }
+      latestUser.goalPlanGeneratedAt = now;
+      await userStore.putUser(latestUser);
+      Object.assign(user, latestUser);
+    });
   }
   return result;
+}
+
+const AI_GENERATION_ROUTES = Object.freeze({
+  "/api/ai/goal-plan": { action: "create_plan", kind: "goal", maxBytes: 50_000 },
+  "/api/ai/companion-chat": { action: "companion_chat", kind: "companion", maxBytes: 5_000 },
+  "/api/ai/plan-revision": { action: "revise_plan", kind: "revision", maxBytes: 20_000 },
+  "/api/ai/recovery-plan": { action: "recovery_plan", kind: "revision", maxBytes: 20_000 },
+  "/api/ai/reschedule-plan": { action: "reschedule_plan", kind: "revision", maxBytes: 20_000 },
+});
+
+function aiErrorBody(error, usage = null) {
+  const body = {
+    ok: false,
+    error: error?.message || "AI 요청을 처리하지 못했어요.",
+    code: error?.code || "AI_REQUEST_FAILED",
+  };
+  if (error?.details) body.details = error.details;
+  if (usage) body.usage = usage;
+  return body;
+}
+
+function providerMetadata(result, model) {
+  return {
+    providerUsage: result?.usage || {},
+    providerRequestId: result?.requestId || "",
+    model,
+  };
+}
+
+function publicAiResult(result) {
+  if (!result || typeof result !== "object") return { data: result };
+  const payload = { ...result };
+  delete payload.usage;
+  delete payload.requestId;
+  return payload;
+}
+
+async function readBoundedJson(request, maxBytes) {
+  const reader = request.body?.getReader();
+  if (!reader) {
+    const error = new Error("요청 형식이 올바르지 않아요.");
+    error.status = 400;
+    error.code = "INVALID_JSON";
+    throw error;
+  }
+  const decoder = new TextDecoder();
+  let byteLength = 0;
+  let text = "";
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      byteLength += value.byteLength;
+      if (byteLength > maxBytes) {
+        await reader.cancel().catch(() => {});
+        const error = new Error("요청 내용이 너무 커요.");
+        error.status = 413;
+        error.code = "AI_REQUEST_TOO_LARGE";
+        throw error;
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+    text += decoder.decode();
+  } catch {
+    if (byteLength > maxBytes) {
+      const error = new Error("요청 내용이 너무 커요.");
+      error.status = 413;
+      error.code = "AI_REQUEST_TOO_LARGE";
+      throw error;
+    }
+    const error = new Error("요청 형식이 올바르지 않아요.");
+    error.status = 400;
+    error.code = "INVALID_JSON";
+    throw error;
+  } finally {
+    reader.releaseLock();
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    const error = new Error("요청 형식이 올바르지 않아요.");
+    error.status = 400;
+    error.code = "INVALID_JSON";
+    throw error;
+  }
+}
+
+async function handleAiGenerationRequest({ request, env, accountContext, route }) {
+  if (request.method !== "POST") return json({ ok: false, error: "POST 요청만 사용할 수 있어요.", code: "METHOD_NOT_ALLOWED" }, 405);
+
+  const userStore = accountContext.store;
+  const user = await currentSessionUser(accountContext);
+  if (!user) return json({ ok: false, error: "로그인 후 AI 기능을 이용할 수 있어요.", code: "AUTH_REQUIRED" }, 401);
+
+  if (env.AI_RATE_LIMITER) {
+    const actor = `${user.id}:${request.headers.get("cf-connecting-ip") || "unknown"}`;
+    const { success } = await env.AI_RATE_LIMITER.limit({ key: `ai:${route.action}:${actor}` });
+    if (!success) return json({ ok: false, error: "AI 요청이 잠시 많아요. 1분 뒤 다시 시도해 주세요.", code: "AI_RATE_LIMITED" }, 429);
+  }
+
+  const requestId = String(request.headers.get("x-request-id") || "").trim();
+  const contentLength = Number(request.headers.get("content-length") || 0);
+  if (contentLength > route.maxBytes) {
+    return json({ ok: false, error: "요청 내용이 너무 커요.", code: "AI_REQUEST_TOO_LARGE" }, 413);
+  }
+
+  let input;
+  try {
+    input = await readBoundedJson(request, route.maxBytes);
+  } catch (error) {
+    return json(aiErrorBody(error), error.status || 400);
+  }
+
+  let reservation = null;
+  let providerCalled = false;
+  const model = env.OPENAI_MODEL || "gpt-5.4-mini";
+  try {
+    reservation = await reserveAiCredits({ store: userStore, userId: user.id, action: route.action, requestId });
+
+    let result;
+    if (route.kind === "goal") {
+      // Reload after the reservation write so the goal-limit write cannot overwrite credit state.
+      const creditAwareUser = await userStore.getUser(user.id);
+      result = await createGoalPlanForUser({ input, env, userStore, user: creditAwareUser });
+    } else if (route.kind === "companion") {
+      result = await createCompanionReply(input, {
+        apiKey: env.OPENAI_API_KEY,
+        model,
+        allowPersonalization: ["pro", "trial"].includes(reservation.usage.plan),
+      });
+    } else {
+      result = await createAiPlanRevision(input, { apiKey: env.OPENAI_API_KEY, model });
+    }
+    providerCalled = true;
+
+    const committed = await commitAiCredits({
+      store: userStore,
+      userId: user.id,
+      requestId,
+      ...providerMetadata(result, model),
+    });
+    return json({
+      ok: true,
+      ...publicAiResult(result),
+      requestId,
+      chargedCredits: committed.chargedCredits,
+      usage: committed.usage,
+    });
+  } catch (error) {
+    console.error(`AI ${route.action} request failed`, error);
+    if (reservation?.shouldExecute) {
+      try {
+        await releaseAiCredits({
+          store: userStore,
+          userId: user.id,
+          requestId,
+          providerCalled: error?.providerCalled ?? providerCalled,
+          providerUsage: error?.providerUsage || {},
+          providerRequestId: error?.providerRequestId || "",
+          errorCode: error?.code || "AI_REQUEST_FAILED",
+          model,
+        });
+      } catch (releaseError) {
+        console.error("AI credit reservation release failed", releaseError);
+      }
+    }
+    const usage = await getAiCreditUsage({ store: userStore, userId: user.id }).catch(() => null);
+    return json(aiErrorBody(error, usage), error?.status || 500);
+  }
 }
 
 async function handleFetch(request, env) {
@@ -176,90 +378,50 @@ async function handleFetch(request, env) {
       }
     }
 
-    if (url.pathname === "/api/ai/goal-plan") {
-      if (request.method !== "POST") return json({ error: "POST 요청만 사용할 수 있어요." }, 405);
-
-      if (!env.USERS_KV) return json({ error: "회원 저장소 설정이 필요합니다." }, 503);
-      const userStore = createKvStore(env.USERS_KV);
-      const user = await currentSessionUser({ ...accountContext, store: userStore });
-      if (!user) return json({ error: "로그인 후 AI 기능을 이용할 수 있어요." }, 401);
-
-      if (env.AI_RATE_LIMITER) {
-        const actor = `${user.id}:${request.headers.get("cf-connecting-ip") || "unknown"}`;
-        const { success } = await env.AI_RATE_LIMITER.limit({ key: `goal-plan:${actor}` });
-        if (!success) return json({ error: "AI 요청이 잠시 많아요. 1분 후 다시 시도해 주세요." }, 429);
-      }
-
-      const contentLength = Number(request.headers.get("content-length") || 0);
-      if (contentLength > 50000) return json({ error: "요청 내용이 너무 커요." }, 413);
-
+    if (url.pathname === "/api/ai/usage") {
+      if (request.method !== "GET") return json({ ok: false, error: "GET 요청만 사용할 수 있어요.", code: "METHOD_NOT_ALLOWED" }, 405);
+      if (!env.USERS_KV) return json({ ok: false, error: "회원 저장소 설정이 필요합니다.", code: "ACCOUNT_STORAGE_UNAVAILABLE" }, 503);
+      const user = await currentSessionUser(accountContext);
+      if (!user) return json({ ok: false, error: "로그인 후 사용량을 확인할 수 있어요.", code: "AUTH_REQUIRED" }, 401);
       try {
-        const input = await request.json();
-        const result = await createGoalPlanForUser({ input, env, userStore, user });
-        return json(result);
+        return json(await getAiCreditUsage({ store: accountContext.store, userId: user.id }));
       } catch (error) {
-        console.error("AI goal plan request failed", error);
-        const message = error.status === 503 ? "올리가 계획을 준비하는 동안 연결이 지연되고 있어요." : error.message || "AI 계획을 만들지 못했어요.";
-        return json({ error: message, code: error.code || undefined }, error.status || 500);
+        return json(aiErrorBody(error), error?.status || 500);
       }
     }
 
-    if (url.pathname === "/api/ai/companion-chat") {
-      if (request.method !== "POST") return json({ error: "POST 요청만 사용할 수 있어요." }, 405);
-
-      if (!env.USERS_KV) return json({ error: "회원 저장소 설정이 필요합니다." }, 503);
+    if (url.pathname === "/api/ai/trial/start") {
+      if (request.method !== "POST") return json({ ok: false, error: "POST 요청만 사용할 수 있어요.", code: "METHOD_NOT_ALLOWED" }, 405);
+      if (!env.USERS_KV) return json({ ok: false, error: "회원 저장소 설정이 필요합니다.", code: "ACCOUNT_STORAGE_UNAVAILABLE" }, 503);
       const user = await currentSessionUser(accountContext);
-      if (!user) return json({ error: "로그인 후 AI 기능을 이용할 수 있어요." }, 401);
-
-      if (env.AI_RATE_LIMITER) {
-        const actor = `${user.id}:${request.headers.get("cf-connecting-ip") || "unknown"}`;
-        const { success } = await env.AI_RATE_LIMITER.limit({ key: `companion-chat:${actor}` });
-        if (!success) return json({ error: "올리가 잠시 바빠요. 1분 후 다시 말 걸어주세요." }, 429);
-      }
-
-      const contentLength = Number(request.headers.get("content-length") || 0);
-      if (contentLength > 5000) return json({ error: "메시지가 너무 길어요." }, 413);
-
+      if (!user) return json({ ok: false, error: "로그인 후 무료 체험을 시작할 수 있어요.", code: "AUTH_REQUIRED" }, 401);
       try {
-        const input = await request.json();
-        const result = await createCompanionReply(input, {
-          apiKey: env.OPENAI_API_KEY,
-          model: env.OPENAI_MODEL || "gpt-5.4-mini",
-        });
-        return json(result);
+        const result = await startAiTrial({ store: accountContext.store, userId: user.id });
+        const refreshedUser = await accountContext.store.getUser(user.id);
+        return json({ ...result, user: refreshedUser ? {
+          id: refreshedUser.id,
+          name: refreshedUser.name,
+          email: refreshedUser.email || "",
+          provider: refreshedUser.provider,
+          role: refreshedUser.role || "user",
+          status: refreshedUser.status || "active",
+          plan: refreshedUser.plan || "free",
+          trialStartedAt: refreshedUser.trialStartedAt || null,
+          trialExpiresAt: refreshedUser.trialExpiresAt || null,
+          trialUsedAt: refreshedUser.trialUsedAt || null,
+          trialEndedAt: refreshedUser.trialEndedAt || null,
+          goalPlanGeneratedAt: refreshedUser.goalPlanGeneratedAt || null,
+        } : null });
       } catch (error) {
-        console.error("Companion chat request failed", error);
-        return json({ error: error.message || "올리의 답을 만들지 못했어요.", code: error.code || undefined }, error.status || 500);
+        const usage = await getAiCreditUsage({ store: accountContext.store, userId: user.id }).catch(() => null);
+        return json(aiErrorBody(error, usage), error?.status || 500);
       }
     }
 
-    if (url.pathname === "/api/ai/plan-revision") {
-      if (request.method !== "POST") return json({ error: "POST 요청만 사용할 수 있어요." }, 405);
-
-      if (!env.USERS_KV) return json({ error: "회원 저장소 설정이 필요합니다." }, 503);
-      const user = await currentSessionUser(accountContext);
-      if (!user) return json({ error: "로그인 후 AI 기능을 이용할 수 있어요." }, 401);
-
-      if (env.AI_RATE_LIMITER) {
-        const actor = `${user.id}:${request.headers.get("cf-connecting-ip") || "unknown"}`;
-        const { success } = await env.AI_RATE_LIMITER.limit({ key: `plan-revision:${actor}` });
-        if (!success) return json({ error: "AI 수정 요청이 잠시 많아요. 1분 후 다시 시도해 주세요." }, 429);
-      }
-
-      const contentLength = Number(request.headers.get("content-length") || 0);
-      if (contentLength > 20000) return json({ error: "수정 요청 내용이 너무 커요." }, 413);
-
-      try {
-        const input = await request.json();
-        const result = await createAiPlanRevision(input, {
-          apiKey: env.OPENAI_API_KEY,
-          model: env.OPENAI_MODEL || "gpt-5.4-mini",
-        });
-        return json(result);
-      } catch (error) {
-        console.error("AI plan revision request failed", error);
-        return json({ error: error.message || "AI 변경안을 만들지 못했어요.", code: error.code || undefined }, error.status || 500);
-      }
+    const aiGenerationRoute = AI_GENERATION_ROUTES[url.pathname];
+    if (aiGenerationRoute) {
+      if (!env.USERS_KV) return json({ ok: false, error: "회원 저장소 설정이 필요합니다.", code: "ACCOUNT_STORAGE_UNAVAILABLE" }, 503);
+      return handleAiGenerationRequest({ request, env, accountContext, route: aiGenerationRoute });
     }
 
     if (url.pathname === "/api/funnel") {

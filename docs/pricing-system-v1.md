@@ -1,59 +1,81 @@
 # Pricing System v1
 
+이 문서는 가격과 AI 크레딧 숫자를 빠르게 확인하기 위한 요약입니다. 체험, 초기화, 마이그레이션, KV 동시성 위험과 롤백의 기준 문서는 [가격 및 AI 크레딧 정책](pricing-and-credits.md)입니다.
+
+문서의 정책값은 확정안이지만, 실제 UI·서버·결제가 배포 완료되었다는 뜻은 아닙니다. 출시 전에 코드와 Preview를 별도로 검증합니다.
+
 ## Plans
 
-### FREE
+### Free
 
-- 1-day free trial
-- 1 AI-generated goal plan
-- 10 Ollie Energy for AI edits
-- Daily schedule
-- No payment method required
+- 가격: 무료
+- 신규 사용자 첫 기간 및 이후 매월 AI 크레딧 5개
+- 일일 AI 크레딧 한도 2개
+- 목표 최대 1개, 활성 계획 최대 1개
+- 기본 기록 제공
+- 미사용 크레딧 이월 없음
 
-### PRO — KRW 2,900/month
+### Pro
 
-- Unlimited goals and schedules
-- 300 Ollie Energy per month
-- Weekly review
-- Ollie growth
-- Full history
-- Premium widgets
-- User-facing promise: “Generous monthly AI assistance”
+- 가격: 월 4,900원
+- 매월 AI 크레딧 250개
+- 일일 AI 크레딧 한도 30개
+- 목표와 활성 계획 수 제한 없음
+- 전체 일정 재조정, 회복 계획, 상세 기록·통계, 올리 개인화 제공
+- 미사용 크레딧 이월 없음
+- AI 사용에는 월간·일일 크레딧 한도가 적용됨
 
-## Ollie Energy costs
+### 24-hour Pro Trial
 
-| Action | Energy |
+- 서버 계정당 1회
+- 시작 시점부터 정확히 24시간
+- 체험 AI 크레딧 총 15개
+- 체험 종료 또는 소진 후 활성 구독이 없으면 Free
+- 남은 체험 크레딧 이월 없음
+- 결제수단이 없으면 자동 결제 없음
+
+## AI credit costs
+
+| Action | Credits |
 | --- | ---: |
-| Simple edit | 1 |
-| Regenerate today's schedule | 3 |
-| Weekly optimization | 5 |
-| Full goal redesign | 10 |
+| `companion_chat` | 1 |
+| `create_daily_step` | 2 |
+| `revise_plan` | 2 |
+| `recovery_plan` | 3 |
+| `create_plan` | 4 |
+| `reschedule_plan` | 4 |
 
-Energy resets each month. Unused Energy does not roll over. Show a low-balance warning at 20% remaining or below.
+클라이언트는 비용을 표시할 수 있지만 서버가 인증된 사용자와 action을 기준으로 최종 비용을 결정합니다. 실패한 AI 호출은 확정 차감하지 않고 예약을 해제하며, 같은 `requestId`를 중복 차감하지 않습니다.
 
-## Extra Energy
+## Reset policy
 
-| Pack | Price | Revenue per Energy |
-| --- | ---: | ---: |
-| 100 | KRW 990 | KRW 9.90 |
-| 300 | KRW 1,990 | KRW 6.63 |
-| 1,000 | KRW 4,900 | KRW 4.90 |
+일일·월간 기간은 사용자 레코드의 유효한 IANA `timezone`을 기준으로 하며, 없거나 잘못된 값은 `Asia/Seoul`로 대체합니다. `PAYMENTS_ENABLED=false`인 현재 단계에서 월간 기간은 결제일이 아닌 달력 월 기준입니다.
 
-## Unit economics guardrails
+- 일일: 사용자 시간대의 매일 00:00
+- 월간: 사용자 시간대의 매월 1일 00:00
+- Trial: 시작 후 정확히 24시간
 
-- PRO revenue: KRW 2,900/month.
-- A gross-margin target above 60% allows total variable cost below KRW 1,160/month.
-- An AI-cost target of KRW 1,000/month produces a 65.5% gross margin before payment, messaging, and other variable costs.
-- At 60–120 simple edits per month, the average AI cost must remain below KRW 16.67–8.33 per edit to stay within the KRW 1,000 AI budget.
-- At the full 300-Energy allowance, blended AI cost must remain below KRW 3.33 per Energy to stay within the same budget.
-- The remaining KRW 160 margin buffer is tight. Track payment fees, Kakao messaging costs, retries, and support-related variable costs separately.
-- Validate each extra-Energy pack against measured blended cost per Energy. The 1,000-Energy pack has the narrowest margin and should be reviewed first if model costs rise.
+결제가 활성화되면 Pro의 월간 기간을 실제 결제 주기에 맞출 수 있도록 기간 계산을 분리합니다.
+
+## Payment status
+
+Toss Payments 자동결제는 부분 구현 상태이며 운영 결제는 비활성화되어 있습니다. 목표 상품 가격은 월 4,900원이지만 `PAYMENTS_ENABLED=false`가 유지되는 동안 실제 결제가 가능한 것으로 표시하지 않습니다. 추가 AI 크레딧 팩은 이 버전에서 판매하지 않습니다.
+
+## Migration and storage warning
+
+- 기존 Pro는 보존합니다.
+- 유효 Trial은 원래 만료 시각까지 인정한 뒤 Free로 전환합니다.
+- 레거시 브라우저 에너지는 서버 크레딧으로 변환하지 않습니다.
+- 사용자를 읽을 때 새 정책으로 정규화하고 새 서버 기간을 한 번 시작합니다.
+- Cloudflare KV read-modify-write는 원자적이지 않아 서로 다른 동시 요청의 초과 승인 또는 갱신 유실 위험이 남습니다.
+- 이전 필드는 안정화 전 삭제하지 않으며 문제 시 직전 Worker로 롤백합니다.
 
 ## Metrics to monitor
 
-- AI cost per Energy by action type
-- Average and 95th-percentile Energy consumption per paid user
-- Percentage of users reaching the 20% warning
-- Extra-Energy attach rate and gross margin by pack
-- Trial-to-PRO conversion rate
-- PRO gross margin after payment and messaging costs
+- action별 요청, 성공, 실패와 timeout
+- plan별 일일·월간 크레딧 사용량
+- 예약, 확정, 해제와 만료 수
+- 중복 `requestId` 차단 수
+- 한도 도달률과 Trial-to-Pro 전환율
+- token 사용량, 추정 AI 비용과 Pro 단위경제성
+- 음수 잔액, 미해제 예약과 동시성 이상
