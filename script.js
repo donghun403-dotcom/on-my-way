@@ -19,6 +19,9 @@ const wizardProgressValue = document.querySelector("#wizardProgressValue");
 const wizardLiveGoal = document.querySelector("#wizardLiveGoal");
 const wizardLiveTiming = document.querySelector("#wizardLiveTiming");
 const planPreviewPanel = document.querySelector("#firstStep");
+const resultDetailsDisclosure = document.querySelector(".result-details-disclosure");
+const resultDetailsSummary = resultDetailsDisclosure?.querySelector(":scope > summary");
+const resultDetailsContent = document.querySelector("#resultDetailsContent");
 const goalSuggestionButtons = document.querySelectorAll("[data-goal-suggestion], [data-goal-category]");
 const customGoalButton = document.querySelector("#customGoalButton");
 const birthDateInput = document.querySelector("#birthDate");
@@ -560,6 +563,30 @@ trialStartInlineLink?.addEventListener("click", async (event) => {
   const started = await startTrialAccess();
   if (started) location.assign(trialStartInlineLink.href);
 });
+
+function syncResultDetailsDisclosure({ reveal = false } = {}) {
+  if (!resultDetailsDisclosure || !resultDetailsSummary) return;
+  const isOpen = resultDetailsDisclosure.open;
+  resultDetailsSummary.setAttribute("aria-expanded", String(isOpen));
+  const label = resultDetailsSummary.querySelector(":scope > b");
+  if (label) label.textContent = isOpen ? "접기" : "보기";
+  if (reveal && isOpen) {
+    window.requestAnimationFrame(() => {
+      resultDetailsContent?.scrollIntoView({
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+        block: "nearest",
+      });
+    });
+  }
+}
+
+resultDetailsSummary?.addEventListener("click", (event) => {
+  event.preventDefault();
+  resultDetailsDisclosure.open = !resultDetailsDisclosure.open;
+  syncResultDetailsDisclosure({ reveal: resultDetailsDisclosure.open });
+});
+resultDetailsDisclosure?.addEventListener("toggle", () => syncResultDetailsDisclosure());
+syncResultDetailsDisclosure();
 
 // ===== 성향 프로필: 앱 안에서 언제든 입력·수정 =====
 const PERSONALITY_PROFILE_KEY = "omwPersonalityProfile";

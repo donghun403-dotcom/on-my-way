@@ -75,6 +75,11 @@ test("첫 진입부터 목표 생성과 새로고침까지 이어진다", async 
   expect(goalPlanRequests[0].requestId).toMatch(/^create_plan:/);
   expect(goalPlanRequests[0].body).not.toHaveProperty("plan");
   expect(goalPlanRequests[0].body).not.toHaveProperty("creditCost");
+  const planDetails = page.locator(".result-details-disclosure");
+  await planDetails.locator("summary").click();
+  await expect(planDetails).toHaveAttribute("open", "");
+  await expect(planDetails.locator(".result-details-content")).toBeVisible();
+  await expect(planDetails.locator("summary > b")).toHaveText("접기");
   await page.locator("#trialStartInlineLink").click();
   await expect(page).toHaveURL(/app\.html/);
   await expect(page.locator("#view-today")).toBeVisible();

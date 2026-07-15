@@ -7077,16 +7077,9 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   scroll-margin-block: 80px 100px;
 }
 
-.result-details-disclosure[open] > summary > b::before {
-  content: "접기";
-}
-
 .result-details-disclosure[open] > summary > b {
-  font-size: 0;
-}
-
-.result-details-disclosure[open] > summary > b::before {
-  font-size: 9px;
+  color: #58766b;
+  background: #e4f2ec;
 }
 
 .result-details-content {

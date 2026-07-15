@@ -240,11 +240,11 @@
                   <a id="trialStartInlineLink" href="app.html" aria-label="방금 만든 오늘의 맞춤 계획 바로 시작하기"><span>오늘 계획 바로 시작</span><b aria-hidden="true">→</b></a>
                 </div>
                 <details class="result-details-disclosure">
-                  <summary>
+                  <summary aria-controls="resultDetailsContent" aria-expanded="false">
                     <span><strong>내 계획 자세히 보기</strong><small>오늘 스케줄 · 첫 주 로드맵 · 맞춤 분석</small></span>
                     <b aria-hidden="true">보기</b>
                   </summary>
-                  <div class="result-details-content">
+                  <div class="result-details-content" id="resultDetailsContent">
                     <article class="result-schedule-card" aria-labelledby="todayScheduleTitle">
                       <div class="result-section-head"><span>DAY 1</span><strong id="todayScheduleTitle">오늘의 맞춤 스케줄</strong></div>
                       <ol id="aiTodaySchedule" class="result-schedule-list">
