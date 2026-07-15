@@ -308,6 +308,21 @@ async function handleAiGenerationRequest({ request, env, accountContext, route }
   }
 }
 
+const NON_HTML_ASSET_PATH = /\.(?:mjs|js|css)$/i;
+
+async function fetchStaticAsset(request, env) {
+  const response = await env.ASSETS.fetch(request);
+  const url = new URL(request.url);
+  const contentType = response.headers.get("content-type") || "";
+  if (NON_HTML_ASSET_PATH.test(url.pathname) && response.ok && contentType.toLowerCase().includes("text/html")) {
+    return new Response("Static asset not found.", {
+      status: 404,
+      headers: { "Cache-Control": "no-store", "Content-Type": "text/plain; charset=utf-8" },
+    });
+  }
+  return response;
+}
+
 async function handleFetch(request, env) {
     const url = new URL(request.url);
 
@@ -453,7 +468,7 @@ async function handleFetch(request, env) {
       return env.ASSETS.fetch(new Request(assetUrl.toString(), request));
     }
 
-    return env.ASSETS.fetch(request);
+    return fetchStaticAsset(request, env);
 }
 
 export default {

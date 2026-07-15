@@ -107,3 +107,42 @@ test("루트와 앱 진입점은 HTML 파일 URL을 바꾸지 않고 명시적�
 
   assert.deepEqual(seen, ["/index.html", "/app.html"]);
 });
+
+test("plan-policy 모듈은 정적 자산으로 포함되고 서버 모듈 패턴의 예외로 지정된다", async () => {
+  const assetsIgnore = await readFile(new URL(".assetsignore", import.meta.url), "utf8");
+  assert.match(assetsIgnore, /^\*\.mjs$/m);
+  assert.match(assetsIgnore, /^!plan-policy\.mjs$/m);
+});
+
+test("누락된 모듈·스크립트·스타일 요청은 SPA HTML fallback 대신 404를 반환한다", async () => {
+  for (const pathname of ["/missing.mjs", "/missing.js", "/missing.css"]) {
+    const response = await worker.fetch(new Request(`https://onmyway.olivenrich.com${pathname}`), {
+      ASSETS: {
+        async fetch() {
+          return new Response("<!doctype html><html></html>", {
+            status: 200,
+            headers: { "Content-Type": "text/html; charset=utf-8" },
+          });
+        },
+      },
+    });
+    assert.equal(response.status, 404, pathname);
+    assert.match(response.headers.get("content-type") || "", /text\/plain/);
+  }
+});
+
+test("정상 plan-policy 모듈 응답은 HTML fallback 검사 없이 전달한다", async () => {
+  const response = await worker.fetch(new Request("https://onmyway.olivenrich.com/plan-policy.mjs"), {
+    ASSETS: {
+      async fetch() {
+        return new Response('export const POLICY_VERSION = "test";', {
+          status: 200,
+          headers: { "Content-Type": "application/javascript; charset=utf-8" },
+        });
+      },
+    },
+  });
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("content-type") || "", /javascript/);
+  assert.match(await response.text(), /^export const/);
+});
