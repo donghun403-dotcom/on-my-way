@@ -14,7 +14,7 @@
 - `origin/main`: `6245a77` `Implement Free/Pro pricing and AI credit policy (#5)`
 - 현재 브랜치는 `origin/main`의 `6245a77`을 포함하지 않는다. 비교 결과 `origin/main` 고유 2커밋, 현재 HEAD 고유 23커밋이다.
 - 로컬 `main`: `825321f`, `origin/main`보다 2커밋 뒤처짐
-- 현재 혼합 worktree의 미커밋 변경은 외부 백업 `C:\Users\dongh\Documents\on-my-way-recovery-backup-20260716-052825`에 패치·manifest·분류 보고서로 보존했다. 원본 worktree의 변경은 유지한다.
+- 현재 혼합 worktree의 미커밋 변경은 2026-07-16에 생성한 저장소 외부 복구 백업에 패치·manifest·변경 분류·검증 보고서로 보존했다. 정확한 로컬 경로는 저장소에 기록하지 않으며, 원본 worktree의 변경은 그대로 유지한다.
 
 ### 커밋되지 않은 변경
 
