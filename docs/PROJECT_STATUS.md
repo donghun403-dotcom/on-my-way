@@ -9,7 +9,7 @@
 ## 최신 검증
 
 - PR #7은 `d09e508d8a1f34e7af52adda5645eb5b40a3bc68`로 `main`에 병합되었다.
-- Preview 정적 자산 수정 PR #8은 unit test, 문법 검사, CI 서버 Playwright, Preview 배포, `plan-policy.mjs` 직접 응답까지 성공했지만, 최신 Preview Playwright 재실행은 iPhone WebKit의 모듈 import 오류와 account state access-control 오류로 실패했다.
+- Preview 정적 자산 수정 PR #8은 unit test, 문법 검사, CI 서버 Playwright, Preview 배포, `plan-policy.mjs` 직접 응답, Preview Playwright까지 성공했다. run 43은 126개 통과와 2개 flaky 재시도를 기록했으며 최종 job은 성공했다.
 - Preview의 `/plan-policy.mjs`는 `200 OK`와 `text/javascript`를 반환하며, 존재하지 않는 `.mjs` 요청은 HTML fallback 없이 `404`를 반환한다.
 
 ## 현재 저장소
