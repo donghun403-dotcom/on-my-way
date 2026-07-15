@@ -1,10 +1,16 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "on-my-way-nonproduction",
+  "name": "on-my-way",
   "main": "./worker.mjs",
   "compatibility_date": "2026-07-11",
   "workers_dev": true,
-  "preview_urls": true,
+  "preview_urls": false,
+  "routes": [
+    {
+      "pattern": "onmyway.olivenrich.com",
+      "custom_domain": true
+    }
+  ],
   "assets": {
     "directory": ".",
     "binding": "ASSETS",
@@ -14,7 +20,7 @@
   },
   "vars": {
     "OPENAI_MODEL": "gpt-5.4-mini",
-    "APP_ENV": "preview",
+    "APP_ENV": "production",
     "ALLOW_DEV_LOGIN": "false",
     "ALLOW_DEMO_BILLING": "false",
     "PAYMENTS_ENABLED": "false"
@@ -22,17 +28,20 @@
   "kv_namespaces": [
     {
       "binding": "USERS_KV",
-      "id": "dcc40a9a86414ac8814ef59a7e78ab80"
+      "id": "04d136e6bcef4de7bb8a515856dd48f6"
     }
   ],
   "ratelimits": [
     {
       "name": "AI_RATE_LIMITER",
-      "namespace_id": "48118",
+      "namespace_id": "48117",
       "simple": {
         "limit": 5,
         "period": 60
       }
     }
-  ]
+  ],
+  "triggers": {
+    "crons": ["15 0 * * *"]
+  }
 }

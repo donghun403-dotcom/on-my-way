@@ -4,7 +4,8 @@ const designGoal = document.querySelector("#designGoal");
 const menuButton = document.querySelector(".menu-button");
 const mainNav = document.querySelector(".main-nav");
 const navLinks = document.querySelectorAll(".main-nav a");
-const sectionNavLinks = document.querySelectorAll(".main-nav a[href^='#'], .bottom-tabbar a");
+const sectionNavLinks = document.querySelectorAll(".main-nav a[href^='#']");
+const pageViewSections = document.querySelectorAll("main > [data-page-view]");
 const personalityForm = document.querySelector("#personalityForm");
 const diagnosisSteps = document.querySelectorAll(".diagnosis-step");
 const diagnosisStepperItems = document.querySelectorAll(".diagnosis-stepper span");
@@ -17,7 +18,7 @@ const wizardStepLabel = document.querySelector("#wizardStepLabel");
 const wizardProgressValue = document.querySelector("#wizardProgressValue");
 const wizardLiveGoal = document.querySelector("#wizardLiveGoal");
 const wizardLiveTiming = document.querySelector("#wizardLiveTiming");
-const planPreviewPanel = document.querySelector("#planPreviewPanel");
+const planPreviewPanel = document.querySelector("#firstStep");
 const goalSuggestionButtons = document.querySelectorAll("[data-goal-suggestion], [data-goal-category]");
 const customGoalButton = document.querySelector("#customGoalButton");
 const birthDateInput = document.querySelector("#birthDate");
@@ -57,7 +58,7 @@ const appFeatureCounter = document.querySelector("#appFeatureCounter");
 const trialPhoneInput = document.querySelector("#trialPhone");
 const trialServiceConsent = document.querySelector("#trialServiceConsent");
 const trialMarketingConsent = document.querySelector("#trialMarketingConsent");
-const trialStartLink = document.querySelector("#trialStartLink");
+const trialStartInlineLink = document.querySelector("#trialStartInlineLink");
 const trialStatusBanner = document.querySelector("#trialStatusBanner");
 const trialTimeRemaining = document.querySelector("#trialTimeRemaining");
 const trialPaywall = document.querySelector("#trialPaywall");
@@ -75,12 +76,15 @@ const energyChargeOverlay = document.querySelector("#energyChargeOverlay");
 const energyChargeSheet = document.querySelector("#energyChargeSheet");
 const closeEnergyChargeButton = document.querySelector("#closeEnergyCharge");
 const energyChargeBalance = document.querySelector("#energyChargeBalance");
-const energyPackButtons = document.querySelectorAll("[data-energy-pack]");
 const weeklyOptimizeButton = document.querySelector("#weeklyOptimizeButton");
 const executionGoal = document.querySelector("#executionGoal");
 const executionStyle = document.querySelector("#executionStyle");
 const executionPeriod = document.querySelector("#executionPeriod");
 const todayDateLabel = document.querySelector("#todayDateLabel");
+const todayGreeting = document.querySelector("#todayGreeting");
+const todayNotificationButton = document.querySelector("#todayNotificationButton");
+const todayGoalProgress = document.querySelector("#todayGoalProgress");
+const todayGoalProgressBar = document.querySelector("#todayGoalProgressBar");
 const executionDay = document.querySelector("#executionDay");
 const executionStreak = document.querySelector("#executionStreak");
 const executionProgress = document.querySelector("#executionProgress");
@@ -90,6 +94,28 @@ const planStatusBadge = document.querySelector("#planStatusBadge");
 const planEditor = document.querySelector("#planEditor");
 const planPreviewList = document.querySelector("#planPreviewList");
 const planRevisionRequest = document.querySelector("#planRevisionRequest");
+const revisionGoalType = document.querySelector("#revisionGoalType");
+const revisionGoalTypeHint = document.querySelector("#revisionGoalTypeHint");
+const revisionIntroTitle = document.querySelector("#revisionIntroTitle");
+const revisionIntroDescription = document.querySelector("#revisionIntroDescription");
+const revisionOutcomeSectionTitle = document.querySelector("#revisionOutcomeSectionTitle");
+const revisionOutcomeSectionHint = document.querySelector("#revisionOutcomeSectionHint");
+const revisionResources = document.querySelector("#revisionResources");
+const revisionResourcesLabel = document.querySelector("#revisionResourcesLabel");
+const revisionOutcome = document.querySelector("#revisionOutcome");
+const revisionOutcomeLabel = document.querySelector("#revisionOutcomeLabel");
+const revisionWeekdayMinutes = document.querySelector("#revisionWeekdayMinutes");
+const revisionWeekendMinutes = document.querySelector("#revisionWeekendMinutes");
+const revisionPreferredTime = document.querySelector("#revisionPreferredTime");
+const revisionIncreaseFocus = document.querySelector("#revisionIncreaseFocus");
+const revisionIncreaseLabel = document.querySelector("#revisionIncreaseLabel");
+const revisionDecreaseFocus = document.querySelector("#revisionDecreaseFocus");
+const revisionDecreaseLabel = document.querySelector("#revisionDecreaseLabel");
+const revisionKeepRules = document.querySelector("#revisionKeepRules");
+const revisionKeepLabel = document.querySelector("#revisionKeepLabel");
+const revisionConstraints = document.querySelector("#revisionConstraints");
+const revisionDetailInputs = document.querySelectorAll("[data-revision-detail]");
+const revisionDayInputs = document.querySelectorAll("[data-revision-day]");
 const acceptPlanButton = document.querySelector("#acceptPlanButton");
 const regeneratePlanButton = document.querySelector("#regeneratePlanButton");
 const reviseAgainButton = document.querySelector("#reviseAgainButton");
@@ -99,8 +125,17 @@ const revisionChipButtons = document.querySelectorAll("[data-revision-chip]");
 const selectedScheduleTitle = document.querySelector("#selectedScheduleTitle");
 const selectedScheduleMeta = document.querySelector("#selectedScheduleMeta");
 const executionChecklist = document.querySelector("#executionChecklist");
-const difficultyCard = document.querySelector("#difficultyCard");
-const difficultyButtons = document.querySelectorAll("[data-difficulty]");
+const planScreenElements = document.querySelectorAll("[data-plan-screen]");
+const planOpenDetailButton = document.querySelector("#planOpenDetailButton");
+const planOpenEditorButton = document.querySelector("#planOpenEditorButton");
+const planBackButtons = document.querySelectorAll("[data-plan-back]");
+const planOverviewGoal = document.querySelector("#planOverviewGoal");
+const planOverviewStatus = document.querySelector("#planOverviewStatus");
+const planOverviewPeriod = document.querySelector("#planOverviewPeriod");
+const planOverviewWeek = document.querySelector("#planOverviewWeek");
+const planOverviewRhythm = document.querySelector("#planOverviewRhythm");
+const scheduleModeButtons = document.querySelectorAll("[data-schedule-mode]");
+const todayOrderHint = document.querySelector("#todayOrderHint");
 const recoveryCard = document.querySelector("#recoveryCard");
 const recoverySummary = document.querySelector("#recoverySummary");
 const recoveryButtons = document.querySelectorAll("[data-recovery-action]");
@@ -121,10 +156,18 @@ const dailyCoachImage = document.querySelector("#dailyCoachImage");
 const dailyCoachKicker = document.querySelector("#dailyCoachKicker");
 const dailyCoachTitle = document.querySelector("#dailyCoachTitle");
 const dailyCoachMessage = document.querySelector("#dailyCoachMessage");
-const routineModeTitle = document.querySelector("#routineModeTitle");
-const routineModeMeta = document.querySelector("#routineModeMeta");
-const routineCueList = document.querySelector("#routineCueList");
 const completeTodayButton = document.querySelector("#completeTodayButton");
+const addTodayScheduleButton = document.querySelector("#addTodayScheduleButton");
+const addScheduleOverlay = document.querySelector("#addScheduleOverlay");
+const addScheduleSheet = document.querySelector("#addScheduleSheet");
+const closeAddScheduleButton = document.querySelector("#closeAddSchedule");
+const addScheduleForm = document.querySelector("#addScheduleForm");
+const newScheduleName = document.querySelector("#newScheduleName");
+const newScheduleTime = document.querySelector("#newScheduleTime");
+const newScheduleTimeField = document.querySelector("#newScheduleTimeField");
+const addScheduleModeHint = document.querySelector("#addScheduleModeHint");
+const newScheduleDuration = document.querySelector("#newScheduleDuration");
+const newScheduleMemo = document.querySelector("#newScheduleMemo");
 const executionThemeButtons = document.querySelectorAll(".execution-theme-button");
 const executionCompanion = document.querySelector("#executionCompanion");
 const executionCompanionTitle = document.querySelector("#executionCompanionTitle");
@@ -140,6 +183,250 @@ const TRIAL_LEAD_KEY = "omwTrialLead";
 const TRIAL_DURATION_MS = 24 * 60 * 60 * 1000;
 const OLLIE_ENERGY_KEY = "omwOllieEnergy";
 const FREE_PLAN_GENERATED_KEY = "omwFreePlanGenerated";
+const ACCOUNT_STORAGE_SCOPE_KEY = "onmyway:active-scope";
+const ANONYMOUS_DEVICE_KEY = "onmyway:anonymous-device";
+const LEGACY_ACCOUNT_STORAGE_SCOPE_KEY = "omwAccountStorageScope";
+const LEGACY_ACCOUNT_STORAGE_SNAPSHOT_PREFIX = "omwAccountStorageSnapshot:";
+const ACCOUNT_SCOPED_STORAGE_KEYS = [
+  TRIAL_ACCESS_KEY,
+  TRIAL_LEAD_KEY,
+  OLLIE_ENERGY_KEY,
+  FREE_PLAN_GENERATED_KEY,
+  "omwTrialReminderDismissed",
+  "omwPersonalityProfile",
+  "omwPersonalityNudgeDismissed",
+  "omwExecutionPlan",
+  "omwExecutionState",
+  "omwCompanionState",
+  "omwCompanionEvents",
+  "omwFocusSession",
+  "omwExecutionTheme",
+];
+const SERVER_SYNC_STORAGE_KEYS = [
+  OLLIE_ENERGY_KEY,
+  "omwPersonalityProfile",
+  "omwExecutionPlan",
+  "omwExecutionState",
+  "omwCompanionState",
+  "omwCompanionEvents",
+  "omwExecutionTheme",
+];
+let activePlanScreen = "home";
+let accountSyncTimer = null;
+let accountSyncInFlight = false;
+
+function getAccountStorageScope(user) {
+  if (user?.id) return `user:${user.id}`;
+  let deviceId = localStorage.getItem(ANONYMOUS_DEVICE_KEY);
+  if (!deviceId) {
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    deviceId = [...bytes].map((value) => value.toString(16).padStart(2, "0")).join("");
+    localStorage.setItem(ANONYMOUS_DEVICE_KEY, deviceId);
+  }
+  return `anonymous:${deviceId}`;
+}
+
+function accountSnapshotKey(scope) {
+  if (scope.startsWith("user:")) return `onmyway:user:${scope.slice(5)}:state`;
+  if (scope.startsWith("anonymous:")) return `onmyway:anonymous:${scope.slice(10)}:state`;
+  return `${LEGACY_ACCOUNT_STORAGE_SNAPSHOT_PREFIX}${scope}`;
+}
+
+function captureAccountStorage() {
+  return Object.fromEntries(
+    ACCOUNT_SCOPED_STORAGE_KEYS.map((key) => [key, localStorage.getItem(key)]).filter(([, value]) => value !== null),
+  );
+}
+
+function readAccountSnapshot(scope) {
+  for (const key of [accountSnapshotKey(scope), `${LEGACY_ACCOUNT_STORAGE_SNAPSHOT_PREFIX}${scope}`]) {
+    const raw = localStorage.getItem(key);
+    if (raw === null) continue;
+    try {
+      const snapshot = JSON.parse(raw);
+      if (snapshot && typeof snapshot === "object" && !Array.isArray(snapshot)) return snapshot;
+      localStorage.removeItem(key);
+    } catch {
+      localStorage.removeItem(key);
+    }
+  }
+  return {};
+}
+
+function restoreAccountSnapshot(snapshot) {
+  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return;
+  Object.entries(snapshot).forEach(([key, value]) => {
+    if (ACCOUNT_SCOPED_STORAGE_KEYS.includes(key) && typeof value === "string") localStorage.setItem(key, value);
+  });
+}
+
+function captureServerSyncState() {
+  return Object.fromEntries(
+    SERVER_SYNC_STORAGE_KEYS.map((key) => [key, localStorage.getItem(key)]).filter(([, value]) => value !== null),
+  );
+}
+
+function accountSyncMetaKey(userId) {
+  return `onmyway:user:${userId}:sync-meta`;
+}
+
+function readAccountSyncMeta(userId) {
+  try {
+    const value = JSON.parse(localStorage.getItem(accountSyncMetaKey(userId)) || "null");
+    return value && typeof value === "object" ? value : { revision: 0, lastState: "{}" };
+  } catch {
+    return { revision: 0, lastState: "{}" };
+  }
+}
+
+function writeAccountSyncMeta(userId, revision, state) {
+  localStorage.setItem(accountSyncMetaKey(userId), JSON.stringify({
+    revision: Number(revision || 0),
+    lastState: JSON.stringify(state || {}),
+    syncedAt: Date.now(),
+  }));
+}
+
+function backupSyncConflict(userId, state) {
+  const key = `onmyway:user:${userId}:sync-conflict:${Date.now()}`;
+  localStorage.setItem(key, JSON.stringify(state));
+  return key;
+}
+
+function applyServerSyncState(userId, state) {
+  SERVER_SYNC_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
+  Object.entries(state || {}).forEach(([key, value]) => {
+    if (SERVER_SYNC_STORAGE_KEYS.includes(key) && typeof value === "string") localStorage.setItem(key, value);
+  });
+  const scope = `user:${userId}`;
+  localStorage.setItem(accountSnapshotKey(scope), JSON.stringify(captureAccountStorage()));
+}
+
+async function saveAccountStateToServer({ keepalive = false } = {}) {
+  const user = authUiState.user;
+  if (!user?.id || accountSyncInFlight) return;
+  const state = captureServerSyncState();
+  const serialized = JSON.stringify(state);
+  const meta = readAccountSyncMeta(user.id);
+  if (serialized === meta.lastState) return;
+  accountSyncInFlight = true;
+  try {
+    const response = await fetch("/api/account/state", {
+      method: "PUT",
+      credentials: "same-origin",
+      keepalive,
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        userId: user.id,
+        state,
+        baseRevision: meta.revision,
+        deviceId: localStorage.getItem(ANONYMOUS_DEVICE_KEY) || "",
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (response.status === 409 && data.code === "ACCOUNT_CHANGED") return;
+    if (response.status === 409) {
+      backupSyncConflict(user.id, state);
+      applyServerSyncState(user.id, data.state || {});
+      writeAccountSyncMeta(user.id, data.revision, data.state || {});
+      showToast("다른 기기의 최신 데이터를 불러왔어요. 이 기기의 충돌 사본도 안전하게 보관했어요.");
+      return;
+    }
+    if (!response.ok) throw new Error(data.error || "데이터를 동기화하지 못했어요.");
+    writeAccountSyncMeta(user.id, data.revision, state);
+  } catch (error) {
+    if (!keepalive) console.warn("Unable to sync account state", error);
+  } finally {
+    accountSyncInFlight = false;
+  }
+}
+
+async function initializeAccountStateSync() {
+  const user = authUiState.user;
+  if (!user?.id) return;
+  const response = await accountRequest("/api/account/state");
+  const serverState = response.state || {};
+  const serverRevision = Number(response.revision || 0);
+  const localState = captureServerSyncState();
+  const localSerialized = JSON.stringify(localState);
+  const meta = readAccountSyncMeta(user.id);
+
+  if (serverRevision === 0) {
+    writeAccountSyncMeta(user.id, 0, {});
+    if (Object.keys(localState).length) await saveAccountStateToServer();
+  } else if (meta.revision === serverRevision) {
+    if (localSerialized !== meta.lastState) await saveAccountStateToServer();
+  } else if (localSerialized === meta.lastState || !Object.keys(localState).length) {
+    applyServerSyncState(user.id, serverState);
+    writeAccountSyncMeta(user.id, serverRevision, serverState);
+  } else {
+    backupSyncConflict(user.id, localState);
+    applyServerSyncState(user.id, serverState);
+    writeAccountSyncMeta(user.id, serverRevision, serverState);
+    showToast("서버의 최신 데이터를 불러왔어요. 이 기기의 이전 사본도 보관했어요.");
+  }
+
+  window.clearInterval(accountSyncTimer);
+  accountSyncTimer = window.setInterval(() => saveAccountStateToServer(), 5000);
+}
+
+function switchAccountStorageScope(targetScope, { allowAnonymousMerge = false } = {}) {
+  try {
+    let currentScope = localStorage.getItem(ACCOUNT_STORAGE_SCOPE_KEY);
+    if (!currentScope) {
+      const legacyScope = localStorage.getItem(LEGACY_ACCOUNT_STORAGE_SCOPE_KEY);
+      currentScope = legacyScope?.startsWith("user:") ? legacyScope : getAccountStorageScope(null);
+      localStorage.setItem(ACCOUNT_STORAGE_SCOPE_KEY, currentScope);
+    }
+    if (currentScope === targetScope) return false;
+
+    const currentSnapshot = captureAccountStorage();
+    localStorage.setItem(accountSnapshotKey(currentScope), JSON.stringify(currentSnapshot));
+    ACCOUNT_SCOPED_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
+
+    let targetSnapshot = readAccountSnapshot(targetScope);
+    const hasAnonymousData = currentScope.startsWith("anonymous:") && Object.keys(currentSnapshot).length > 0;
+    const targetIsEmpty = Object.keys(targetSnapshot).length === 0;
+    if (allowAnonymousMerge && targetScope.startsWith("user:") && hasAnonymousData && targetIsEmpty) {
+      const shouldImport = window.confirm("로그인 전에 만든 목표와 기록을 이 계정으로 가져올까요? 가져오지 않아도 익명 기록은 이 기기에 보관됩니다.");
+      if (shouldImport) {
+        targetSnapshot = { ...currentSnapshot };
+        localStorage.setItem(accountSnapshotKey(targetScope), JSON.stringify(targetSnapshot));
+      }
+    }
+    restoreAccountSnapshot(targetSnapshot);
+    localStorage.setItem(ACCOUNT_STORAGE_SCOPE_KEY, targetScope);
+    localStorage.removeItem(LEGACY_ACCOUNT_STORAGE_SCOPE_KEY);
+    return true;
+  } catch (error) {
+    console.warn("Unable to isolate account storage", error);
+    ACCOUNT_SCOPED_STORAGE_KEYS.forEach((key) => {
+      try {
+        localStorage.removeItem(key);
+      } catch {}
+    });
+    try {
+      localStorage.setItem(ACCOUNT_STORAGE_SCOPE_KEY, targetScope);
+    } catch {}
+    return true;
+  }
+}
+
+function setPlanScreen(screen, { scroll = true, focus = true } = {}) {
+  const nextScreen = ["home", "detail", "editor"].includes(screen) ? screen : "home";
+  activePlanScreen = nextScreen;
+  planScreenElements.forEach((element) => {
+    const isVisible = element.dataset.planScreen === nextScreen;
+    element.hidden = !isVisible;
+  });
+  const planView = document.querySelector("#view-plan");
+  if (planView) planView.dataset.activePlanScreen = nextScreen;
+  const firstVisible = [...planScreenElements].find((element) => element.dataset.planScreen === nextScreen);
+  if (scroll) window.scrollTo({ top: 0, behavior: "smooth" });
+  if (focus && nextScreen !== "home") window.setTimeout(() => firstVisible?.focus({ preventScroll: true }), 80);
+  announce(nextScreen === "detail" ? "전체 계획 화면" : nextScreen === "editor" ? "계획 수정 화면" : "내 계획 화면");
+}
 
 function readTrialAccess() {
   try {
@@ -203,12 +490,13 @@ function startTrialAccess() {
 
 function lockTrialExperience(mode) {
   if (!trialPaywall) return;
+  const wasHidden = trialPaywall.hidden;
   trialPaywall.hidden = false;
   document.body.classList.add("trial-locked");
-  const executionApp = document.querySelector(".execution-app");
-  const executionTabs = document.querySelector(".execution-tabbar");
-  if (executionApp) executionApp.inert = true;
-  if (executionTabs) executionTabs.inert = true;
+  [...document.body.children].forEach((element) => {
+    if (element !== trialPaywall) element.inert = true;
+  });
+  if (wasHidden) window.setTimeout(() => trialPaywall.focus({ preventScroll: true }), 0);
 
   if (mode === "expired") {
     if (trialPaywallKicker) trialPaywallKicker.textContent = "체험이 종료되었어요";
@@ -257,7 +545,7 @@ function initializeTrialAccess() {
   window.setInterval(() => updateTrialStatus(Number(access.expiresAt)), 60 * 1000);
 }
 
-trialStartLink?.addEventListener("click", startTrialAccess);
+trialStartInlineLink?.addEventListener("click", startTrialAccess);
 
 trialPhoneInput?.addEventListener("input", () => {
   const digits = trialPhoneInput.value.replace(/\D/g, "").slice(0, 11);
@@ -426,6 +714,7 @@ const authSheet = document.querySelector("#authSheet");
 const authSheetTitle = document.querySelector("#authSheetTitle");
 const authSheetCopy = document.querySelector("#authSheetCopy");
 const authProviderList = document.querySelector("#authProviderList");
+const authProviderStatus = document.querySelector("#authProviderStatus");
 const adminPasswordForm = document.querySelector("#adminPasswordForm");
 const adminAccessPassword = document.querySelector("#adminAccessPassword");
 const adminPasswordError = document.querySelector("#adminPasswordError");
@@ -450,7 +739,11 @@ const myPageCancelProButton = document.querySelector("#myPageCancelPro");
 const myPageLogoutButton = document.querySelector("#myPageLogout");
 const navLoginLink = document.querySelector("#navLoginLink");
 
-const AUTH_PROVIDER_LABELS = { kakao: "카카오 계정", naver: "네이버 계정", google: "구글 계정", password: "운영자 계정" };
+const AUTH_PROVIDER_LABELS = { kakao: "카카오 계정", naver: "네이버 계정", google: "Google 계정", apple: "Apple 계정", password: "운영자 계정" };
+const AUTH_PROVIDER_IDS = new Set(["kakao", "naver", "google", "apple"]);
+const authProviderAvailability = new Map();
+let authProviderRequest = null;
+let activeAuthProvider = null;
 
 async function accountRequest(url, options = {}) {
   const response = await fetch(url, {
@@ -459,7 +752,18 @@ async function accountRequest(url, options = {}) {
     ...options,
   });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || "요청을 처리하지 못했어요.");
+  if (!response.ok) {
+    const fallback = response.status === 401
+      ? "로그인 시간이 만료되었어요. 다시 로그인해 주세요."
+      : response.status === 403
+        ? "이 요청을 수행할 권한이 없어요. 계정을 확인해 주세요."
+        : response.status === 429
+          ? "요청이 잠시 많아요. 잠시 후 다시 시도해 주세요."
+          : "요청을 처리하지 못했어요.";
+    const error = new Error(data.error || fallback);
+    error.status = response.status;
+    throw error;
+  }
   return data;
 }
 
@@ -559,7 +863,7 @@ function renderAccountUi() {
       navLoginLink.href = "app.html?auth=my";
     } else {
       navLoginLink.textContent = "로그인";
-      navLoginLink.href = "app.html?auth=login";
+      navLoginLink.href = "app.html?auth=login&return=%2F";
     }
   }
 
@@ -574,9 +878,63 @@ function setDrawerOpen(open) {
   menuToggle.classList.toggle("open", open);
 }
 
+function setAuthProviderMessage(message = "") {
+  if (authProviderStatus) authProviderStatus.textContent = message;
+}
+
+function setAuthProviderBusy(provider = null) {
+  activeAuthProvider = provider;
+  authProviderButtons.forEach((button) => {
+    button.disabled = Boolean(provider);
+    button.classList.toggle("is-loading", button.dataset.authProvider === provider);
+    button.setAttribute("aria-busy", button.dataset.authProvider === provider ? "true" : "false");
+  });
+}
+
+async function loadAuthProviders() {
+  if (authProviderRequest) return authProviderRequest;
+  authProviderRequest = accountRequest("/api/auth/providers")
+    .then((data) => {
+      (data.providers || []).forEach((provider) => authProviderAvailability.set(provider.id, Boolean(provider.configured)));
+      return data;
+    })
+    .catch((error) => {
+      authProviderRequest = null;
+      throw error;
+    });
+  return authProviderRequest;
+}
+
+async function startOAuth(provider) {
+  if (!AUTH_PROVIDER_IDS.has(provider) || activeAuthProvider) return;
+  setAuthProviderMessage("");
+  setAuthProviderBusy(provider);
+  try {
+    await loadAuthProviders();
+    if (!authProviderAvailability.get(provider)) {
+      throw new Error(`${AUTH_PROVIDER_LABELS[provider] || "소셜 로그인"} 설정이 아직 완료되지 않았습니다. 다른 로그인 방법을 선택해 주세요.`);
+    }
+    const redirect = encodeURIComponent(authRedirectTarget());
+    location.assign(`/api/auth/${provider}/start?redirect=${redirect}`);
+  } catch (error) {
+    setAuthProviderBusy(null);
+    setAuthProviderMessage(error.message || "로그인을 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+  }
+}
+
 function openAuthSheet() {
   setDrawerOpen(false);
   setSheetOpen(authSheet, accountSheetOverlay, true);
+  loadAuthProviders().catch(() => setAuthProviderMessage("로그인 설정을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요."));
+}
+
+function closeAuthSheet() {
+  const params = new URLSearchParams(location.search);
+  if (params.get("return") === "/") {
+    location.assign("/");
+    return;
+  }
+  setSheetOpen(authSheet, accountSheetOverlay, false);
 }
 
 function openMyPageSheet() {
@@ -588,6 +946,7 @@ function openMyPageSheet() {
 function authRedirectTarget() {
   const params = new URLSearchParams(location.search);
   if (params.get("redirect") === "admin") return "/admin.html";
+  if (params.get("return") === "/delete-account") return "/delete-account";
   return location.pathname || "/app.html";
 }
 
@@ -648,25 +1007,46 @@ async function cancelProSubscription() {
 }
 
 async function logoutAccount() {
+  await saveAccountStateToServer();
+  window.clearInterval(accountSyncTimer);
+  const wasPro = authUiState.user?.plan === "pro";
   try {
     await accountRequest("/api/auth/logout", { method: "POST", body: "{}" });
   } catch {}
-  if (authUiState.user?.plan === "pro") {
+  authUiState.user = null;
+  if (wasPro) {
     try {
       localStorage.removeItem(TRIAL_ACCESS_KEY);
     } catch {}
   }
+  switchAccountStorageScope(getAccountStorageScope(null));
   location.href = location.pathname;
 }
 
 function handleAuthQueryParams() {
   const params = new URLSearchParams(location.search);
   const authParam = params.get("auth");
+  const deletionPending = authParam === "deletion_pending";
   const redirectToAdmin = params.get("redirect") === "admin";
   const adminDenied = params.get("admin") === "denied";
 
-  if (authParam === "success") showToast("로그인되었어요 · 올리가 기억할게요!");
-  if (authParam === "error") showToast("로그인에 실패했어요. 다시 시도해 주세요.");
+  const authMessages = {
+    success: "로그인되었어요 · 올리가 기억할게요!",
+    cancelled: "로그인이 취소되었어요. 다른 로그인 방법을 선택할 수 있어요.",
+    invalid_state: "로그인 확인 시간이 만료되었어요. 다시 시도해 주세요.",
+    provider_error: "로그인 제공자에서 요청을 완료하지 못했어요. 다시 시도해 주세요.",
+    callback_error: "로그인 정보를 확인하지 못했어요. 다시 시도하거나 다른 방법을 선택해 주세요.",
+    deletion_pending: "탈퇴 처리 중인 계정이에요. 삭제가 완료될 때까지 다시 로그인할 수 없습니다.",
+    error: "로그인에 실패했어요. 다시 시도해 주세요.",
+  };
+  if (authParam && authMessages[authParam]) showToast(authMessages[authParam]);
+  if (deletionPending && !authUiState.user) {
+    setDrawerOpen(false);
+    setSheetOpen(authSheet, accountSheetOverlay, true);
+    if (authSheetTitle) authSheetTitle.textContent = "계정 탈퇴 처리 중";
+    if (authSheetCopy) authSheetCopy.textContent = "삭제가 완료될 때까지 해당 계정으로 다시 로그인할 수 없습니다.";
+    setAuthProviderMessage(authMessages.deletion_pending);
+  }
   if (adminDenied) showToast("관리자 권한이 있는 계정만 접근할 수 있어요.");
   if (redirectToAdmin && authUiState.user?.role === "admin") {
     location.replace("/admin.html");
@@ -679,9 +1059,10 @@ function handleAuthQueryParams() {
   }
 
   if (authParam) params.delete("auth");
+  params.delete("provider");
   if (adminDenied) params.delete("admin");
   const query = params.toString();
-  window.history.replaceState(null, "", `${location.pathname}${query ? `?${query}` : ""}`);
+  window.history.replaceState(null, "", `${location.pathname}${query ? `?${query}` : ""}${location.hash}`);
 }
 
 async function handleBillingQueryParams() {
@@ -706,7 +1087,7 @@ async function handleBillingQueryParams() {
   } finally {
     ["billing", "authKey", "customerKey", "code", "message"].forEach((key) => params.delete(key));
     const query = params.toString();
-    window.history.replaceState(null, "", `${location.pathname}${query ? `?${query}` : ""}`);
+    window.history.replaceState(null, "", `${location.pathname}${query ? `?${query}` : ""}${location.hash}`);
   }
 }
 
@@ -715,14 +1096,32 @@ async function initAccountExperience() {
   const accountOnlyRoute =
     initialParams.get("redirect") === "admin" ||
     initialParams.get("admin") === "denied" ||
-    ["login", "my"].includes(initialParams.get("auth"));
+    ["login", "my", "deletion_pending"].includes(initialParams.get("auth"));
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 10_000);
   try {
-    const data = await accountRequest("/api/auth/me");
+    const data = await accountRequest("/api/auth/me", { signal: controller.signal });
     authUiState.user = data.user || null;
   } catch {
     authUiState.user = null;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+
+  if (switchAccountStorageScope(getAccountStorageScope(authUiState.user), { allowAnonymousMerge: Boolean(authUiState.user) })) {
+    location.reload();
+    return false;
   }
   authUiState.loaded = true;
+
+  if (authUiState.user) {
+    try {
+      await initializeAccountStateSync();
+    } catch (error) {
+      console.warn("Unable to initialize account sync", error);
+      showToast("서버 동기화를 시작하지 못했어요. 이 기기에는 계속 안전하게 저장됩니다.");
+    }
+  }
 
   syncServerPlanToLocal();
   renderAccountUi();
@@ -730,6 +1129,8 @@ async function initAccountExperience() {
   await handleBillingQueryParams();
   handleAuthQueryParams();
   if (!accountOnlyRoute) initializeTrialAccess();
+  document.documentElement.classList.remove("account-storage-pending");
+  return true;
 }
 
 menuToggle?.addEventListener("click", () => setDrawerOpen(appMenuDrawer?.hidden !== false));
@@ -738,24 +1139,22 @@ drawerLoginButton?.addEventListener("click", openAuthSheet);
 drawerMyPage?.addEventListener("click", openMyPageSheet);
 drawerUpgrade?.addEventListener("click", startSubscription);
 drawerLogout?.addEventListener("click", logoutAccount);
-closeAuthSheetButton?.addEventListener("click", () => setSheetOpen(authSheet, accountSheetOverlay, false));
+closeAuthSheetButton?.addEventListener("click", closeAuthSheet);
 closeMyPageSheetButton?.addEventListener("click", () => setSheetOpen(myPageSheet, accountSheetOverlay, false));
 accountSheetOverlay?.addEventListener("click", () => {
   const openSheetElement = [authSheet, myPageSheet, personalitySheet].find((sheet) => sheet && sheet.hidden === false);
-  if (openSheetElement) setSheetOpen(openSheetElement, accountSheetOverlay, false);
+  if (openSheetElement === authSheet) closeAuthSheet();
+  else if (openSheetElement) setSheetOpen(openSheetElement, accountSheetOverlay, false);
 });
 myPageSubscribeButton?.addEventListener("click", startSubscription);
 myPageCancelProButton?.addEventListener("click", cancelProSubscription);
 myPageLogoutButton?.addEventListener("click", logoutAccount);
 
 authProviderButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    const provider = button.dataset.authProvider;
-    location.href = `/api/auth/start?provider=${provider}&redirect=${encodeURIComponent(authRedirectTarget())}`;
-  });
+  button.addEventListener("click", () => startOAuth(button.dataset.authProvider));
 });
 
-initAccountExperience();
+const accountExperienceReady = initAccountExperience();
 
 function getMonthlyEnergyReset() {
   const reset = new Date();
@@ -845,22 +1244,6 @@ function refundOllieEnergy(amount) {
   renderOllieEnergy();
 }
 
-function chargeOllieEnergy(amount) {
-  const state = readOllieEnergyState();
-  const charge = Math.max(0, Number(amount) || 0);
-  state.remaining = Number(state.remaining || 0) + charge;
-  if (state.remaining > Number(state.allocation || 0)) state.allocation = state.remaining;
-  saveOllieEnergyState(state);
-  renderOllieEnergy();
-  if (ollieEnergyMeter) {
-    ollieEnergyMeter.classList.remove("is-charged");
-    void ollieEnergyMeter.offsetWidth;
-    ollieEnergyMeter.classList.add("is-charged");
-    window.setTimeout(() => ollieEnergyMeter.classList.remove("is-charged"), 1200);
-  }
-  announce(`올리 에너지 ${charge}를 충전했습니다. ${state.remaining} 남았습니다.`);
-}
-
 renderOllieEnergy();
 
 function needsLowFrictionStart(readiness = DEFAULT_ROUTINE_READINESS) {
@@ -890,6 +1273,8 @@ const bondReaction = document.querySelector("#bondReaction");
 const touchCompanionHint = document.querySelector("#touchCompanionHint");
 const journeyBadge = document.querySelector("#journeyBadge");
 const journeyMap = document.querySelector("#journeyMap");
+const journeyPlaceSummary = document.querySelector("#journeyPlaceSummary");
+const journeyNextSummary = document.querySelector("#journeyNextSummary");
 const journeyPlaceTitle = document.querySelector("#journeyPlaceTitle");
 const journeyPlaceStory = document.querySelector("#journeyPlaceStory");
 const journeyNextText = document.querySelector("#journeyNextText");
@@ -909,6 +1294,7 @@ const memoryNextStep = document.querySelector("#memoryNextStep");
 const memorySaveHint = document.querySelector("#memorySaveHint");
 const memorySaveButton = document.querySelector("#memorySaveButton");
 const memoryCount = document.querySelector("#memoryCount");
+const memoryOptionalDetails = document.querySelector("#memoryOptionalDetails");
 const chatOverlay = document.querySelector("#chatOverlay");
 const companionChatSheet = document.querySelector("#companionChatSheet");
 const closeCompanionChatButton = document.querySelector("#closeCompanionChat");
@@ -1018,6 +1404,9 @@ function getInvalidDiagnosisField() {
     [goalPeriodInput, routineTimeInput, routineReadinessInput],
     [birthDateInput, birthTimeInput, birthPlaceInput, mbtiInput],
   ];
+  if (designGoal) {
+    designGoal.setCustomValidity(designGoal.value.trim() ? "" : "목표를 한 글자 이상 입력해 주세요.");
+  }
   return (fieldsByStep[diagnosisStepIndex] || []).find((field) => field && !field.checkValidity()) || null;
 }
 
@@ -1112,7 +1501,7 @@ diagnosisBackButton?.addEventListener("click", () => {
 diagnosisNextButton?.addEventListener("click", () => advanceDiagnosisStep());
 
 // 단계별 선택형 입력: 전부 직접 확인해야 자동 진행 (하나만 고르고 넘어가지 않도록)
-const stepChoiceFieldIds = [[], ["goalPeriod", "routineTime", "routineReadiness"], []];
+const stepChoiceFieldIds = [[], ["goalPeriod", "routineTime"], []];
 const touchedChoiceFields = new Set();
 
 personalityForm?.addEventListener("change", (event) => {
@@ -1230,17 +1619,19 @@ updateAppFeatureUi(0);
 menuButton?.addEventListener("click", () => {
   const isOpen = mainNav.classList.toggle("open");
   menuButton.setAttribute("aria-expanded", String(isOpen));
+  menuButton.setAttribute("aria-label", isOpen ? "메뉴 닫기" : "메뉴 열기");
 });
 
 navLinks.forEach((link) => {
   link.addEventListener("click", () => {
     mainNav?.classList.remove("open");
     menuButton?.setAttribute("aria-expanded", "false");
+    menuButton?.setAttribute("aria-label", "메뉴 열기");
   });
 });
 
 function setActiveSectionLink(hash) {
-  const activeTargets = hash === "#top" ? ["#top", "#diagnosis"] : [hash];
+  const activeTargets = hash === "#top" || !hash ? ["#top"] : hash === "#firstStep" ? ["#designFlow"] : [hash];
   sectionNavLinks.forEach((link) => {
     const isActive = activeTargets.includes(link.getAttribute("href"));
     link.classList.toggle("active", isActive);
@@ -1252,29 +1643,42 @@ function setActiveSectionLink(hash) {
   });
 }
 
-sectionNavLinks.forEach((link) => {
-  link.addEventListener("click", () => {
-    const hash = link.getAttribute("href");
-    if (hash) setActiveSectionLink(hash);
-  });
-});
-
-setActiveSectionLink(window.location.hash || "#top");
-
-const sectionAnchors = ["#top", "#appTour", "#designFlow", "#pricing"]
-  .map((hash) => ({ hash, element: document.querySelector(hash) }))
-  .filter((item) => item.element);
-
-if (sectionAnchors.length > 0) {
-  window.addEventListener(
-    "scroll",
-    () => {
-      const current = [...sectionAnchors].reverse().find((item) => item.element.offsetTop <= window.scrollY + 180);
-      if (current) setActiveSectionLink(current.hash);
-    },
-    { passive: true },
-  );
+function getPageView(hash) {
+  if (hash === "#appTour") return "app";
+  if (hash === "#pricing") return "pricing";
+  if (hash === "#designFlow" || hash === "#firstStep") return "trial";
+  return "home";
 }
+
+function showPageView(hash, scrollToTarget = false) {
+  const normalizedHash = hash || "#top";
+  const pageView = getPageView(normalizedHash);
+  document.body.dataset.pageView = pageView;
+
+  pageViewSections.forEach((section) => {
+    section.hidden = section.dataset.pageView !== pageView;
+  });
+
+  const showingFirstStep = normalizedHash === "#firstStep";
+  const designFlowSection = document.querySelector("#designFlow");
+  designFlowSection?.classList.toggle("showing-first-step", showingFirstStep);
+  if (showingFirstStep) planPreviewPanel?.classList.add("is-ready");
+  if (pageView === "trial" && !showingFirstStep) planPreviewPanel?.classList.remove("is-ready");
+
+  setActiveSectionLink(normalizedHash);
+
+  if (scrollToTarget) {
+    window.requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, left: 0 });
+    });
+  }
+}
+
+window.addEventListener("hashchange", () => showPageView(window.location.hash, true));
+window.addEventListener("load", () => {
+  if (window.location.hash) window.requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0 }));
+});
+showPageView(window.location.hash || "#top", Boolean(window.location.hash));
 
 const stems = [
   { ko: "갑", element: "목", trait: "시작과 성장 욕구가 강한 확장형" },
@@ -1672,6 +2076,7 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
         if (aiPreviewStatus) aiPreviewStatus.textContent = "무료 목표 계획 1개를 이미 만들었어요";
         planPreviewPanel?.classList.add("is-ready");
         showToast("무료 플랜은 목표 계획 1개를 만들 수 있어요. 앱에서 올리 에너지로 수정해 보세요.");
+        openFirstStepResult();
         return;
       }
     } catch (error) {
@@ -1715,7 +2120,7 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
   if (showLoading) {
     aiPreviewStatus.textContent = "AI가 목표 설계 중";
     aiPreviewButton.disabled = true;
-    aiPreviewButton.textContent = "AI 미리보기 생성 중...";
+    aiPreviewButton.textContent = "올리가 오늘 계획을 만드는 중...";
     await playAnalysisLoading();
   }
 
@@ -1728,23 +2133,23 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
       if (aiPreviewStatus) aiPreviewStatus.textContent = "무료 목표 계획 1개를 이미 만들었어요";
       if (aiPreviewButton) {
         aiPreviewButton.disabled = false;
-        aiPreviewButton.textContent = "AI 맞춤 계획 만들고 1일 체험 준비";
+        aiPreviewButton.textContent = "이대로 1일 체험 시작하기";
       }
       planPreviewPanel?.classList.add("is-ready");
       showToast(error.message);
+      openFirstStepResult();
       return;
     }
-    console.error("Unable to generate AI goal plan", error);
     preview = buildLocalAiPreview(payload);
     usedFallback = true;
   }
   renderAiPreview(preview);
   if (showLoading) planPreviewPanel?.classList.add("is-ready");
 
-  if (aiPreviewStatus) aiPreviewStatus.textContent = usedFallback ? "올리가 입력 내용을 바탕으로 준비한 계획" : "올리가 AI로 만든 맞춤 계획";
+  if (aiPreviewStatus) aiPreviewStatus.textContent = usedFallback ? "AI 연결 없이 제공하는 기본 계획 템플릿" : "올리가 AI로 만든 맞춤 계획";
   if (aiPreviewButton) {
     aiPreviewButton.disabled = false;
-    aiPreviewButton.textContent = "AI 맞춤 계획 만들고 1일 체험 준비";
+    aiPreviewButton.textContent = "이대로 1일 체험 시작하기";
   }
 
   try {
@@ -1764,6 +2169,7 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
         manseSummary: manse.summary,
         mbtiSummary,
         aiPreview: preview,
+        planSource: usedFallback ? "local-template" : "ai",
         createdAt: new Date().toISOString(),
       }),
     );
@@ -1782,13 +2188,8 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
       }
     }
   }
-  if (showLoading && usedFallback) showToast("연결이 잠시 느려 입력 내용을 바탕으로 맞춤 계획을 완성했어요.");
-  if (showLoading) {
-    window.setTimeout(() => {
-      planPreviewPanel?.scrollIntoView({ behavior: "smooth", block: "start" });
-      planPreviewPanel?.focus({ preventScroll: true });
-    }, 80);
-  }
+  if (showLoading && usedFallback) showToast("AI 연결에 실패해 기본 계획 템플릿을 보여드려요 · 나중에 AI 계획을 다시 만들 수 있어요");
+  if (showLoading) openFirstStepResult();
   if (showLoading && readTrialAccess()?.plan !== "pro") {
     try {
       localStorage.setItem(FREE_PLAN_GENERATED_KEY, "true");
@@ -1797,6 +2198,16 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
       /* storage unavailable — ignore */
     }
   }
+}
+
+function openFirstStepResult() {
+  planPreviewPanel?.classList.add("is-ready");
+  if (window.location.hash === "#firstStep") {
+    showPageView("#firstStep", true);
+  } else {
+    window.location.hash = "firstStep";
+  }
+  window.setTimeout(() => planPreviewPanel?.focus({ preventScroll: true }), 80);
 }
 
 personalityForm?.addEventListener("submit", (event) => {
@@ -1985,7 +2396,7 @@ document.querySelectorAll(".admin-sidebar nav a").forEach((link) => {
 
 applyAdminTableFilters();
 
-const appStateVersion = 2;
+const appStateVersion = 3;
 
 function safeJsonParse(value, fallback = {}) {
   try {
@@ -1996,8 +2407,21 @@ function safeJsonParse(value, fallback = {}) {
   }
 }
 
+function getLocalDateKey(value = new Date()) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return getLocalDateKey(new Date());
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function getTodayKey() {
-  return new Date().toISOString().slice(0, 10);
+  return getLocalDateKey();
+}
+
+function setImageSource(image, source) {
+  if (image && source && image.getAttribute("src") !== source) image.setAttribute("src", source);
 }
 
 function readStorageObject(key, fallback = {}) {
@@ -2018,40 +2442,114 @@ function writeStorageObject(key, value) {
 
 function readExecutionPlan() {
   const plan = readStorageObject("omwExecutionPlan", {});
-  if (!plan || typeof plan !== "object") return {};
+  if (!plan || typeof plan !== "object" || Array.isArray(plan)) return {};
   return plan;
+}
+
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function normalizeArrayRecord(value, normalizeItems) {
+  if (!isPlainObject(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([, items]) => Array.isArray(items))
+      .map(([key, items]) => [key, normalizeItems(items, key)]),
+  );
+}
+
+function normalizeObjectRecord(value, normalizeValue) {
+  if (!isPlainObject(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([, item]) => isPlainObject(item))
+      .map(([key, item]) => [key, Object.fromEntries(Object.entries(item).map(([itemKey, itemValue]) => [itemKey, normalizeValue(itemValue)]))]),
+  );
+}
+
+function normalizeCustomTasks(value) {
+  if (!isPlainObject(value)) return {};
+  const seenIds = new Set();
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([, items]) => Array.isArray(items))
+      .map(([dayKey, items]) => [
+        dayKey,
+        items
+          .filter(isPlainObject)
+          .map((task, index) => {
+            const text = String(task.text || "").trim().slice(0, 80);
+            if (!text) return null;
+            const time = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(task.time || "")) ? String(task.time) : "";
+            const requestedId = String(task.id || `custom-recovered-${dayKey}-${index}`).slice(0, 120);
+            const id = seenIds.has(requestedId) ? `${requestedId}-${dayKey}-${index}` : requestedId;
+            seenIds.add(id);
+            return {
+              ...task,
+              id,
+              text,
+              time,
+              durationMinutes: Math.max(5, Math.min(180, Number(task.durationMinutes) || 20)),
+              completionRule: String(task.completionRule || "정한 시간만큼 실행하면 완료").trim().slice(0, 160),
+              custom: true,
+            };
+          })
+          .filter(Boolean)
+          .slice(0, 100),
+      ]),
+  );
+}
+
+function dedupeStoredRecords(value, limit, getKey, keyField) {
+  if (!Array.isArray(value)) return [];
+  const records = new Map();
+  value.filter(isPlainObject).forEach((item, index) => {
+    const key = String(getKey(item, index) || `recovered-${index}`);
+    records.set(key, { ...item, [keyField]: key });
+  });
+  return [...records.values()].slice(-limit);
 }
 
 function migrateExecutionState(rawState) {
   const todayKey = getTodayKey();
-  const state = rawState && typeof rawState === "object" ? { ...rawState } : {};
-  const checkedByDay =
-    state.checkedByDay && typeof state.checkedByDay === "object" && !Array.isArray(state.checkedByDay)
-      ? state.checkedByDay
-      : {};
+  const state = isPlainObject(rawState) ? { ...rawState } : {};
+  const checkedByDay = normalizeArrayRecord(state.checkedByDay, (items) => items.slice(0, 200).map(Boolean));
+  const lastSeenDate = /^\d{4}-\d{2}-\d{2}$/.test(String(state.lastSeenDate || "")) ? state.lastSeenDate : todayKey;
 
   const migrated = {
     version: appStateVersion,
     scheduleKey: state.scheduleKey || "",
     planText: typeof state.planText === "string" ? state.planText : "",
     revisionRequest: typeof state.revisionRequest === "string" ? state.revisionRequest : "",
+    revisionDetails: isPlainObject(state.revisionDetails) ? state.revisionDetails : {},
+    weeklySchedule: Array.isArray(state.weeklySchedule) ? state.weeklySchedule.slice(0, 7) : [],
     pendingPlanText: typeof state.pendingPlanText === "string" ? state.pendingPlanText : "",
     pendingRevisionRequest: typeof state.pendingRevisionRequest === "string" ? state.pendingRevisionRequest : "",
-    status: state.status || "AI 제안",
-    selectedDay: Math.max(1, Number(state.selectedDay) || 1),
+    pendingRevisionDetails: isPlainObject(state.pendingRevisionDetails) ? state.pendingRevisionDetails : {},
+    pendingRevisionSummary: isPlainObject(state.pendingRevisionSummary) ? state.pendingRevisionSummary : {},
+    pendingWeeklySchedule: Array.isArray(state.pendingWeeklySchedule) ? state.pendingWeeklySchedule.slice(0, 7) : [],
+    status: typeof state.status === "string" && state.status.trim() ? state.status.trim().slice(0, 40) : "AI 제안",
+    selectedDay: Math.max(1, Math.min(366, Number(state.selectedDay) || 1)),
     checkedByDay,
-    difficultyByTask:
-      state.difficultyByTask && typeof state.difficultyByTask === "object" && !Array.isArray(state.difficultyByTask)
-        ? state.difficultyByTask
-        : {},
-    recoveryActions: Array.isArray(state.recoveryActions) ? state.recoveryActions.slice(-30) : [],
-    completedLog: Array.isArray(state.completedLog) ? state.completedLog.slice(-80) : [],
-    dailyMemories: Array.isArray(state.dailyMemories) ? state.dailyMemories.slice(-365) : [],
-    lastCompletion: state.lastCompletion || null,
-    planStartDate: state.planStartDate || "",
-    lastSeenDate: state.lastSeenDate || todayKey,
-    rolloverNotice: state.rolloverNotice || null,
-    updatedAt: state.updatedAt || new Date().toISOString(),
+    customTasksByDay: normalizeCustomTasks(state.customTasksByDay),
+    scheduleModeByDay: isPlainObject(state.scheduleModeByDay)
+      ? Object.fromEntries(Object.entries(state.scheduleModeByDay).map(([key, mode]) => [key, mode === "priority" ? "priority" : "time"]))
+      : {},
+    taskOrderByDay: normalizeArrayRecord(state.taskOrderByDay, (items) => items.map(String).filter(Boolean).slice(0, 200)),
+    taskTimeByDay: normalizeObjectRecord(state.taskTimeByDay, (time) => (/^([01]\d|2[0-3]):[0-5]\d$/.test(String(time || "")) ? String(time) : "")),
+    checkedTaskKeysByDay: normalizeObjectRecord(state.checkedTaskKeysByDay, Boolean),
+    dailyCompletionRewardedByDay: isPlainObject(state.dailyCompletionRewardedByDay)
+      ? Object.fromEntries(Object.entries(state.dailyCompletionRewardedByDay).map(([key, rewarded]) => [key, Boolean(rewarded)]))
+      : {},
+    recoveryActions: Array.isArray(state.recoveryActions) ? state.recoveryActions.filter(isPlainObject).slice(-30) : [],
+    completedLog: dedupeStoredRecords(state.completedLog, 80, (item, index) => item.taskKey || `${item.day || "day"}:${item.taskIndex ?? index}`, "taskKey"),
+    dailyMemories: dedupeStoredRecords(state.dailyMemories, 365, (item, index) => item.id || item.diaryDate || item.createdAt || `memory-${index}`, "id"),
+    lastCompletion: isPlainObject(state.lastCompletion) ? state.lastCompletion : null,
+    planStartDate: typeof state.planStartDate === "string" ? state.planStartDate : "",
+    lastSeenDate,
+    rolloverNotice: isPlainObject(state.rolloverNotice) ? state.rolloverNotice : null,
+    updatedAt: typeof state.updatedAt === "string" ? state.updatedAt : new Date().toISOString(),
   };
 
   if (migrated.lastSeenDate !== todayKey) {
@@ -2089,11 +2587,6 @@ function hashText(text) {
     hash |= 0;
   }
   return Math.abs(hash).toString(36);
-}
-
-function getLocalDateKey(value) {
-  const date = value ? new Date(value) : new Date();
-  return Number.isNaN(date.getTime()) ? getTodayKey() : date.toLocaleDateString("en-CA");
 }
 
 function getDefaultPlanText(plan) {
@@ -2165,15 +2658,39 @@ function getRoutineTimes(plan, revisionRequest = "") {
   return timeSet[plan.routineTime] || timeSet["아침"];
 }
 
-function buildSchedule(plan, planText, revisionRequest = "") {
+function buildSchedule(plan, planText, revisionRequest = "", weeklySchedule = []) {
   const period = Math.max(7, Math.min(Number(plan.period) || 30, 100));
   const baseTasks = parsePlanText(planText, plan.firstAction);
   const times = getRoutineTimes(plan, revisionRequest);
   const hints = getScheduleHints(revisionRequest);
   const weeklyFocus = ["루틴 고정", "기초 반복", "중간 점검", "약점 보완", "실전 적용", "가벼운 복습", "주간 리포트"];
+  const structuredWeek = Array.isArray(weeklySchedule) ? weeklySchedule.filter((item) => item && typeof item === "object") : [];
+  const structuredByDay = new Map(structuredWeek.map((item) => [String(item.day || ""), item]));
+  const dayNames = ["일", "월", "화", "수", "목", "금", "토"];
+  const planStart = getPlanStartDate(plan, {});
 
   return Array.from({ length: period }, (_, index) => {
     const day = index + 1;
+    if (structuredByDay.size) {
+      const actualDate = new Date(planStart.getFullYear(), planStart.getMonth(), planStart.getDate() + index);
+      const dayName = dayNames[actualDate.getDay()];
+      const template = structuredByDay.get(dayName);
+      const isRestDay = !template || template.isRestDay;
+      const tasks = isRestDay
+        ? []
+        : (Array.isArray(template.tasks) ? template.tasks : []).slice(0, 5).map((task) => ({
+            time: String(task.time || "오늘"),
+            durationMinutes: Math.max(5, Math.min(360, Number(task.durationMinutes) || 15)),
+            text: String(task.task || "목표 행동 실행하기"),
+            completionRule: String(task.completionRule || "정한 분량을 끝내면 완료"),
+          }));
+      return {
+        day,
+        title: isRestDay ? `Day ${day} · 계획된 휴식` : `Day ${day} · ${dayName}요일 맞춤 계획`,
+        isRestDay,
+        tasks,
+      };
+    }
     const focus = weeklyFocus[index % weeklyFocus.length];
     const isWeekend = day % 7 === 6 || day % 7 === 0;
     const tasks =
@@ -2205,33 +2722,137 @@ function getScheduleCompletion(schedule, checkedByDay) {
   const totalTasks = schedule.reduce((sum, day) => sum + day.tasks.length, 0);
   const completedTasks = schedule.reduce((sum, day) => {
     const checked = checkedByDay[String(day.day)] || [];
-    return sum + checked.filter(Boolean).length;
+    return sum + checked.slice(0, day.tasks.length).filter(Boolean).length;
   }, 0);
   return totalTasks ? Math.round((completedTasks / totalTasks) * 100) : 0;
 }
 
 function getDayCompletion(dayPlan, checkedByDay) {
   const checked = checkedByDay[String(dayPlan.day)] || [];
-  const completed = checked.filter(Boolean).length;
-  const total = dayPlan.tasks.length || 1;
+  const completed = checked.slice(0, dayPlan.tasks.length).filter(Boolean).length;
+  const total = dayPlan.tasks.length;
   return {
     completed,
     total,
-    percent: Math.round((completed / total) * 100),
+    percent: total ? Math.round((completed / total) * 100) : 100,
   };
 }
 
 function getCompletedDayCount(schedule, checkedByDay) {
-  return schedule.filter((dayPlan) => getDayCompletion(dayPlan, checkedByDay).percent === 100).length;
+  return schedule.filter((dayPlan) => dayPlan.tasks.length > 0 && getDayCompletion(dayPlan, checkedByDay).percent === 100).length;
 }
 
-function getPlanBundle({ reset = false, customText, revisionRequest } = {}) {
+function remapCompletedChecks(previousSchedule, nextSchedule, checkedByDay) {
+  const completedTaskTexts = new Set();
+  previousSchedule.forEach((dayPlan) => {
+    const checked = checkedByDay[String(dayPlan.day)] || [];
+    dayPlan.tasks.forEach((task, index) => {
+      if (checked[index]) completedTaskTexts.add(`${dayPlan.day}|${String(task.text || "").trim()}`);
+    });
+  });
+
+  const remapped = {};
+  nextSchedule.forEach((dayPlan) => {
+    const checks = dayPlan.tasks.map((task) => completedTaskTexts.has(`${dayPlan.day}|${String(task.text || "").trim()}`));
+    if (checks.some(Boolean)) remapped[String(dayPlan.day)] = checks;
+  });
+  return remapped;
+}
+
+function getStableTaskKey(day, task, index) {
+  if (task?.id) return String(task.id);
+  return `plan-${day}-${index}-${hashText(String(task?.text || "일정"))}`;
+}
+
+function getSortableTaskTime(time) {
+  const match = String(time || "").match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return Number.POSITIVE_INFINITY;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+function compareTasksByTime(first, second) {
+  const firstTime = getSortableTaskTime(first.time);
+  const secondTime = getSortableTaskTime(second.time);
+  if (firstTime !== secondTime) return firstTime - secondTime;
+  return Number(first._sourceIndex || 0) - Number(second._sourceIndex || 0);
+}
+
+function prepareScheduleTasks(schedule, customTasksByDay = {}) {
+  schedule.forEach((dayPlan) => {
+    const customTasks = Array.isArray(customTasksByDay[String(dayPlan.day)]) ? customTasksByDay[String(dayPlan.day)] : [];
+    dayPlan.tasks = [...dayPlan.tasks, ...customTasks]
+      .map((task, index) => ({
+        ...task,
+        _sourceIndex: index,
+        _taskKey: getStableTaskKey(dayPlan.day, task, index),
+      }))
+      .sort(compareTasksByTime);
+    if (customTasks.length) dayPlan.isRestDay = false;
+  });
+}
+
+function applySchedulePreferences(schedule, state, { resetChecks = false } = {}) {
+  const checkedTaskKeysByDay = resetChecks ? {} : { ...(state.checkedTaskKeysByDay || {}) };
+  const scheduleModeByDay = state.scheduleModeByDay || {};
+  const taskOrderByDay = state.taskOrderByDay || {};
+  const taskTimeByDay = state.taskTimeByDay || {};
+
+  schedule.forEach((dayPlan) => {
+    const dayKey = String(dayPlan.day);
+    const legacyChecks = state.checkedByDay[dayKey] || [];
+    const hasStableChecks = Object.prototype.hasOwnProperty.call(checkedTaskKeysByDay, dayKey);
+    const stableChecks = hasStableChecks
+      ? { ...(checkedTaskKeysByDay[dayKey] || {}) }
+      : Object.fromEntries(dayPlan.tasks.map((task, index) => [task._taskKey, Boolean(legacyChecks[index])]));
+    const timeOverrides = taskTimeByDay[dayKey] || {};
+
+    dayPlan.tasks = dayPlan.tasks.map((task) => ({
+      ...task,
+      time: Object.prototype.hasOwnProperty.call(timeOverrides, task._taskKey) ? timeOverrides[task._taskKey] : task.time,
+    }));
+
+    const mode = scheduleModeByDay[dayKey] === "priority" ? "priority" : "time";
+    if (mode === "priority") {
+      const savedOrder = Array.isArray(taskOrderByDay[dayKey]) ? taskOrderByDay[dayKey] : [];
+      const positions = new Map(savedOrder.map((taskKey, index) => [taskKey, index]));
+      dayPlan.tasks.sort((first, second) => {
+        const firstPosition = positions.has(first._taskKey) ? positions.get(first._taskKey) : savedOrder.length + first._sourceIndex;
+        const secondPosition = positions.has(second._taskKey) ? positions.get(second._taskKey) : savedOrder.length + second._sourceIndex;
+        return firstPosition - secondPosition;
+      });
+    } else {
+      dayPlan.tasks.sort(compareTasksByTime);
+    }
+
+    dayPlan.scheduleMode = mode;
+    checkedTaskKeysByDay[dayKey] = stableChecks;
+    state.checkedByDay[dayKey] = dayPlan.tasks.map((task) => Boolean(stableChecks[task._taskKey]));
+  });
+
+  state.checkedTaskKeysByDay = checkedTaskKeysByDay;
+}
+
+function getPlanBundle({ reset = false, customText, revisionRequest, revisionDetails, weeklySchedule } = {}) {
   const plan = readExecutionPlan();
   const previous = getExecutionState();
   const planText = customText ?? previous.planText ?? getDefaultPlanText(plan);
   const requestText = revisionRequest ?? previous.revisionRequest ?? "";
-  const schedule = buildSchedule(plan, planText, requestText);
-  const scheduleKey = hashText(`${plan.goal || ""}|${plan.period || ""}|${planText}|${requestText}`);
+  const detailConfig = revisionDetails ?? previous.revisionDetails ?? {};
+  const weekConfig = weeklySchedule ?? previous.weeklySchedule ?? [];
+  const schedule = buildSchedule(plan, planText, requestText, weekConfig);
+  const customTasksByDay = previous.customTasksByDay || {};
+  prepareScheduleTasks(schedule, customTasksByDay);
+  const previousSchedule = reset
+    ? buildSchedule(plan, previous.planText || getDefaultPlanText(plan), previous.revisionRequest || "", previous.weeklySchedule || [])
+    : schedule;
+  if (reset) {
+    prepareScheduleTasks(previousSchedule, customTasksByDay);
+    applySchedulePreferences(previousSchedule, previous);
+  }
+  const checkedForSchedule = reset
+    ? remapCompletedChecks(previousSchedule, schedule, previous.checkedByDay || {})
+    : previous.checkedByDay || {};
+  const scheduleKey = hashText(`${plan.goal || ""}|${plan.period || ""}|${planText}|${requestText}|${JSON.stringify(detailConfig)}|${JSON.stringify(weekConfig)}`);
   const canReuse = !reset && previous.scheduleKey === scheduleKey;
   const state = canReuse
     ? previous
@@ -2240,12 +2861,22 @@ function getPlanBundle({ reset = false, customText, revisionRequest } = {}) {
         scheduleKey,
         planText,
         revisionRequest: requestText,
+        revisionDetails: detailConfig,
+        weeklySchedule: weekConfig,
         pendingPlanText: previous.pendingPlanText || "",
         pendingRevisionRequest: previous.pendingRevisionRequest || "",
-        status: previous.status || "AI 제안",
+        pendingRevisionDetails: previous.pendingRevisionDetails || {},
+        pendingRevisionSummary: previous.pendingRevisionSummary || {},
+        pendingWeeklySchedule: previous.pendingWeeklySchedule || [],
+        status: previous.scheduleKey ? previous.status || "AI 제안" : plan.planSource === "local-template" ? "기본 템플릿" : "AI 제안",
         selectedDay: previous.selectedDay || 1,
-        checkedByDay: previous.checkedByDay || {},
-        difficultyByTask: previous.difficultyByTask || {},
+        checkedByDay: checkedForSchedule,
+        customTasksByDay,
+        scheduleModeByDay: previous.scheduleModeByDay || {},
+        taskOrderByDay: previous.taskOrderByDay || {},
+        taskTimeByDay: previous.taskTimeByDay || {},
+        checkedTaskKeysByDay: reset ? {} : previous.checkedTaskKeysByDay || {},
+        dailyCompletionRewardedByDay: previous.dailyCompletionRewardedByDay || {},
         recoveryActions: previous.recoveryActions || [],
         completedLog: previous.completedLog || [],
         dailyMemories: previous.dailyMemories || [],
@@ -2259,9 +2890,18 @@ function getPlanBundle({ reset = false, customText, revisionRequest } = {}) {
   state.version = appStateVersion;
   state.planText = planText;
   state.revisionRequest = requestText;
+  state.revisionDetails = detailConfig;
+  state.weeklySchedule = weekConfig;
   state.scheduleKey = scheduleKey;
   state.selectedDay = Math.max(1, Math.min(Number(state.selectedDay) || 1, schedule.length));
   state.planStartDate = state.planStartDate || getLocalDateKey(plan.createdAt);
+  state.customTasksByDay = state.customTasksByDay || customTasksByDay;
+  state.scheduleModeByDay = state.scheduleModeByDay || {};
+  state.taskOrderByDay = state.taskOrderByDay || {};
+  state.taskTimeByDay = state.taskTimeByDay || {};
+  state.checkedTaskKeysByDay = state.checkedTaskKeysByDay || {};
+  state.dailyCompletionRewardedByDay = state.dailyCompletionRewardedByDay || {};
+  applySchedulePreferences(schedule, state, { resetChecks: reset });
 
   return { plan, planText, schedule, state };
 }
@@ -2336,12 +2976,22 @@ function getDefaultCompanionState() {
 
 function getCompanionState() {
   try {
+    const stored = JSON.parse(localStorage.getItem(companionStateKey)) || {};
     const state = {
       ...getDefaultCompanionState(),
-      ...(JSON.parse(localStorage.getItem(companionStateKey)) || {}),
+      ...(isPlainObject(stored) ? stored : {}),
       name: "올리",
     };
-    return replaceLegacyCompanionName(state);
+    return replaceLegacyCompanionName({
+      ...state,
+      level: Math.max(1, Math.min(100, Number(state.level) || 1)),
+      xp: Math.max(0, Number(state.xp) || 0),
+      relationship: Math.max(1, Number(state.relationship) || 1),
+      touched: Math.max(0, Number(state.touched) || 0),
+      energy: ["good", "normal", "tired"].includes(state.energy) ? state.energy : "normal",
+      mood: typeof state.mood === "string" ? state.mood.slice(0, 30) : "ready",
+      recentDialogueIds: Array.isArray(state.recentDialogueIds) ? state.recentDialogueIds.map(String).slice(-20) : [],
+    });
   } catch (error) {
     return getDefaultCompanionState();
   }
@@ -2393,10 +3043,6 @@ function getCompanionBondInfo(state) {
   return companionBondLevels.find((item) => item.level === Math.min(level, companionBondLevels.length)) || companionBondLevels[0];
 }
 
-function getTodayKey() {
-  return new Date().toLocaleDateString("en-CA");
-}
-
 function addCompanionXp(amount, mood = "happy") {
   const state = getCompanionState();
   let nextXp = Math.max(0, (state.xp || 0) + amount);
@@ -2419,7 +3065,7 @@ function addCompanionXp(amount, mood = "happy") {
 
 function trackCompanionEvent(type, detail = {}) {
   try {
-    const events = JSON.parse(localStorage.getItem(companionEventKey)) || [];
+    const events = readCompanionEvents();
     events.push({ type, detail, dayKey: getTodayKey(), createdAt: new Date().toISOString() });
     localStorage.setItem(companionEventKey, JSON.stringify(events.slice(-80)));
   } catch (error) {
@@ -2532,7 +3178,201 @@ function appendRevisionRequest(text, response = "좋아요. 그 요청을 플랜
   announce(response);
 }
 
+let revisionDetailDraftLoaded = false;
+
+function normalizeRevisionMinutes(value) {
+  const minutes = Number(value);
+  if (!Number.isFinite(minutes) || minutes <= 0) return null;
+  return Math.max(10, Math.min(720, Math.round(minutes / 10) * 10));
+}
+
+const REVISION_GOAL_PROFILES = {
+  general: {
+    label: "기타 목표",
+    intro: "원하는 결과와 쓸 수 있는 자원, 가능한 시간을 알려주세요.",
+    sectionTitle: "완료 모습",
+    sectionHint: "결과와 활용 자원",
+    resourcesLabel: "활용할 자료·도구·사람·예산",
+    resourcesPlaceholder: "예: 이미 가진 자료, 사용할 도구, 도움받을 사람, 쓸 수 있는 예산",
+    outcomeLabel: "언제까지 어떤 상태가 되면 완료인가요?",
+    outcomePlaceholder: "예: 4주 안에 눈으로 확인할 수 있는 결과와 수치",
+    increaseLabel: "더 비중을 둘 일",
+    increasePlaceholder: "예: 결과에 가장 직접 연결되는 행동",
+    decreaseLabel: "줄이거나 제외할 일",
+    decreasePlaceholder: "예: 지금은 미뤄도 되는 준비 작업",
+    keepPlaceholder: "예: 매주 확인할 핵심 수치나 절대 빼면 안 되는 행동",
+    constraintsPlaceholder: "예: 가능한 시간, 예산, 장소, 체력, 함께할 사람의 일정",
+    requestPlaceholder: "예: 지금 가장 중요한 결과, 바꾸고 싶은 순서나 비중, 꼭 지켜야 할 조건을 자유롭게 적어주세요.",
+    chips: [["핵심 결과에 집중", "가장 중요한 결과에 직접 연결되는 행동부터 배치해줘."], ["부담 줄이기", "하루 실행 시간을 줄이고도 이어갈 수 있게 다시 나눠줘."], ["막힌 단계 먼저", "지금 막혀 있는 단계부터 해결하도록 순서를 바꿔줘."], ["이번 주 한 가지", "이번 주에는 가장 중요한 한 가지 결과에 집중하게 해줘."]],
+  },
+  study: {
+    label: "시험·학습", intro: "교재, 목표 범위, 점수와 가능한 시간을 알려주세요.", sectionTitle: "학습 완료 기준", sectionHint: "교재·범위·점수",
+    resourcesLabel: "사용할 교재·강의·학습 자료", resourcesPlaceholder: "예: ETS 기출문제집 LC·RC, 단어장, 온라인 강의 20강",
+    outcomeLabel: "시험일까지 어디까지, 어느 수준으로 끝낼까요?", outcomePlaceholder: "예: 8주 안에 기출 10회분과 오답 2회 복습, 모의고사 900점",
+    increaseLabel: "더 늘릴 학습", increasePlaceholder: "예: Part 7 독해를 주 3회에서 5회로", decreaseLabel: "줄일 학습", decreasePlaceholder: "예: LC 쉐도잉을 주 5회에서 3회로",
+    keepPlaceholder: "예: 매일 단어 40개와 일요일 모의고사 1회는 유지", constraintsPlaceholder: "예: 화·목 야근, 출근 전 듣기 불가",
+    requestPlaceholder: "예: Part 7 속도가 느려 독해 비중을 높이고, 이미 푼 기출은 오답만 다시 보고 싶어요.",
+    chips: [["취약 영역 늘리기", "현재 가장 취약한 영역의 학습 빈도와 시간을 늘려줘."], ["교재 완주 우선", "새 자료를 추가하지 말고 가지고 있는 교재를 끝내는 순서로 배치해줘."], ["복습 비중 높이기", "새 진도보다 오답과 복습 비중을 높여줘."], ["실전 점검 추가", "매주 한 번 실제 시험과 같은 완료 기준으로 점검하게 해줘."]],
+  },
+  startup: {
+    label: "창업·사업", intro: "고객, 검증할 가설, 보유 자원과 사업 성과 기준을 알려주세요.", sectionTitle: "사업 검증 기준", sectionHint: "고객·MVP·매출",
+    resourcesLabel: "활용할 자원·채널·사람·예산", resourcesPlaceholder: "예: 노션 사업계획서, 인터뷰 후보 20명, 개발자 1명, 광고비 50만원",
+    outcomeLabel: "언제까지 무엇을 검증하거나 만들어낼까요?", outcomePlaceholder: "예: 4주 안에 고객 인터뷰 20건, MVP 공개, 첫 유료 고객 3명",
+    increaseLabel: "더 집중할 사업 활동", increasePlaceholder: "예: 고객 인터뷰와 유료 전환 검증", decreaseLabel: "줄이거나 미룰 활동", decreasePlaceholder: "예: 로고 수정과 경쟁사 자료 조사",
+    keepPlaceholder: "예: 매주 금요일 핵심 지표 확인, 기능 개발 전 고객 5명 확인", constraintsPlaceholder: "예: 예산 50만원, 평일 저녁만 가능, 개발 도움은 주말에만 가능",
+    requestPlaceholder: "예: 기능 개발보다 고객 문제 검증을 먼저 하고, 이번 달에는 인터뷰 20건과 첫 결제 3건에 집중하고 싶어요.",
+    chips: [["고객 검증 먼저", "기능 제작 전에 고객 인터뷰와 문제 검증부터 배치해줘."], ["첫 매출에 집중", "브랜딩보다 첫 유료 고객을 만드는 행동에 시간을 집중해줘."], ["MVP 범위 줄이기", "핵심 가설 하나만 검증하도록 MVP 기능과 일정을 줄여줘."], ["핵심 지표로 점검", "매주 고객 수, 전환, 매출 중 목표에 맞는 핵심 지표로 점검하게 해줘."]],
+  },
+  career: {
+    label: "취업·커리어", intro: "지원할 역할, 준비 자산과 합격에 가까워지는 결과를 알려주세요.", sectionTitle: "합격 준비 기준", sectionHint: "지원·포트폴리오·면접",
+    resourcesLabel: "활용할 이력서·포트폴리오·채용 정보", resourcesPlaceholder: "예: 기존 이력서, 프로젝트 3개, 관심 기업 15곳, 현직자 피드백",
+    outcomeLabel: "언제까지 어떤 지원 결과를 만들까요?", outcomePlaceholder: "예: 6주 안에 포트폴리오 완성, 맞춤 지원 20건, 면접 3회",
+    increaseLabel: "더 집중할 준비", increasePlaceholder: "예: 포트폴리오 사례 설명과 모의 면접", decreaseLabel: "줄이거나 미룰 준비", decreasePlaceholder: "예: 자격증 추가 공부",
+    keepPlaceholder: "예: 주 3건 맞춤 지원과 주 1회 피드백", constraintsPlaceholder: "예: 현 직장 퇴근 후 1시간, 공개할 수 없는 업무 자료",
+    requestPlaceholder: "예: 자격증보다 포트폴리오와 실제 지원을 늘리고, 매주 면접 답변을 한 번 점검하고 싶어요.",
+    chips: [["지원 행동 늘리기", "준비만 하지 않도록 실제 지원과 네트워킹 행동을 늘려줘."], ["포트폴리오 우선", "합격 가능성을 보여주는 포트폴리오 사례부터 완성하게 해줘."], ["면접 대비 추가", "예상 질문과 모의 면접을 주간 계획에 넣어줘."], ["목표 직무에 맞춤", "목표 직무의 채용 요건에 직접 연결되는 경험부터 강조해줘."]],
+  },
+  fitness: {
+    label: "운동·건강", intro: "현재 상태, 가능한 운동 환경과 측정할 변화를 알려주세요.", sectionTitle: "건강 변화 기준", sectionHint: "운동·회복·측정",
+    resourcesLabel: "활용할 장소·기구·프로그램·도움", resourcesPlaceholder: "예: 집 근처 헬스장, 덤벨, 러닝 앱, 주 1회 PT",
+    outcomeLabel: "언제까지 어떤 변화를 만들까요?", outcomePlaceholder: "예: 12주 안에 5km 30분 완주, 허리둘레 5cm 감소",
+    increaseLabel: "더 늘릴 활동", increasePlaceholder: "예: 주 2회 하체 근력과 수면 7시간", decreaseLabel: "줄이거나 피할 활동", decreasePlaceholder: "예: 무릎 통증을 만드는 점프 동작",
+    keepPlaceholder: "예: 수요일 휴식, 운동 전 10분 준비 운동", constraintsPlaceholder: "예: 무릎 통증, 평일 40분, 헬스장 휴무일",
+    requestPlaceholder: "예: 체중보다 체력 향상에 집중하고, 무릎에 부담 없는 운동으로 주 4회 구성하고 싶어요.",
+    chips: [["회복일 확보", "운동 성과를 해치지 않도록 회복일과 수면 점검을 포함해줘."], ["부상 위험 낮추기", "현재 통증과 운동 경험을 고려해 강도와 동작을 안전하게 낮춰줘."], ["측정 기준 추가", "매주 확인할 수 있는 체력이나 신체 변화 기준을 넣어줘."], ["짧은 운동으로", "바쁜 날에도 할 수 있는 최소 운동과 정상 운동을 나눠줘."]],
+  },
+  habit: {
+    label: "습관·생활", intro: "습관을 시작할 신호, 최소 행동과 유지 기준을 알려주세요.", sectionTitle: "습관 정착 기준", sectionHint: "신호·행동·반복",
+    resourcesLabel: "활용할 환경·도구·도움을 주는 사람", resourcesPlaceholder: "예: 침대 옆 책, 습관 앱, 가족 알림, 미리 준비한 운동복",
+    outcomeLabel: "언제까지 어떤 빈도로 정착시키고 싶나요?", outcomePlaceholder: "예: 30일 동안 주 6일, 자기 전 10분 독서",
+    increaseLabel: "더 강화할 행동", increasePlaceholder: "예: 시작 신호와 완료 기록", decreaseLabel: "줄이거나 없앨 방해", decreasePlaceholder: "예: 침대에서 휴대폰 보기",
+    keepPlaceholder: "예: 힘든 날에도 2분 최소 행동은 유지", constraintsPlaceholder: "예: 야근일, 여행, 가족 일정처럼 루틴이 깨지는 상황",
+    requestPlaceholder: "예: 아침 루틴은 부담스러워서 자기 전으로 옮기고, 힘든 날에는 2분만 해도 성공으로 보고 싶어요.",
+    chips: [["최소 행동 만들기", "의욕이 낮은 날에도 성공할 수 있는 최소 행동을 정해줘."], ["시작 신호 붙이기", "기존 일상 행동 직후 자연스럽게 시작하도록 신호를 연결해줘."], ["방해 환경 줄이기", "습관을 막는 환경을 미리 없애는 준비 행동을 넣어줘."], ["놓친 날 복귀", "하루 놓쳐도 다음 날 바로 복귀할 수 있는 규칙을 만들어줘."]],
+  },
+  creative: {
+    label: "콘텐츠·프로젝트", intro: "완성할 결과물, 필요한 자산과 공개 기준을 알려주세요.", sectionTitle: "결과물 완성 기준", sectionHint: "범위·마일스톤·공개",
+    resourcesLabel: "활용할 초안·자료·도구·협업자", resourcesPlaceholder: "예: 기존 원고 20쪽, 촬영 장비, 디자인 템플릿, 편집 도움 1명",
+    outcomeLabel: "언제까지 무엇을 어느 수준으로 공개할까요?", outcomePlaceholder: "예: 6주 안에 10분 영상 4편 제작·공개, 뉴스레터 구독자 100명",
+    increaseLabel: "더 집중할 제작 단계", increasePlaceholder: "예: 초안 작성과 실제 공개", decreaseLabel: "줄이거나 미룰 단계", decreasePlaceholder: "예: 완벽한 디자인 수정과 장비 조사",
+    keepPlaceholder: "예: 매주 1회 공개, 공개 전 체크리스트 5개", constraintsPlaceholder: "예: 촬영은 주말만 가능, 외부 공개 전 검토 필요",
+    requestPlaceholder: "예: 자료 조사보다 초안과 공개 횟수를 늘리고, 매주 금요일에는 결과물 하나를 반드시 내보내고 싶어요.",
+    chips: [["완성본 먼저", "자료 조사보다 공개 가능한 첫 완성본을 먼저 만들게 해줘."], ["범위 줄이기", "마감 안에 완성할 수 있도록 결과물의 범위를 줄여줘."], ["피드백 주기 추가", "초안, 피드백, 수정, 공개가 반복되도록 계획해줘."], ["공개 일정 고정", "완벽하지 않아도 정해진 날에 공개하도록 마감 기준을 넣어줘."]],
+  },
+  finance: {
+    label: "재무·저축", intro: "현재 금액, 현금 흐름과 달성할 재무 수치를 알려주세요.", sectionTitle: "재무 달성 기준", sectionHint: "금액·기간·점검",
+    resourcesLabel: "활용할 계좌·예산표·수입원·상환 계획", resourcesPlaceholder: "예: 월급 계좌, 비상금 100만원, 부수입, 대출 상환표",
+    outcomeLabel: "언제까지 어떤 금액 또는 비율을 달성할까요?", outcomePlaceholder: "예: 6개월 안에 비상금 300만원, 카드빚 200만원 상환",
+    increaseLabel: "더 늘릴 재무 행동", increasePlaceholder: "예: 자동저축과 부수입 만들기", decreaseLabel: "줄이거나 중단할 지출", decreasePlaceholder: "예: 배달비와 사용하지 않는 구독",
+    keepPlaceholder: "예: 월급날 자동이체, 매주 일요일 지출 확인", constraintsPlaceholder: "예: 고정생활비, 변동 수입, 중도상환 수수료",
+    requestPlaceholder: "예: 무리한 절약보다 자동저축을 우선하고, 매주 실제 지출을 확인해 다음 주 한도를 조정하고 싶어요.",
+    chips: [["자동화 먼저", "의지에 기대지 않도록 저축과 상환을 자동화하는 행동부터 넣어줘."], ["고정비부터 점검", "작은 소비보다 반복되는 고정비를 먼저 검토하게 해줘."], ["주간 한도 설정", "월 목표를 지킬 수 있도록 주간 지출 한도와 점검일을 정해줘."], ["비상금 우선", "위험한 투자보다 목표 비상금을 먼저 확보하는 순서로 바꿔줘."]],
+  },
+};
+
+function detectRevisionGoalType(goalText = "") {
+  const goal = String(goalText).toLowerCase();
+  const patterns = [
+    ["startup", /창업|사업|고객|매출|판매|mvp|서비스|브랜드|스토어|마케팅|사업자/],
+    ["study", /시험|토익|토플|자격증|공부|학습|점수|수능|공무원|교재|회독/],
+    ["career", /취업|이직|면접|이력서|포트폴리오|채용|직무|커리어/],
+    ["fitness", /운동|건강|다이어트|체중|근육|러닝|마라톤|헬스|수면|통증/],
+    ["finance", /저축|투자|재무|대출|상환|비상금|지출|자산/],
+    ["creative", /콘텐츠|유튜브|영상|글쓰기|출간|작품|프로젝트|개발|앱 만들|뉴스레터/],
+    ["habit", /습관|루틴|매일|생활|정리|일기|독서/],
+  ];
+  return patterns.find(([, pattern]) => pattern.test(goal))?.[0] || "general";
+}
+
+let activeRevisionGoalType = "general";
+
+function applyRevisionGoalProfile(selection = "auto", goalText = "") {
+  const detectedType = detectRevisionGoalType(goalText);
+  const effectiveType = selection === "auto" ? detectedType : selection;
+  const profile = REVISION_GOAL_PROFILES[effectiveType] || REVISION_GOAL_PROFILES.general;
+  activeRevisionGoalType = effectiveType;
+  if (revisionGoalTypeHint) revisionGoalTypeHint.textContent = selection === "auto" ? `현재 목표를 ‘${profile.label}’ 유형으로 판단했어요. 다르면 직접 바꿔주세요.` : `‘${profile.label}’에 맞는 질문과 예시로 바꿨어요.`;
+  if (revisionIntroTitle) revisionIntroTitle.textContent = `${profile.label} 계획을 더 정확하게 조정해요`;
+  if (revisionIntroDescription) revisionIntroDescription.textContent = profile.intro;
+  if (revisionOutcomeSectionTitle) revisionOutcomeSectionTitle.textContent = profile.sectionTitle;
+  if (revisionOutcomeSectionHint) revisionOutcomeSectionHint.textContent = profile.sectionHint;
+  if (revisionResourcesLabel) revisionResourcesLabel.textContent = profile.resourcesLabel;
+  if (revisionResources) revisionResources.placeholder = profile.resourcesPlaceholder;
+  if (revisionOutcomeLabel) revisionOutcomeLabel.textContent = profile.outcomeLabel;
+  if (revisionOutcome) revisionOutcome.placeholder = profile.outcomePlaceholder;
+  if (revisionIncreaseLabel) revisionIncreaseLabel.textContent = profile.increaseLabel;
+  if (revisionIncreaseFocus) revisionIncreaseFocus.placeholder = profile.increasePlaceholder;
+  if (revisionDecreaseLabel) revisionDecreaseLabel.textContent = profile.decreaseLabel;
+  if (revisionDecreaseFocus) revisionDecreaseFocus.placeholder = profile.decreasePlaceholder;
+  if (revisionKeepRules) revisionKeepRules.placeholder = profile.keepPlaceholder;
+  if (revisionConstraints) revisionConstraints.placeholder = profile.constraintsPlaceholder;
+  if (planRevisionRequest) planRevisionRequest.placeholder = profile.requestPlaceholder;
+  revisionChipButtons.forEach((button, index) => {
+    const chip = profile.chips[index] || REVISION_GOAL_PROFILES.general.chips[index];
+    button.textContent = chip[0];
+    button.dataset.revisionChip = chip[1];
+  });
+}
+
+function collectRevisionDetails() {
+  return {
+    goalType: activeRevisionGoalType,
+    goalTypeSelection: revisionGoalType?.value || "auto",
+    resources: revisionResources?.value.trim() || "",
+    targetOutcome: revisionOutcome?.value.trim() || "",
+    schedule: {
+      weekdayMinutes: normalizeRevisionMinutes(revisionWeekdayMinutes?.value),
+      weekendMinutes: normalizeRevisionMinutes(revisionWeekendMinutes?.value),
+      preferredTime: revisionPreferredTime?.value || "",
+      availableDays: [...revisionDayInputs].filter((input) => input.checked).map((input) => input.value),
+    },
+    priorityAdjustment: {
+      increase: revisionIncreaseFocus?.value.trim() || "",
+      decrease: revisionDecreaseFocus?.value.trim() || "",
+      keepRules: revisionKeepRules?.value.trim() || "",
+    },
+    constraints: revisionConstraints?.value.trim() || "",
+  };
+}
+
+function hasRevisionDetails(details = collectRevisionDetails()) {
+  return Boolean(
+    details.resources ||
+      details.targetOutcome ||
+      details.schedule?.weekdayMinutes ||
+      details.schedule?.weekendMinutes ||
+      details.schedule?.preferredTime ||
+      details.schedule?.availableDays?.length ||
+      details.priorityAdjustment?.increase ||
+      details.priorityAdjustment?.decrease ||
+      details.priorityAdjustment?.keepRules ||
+      details.constraints,
+  );
+}
+
+function populateRevisionDetails(details = {}, goalText = "") {
+  const schedule = details.schedule || {};
+  const priority = details.priorityAdjustment || details.focusAdjustment || {};
+  const selection = details.goalTypeSelection || (details.goalType ? details.goalType : "auto");
+  if (revisionGoalType) revisionGoalType.value = selection === "auto" || REVISION_GOAL_PROFILES[selection] ? selection : "auto";
+  applyRevisionGoalProfile(revisionGoalType?.value || "auto", goalText);
+  if (revisionResources) revisionResources.value = details.resources || details.materials || "";
+  if (revisionOutcome) revisionOutcome.value = details.targetOutcome || details.targetCoverage || "";
+  if (revisionWeekdayMinutes) revisionWeekdayMinutes.value = schedule.weekdayMinutes || "";
+  if (revisionWeekendMinutes) revisionWeekendMinutes.value = schedule.weekendMinutes || "";
+  if (revisionPreferredTime) revisionPreferredTime.value = schedule.preferredTime || "";
+  if (revisionIncreaseFocus) revisionIncreaseFocus.value = priority.increase || "";
+  if (revisionDecreaseFocus) revisionDecreaseFocus.value = priority.decrease || "";
+  if (revisionKeepRules) revisionKeepRules.value = priority.keepRules || "";
+  if (revisionConstraints) revisionConstraints.value = details.constraints || "";
+  const selectedDays = new Set(Array.isArray(schedule.availableDays) ? schedule.availableDays : []);
+  revisionDayInputs.forEach((input) => {
+    input.checked = selectedDays.has(input.value);
+  });
+}
+
 let activeSheet = null;
+let activeSheetOverlay = null;
 let previousFocusElement = null;
 
 function getFocusableElements(container) {
@@ -2545,19 +3385,30 @@ function getFocusableElements(container) {
 function setSheetOpen(sheet, overlay, open) {
   if (!sheet || !overlay) return;
 
+  const isSwitchingSheets = open && activeSheet && activeSheet !== sheet;
+  if (isSwitchingSheets) {
+    activeSheet.hidden = true;
+    if (activeSheetOverlay) activeSheetOverlay.hidden = true;
+    if (activeSheet === authSheet) document.body.classList.remove("account-auth-open");
+    activeSheet = null;
+    activeSheetOverlay = null;
+  }
+
   sheet.hidden = !open;
   overlay.hidden = !open;
   document.body.classList.toggle("sheet-open", open);
   if (sheet === authSheet) document.body.classList.toggle("account-auth-open", open);
   if (open) {
-    previousFocusElement = document.activeElement;
+    if (!previousFocusElement) previousFocusElement = document.activeElement;
     activeSheet = sheet;
+    activeSheetOverlay = overlay;
     window.setTimeout(() => {
       const focusTarget = getFocusableElements(sheet)[0] || sheet;
       focusTarget.focus();
     }, 0);
   } else if (activeSheet === sheet) {
     activeSheet = null;
+    activeSheetOverlay = null;
     previousFocusElement?.focus?.();
     previousFocusElement = null;
   }
@@ -2576,11 +3427,33 @@ function closeCompanionChat() {
 function openEnergyCharge() {
   renderOllieEnergy();
   setSheetOpen(energyChargeSheet, energyChargeOverlay, true);
-  trackCompanionEvent("energy_charge_opened");
+  trackCompanionEvent("energy_info_opened");
 }
 
 function closeEnergyCharge() {
   setSheetOpen(energyChargeSheet, energyChargeOverlay, false);
+}
+
+function openAddSchedule() {
+  const bundle = getPlanBundle();
+  const dayPlan = bundle.schedule[bundle.state.selectedDay - 1] || bundle.schedule[0];
+  const isPriorityMode = dayPlan?.scheduleMode === "priority";
+  if (addScheduleModeHint) {
+    addScheduleModeHint.textContent = isPriorityMode
+      ? "시간 없이 추가한 뒤 길게 눌러 원하는 우선순위에 놓을 수 있어요."
+      : "시간을 정하면 오늘 일정에 시간순으로 배치돼요.";
+  }
+  if (newScheduleTimeField) newScheduleTimeField.classList.toggle("is-optional", isPriorityMode);
+  if (newScheduleTime) {
+    newScheduleTime.required = false;
+    if (isPriorityMode) newScheduleTime.value = "";
+    else if (!newScheduleTime.value) newScheduleTime.value = "18:00";
+  }
+  setSheetOpen(addScheduleSheet, addScheduleOverlay, true);
+}
+
+function closeAddSchedule() {
+  setSheetOpen(addScheduleSheet, addScheduleOverlay, false);
 }
 
 function getSuggestedFocusMinutes(task) {
@@ -2624,7 +3497,7 @@ function renderFocusTimer() {
   }
   if (focusTimerPauseButton) focusTimerPauseButton.disabled = focusSession.status !== "running";
   if (focusModeKicker) {
-    focusModeKicker.textContent = focusSession.status === "running" ? "올리와 함께 집중하는 중" : focusSession.status === "paused" ? "잠시 멈췄어요" : focusSession.status === "finished" ? "집중 시간 완료" : "한 가지에 집중할 시간";
+    focusModeKicker.textContent = focusSession.status === "running" ? "올리랑 똑딱, 함께 집중하는 중" : focusSession.status === "paused" ? "올리도 잠깐 숨 고르는 중" : focusSession.status === "finished" ? "올리와 함께한 집중 시간 완료!" : "올리랑 똑딱, 집중할 시간";
   }
   focusMode?.classList.toggle("is-running", focusSession.status === "running");
   focusMode?.classList.toggle("is-paused", focusSession.status === "paused");
@@ -2711,12 +3584,20 @@ function openFocusMode() {
   const nextIndex = dayPlan.tasks.findIndex((_, index) => !checked[index]);
   const taskIndex = nextIndex === -1 ? 0 : nextIndex;
   const task = dayPlan.tasks[taskIndex];
-  const taskKey = getTaskKey(dayPlan.day, taskIndex);
+  if (!task) {
+    showToast("오늘은 계획된 휴식일이에요 · 다음 학습일에 이어가요");
+    return;
+  }
+  const taskKey = getTaskKey(dayPlan.day, taskIndex, task);
   const suggestedMinutes = getSuggestedFocusMinutes(task);
 
   activeFocusTaskIndex = taskIndex;
   if (focusModeTitle) focusModeTitle.textContent = task?.text || "지금 시작할 일정";
-  if (focusCriteria) focusCriteria.textContent = `${task?.time || "오늘"} 일정 · 시간은 언제든 조정할 수 있어요.`;
+  if (focusCriteria) {
+    focusCriteria.textContent = dayPlan.scheduleMode === "priority"
+      ? `${taskIndex + 1}순위 일정 · 한 가지에만 가볍게 집중해보세요.`
+      : `${task?.time || "시간 미정"} 일정 · 시간은 언제든 조정할 수 있어요.`;
+  }
 
   try {
     const stored = safeJsonParse(localStorage.getItem(focusSessionKey), null);
@@ -2748,14 +3629,29 @@ function closeFocusMode() {
   setSheetOpen(focusMode, focusModeOverlay, false);
 }
 
-function getTaskKey(day, taskIndex) {
-  return `${day}:${taskIndex}`;
+function getTaskKey(day, taskIndex, task) {
+  return task?._taskKey || `${day}:${taskIndex}`;
+}
+
+function setTaskCheckedState(state, dayPlan, taskIndex, isChecked) {
+  const dayKey = String(dayPlan.day);
+  const task = dayPlan.tasks[taskIndex];
+  if (!task) return;
+  const checked = [...(state.checkedByDay[dayKey] || Array(dayPlan.tasks.length).fill(false))];
+  checked[taskIndex] = Boolean(isChecked);
+  state.checkedByDay[dayKey] = checked;
+  const checkedTaskKeysByDay = { ...(state.checkedTaskKeysByDay || {}) };
+  checkedTaskKeysByDay[dayKey] = {
+    ...(checkedTaskKeysByDay[dayKey] || {}),
+    [task._taskKey]: Boolean(isChecked),
+  };
+  state.checkedTaskKeysByDay = checkedTaskKeysByDay;
 }
 
 function recordTaskCompletion(state, dayPlan, taskIndex) {
   const task = dayPlan.tasks[taskIndex];
-  if (!task) return;
-  const taskKey = getTaskKey(dayPlan.day, taskIndex);
+  if (!task) return false;
+  const taskKey = getTaskKey(dayPlan.day, taskIndex, task);
   const exists = (state.completedLog || []).some((item) => item.taskKey === taskKey);
   if (!exists) {
     state.completedLog = [
@@ -2771,6 +3667,17 @@ function recordTaskCompletion(state, dayPlan, taskIndex) {
     ].slice(-80);
   }
   state.lastCompletion = { taskKey, day: dayPlan.day, taskIndex, text: task.text };
+  return !exists;
+}
+
+function claimDailyCompletionBonus(state, dayPlan) {
+  if (!dayPlan?.tasks.length) return 0;
+  const dayKey = String(dayPlan.day);
+  const checked = state.checkedByDay[dayKey] || [];
+  if (!dayPlan.tasks.every((_, index) => Boolean(checked[index]))) return 0;
+  if (state.dailyCompletionRewardedByDay?.[dayKey]) return 0;
+  state.dailyCompletionRewardedByDay = { ...(state.dailyCompletionRewardedByDay || {}), [dayKey]: true };
+  return 8;
 }
 
 function completeFocusTask() {
@@ -2780,11 +3687,11 @@ function completeFocusTask() {
   const checked = bundle.state.checkedByDay[selectedDay] || Array(dayPlan.tasks.length).fill(false);
   const wasUnchecked = !checked[activeFocusTaskIndex];
 
-  checked[activeFocusTaskIndex] = true;
-  bundle.state.checkedByDay[selectedDay] = checked;
-  if (wasUnchecked) recordTaskCompletion(bundle.state, dayPlan, activeFocusTaskIndex);
+  setTaskCheckedState(bundle.state, dayPlan, activeFocusTaskIndex, true);
+  const newlyRecorded = wasUnchecked && recordTaskCompletion(bundle.state, dayPlan, activeFocusTaskIndex);
+  const completionBonus = wasUnchecked ? claimDailyCompletionBonus(bundle.state, dayPlan) : 0;
   savePlanBundleState(bundle.state);
-  if (wasUnchecked) addCompanionXp(10, "happy");
+  if (newlyRecorded || completionBonus) addCompanionXp((newlyRecorded ? 10 : 0) + completionBonus, "happy");
   clearFocusTimerInterval();
   try {
     localStorage.removeItem(focusSessionKey);
@@ -2794,14 +3701,26 @@ function completeFocusTask() {
   focusSession = { taskKey: "", status: "idle", durationSeconds: 15 * 60, remainingSeconds: 15 * 60, endAt: null };
   closeFocusMode();
   pulseCompanion();
-  if (wasUnchecked) showOllieStarShower(dayPlan.tasks[activeFocusTaskIndex]?.text);
-  showToast(wasUnchecked ? "일정 하나를 완료했어요 · 올리의 별빛과 10 XP를 받았어요" : "이미 완료된 일정이에요");
-  trackCompanionEvent("focus_completed", { day: dayPlan.day, taskIndex: activeFocusTaskIndex, rewarded: wasUnchecked });
+  if (newlyRecorded) showOllieStarShower(dayPlan.tasks[activeFocusTaskIndex]?.text);
+  showToast(newlyRecorded ? `일정 하나를 완료했어요 · 올리가 ${10 + completionBonus} XP를 받았어요` : completionBonus ? "오늘 계획을 모두 완료했어요 · 올리가 8 XP를 받았어요" : wasUnchecked ? "완료 상태를 다시 표시했어요 · XP는 중복 지급되지 않아요" : "이미 완료된 일정이에요");
+  trackCompanionEvent("focus_completed", { day: dayPlan.day, taskIndex: activeFocusTaskIndex, rewarded: Boolean(newlyRecorded || completionBonus), completionBonus });
   renderExecutionPage(bundle);
 }
 
 function renderFocusTask(dayPlan, selectedCompletion) {
   if (!focusTaskTitle || !dayPlan) return;
+
+  if (!dayPlan.tasks.length) {
+    focusTaskTitle.textContent = "오늘은 계획된 휴식일이에요";
+    if (focusTaskMeta) focusTaskMeta.textContent = "입력한 가능 요일을 기준으로 학습을 비워두었어요";
+    if (minimumGoalText) minimumGoalText.textContent = "충분히 쉬고 다음 학습일 준비";
+    if (focusProgressText) focusProgressText.textContent = "휴식일";
+    if (startFocusButton) {
+      startFocusButton.disabled = true;
+      startFocusButton.textContent = "계획된 휴식일";
+    }
+    return;
+  }
 
   const bundle = getPlanBundle();
   const checked = bundle.state.checkedByDay[String(dayPlan.day)] || [];
@@ -2811,12 +3730,14 @@ function renderFocusTask(dayPlan, selectedCompletion) {
 
   const suggestedMinutes = getSuggestedFocusMinutes(task);
   if (focusTaskTitle) focusTaskTitle.textContent = task?.text || "오늘 기록 돌아보기";
-  if (focusTaskMeta) focusTaskMeta.textContent = selectedCompletion.percent === 100 ? "오늘 AI 스케줄을 모두 완료했어요" : `${task?.time || "오늘"} · 지금 시작하면 좋은 다음 일정`;
+  const taskPosition = dayPlan.scheduleMode === "priority" ? `${taskIndex + 1}순위` : task?.time || "시간 미정";
+  if (focusTaskMeta) focusTaskMeta.textContent = selectedCompletion.percent === 100 ? "오늘 AI 스케줄을 모두 완료했어요" : `${taskPosition} · 타이머를 켜고 올리와 함께 시작해요`;
   if (minimumGoalText) minimumGoalText.textContent = selectedCompletion.percent === 100 ? "오늘 일정 모두 완료" : `집중 시간 ${suggestedMinutes}분`;
   if (focusProgressText) focusProgressText.textContent = `${selectedCompletion.completed}/${selectedCompletion.total} 완료`;
   if (startFocusButton) {
+    startFocusButton.disabled = false;
     startFocusButton.dataset.taskIndex = String(taskIndex);
-    startFocusButton.textContent = selectedCompletion.percent === 100 ? "오늘 일정 다시 보기" : "이 일정 시작하기";
+    startFocusButton.textContent = selectedCompletion.percent === 100 ? "오늘 일정 다시 보기" : "올리랑 시간 재기";
   }
 }
 
@@ -2828,46 +3749,93 @@ function getTaskPeriod(time) {
   return { label: "마무리", icon: "✦", theme: "night" };
 }
 
+function getTaskEndTime(time, durationMinutes) {
+  const match = String(time || "").match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return "";
+  const totalMinutes = Number(match[1]) * 60 + Number(match[2]) + getSuggestedFocusMinutes({ durationMinutes });
+  const hours = Math.floor((totalMinutes % 1440) / 60);
+  const minutes = totalMinutes % 60;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
 function renderChecklist(dayPlan, state) {
   if (!executionChecklist) return;
 
   executionChecklist.innerHTML = "";
+  executionChecklist.dataset.mode = dayPlan.scheduleMode || "time";
   const checked = state.checkedByDay[String(dayPlan.day)] || [];
+
+  if (!dayPlan.tasks.length) {
+    const rest = document.createElement("div");
+    rest.className = "plan-rest-day";
+    rest.innerHTML = "<strong>오늘은 계획된 휴식일이에요</strong><span>선택한 학습 가능 요일에 맞춰 일정이 비워져 있습니다.</span>";
+    executionChecklist.append(rest);
+    return;
+  }
 
   dayPlan.tasks.forEach((task, index) => {
     const period = getTaskPeriod(task.time);
-    const label = document.createElement("label");
-    const input = document.createElement("input");
+    const row = document.createElement("article");
+    const checkbox = document.createElement("input");
     const content = document.createElement("span");
-    const time = document.createElement("strong");
+    const time = document.createElement("span");
+    const startTime = document.createElement("strong");
+    const endTime = document.createElement("small");
     const text = document.createElement("span");
     const head = document.createElement("span");
     const periodBadge = document.createElement("span");
-    const timelineNode = document.createElement("i");
+    const orderControl = document.createElement(dayPlan.scheduleMode === "priority" ? "button" : "i");
 
-    label.className = `task-row task-${period.theme}`;
-    input.className = "execution-check";
-    input.type = "checkbox";
-    input.dataset.taskIndex = String(index);
-    input.checked = Boolean(checked[index]);
-    label.classList.toggle("is-complete", input.checked);
+    row.className = `task-row task-${period.theme}`;
+    row.dataset.taskKey = task._taskKey;
+    row.dataset.taskIndex = String(index);
+    row.classList.toggle("is-complete", Boolean(checked[index]));
+    row.setAttribute("aria-label", `${index + 1}번째 일정, ${task.text}`);
+    checkbox.className = "execution-check";
+    checkbox.type = "checkbox";
+    checkbox.dataset.taskIndex = String(index);
+    checkbox.checked = Boolean(checked[index]);
+    checkbox.setAttribute("aria-label", `${task.text} 완료 표시`);
     content.className = "task-content";
+    time.className = "task-time";
     head.className = "task-row-head";
     periodBadge.className = "task-period";
-    timelineNode.className = "task-timeline-node";
+    orderControl.className = dayPlan.scheduleMode === "priority" ? "task-drag-handle" : "task-timeline-node";
 
-    time.textContent = task.time;
+    if (dayPlan.scheduleMode === "priority") {
+      startTime.textContent = `${index + 1}순위`;
+      endTime.textContent = "길게 눌러 이동";
+      orderControl.type = "button";
+      orderControl.dataset.taskHandle = "";
+      orderControl.textContent = "⠿";
+      orderControl.setAttribute("aria-label", `${task.text} 순서 이동. 위아래 화살표 키로 조정할 수 있어요.`);
+      time.append(startTime, endTime);
+    } else {
+      const timeInput = document.createElement("input");
+      const timeMatch = String(task.time || "").match(/^(\d{1,2}):(\d{2})$/);
+      const validTime = timeMatch ? `${String(Number(timeMatch[1])).padStart(2, "0")}:${timeMatch[2]}` : "";
+      startTime.className = "task-time-value";
+      startTime.textContent = validTime || "시간 설정";
+      timeInput.type = "time";
+      timeInput.value = validTime;
+      timeInput.dataset.taskTime = task._taskKey;
+      timeInput.setAttribute("aria-label", `${task.text} 시작 시간`);
+      endTime.textContent = validTime ? `${getTaskEndTime(validTime, task.durationMinutes)} 종료` : "시간 미정";
+      time.append(startTime, endTime, timeInput);
+    }
     periodBadge.textContent = `${period.icon} ${period.label}`;
     text.textContent = task.text;
 
     const minimum = document.createElement("small");
     minimum.className = "minimum-action";
-    minimum.textContent = `예상 ${getSuggestedFocusMinutes(task)}분`;
+    minimum.textContent = task.completionRule
+      ? `예상 ${getSuggestedFocusMinutes(task)}분 · 완료: ${task.completionRule}`
+      : `예상 ${getSuggestedFocusMinutes(task)}분`;
 
     head.append(periodBadge);
     content.append(head, text, minimum);
-    label.append(time, input, timelineNode, content);
-    executionChecklist.append(label);
+    row.append(time, orderControl, content, checkbox);
+    executionChecklist.append(row);
   });
 }
 
@@ -2938,9 +3906,9 @@ function renderCalendar(schedule, state, plan) {
     planLabel.textContent = isSameCalendarDate(actualDate, today) ? "오늘" : dayPlan ? `D${dayPlan.day}` : "";
     percent.textContent = dayPlan ? `${completion.percent}%` : planDayNumber < 1 ? "올리 기다림" : "올리 쉬는 날";
     ollie.className = "calendar-ollie";
-    ollie.src = completion.percent === 100 ? "assets/ollie-celebrate.png" : "assets/ollie-thinking.png";
     ollie.alt = "";
     ollie.hidden = !dayPlan || (completion.percent !== 100 && dayPlan.day !== state.selectedDay);
+    if (!ollie.hidden) setImageSource(ollie, completion.percent === 100 ? "assets/ollie-celebrate.png" : "assets/ollie-thinking.png");
     button.setAttribute(
       "aria-label",
       dayPlan
@@ -2962,7 +3930,7 @@ function renderCalendar(schedule, state, plan) {
   }
 
   const monthProgress = monthPlanDays.length ? getScheduleCompletion(monthPlanDays, state.checkedByDay) : 0;
-  const completedDays = monthPlanDays.filter((dayPlan) => getDayCompletion(dayPlan, state.checkedByDay).percent === 100).length;
+  const completedDays = monthPlanDays.filter((dayPlan) => dayPlan.tasks.length > 0 && getDayCompletion(dayPlan, state.checkedByDay).percent === 100).length;
   if (monthlyCompletion) monthlyCompletion.textContent = `${monthProgress}%`;
   if (calendarSummary) {
     calendarSummary.textContent = monthPlanDays.length
@@ -2992,7 +3960,9 @@ function renderCalendarDayDetail(schedule, state, plan) {
   calendarDayDetail.hidden = false;
   if (calendarDayDetailTitle) calendarDayDetailTitle.textContent = `${dateLabel} 스케줄`;
   if (calendarDayDetailMeta) {
-    calendarDayDetailMeta.textContent = `${isToday ? "오늘" : `D${dayPlan.day}`} · 일정 ${dayPlan.tasks.length}개 · ${completion.percent}% 완료`;
+    calendarDayDetailMeta.textContent = dayPlan.tasks.length
+      ? `${isToday ? "오늘" : `D${dayPlan.day}`} · 일정 ${dayPlan.tasks.length}개 · ${completion.percent}% 완료`
+      : `${isToday ? "오늘" : `D${dayPlan.day}`} · 계획된 휴식일`;
   }
 
   if (calendarDayDetailList) {
@@ -3005,7 +3975,7 @@ function renderCalendarDayDetail(schedule, state, plan) {
 
       item.classList.toggle("is-complete", Boolean(checked[index]));
       status.textContent = checked[index] ? "✓" : "";
-      time.textContent = task.time;
+      time.textContent = dayPlan.scheduleMode === "priority" ? `${index + 1}순위` : task.time || "시간 미정";
       text.textContent = task.text;
       item.append(status, time, text);
       calendarDayDetailList.append(item);
@@ -3013,52 +3983,53 @@ function renderCalendarDayDetail(schedule, state, plan) {
   }
 }
 
-function renderWeeklyPlan(schedule) {
+function renderPlanOverview(plan, schedule, state) {
+  const weekStart = Math.max(0, Number(state.selectedDay || 1) - 1);
+  const week = schedule.slice(weekStart, weekStart + 7);
+  const activeDays = week.filter((dayPlan) => dayPlan.tasks.length > 0).length;
+  const taskCount = week.reduce((sum, dayPlan) => sum + dayPlan.tasks.length, 0);
+  if (planOverviewGoal) planOverviewGoal.textContent = plan.goal || "나의 목표";
+  if (planOverviewStatus) {
+    planOverviewStatus.textContent = state.pendingPlanText ? "변경안 확인 필요" : state.status === "적용 완료" ? "최신 계획" : "진행 중";
+    planOverviewStatus.classList.toggle("has-pending", Boolean(state.pendingPlanText));
+  }
+  if (planOverviewPeriod) planOverviewPeriod.textContent = `${schedule.length}일`;
+  if (planOverviewWeek) planOverviewWeek.textContent = `${activeDays}일 · ${taskCount}개`;
+  if (planOverviewRhythm) planOverviewRhythm.textContent = plan.routineTime ? `${plan.routineTime} 중심` : "유연하게";
+}
+
+function renderWeeklyPlan(schedule, plan, state) {
   if (!weeklyPlanList) return;
-  const labels = ["월", "수", "금", "일"];
-  const picks = [0, 2, 4, 6].map((index) => schedule[index]).filter(Boolean);
+  const startIndex = Math.max(0, Number(state?.selectedDay || 1) - 1);
+  const upcomingWindow = schedule.slice(startIndex, startIndex + 10);
+  const picks = upcomingWindow.filter((dayPlan) => dayPlan.tasks.length > 0).slice(0, 3);
+  const planStartDate = getPlanStartDate(plan, state);
+  const weekdayFormatter = new Intl.DateTimeFormat("ko-KR", { weekday: "short" });
 
   weeklyPlanList.innerHTML = "";
-  picks.forEach((dayPlan, index) => {
+  if (!picks.length) {
+    const rest = document.createElement("li");
+    rest.innerHTML = "<span>쉼</span><strong>다가오는 일정이 없어요</strong><p>계획된 휴식도 목표를 이어가는 과정이에요.</p>";
+    weeklyPlanList.append(rest);
+    return;
+  }
+
+  picks.forEach((dayPlan) => {
     const item = document.createElement("li");
     const day = document.createElement("span");
     const title = document.createElement("strong");
     const detail = document.createElement("p");
+    const firstTask = dayPlan.tasks[0];
+    const date = new Date(planStartDate.getFullYear(), planStartDate.getMonth(), planStartDate.getDate() + dayPlan.day - 1);
+    const timing = dayPlan.scheduleMode === "priority" ? "1순위" : firstTask.time || "시간 미정";
+    const extraCount = Math.max(0, dayPlan.tasks.length - 1);
 
-    day.textContent = labels[index] || `D${dayPlan.day}`;
-    title.textContent = dayPlan.title.replace(/^Day \d+ · /, "");
-    detail.textContent = dayPlan.tasks.map((task) => task.text).slice(0, 2).join(" · ");
+    day.textContent = weekdayFormatter.format(date).replace("요일", "");
+    title.textContent = firstTask.text;
+    detail.textContent = `${timing} · 예상 ${getSuggestedFocusMinutes(firstTask)}분${extraCount ? ` · 외 ${extraCount}개` : ""}`;
     item.append(day, title, detail);
     weeklyPlanList.append(item);
   });
-}
-
-function renderRoutineInsight(plan) {
-  if (!routineModeTitle) return;
-
-  const routineTime = plan.routineTime || "아침";
-  const currentRoutine = plan.currentRoutine || "기존 루틴";
-  const readiness = plan.routineReadiness || DEFAULT_ROUTINE_READINESS;
-  const isDelayProne = needsLowFrictionStart(readiness);
-  const cues = isDelayProne
-    ? [`${currentRoutine} 뒤 10분만`, "알림으로 다시 시작", "못한 날은 다음 칸으로 이동"]
-    : [`${currentRoutine}와 연결`, "완료 즉시 체크", "달력에서 진행률 확인"];
-
-  routineModeTitle.textContent = `${routineTime} 루틴 모드`;
-  if (routineModeMeta) {
-    routineModeMeta.textContent = isDelayProne
-      ? `${readiness} 성향에 맞춰 작게 시작하고 다시 불러옵니다`
-      : `${readiness} 성향에 맞춰 바로 실행할 수 있게 배치합니다`;
-  }
-
-  if (routineCueList) {
-    routineCueList.innerHTML = "";
-    cues.forEach((cue) => {
-      const item = document.createElement("span");
-      item.textContent = cue;
-      routineCueList.append(item);
-    });
-  }
 }
 
 function getCompanionStage(overallProgress) {
@@ -3202,6 +4173,8 @@ function renderJourneyMap(overallProgress) {
   journeyMap.scrollLeft = Math.max(0, currentIndex * 148 - 12);
 
   if (journeyBadge) journeyBadge.textContent = stage.badge;
+  if (journeyPlaceSummary) journeyPlaceSummary.textContent = currentStop.title;
+  if (journeyNextSummary) journeyNextSummary.textContent = nextStop ? `다음 장소까지 ${Math.max(0, nextStop.threshold - overallProgress)}% 남음` : "별꽃 정원에 도착했어요";
   if (journeyPlaceTitle) journeyPlaceTitle.textContent = currentStop.title;
   if (journeyPlaceStory) journeyPlaceStory.textContent = currentStop.story;
   if (journeyNextText) journeyNextText.textContent = nextStop ? `${nextStop.shortTitle}까지 ${Math.max(0, nextStop.threshold - overallProgress)}% 남음` : "정원에 도착했어요!";
@@ -3420,7 +4393,6 @@ function renderMemoryCards({ selectedCompletion }) {
   }
 
   renderPatternCards(state);
-  renderDifficultyPrompt(state);
 }
 
 function renderPatternCards(state) {
@@ -3538,6 +4510,7 @@ memoryList?.addEventListener("click", (event) => {
     if (memoryNote) memoryNote.value = memory.note || "";
     if (memoryObstacle) memoryObstacle.value = memory.obstacle || "none";
     if (memoryNextStep) memoryNextStep.value = memory.nextStep || "";
+    if (memoryOptionalDetails) memoryOptionalDetails.open = true;
     applyMoodSelectionToForm(memory);
     const saveLabel = memorySaveButton?.querySelector("span");
     if (saveLabel) saveLabel.textContent = "수정한 다이어리 저장하기";
@@ -3565,6 +4538,7 @@ memoryList?.addEventListener("click", (event) => {
   appendRevisionRequest(memory.suggestion, "추억 카드에서 찾은 단서를 계획 수정 요청에 담았어요.");
   trackCompanionEvent("memory_insight_applied", { memoryId: memory.id });
   showToast("추억 카드의 제안을 옮겼어요 · AI 변경안 만들기를 눌러 확인해 주세요");
+  setPlanScreen("editor", { scroll: false, focus: false });
   document.querySelector("#tab-plan")?.click();
   window.setTimeout(() => {
     const editor = document.querySelector("#journeyPlanEditor");
@@ -3574,16 +4548,6 @@ memoryList?.addEventListener("click", (event) => {
     window.setTimeout(() => editor?.classList.remove("memory-revision-arrival"), 1800);
   }, 140);
 });
-
-function renderDifficultyPrompt(state) {
-  if (!difficultyCard) return;
-  const last = state.lastCompletion;
-  const hasFeedback = last && state.difficultyByTask?.[last.taskKey];
-  difficultyCard.hidden = !last || Boolean(hasFeedback);
-  difficultyButtons.forEach((button) => {
-    button.classList.toggle("active", Boolean(last && button.dataset.difficulty === state.difficultyByTask?.[last.taskKey]));
-  });
-}
 
 function renderRecoveryPrompt(state, selectedCompletion) {
   if (!recoveryCard) return;
@@ -3621,8 +4585,8 @@ function renderCompanionExperience({ plan, selectedCompletion, remainingTasks, c
           : "assets/ollie-thinking.png";
 
   if (companionName) companionName.textContent = companionState.name || "올리";
-  if (companionHomeImage) companionHomeImage.src = ollieMoodImage;
-  if (executionCompanion) executionCompanion.src = ollieMoodImage;
+  setImageSource(companionHomeImage, ollieMoodImage);
+  setImageSource(executionCompanion, ollieMoodImage);
   if (companionMoodLine) {
     companionMoodLine.textContent =
       companionState.energy === "tired" ? "오늘은 작게 줄이는 것도 실행이에요." : copy.line;
@@ -3658,11 +4622,11 @@ function renderCompanionExperience({ plan, selectedCompletion, remainingTasks, c
   renderMemoryCards({ selectedCompletion, completedDays, overallProgress });
 }
 
-function renderPlanPreview(planText, pendingPlanText = "") {
+function renderPlanPreview(planText, pendingPlanText = "", pendingRevisionSummary = {}) {
   if (!planPreviewList) return;
 
   const tasks = parsePlanText(planText, "오늘 첫 행동 정하기").slice(0, 6);
-  const pendingTasks = pendingPlanText ? parsePlanText(pendingPlanText, "오늘 첫 행동 정하기").slice(0, 4) : [];
+  const pendingTasks = pendingPlanText ? parsePlanText(pendingPlanText, "오늘 첫 행동 정하기").slice(0, 10) : [];
   planPreviewList.innerHTML = "";
 
   if (pendingTasks.length) {
@@ -3676,19 +4640,41 @@ function renderPlanPreview(planText, pendingPlanText = "") {
     title.textContent = "올리가 이렇게 바꿔봤어요";
     detail.textContent = pendingTasks.map((task) => task.replace(/^수정 요청 반영:\s*/, "")).slice(0, 3).join(" · ");
     summary.append(label, title, detail);
+
+    const summaryItems = [
+      ["목표 연결", pendingRevisionSummary.goalAlignment],
+      ["자원·진행", pendingRevisionSummary.resourcePlan || pendingRevisionSummary.materialPlan],
+      ["시간 배분", pendingRevisionSummary.timePlan],
+      ["주간 리듬", pendingRevisionSummary.weeklyRule],
+    ].filter(([, value]) => String(value || "").trim());
+    if (summaryItems.length) {
+      const list = document.createElement("ul");
+      list.className = "proposal-detail-grid";
+      summaryItems.forEach(([itemLabel, value]) => {
+        const item = document.createElement("li");
+        const small = document.createElement("small");
+        const copy = document.createElement("b");
+        small.textContent = itemLabel;
+        copy.textContent = value;
+        item.append(small, copy);
+        list.append(item);
+      });
+      summary.append(list);
+    }
     planPreviewList.append(summary);
   }
 
-  tasks.forEach((task, index) => {
+  const displayedTasks = pendingTasks.length ? pendingTasks : tasks;
+  displayedTasks.forEach((task, index) => {
     const item = document.createElement("article");
     const day = document.createElement("span");
     const title = document.createElement("strong");
     const detail = document.createElement("p");
 
-    day.textContent = `D${index + 1}`;
+    day.textContent = pendingTasks.length ? `새 ${index + 1}` : `D${index + 1}`;
     title.textContent = task.replace(/^수정 요청 반영:\s*/, "요청 반영");
     detail.textContent = pendingTasks.length
-      ? "현재 적용 중인 계획입니다. 변경안 적용 전까지 유지됩니다."
+      ? "적용 예정 항목입니다. 아래 적용하기를 누르기 전까지 현재 계획은 바뀌지 않아요."
       : index === 0
         ? "AI가 가장 먼저 반영할 실행 기준입니다."
         : "완료 기준과 최소 성공 기준을 함께 잡습니다.";
@@ -3700,14 +4686,14 @@ function renderPlanPreview(planText, pendingPlanText = "") {
 function updateRevisionButtonState() {
   if (!regeneratePlanButton || !planRevisionRequest) return;
 
-  const hasRequest = planRevisionRequest.value.trim().length > 0;
+  const hasRequest = planRevisionRequest.value.trim().length > 0 || hasRevisionDetails();
   regeneratePlanButton.disabled = !hasRequest;
   if (planEditorMessage && !hasRequest) {
     planEditorMessage.textContent = "바꾸고 싶은 내용을 한 가지 이상 적으면 적용 전 변경안을 만들 수 있어요.";
   }
 }
 
-function renderDailyCoach(state, selectedCompletion) {
+function renderDailyCoach(state, selectedCompletion, dayPlan) {
   if (!dailyCoachTitle || !dailyCoachMessage) return;
 
   const yesterday = new Date();
@@ -3751,11 +4737,14 @@ function renderDailyCoach(state, selectedCompletion) {
     } else if (Number(yesterdayMemory.completion || 0) >= 80) {
       copy = { title: "어제 만든 좋은 흐름을 오늘도 같은 순서로 이어가요.", message: "잘 맞았던 실행 시간과 순서를 유지하면 오늘의 체크도 자연스럽게 쌓일 거예요.", image: "assets/ollie-celebrate.png" };
     } else {
-      copy = { title: "어제 남긴 기록 덕분에 오늘의 시작점이 선명해졌어요.", message: "가장 먼저 보이는 일정 하나를 체크하고, 끝난 뒤 난이도를 알려주세요.", image: "assets/ollie-action.png" };
+      copy = { title: "어제 남긴 기록 덕분에 오늘의 시작점이 선명해졌어요.", message: "가장 먼저 보이는 일정 하나부터 가볍게 체크해보세요.", image: "assets/ollie-action.png" };
     }
   }
 
-  if (selectedCompletion.percent === 100) {
+  if (!dayPlan?.tasks?.length) {
+    kicker = "OLLIE COACH · 계획된 휴식일";
+    copy = { title: "오늘은 쉬어도 계획대로 가고 있어요.", message: "선택한 학습 가능 요일에 맞춰 비워둔 날이에요. 다음 학습일에 사용할 교재만 확인해 두세요.", image: "assets/ollie-comfort.png" };
+  } else if (selectedCompletion.percent === 100) {
     kicker = "OLLIE COACH · 오늘 일정 완료";
     copy = { title: "오늘 스케줄을 모두 해냈어요. 이 흐름을 올리가 기억할게요!", message: "오늘의 기분과 잘된 점을 추억 카드에 남기면 내일 계획을 더 정확하게 맞출 수 있어요.", image: "assets/ollie-celebrate.png" };
   }
@@ -3763,7 +4752,7 @@ function renderDailyCoach(state, selectedCompletion) {
   if (dailyCoachKicker) dailyCoachKicker.textContent = kicker;
   dailyCoachTitle.textContent = copy.title;
   dailyCoachMessage.textContent = copy.message;
-  if (dailyCoachImage) dailyCoachImage.src = copy.image;
+  setImageSource(dailyCoachImage, copy.image);
 }
 
 function renderExecutionPage(bundle) {
@@ -3778,52 +4767,93 @@ function renderExecutionPage(bundle) {
   const remainingTasks = selectedCompletion.total - selectedCompletion.completed;
 
   if (planEditor && planEditor.value !== planText) planEditor.value = planText;
-  renderPlanPreview(planText, state.pendingPlanText || "");
-  if (planRevisionRequest && document.activeElement !== planRevisionRequest && planRevisionRequest.value !== (state.revisionRequest || "")) {
-    planRevisionRequest.value = state.revisionRequest || "";
+  renderPlanPreview(planText, state.pendingPlanText || "", state.pendingRevisionSummary || {});
+  const visibleRevisionRequest = state.pendingRevisionRequest || state.revisionRequest || "";
+  if (planRevisionRequest && document.activeElement !== planRevisionRequest && planRevisionRequest.value !== visibleRevisionRequest) {
+    planRevisionRequest.value = visibleRevisionRequest;
+  }
+  if (!revisionDetailDraftLoaded) {
+    populateRevisionDetails(Object.keys(state.pendingRevisionDetails || {}).length ? state.pendingRevisionDetails : state.revisionDetails, plan.goal);
+    revisionDetailDraftLoaded = true;
   }
   updateRevisionButtonState();
   if (planStatusBadge) planStatusBadge.textContent = state.pendingPlanText ? "변경안 대기" : state.status || "AI 제안";
   if (acceptPlanButton) acceptPlanButton.disabled = !state.pendingPlanText;
   if (keepPlanButton) keepPlanButton.disabled = !state.pendingPlanText;
   if (reviseAgainButton) reviseAgainButton.disabled = false;
-  if (todayDateLabel) todayDateLabel.textContent = "Today";
-  executionGoal.textContent = "오늘의 한 걸음";
+  const now = new Date();
+  const hour = now.getHours();
+  if (todayGreeting) todayGreeting.textContent = hour < 12 ? "좋은 아침이에요!" : hour < 18 ? "좋은 오후예요!" : "좋은 저녁이에요!";
+  if (todayDateLabel) {
+    todayDateLabel.textContent = `${now.toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "long" })} · 오늘도 멋진 하루를 만들어봐요.`;
+  }
+  executionGoal.textContent = plan.goal || "오늘의 한 걸음";
+  const isRestDay = selectedDay.tasks.length === 0;
   if (executionStyle) {
     const todayLabel = new Date().toLocaleDateString("ko-KR", {
       month: "long",
       day: "numeric",
       weekday: "long",
     });
-    executionStyle.textContent = `${todayLabel} · ${selectedCompletion.completed}/${selectedCompletion.total} 완료`;
+    executionStyle.textContent = isRestDay ? `${todayLabel} · 계획된 휴식일` : `${todayLabel} · ${selectedCompletion.completed}/${selectedCompletion.total} 완료`;
   }
   if (executionPeriod) executionPeriod.textContent = plan.goal || `${period}일 목표`;
-  if (executionDay) executionDay.textContent = `Day ${selectedDay.day} / ${period}`;
-  if (executionStreak) executionStreak.textContent = `${completedDays}일 완료`;
-  if (executionProgress) executionProgress.textContent = `${overallProgress}%`;
+  if (executionDay) executionDay.textContent = `완료한 일정 ${selectedCompletion.completed} / ${selectedCompletion.total}`;
+  if (executionStreak) executionStreak.textContent = remainingTasks > 0 ? `${remainingTasks}개 남음` : "오늘 일정 완료";
+  if (executionProgress) executionProgress.textContent = `${selectedCompletion.percent}%`;
   if (executionProgressBar) {
-    executionProgressBar.style.width = `${overallProgress}%`;
-    executionProgressBar.parentElement?.style.setProperty("--journey-dot", `${overallProgress}%`);
+    executionProgressBar.style.width = `${selectedCompletion.percent}%`;
+    executionProgressBar.parentElement?.style.setProperty("--journey-dot", `${selectedCompletion.percent}%`);
   }
-  if (selectedScheduleTitle) selectedScheduleTitle.textContent = `${selectedDay.day}일차 AI 스케줄`;
-  if (selectedScheduleMeta) selectedScheduleMeta.textContent = `${selectedCompletion.percent}% 완료 · ${remainingTasks}개 남음`;
+  if (todayGoalProgress) todayGoalProgress.textContent = `${selectedCompletion.completed} / ${selectedCompletion.total} 완료`;
+  if (todayGoalProgressBar) todayGoalProgressBar.style.width = `${selectedCompletion.percent}%`;
+  if (selectedScheduleTitle) selectedScheduleTitle.textContent = isRestDay ? "오늘은 계획된 휴식일" : "오늘의 일정";
+  if (selectedScheduleMeta) selectedScheduleMeta.textContent = isRestDay ? "선택한 가능 요일에 맞춰 학습을 비워두었어요" : `${selectedCompletion.percent}% 완료 · ${remainingTasks}개 남음`;
+  scheduleModeButtons.forEach((button) => {
+    const isActive = button.dataset.scheduleMode === selectedDay.scheduleMode;
+    button.classList.toggle("active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
+    button.disabled = isRestDay;
+  });
+  if (todayOrderHint) {
+    todayOrderHint.textContent = selectedDay.scheduleMode === "priority"
+      ? "✣ 일정을 길게 누르거나 이동 손잡이를 끌어 우선순위를 바꿔보세요."
+      : "✣ 시작 시간을 눌러 오늘 상황에 맞게 바로 조정할 수 있어요.";
+  }
+  if (completeTodayButton) {
+    const isDayComplete = !isRestDay && selectedCompletion.percent === 100;
+    completeTodayButton.disabled = isRestDay || isDayComplete;
+    completeTodayButton.textContent = isRestDay ? "오늘은 계획된 휴식일" : isDayComplete ? "오늘 계획 완료" : "오늘 계획 한 번에 완료";
+  }
 
   if (executionMessage) {
     executionMessage.textContent =
-      selectedCompletion.percent === 100
+      isRestDay
+        ? "쉬는 날도 계획의 일부예요. 다음 학습일에 이어서 시작합니다."
+        : selectedCompletion.percent === 100
         ? `${selectedDay.day}일차 계획을 모두 완료했어요. 올리와 다음 장소에 가까워졌습니다.`
         : `${selectedDay.day}일차 계획 ${remainingTasks}개가 남았어요. 체크할 때마다 완성률이 바로 반영됩니다.`;
   }
 
   renderChecklist(selectedDay, state);
   renderCalendar(schedule, state, plan);
-  renderWeeklyPlan(schedule);
-  renderRoutineInsight(plan);
+  renderPlanOverview(plan, schedule, state);
+  renderWeeklyPlan(schedule, plan, state);
   renderFocusTask(selectedDay, selectedCompletion);
-  renderDailyCoach(state, selectedCompletion);
+  renderDailyCoach(state, selectedCompletion, selectedDay);
   renderRecoveryPrompt(state, selectedCompletion);
   renderCompanionExperience({ plan, selectedCompletion, remainingTasks, completedDays, overallProgress });
 }
+
+const themes = {
+  buddy: {
+    title: "목표 메이트 올리",
+    path: "작은 방 → 산책길 → 숲 → 별빛 언덕",
+    text: "올리는 계획이 커졌을 때 다시 시작할 수 있는 크기로 줄여주는 여정 파트너입니다.",
+    image: "assets/ollie-action.png",
+    alt: "목표 메이트 올리",
+  },
+};
 
 function applyExecutionTheme(themeName) {
   const theme = themes[themeName] || themes.buddy;
@@ -3832,7 +4862,7 @@ function applyExecutionTheme(themeName) {
   });
 
   if (executionCompanion) {
-    executionCompanion.src = theme.image;
+    setImageSource(executionCompanion, theme.image);
     executionCompanion.alt = theme.alt;
   }
   if (executionCompanionTitle) executionCompanionTitle.textContent = theme.title;
@@ -3878,7 +4908,177 @@ function initializeExecutionPage() {
   }
 }
 
+planOpenDetailButton?.addEventListener("click", () => {
+  setPlanScreen("detail");
+  trackCompanionEvent("plan_detail_opened");
+});
+
+planOpenEditorButton?.addEventListener("click", () => {
+  setPlanScreen("editor");
+  trackCompanionEvent("plan_editor_opened");
+});
+
+planBackButtons.forEach((button) => {
+  button.addEventListener("click", () => setPlanScreen("home"));
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape" || activePlanScreen === "home" || document.querySelector("#view-plan")?.hidden) return;
+  setPlanScreen("home");
+});
+
+scheduleModeButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    const bundle = getPlanBundle();
+    const dayPlan = bundle.schedule[bundle.state.selectedDay - 1] || bundle.schedule[0];
+    if (!dayPlan?.tasks.length) return;
+    const dayKey = String(dayPlan.day);
+    const nextMode = button.dataset.scheduleMode === "priority" ? "priority" : "time";
+    if (dayPlan.scheduleMode === nextMode) return;
+
+    bundle.state.scheduleModeByDay = {
+      ...(bundle.state.scheduleModeByDay || {}),
+      [dayKey]: nextMode,
+    };
+    if (nextMode === "priority" && !Array.isArray(bundle.state.taskOrderByDay?.[dayKey])) {
+      bundle.state.taskOrderByDay = {
+        ...(bundle.state.taskOrderByDay || {}),
+        [dayKey]: dayPlan.tasks.map((task) => task._taskKey),
+      };
+    }
+    savePlanBundleState(bundle.state);
+    renderExecutionPage(getPlanBundle());
+    showToast(nextMode === "priority" ? "우선순위 모드 · 길게 눌러 순서를 바꿀 수 있어요" : "시간순 모드 · 시작 시간을 직접 조정할 수 있어요");
+    trackCompanionEvent("today_schedule_mode_changed", { day: dayPlan.day, mode: nextMode });
+  });
+});
+
+function persistPriorityOrderFromDom({ focusTaskKey = "", announce = true } = {}) {
+  if (!executionChecklist) return;
+  const orderedKeys = [...executionChecklist.querySelectorAll(".task-row[data-task-key]")].map((row) => row.dataset.taskKey);
+  if (!orderedKeys.length) return;
+  const bundle = getPlanBundle();
+  const dayPlan = bundle.schedule[bundle.state.selectedDay - 1] || bundle.schedule[0];
+  const dayKey = String(dayPlan.day);
+  bundle.state.scheduleModeByDay = { ...(bundle.state.scheduleModeByDay || {}), [dayKey]: "priority" };
+  bundle.state.taskOrderByDay = { ...(bundle.state.taskOrderByDay || {}), [dayKey]: orderedKeys };
+  savePlanBundleState(bundle.state);
+  renderExecutionPage(getPlanBundle());
+  if (focusTaskKey) {
+    [...executionChecklist.querySelectorAll(".task-row")]
+      .find((row) => row.dataset.taskKey === focusTaskKey)
+      ?.querySelector(".task-drag-handle")
+      ?.focus();
+  }
+  if (announce) showToast("우선순위를 저장했어요 · 첫 번째 일정부터 시작해보세요");
+  trackCompanionEvent("today_schedule_reordered", { day: dayPlan.day, taskCount: orderedKeys.length });
+}
+
+let priorityDragState = null;
+
+function clearPriorityDragState({ restore = false } = {}) {
+  if (!priorityDragState) return;
+  window.clearTimeout(priorityDragState.timer);
+  priorityDragState.row?.classList.remove("is-dragging");
+  executionChecklist?.classList.remove("is-reordering");
+  const shouldRestore = restore && priorityDragState.active;
+  priorityDragState = null;
+  if (shouldRestore) renderExecutionPage(getPlanBundle());
+}
+
+executionChecklist?.addEventListener("pointerdown", (event) => {
+  if (executionChecklist.dataset.mode !== "priority" || event.button > 0) return;
+  const row = event.target.closest(".task-row");
+  if (!row) return;
+  const handle = event.target.closest(".task-drag-handle");
+  if (!handle && event.target.closest("input, button, select, textarea")) return;
+
+  clearPriorityDragState();
+  const activate = () => {
+    if (!priorityDragState) return;
+    priorityDragState.active = true;
+    row.classList.add("is-dragging");
+    executionChecklist.classList.add("is-reordering");
+    try {
+      row.setPointerCapture(event.pointerId);
+    } catch (error) {
+      // Pointer capture is an enhancement; reordering still works without it.
+    }
+    if (navigator.vibrate) navigator.vibrate(18);
+  };
+  priorityDragState = {
+    row,
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    active: false,
+    moved: false,
+    timer: window.setTimeout(activate, handle ? 0 : 460),
+  };
+});
+
+executionChecklist?.addEventListener("pointermove", (event) => {
+  const drag = priorityDragState;
+  if (!drag || drag.pointerId !== event.pointerId) return;
+  const distance = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY);
+  if (!drag.active) {
+    if (distance > 10) clearPriorityDragState();
+    return;
+  }
+
+  event.preventDefault();
+  const targetRow = document.elementFromPoint(event.clientX, event.clientY)?.closest(".task-row");
+  if (!targetRow || targetRow === drag.row || targetRow.parentElement !== executionChecklist) return;
+  const targetRect = targetRow.getBoundingClientRect();
+  if (event.clientY < targetRect.top + targetRect.height / 2) targetRow.before(drag.row);
+  else targetRow.after(drag.row);
+  drag.moved = true;
+});
+
+executionChecklist?.addEventListener("pointerup", (event) => {
+  const drag = priorityDragState;
+  if (!drag || drag.pointerId !== event.pointerId) return;
+  const shouldPersist = drag.active && drag.moved;
+  const focusTaskKey = drag.row.dataset.taskKey;
+  clearPriorityDragState();
+  if (shouldPersist) persistPriorityOrderFromDom({ focusTaskKey });
+});
+
+executionChecklist?.addEventListener("pointercancel", () => clearPriorityDragState({ restore: true }));
+executionChecklist?.addEventListener("contextmenu", (event) => {
+  if (executionChecklist.dataset.mode === "priority" && event.target.closest(".task-row")) event.preventDefault();
+});
+
+executionChecklist?.addEventListener("keydown", (event) => {
+  const handle = event.target.closest(".task-drag-handle");
+  if (!handle || !["ArrowUp", "ArrowDown"].includes(event.key)) return;
+  event.preventDefault();
+  const row = handle.closest(".task-row");
+  const sibling = event.key === "ArrowUp" ? row.previousElementSibling : row.nextElementSibling;
+  if (!sibling) return;
+  if (event.key === "ArrowUp") sibling.before(row);
+  else sibling.after(row);
+  persistPriorityOrderFromDom({ focusTaskKey: row.dataset.taskKey, announce: false });
+});
+
 executionChecklist?.addEventListener("change", (event) => {
+  const timeInput = event.target.closest("[data-task-time]");
+  if (timeInput) {
+    const bundle = getPlanBundle();
+    const dayPlan = bundle.schedule[bundle.state.selectedDay - 1] || bundle.schedule[0];
+    const dayKey = String(dayPlan.day);
+    bundle.state.taskTimeByDay = { ...(bundle.state.taskTimeByDay || {}) };
+    bundle.state.taskTimeByDay[dayKey] = {
+      ...(bundle.state.taskTimeByDay[dayKey] || {}),
+      [timeInput.dataset.taskTime]: timeInput.value,
+    };
+    savePlanBundleState(bundle.state);
+    renderExecutionPage(getPlanBundle());
+    showToast(timeInput.value ? `${timeInput.value}로 시간을 바꿨어요` : "시간을 비워두었어요 · 시간 미정으로 표시됩니다");
+    trackCompanionEvent("today_task_time_changed", { day: dayPlan.day, hasTime: Boolean(timeInput.value) });
+    return;
+  }
+
   if (!event.target.classList.contains("execution-check")) return;
 
   const bundle = getPlanBundle();
@@ -3887,17 +5087,18 @@ executionChecklist?.addEventListener("change", (event) => {
   const dayPlan = bundle.schedule[bundle.state.selectedDay - 1];
   const checked = bundle.state.checkedByDay[selectedDay] || Array(dayPlan.tasks.length).fill(false);
   const wasUnchecked = !checked[taskIndex];
-  checked[taskIndex] = event.target.checked;
-  bundle.state.checkedByDay[selectedDay] = checked;
+  setTaskCheckedState(bundle.state, dayPlan, taskIndex, event.target.checked);
+  const newlyRecorded = event.target.checked && wasUnchecked && recordTaskCompletion(bundle.state, dayPlan, taskIndex);
+  const completionBonus = event.target.checked && wasUnchecked ? claimDailyCompletionBonus(bundle.state, dayPlan) : 0;
   savePlanBundleState(bundle.state);
-  if (event.target.checked && wasUnchecked) {
-    recordTaskCompletion(bundle.state, dayPlan, taskIndex);
-    savePlanBundleState(bundle.state);
-    addCompanionXp(10, "happy");
+  if (newlyRecorded || completionBonus) {
+    addCompanionXp((newlyRecorded ? 10 : 0) + completionBonus, "happy");
     pulseCompanion();
     showOllieStarShower(dayPlan.tasks[taskIndex]?.text);
-    showToast("일정 하나를 완료했어요 · 올리의 별빛과 10 XP를 받았어요");
-    trackCompanionEvent("task_completed", { day: dayPlan.day, taskIndex });
+    showToast(`일정 하나를 완료했어요 · 올리가 ${(newlyRecorded ? 10 : 0) + completionBonus} XP를 받았어요`);
+    trackCompanionEvent("task_completed", { day: dayPlan.day, taskIndex, completionBonus });
+  } else if (event.target.checked && wasUnchecked) {
+    showToast("완료 상태를 다시 표시했어요 · XP는 중복 지급되지 않아요");
   }
   renderExecutionPage(bundle);
 });
@@ -3907,20 +5108,93 @@ completeTodayButton?.addEventListener("click", () => {
   const selectedDay = String(bundle.state.selectedDay);
   const dayPlan = bundle.schedule[bundle.state.selectedDay - 1];
   const current = bundle.state.checkedByDay[selectedDay] || [];
-  const newlyCompleted = dayPlan.tasks.filter((_, index) => !current[index]).length;
-  bundle.state.checkedByDay[selectedDay] = dayPlan.tasks.map(() => true);
+  let newlyCompleted = 0;
+  let restoredCompleted = 0;
   dayPlan.tasks.forEach((_, index) => {
-    if (!current[index]) recordTaskCompletion(bundle.state, dayPlan, index);
+    setTaskCheckedState(bundle.state, dayPlan, index, true);
+    if (!current[index]) {
+      if (recordTaskCompletion(bundle.state, dayPlan, index)) newlyCompleted += 1;
+      else restoredCompleted += 1;
+    }
   });
+  const completionBonus = claimDailyCompletionBonus(bundle.state, dayPlan);
   savePlanBundleState(bundle.state);
-  if (newlyCompleted > 0) {
-    addCompanionXp(newlyCompleted * 10 + 8, "happy");
+  if (newlyCompleted > 0 || completionBonus > 0) {
+    const xpEarned = newlyCompleted * 10 + completionBonus;
+    addCompanionXp(xpEarned, "happy");
     pulseCompanion();
     showOllieStarShower("오늘의 AI 스케줄");
-    showToast(`오늘 계획 완료 · 올리가 ${newlyCompleted * 10 + 8} XP를 얻었어요`);
-    trackCompanionEvent("all_day_completed", { day: dayPlan.day, newlyCompleted });
+    showToast(`오늘 계획 완료 · 올리가 ${xpEarned} XP를 얻었어요`);
+    trackCompanionEvent("all_day_completed", { day: dayPlan.day, newlyCompleted, completionBonus });
+  } else if (restoredCompleted > 0) {
+    showToast("오늘 계획의 완료 상태를 복원했어요 · XP는 중복 지급되지 않아요");
   }
   renderExecutionPage(bundle);
+});
+
+todayNotificationButton?.addEventListener("click", () => {
+  showToast("새 알림이 없어요 · 오늘 일정에 집중해볼까요?");
+});
+
+addTodayScheduleButton?.addEventListener("click", openAddSchedule);
+closeAddScheduleButton?.addEventListener("click", closeAddSchedule);
+addScheduleOverlay?.addEventListener("click", closeAddSchedule);
+
+addScheduleForm?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  if (addScheduleForm.dataset.submitting === "true") return;
+  if (!addScheduleForm.reportValidity()) return;
+
+  const bundle = getPlanBundle();
+  const dayKey = String(bundle.state.selectedDay);
+  const customTasksByDay = { ...(bundle.state.customTasksByDay || {}) };
+  const tasks = Array.isArray(customTasksByDay[dayKey]) ? [...customTasksByDay[dayKey]] : [];
+  const taskText = newScheduleName?.value.trim() || "";
+  const taskTime = newScheduleTime?.value || "";
+  if (!taskText) {
+    showToast("일정 제목을 입력해 주세요");
+    newScheduleName?.focus();
+    return;
+  }
+  const isDuplicate = tasks.some(
+    (task) => String(task.text || "").trim().toLocaleLowerCase("ko-KR") === taskText.toLocaleLowerCase("ko-KR") && String(task.time || "") === taskTime,
+  );
+  if (isDuplicate) {
+    showToast("같은 시간에 같은 일정이 이미 있어요 · 제목이나 시간을 바꿔 주세요");
+    newScheduleName?.focus();
+    return;
+  }
+  const newTask = {
+    id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    time: taskTime,
+    durationMinutes: Math.max(5, Number(newScheduleDuration?.value) || 20),
+    text: taskText,
+    completionRule: newScheduleMemo?.value.trim() || "정한 시간만큼 실행하면 완료",
+    custom: true,
+  };
+  addScheduleForm.dataset.submitting = "true";
+  const currentDayPlan = bundle.schedule[bundle.state.selectedDay - 1];
+  tasks.push(newTask);
+  customTasksByDay[dayKey] = tasks;
+  bundle.state.customTasksByDay = customTasksByDay;
+  bundle.state.checkedTaskKeysByDay = { ...(bundle.state.checkedTaskKeysByDay || {}) };
+  bundle.state.checkedTaskKeysByDay[dayKey] = {
+    ...(bundle.state.checkedTaskKeysByDay[dayKey] || {}),
+    [newTask.id]: false,
+  };
+  if (currentDayPlan.scheduleMode === "priority") {
+    bundle.state.taskOrderByDay = { ...(bundle.state.taskOrderByDay || {}) };
+    bundle.state.taskOrderByDay[dayKey] = [
+      ...(bundle.state.taskOrderByDay[dayKey] || currentDayPlan.tasks.map((task) => task._taskKey)),
+      newTask.id,
+    ];
+  }
+  savePlanBundleState(bundle.state);
+  closeAddSchedule();
+  addScheduleForm.reset();
+  renderExecutionPage(getPlanBundle());
+  showToast("오늘 일정에 새 항목을 추가했어요");
+  window.setTimeout(() => delete addScheduleForm.dataset.submitting, 0);
 });
 
 scheduleCalendar?.addEventListener("click", (event) => {
@@ -3975,6 +5249,15 @@ revisionChipButtons.forEach((button) => {
 });
 
 planRevisionRequest?.addEventListener("input", updateRevisionButtonState);
+revisionGoalType?.addEventListener("change", () => {
+  const goalText = readExecutionPlan()?.goal || "";
+  applyRevisionGoalProfile(revisionGoalType.value, goalText);
+  updateRevisionButtonState();
+});
+[...revisionDetailInputs, ...revisionDayInputs].forEach((input) => {
+  input.addEventListener("input", updateRevisionButtonState);
+  input.addEventListener("change", updateRevisionButtonState);
+});
 
 companionActionButtons.forEach((button) => {
   button.addEventListener("click", () => {
@@ -3987,10 +5270,17 @@ companionActionButtons.forEach((button) => {
 
     if (!actionText) return;
     const state = getCompanionState();
-    saveCompanionState({ ...state, energy: action === "hard" ? "tired" : action === "light" ? "normal" : "good", mood: "thinking" });
+    const todayKey = getTodayKey();
+    const shouldReward = state.lastEnergyCheckInDate !== todayKey;
+    saveCompanionState({
+      ...state,
+      energy: action === "hard" ? "tired" : action === "light" ? "normal" : "good",
+      mood: "thinking",
+      lastEnergyCheckInDate: todayKey,
+    });
     appendRevisionRequest(actionText, "좋아요. 올리가 그 요청을 기준으로 새 스케줄 제안을 준비할게요.");
-    addCompanionXp(2, "thinking");
-    trackCompanionEvent("energy_selected", { action });
+    if (shouldReward) addCompanionXp(2, "thinking");
+    trackCompanionEvent("energy_selected", { action, rewarded: shouldReward });
   });
 });
 
@@ -4005,19 +5295,6 @@ openEnergyChargeButton?.addEventListener("click", openEnergyCharge);
 warningChargeButton?.addEventListener("click", openEnergyCharge);
 closeEnergyChargeButton?.addEventListener("click", closeEnergyCharge);
 energyChargeOverlay?.addEventListener("click", closeEnergyCharge);
-
-energyPackButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    const amount = Number(button.dataset.energyPack) || 0;
-    if (!amount) return;
-    chargeOllieEnergy(amount);
-    trackCompanionEvent("energy_pack_purchased", { amount });
-    window.setTimeout(() => {
-      closeEnergyCharge();
-      showToast(`올리 에너지 +${amount} 충전 완료 · 올리와의 대화와 계획 조정에 사용할 수 있어요`);
-    }, 450);
-  });
-});
 
 touchCompanionButton?.addEventListener("click", () => {
   const state = getCompanionState();
@@ -4059,18 +5336,22 @@ energyButtons.forEach((button) => {
   button.addEventListener("click", () => {
     const energy = button.dataset.energy;
     const state = getCompanionState();
+    const todayKey = getTodayKey();
+    const shouldReward = state.lastEnergyCheckInDate !== todayKey;
     const copy = {
       good: { headline: "좋은 흐름이에요!", message: "좋아요. 지금 흐름이면 첫 번째 행동부터 바로 시작해도 괜찮겠어요." },
       normal: { headline: "무리하지 않아도 괜찮아요.", message: "보통인 날은 기준을 작게 잡으면 오래 갑니다." },
       tired: { headline: "지친 날은 줄이는 것도 실행이에요.", message: "지친 날은 하나만 남기고 나머지는 내일로 보내는 제안을 만들 수 있어요." },
     }[energy];
 
-    saveCompanionState({ ...state, energy, mood: energy === "tired" ? "caring" : "ready" });
+    saveCompanionState({ ...state, energy, mood: energy === "tired" ? "caring" : "ready", lastEnergyCheckInDate: todayKey });
     energyButtons.forEach((item) => item.classList.toggle("active", item === button));
     if (companionChatResponse) companionChatResponse.textContent = copy.message;
-    showOllieReaction(copy.message, copy.headline);
-    addCompanionXp(2, "ready");
-    trackCompanionEvent("chat_energy_selected", { energy });
+    if (companionMessage) companionMessage.textContent = copy.message;
+    if (companionMoodLine) companionMoodLine.textContent = copy.headline;
+    pulseCompanion();
+    if (shouldReward) addCompanionXp(2, "ready");
+    trackCompanionEvent("chat_energy_selected", { energy, rewarded: shouldReward });
   });
 });
 
@@ -4139,6 +5420,7 @@ sendCompanionMessage?.addEventListener("click", async () => {
   try {
     const { reply, headline } = await requestCompanionReply(message);
     if (companionChatResponse) companionChatResponse.textContent = reply;
+    if (memoryConversation) memoryConversation.textContent = reply;
     showOllieReaction(reply, headline || "올리의 대답이에요.");
     trackCompanionEvent("companion_dialogue", {
       user: message.slice(0, 160),
@@ -4163,25 +5445,6 @@ focusTimerPauseButton?.addEventListener("click", pauseFocusTimer);
 decreaseFocusTime?.addEventListener("click", () => adjustFocusMinutes(-5));
 increaseFocusTime?.addEventListener("click", () => adjustFocusMinutes(5));
 focusMinutesInput?.addEventListener("change", () => setFocusMinutes(focusMinutesInput.value));
-
-difficultyButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    const bundle = getPlanBundle();
-    const last = bundle.state.lastCompletion;
-    if (!last) return;
-    bundle.state.difficultyByTask[last.taskKey] = button.dataset.difficulty;
-    savePlanBundleState(bundle.state);
-    const copy = {
-      easy: "쉬웠던 과제는 다음에도 이 리듬을 유지할게요.",
-      okay: "적당했던 난이도를 기준으로 다음 계획을 맞출게요.",
-      hard: "어려웠던 과제는 더 작은 단위로 나누는 게 좋아요.",
-    }[button.dataset.difficulty];
-    showToast("난이도를 기록했어요 · 다음 변경안에 반영할 수 있어요");
-    if (companionMessage) companionMessage.textContent = copy;
-    trackCompanionEvent("task_difficulty_rated", { taskKey: last.taskKey, difficulty: button.dataset.difficulty });
-    renderExecutionPage(bundle);
-  });
-});
 
 recoveryButtons.forEach((button) => {
   button.addEventListener("click", () => {
@@ -4208,9 +5471,8 @@ recoveryButtons.forEach((button) => {
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && activeSheet) {
     event.preventDefault();
-    if (activeSheet === companionChatSheet) closeCompanionChat();
-    if (activeSheet === energyChargeSheet) closeEnergyCharge();
-    if (activeSheet === focusMode) closeFocusMode();
+    if (activeSheet === authSheet) closeAuthSheet();
+    else setSheetOpen(activeSheet, activeSheetOverlay, false);
   }
 
   if (event.key !== "Tab" || !activeSheet) return;
@@ -4237,21 +5499,28 @@ acceptPlanButton?.addEventListener("click", () => {
     reset: true,
     customText: current.state.pendingPlanText,
     revisionRequest: current.state.pendingRevisionRequest || planRevisionRequest?.value.trim() || "",
+    revisionDetails: Object.keys(current.state.pendingRevisionDetails || {}).length ? current.state.pendingRevisionDetails : collectRevisionDetails(),
+    weeklySchedule: current.state.pendingWeeklySchedule || [],
   });
   bundle.state.pendingPlanText = "";
   bundle.state.pendingRevisionRequest = "";
+  bundle.state.pendingRevisionDetails = {};
+  bundle.state.pendingRevisionSummary = {};
+  bundle.state.pendingWeeklySchedule = [];
   bundle.state.status = "적용 완료";
   savePlanBundleState(bundle.state);
   if (planEditorMessage) planEditorMessage.textContent = "변경안을 적용했어요. 오늘 일정도 함께 업데이트했습니다.";
   showToast("변경안을 적용했어요 · 완료한 일정은 그대로 보호했어요");
   renderExecutionPage(bundle);
+  setPlanScreen("home");
 });
 
 regeneratePlanButton?.addEventListener("click", async () => {
   const currentBundle = getPlanBundle();
   const baseText = planEditor?.value.trim() || currentBundle.state.planText || getDefaultPlanText(readExecutionPlan());
   const revisionRequest = planRevisionRequest?.value.trim() || "";
-  if (!revisionRequest) {
+  const revisionDetails = collectRevisionDetails();
+  if (!revisionRequest && !hasRevisionDetails(revisionDetails)) {
     updateRevisionButtonState();
     return;
   }
@@ -4265,7 +5534,13 @@ regeneratePlanButton?.addEventListener("click", async () => {
   regeneratePlanButton.disabled = true;
   regeneratePlanButton.textContent = "올리가 AI 변경안을 만들고 있어요…";
   if (planEditorMessage) planEditorMessage.textContent = "추억과 실행 기록을 읽고 목표에 맞는 변경안을 설계하고 있어요.";
-  trackCompanionEvent("ai_plan_revision_requested", { energy: 3, requestLength: revisionRequest.length });
+  trackCompanionEvent("ai_plan_revision_requested", {
+    energy: 3,
+    requestLength: revisionRequest.length,
+    goalType: revisionDetails.goalType,
+    hasResources: Boolean(revisionDetails.resources),
+    hasSchedule: Boolean(revisionDetails.schedule.weekdayMinutes || revisionDetails.schedule.weekendMinutes || revisionDetails.schedule.availableDays.length),
+  });
 
   try {
     const revision = await requestAiPlanRevision({
@@ -4280,21 +5555,31 @@ regeneratePlanButton?.addEventListener("click", async () => {
       },
       currentPlanText: baseText,
       revisionRequest,
+      revisionDetails,
       completedTasks: (currentBundle.state.completedLog || []).map((item) => item.text),
     });
 
     const revisedTasks = Array.isArray(revision.revisedTasks) ? revision.revisedTasks.map((task) => String(task).trim()).filter(Boolean) : [];
     if (revisedTasks.length < 3) throw new Error("AI 변경안의 실행 항목이 충분하지 않아요. 다시 시도해 주세요.");
+    if (!Array.isArray(revision.weeklySchedule) || revision.weeklySchedule.length !== 7) {
+      throw new Error("요일별 변경안을 모두 확인하지 못했어요. 다시 시도해 주세요.");
+    }
 
     const customText = revisedTasks.map((task) => `- ${task}`).join("\n");
     const bundle = getPlanBundle();
     bundle.state.pendingPlanText = customText;
     bundle.state.pendingRevisionRequest = revisionRequest;
+    bundle.state.pendingRevisionDetails = revisionDetails;
+    bundle.state.pendingRevisionSummary = revision.revisionSummary || {};
+    bundle.state.pendingWeeklySchedule = Array.isArray(revision.weeklySchedule) ? revision.weeklySchedule.slice(0, 7) : [];
     bundle.state.status = "AI 변경안 대기";
     savePlanBundleState(bundle.state);
     if (planEditorMessage) {
       const changes = Array.isArray(revision.changes) ? revision.changes.slice(0, 2).join(" · ") : "요청한 조건을 반영했어요.";
-      planEditorMessage.textContent = `${revision.ollieMessage || "올리가 AI 변경안을 만들었어요."} ${changes} 아직 적용 전이며, 아래에서 확인 후 승인할 수 있어요.`;
+      const assumptions = Array.isArray(revision.revisionSummary?.assumptions) && revision.revisionSummary.assumptions.length
+        ? ` 가정: ${revision.revisionSummary.assumptions.slice(0, 2).join(" · ")}`
+        : "";
+      planEditorMessage.textContent = `${revision.ollieMessage || "올리가 AI 변경안을 만들었어요."} ${changes}${assumptions} 아직 적용 전이며, 아래에서 확인 후 승인할 수 있어요.`;
     }
     showToast("AI 변경안이 준비됐어요 · 확인 후 적용하기를 눌러 주세요");
     trackCompanionEvent("ai_plan_revision_ready", { energy: 3, taskCount: revisedTasks.length });
@@ -4329,10 +5614,14 @@ keepPlanButton?.addEventListener("click", () => {
   const bundle = getPlanBundle();
   bundle.state.pendingPlanText = "";
   bundle.state.pendingRevisionRequest = "";
+  bundle.state.pendingRevisionDetails = {};
+  bundle.state.pendingRevisionSummary = {};
+  bundle.state.pendingWeeklySchedule = [];
   bundle.state.status = "기존 계획 유지";
   savePlanBundleState(bundle.state);
   if (planEditorMessage) planEditorMessage.textContent = "기존 계획을 유지했어요. 변경안은 적용하지 않았습니다.";
   renderExecutionPage(bundle);
+  setPlanScreen("home");
 });
 
 executionThemeButtons.forEach((button) => {
@@ -4341,4 +5630,12 @@ executionThemeButtons.forEach((button) => {
   });
 });
 
-initializeExecutionPage();
+accountExperienceReady
+  .then((ready) => {
+    if (ready) initializeExecutionPage();
+  })
+  .catch((error) => {
+    console.error("Unable to initialize the account experience", error);
+    document.documentElement.classList.remove("account-storage-pending");
+    initializeExecutionPage();
+  });

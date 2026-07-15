@@ -1,7 +1,15 @@
 import { createAiGoalPlan } from "./ai-goal-plan.mjs";
 import { createCompanionReply } from "./ai-companion-chat.mjs";
 import { createAiPlanRevision } from "./ai-plan-revision.mjs";
-import { handleAccountApi, parseCookies, createKvStore, currentSessionUser, renewDueSubscriptions } from "./auth-service.mjs";
+import {
+  handleAccountApi,
+  parseCookies,
+  createKvStore,
+  createLegalRetentionStore,
+  currentSessionUser,
+  renewDueSubscriptions,
+  purgeDueAccountDeletions,
+} from "./auth-service.mjs";
 
 function json(body, status = 200) {
   return Response.json(body, {
@@ -23,6 +31,35 @@ function accountResultToResponse(result) {
   }
   headers.set("Content-Type", "application/json; charset=utf-8");
   return new Response(JSON.stringify(result.json ?? {}), { status: result.status || 200, headers });
+}
+
+const CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "base-uri 'self'",
+  "object-src 'none'",
+  "frame-ancestors 'none'",
+  "form-action 'self'",
+  "script-src 'self' 'unsafe-inline' https://js.tosspayments.com",
+  "style-src 'self' 'unsafe-inline' https://fastly.jsdelivr.net",
+  "font-src 'self' data: https://fastly.jsdelivr.net",
+  "img-src 'self' data: https:",
+  "connect-src 'self' https://*.tosspayments.com",
+  "frame-src https://*.tosspayments.com",
+  "upgrade-insecure-requests",
+].join("; ");
+
+function secureResponse(response) {
+  const secured = new Response(response.body, response);
+  secured.headers.set("Content-Security-Policy", CONTENT_SECURITY_POLICY);
+  secured.headers.set("Referrer-Policy", "no-referrer");
+  secured.headers.set("X-Content-Type-Options", "nosniff");
+  secured.headers.set("X-Frame-Options", "DENY");
+  secured.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(self)");
+  secured.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  if (secured.headers.get("Content-Type")?.includes("text/html")) {
+    secured.headers.set("Cache-Control", "no-cache, no-store, must-revalidate");
+  }
+  return secured;
 }
 
 const FUNNEL_STEPS = new Set(["step1_enter", "step2_enter", "step3_enter", "step4_enter", "trial_start"]);
@@ -69,9 +106,17 @@ export async function createGoalPlanForUser({ input, env, userStore, user, gener
   return result;
 }
 
-export default {
-  async fetch(request, env) {
+async function handleFetch(request, env) {
     const url = new URL(request.url);
+
+    if (url.pathname.startsWith("/api/")) {
+      const origin = request.headers.get("origin");
+      const isAppleCallback = url.pathname === "/api/auth/callback/apple" && request.method === "POST";
+      const trustedApplePost = isAppleCallback && origin === "https://appleid.apple.com";
+      if (origin && origin !== url.origin && !trustedApplePost) return json({ error: "허용되지 않은 요청 출처입니다." }, 403);
+      if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: { Allow: "GET, POST, PUT, OPTIONS" } });
+    }
+
     const cookies = parseCookies(request.headers.get("cookie"));
     const accountContext = {
       method: request.method,
@@ -79,9 +124,25 @@ export default {
       secure: url.protocol === "https:",
       getCookie: (name) => cookies[name],
       readJson: () => request.json().catch(() => ({})),
+      readForm: async () => Object.fromEntries((await request.formData()).entries()),
       env,
       store: createKvStore(env.USERS_KV),
+      // 전용 binding이 구성되면 물리적으로 분리하고, 그 전에는 USERS_KV의 legal: namespace로 논리 분리한다.
+      legalStore: createLegalRetentionStore(env.LEGAL_RETENTION_KV || env.USERS_KV),
     };
+
+    if (url.pathname === "/api/health" && request.method === "GET") {
+      const billingConfigured = Boolean(env.TOSS_CLIENT_KEY && env.TOSS_SECRET_KEY);
+      return json({
+        ok: Boolean(env.USERS_KV),
+        environment: String(env.APP_ENV || "unknown"),
+        services: {
+          accountStorage: Boolean(env.USERS_KV),
+          ai: Boolean(env.OPENAI_API_KEY),
+          payments: billingConfigured && String(env.PAYMENTS_ENABLED || "").toLowerCase() === "true",
+        },
+      }, env.USERS_KV ? 200 : 503);
+    }
 
     if (url.pathname === "/admin.html" || url.pathname === "/admin") {
       if (!env.USERS_KV) return json({ error: "USERS_KV 바인딩이 필요합니다." }, 503);
@@ -98,7 +159,7 @@ export default {
       }
     }
 
-    if (url.pathname.startsWith("/api/auth/") || url.pathname.startsWith("/api/billing/") || url.pathname.startsWith("/api/admin/")) {
+    if (url.pathname.startsWith("/api/auth/") || url.pathname.startsWith("/api/account/") || url.pathname.startsWith("/api/billing/") || url.pathname.startsWith("/api/admin/")) {
       if (!env.USERS_KV && url.pathname !== "/api/auth/providers") return json({ error: "회원 저장소 설정이 필요합니다." }, 503);
       try {
         if (url.pathname === "/api/admin/login" && request.method === "POST" && env.AI_RATE_LIMITER) {
@@ -118,8 +179,13 @@ export default {
     if (url.pathname === "/api/ai/goal-plan") {
       if (request.method !== "POST") return json({ error: "POST 요청만 사용할 수 있어요." }, 405);
 
+      if (!env.USERS_KV) return json({ error: "회원 저장소 설정이 필요합니다." }, 503);
+      const userStore = createKvStore(env.USERS_KV);
+      const user = await currentSessionUser({ ...accountContext, store: userStore });
+      if (!user) return json({ error: "로그인 후 AI 기능을 이용할 수 있어요." }, 401);
+
       if (env.AI_RATE_LIMITER) {
-        const actor = request.headers.get("cf-connecting-ip") || "anonymous";
+        const actor = `${user.id}:${request.headers.get("cf-connecting-ip") || "unknown"}`;
         const { success } = await env.AI_RATE_LIMITER.limit({ key: `goal-plan:${actor}` });
         if (!success) return json({ error: "AI 요청이 잠시 많아요. 1분 후 다시 시도해 주세요." }, 429);
       }
@@ -129,8 +195,6 @@ export default {
 
       try {
         const input = await request.json();
-        const userStore = createKvStore(env.USERS_KV);
-        const user = await currentSessionUser({ ...accountContext, store: userStore });
         const result = await createGoalPlanForUser({ input, env, userStore, user });
         return json(result);
       } catch (error) {
@@ -143,8 +207,12 @@ export default {
     if (url.pathname === "/api/ai/companion-chat") {
       if (request.method !== "POST") return json({ error: "POST 요청만 사용할 수 있어요." }, 405);
 
+      if (!env.USERS_KV) return json({ error: "회원 저장소 설정이 필요합니다." }, 503);
+      const user = await currentSessionUser(accountContext);
+      if (!user) return json({ error: "로그인 후 AI 기능을 이용할 수 있어요." }, 401);
+
       if (env.AI_RATE_LIMITER) {
-        const actor = request.headers.get("cf-connecting-ip") || "anonymous";
+        const actor = `${user.id}:${request.headers.get("cf-connecting-ip") || "unknown"}`;
         const { success } = await env.AI_RATE_LIMITER.limit({ key: `companion-chat:${actor}` });
         if (!success) return json({ error: "올리가 잠시 바빠요. 1분 후 다시 말 걸어주세요." }, 429);
       }
@@ -161,15 +229,19 @@ export default {
         return json(result);
       } catch (error) {
         console.error("Companion chat request failed", error);
-        return json({ error: error.message || "올리의 답을 만들지 못했어요." }, error.status || 500);
+        return json({ error: error.message || "올리의 답을 만들지 못했어요.", code: error.code || undefined }, error.status || 500);
       }
     }
 
     if (url.pathname === "/api/ai/plan-revision") {
       if (request.method !== "POST") return json({ error: "POST 요청만 사용할 수 있어요." }, 405);
 
+      if (!env.USERS_KV) return json({ error: "회원 저장소 설정이 필요합니다." }, 503);
+      const user = await currentSessionUser(accountContext);
+      if (!user) return json({ error: "로그인 후 AI 기능을 이용할 수 있어요." }, 401);
+
       if (env.AI_RATE_LIMITER) {
-        const actor = request.headers.get("cf-connecting-ip") || "anonymous";
+        const actor = `${user.id}:${request.headers.get("cf-connecting-ip") || "unknown"}`;
         const { success } = await env.AI_RATE_LIMITER.limit({ key: `plan-revision:${actor}` });
         if (!success) return json({ error: "AI 수정 요청이 잠시 많아요. 1분 후 다시 시도해 주세요." }, 429);
       }
@@ -186,7 +258,7 @@ export default {
         return json(result);
       } catch (error) {
         console.error("AI plan revision request failed", error);
-        return json({ error: error.message || "AI 변경안을 만들지 못했어요." }, error.status || 500);
+        return json({ error: error.message || "AI 변경안을 만들지 못했어요.", code: error.code || undefined }, error.status || 500);
       }
     }
 
@@ -201,12 +273,39 @@ export default {
       return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
     }
 
+    if (url.pathname.startsWith("/api/")) {
+      return json({ error: "요청한 API 경로를 찾을 수 없어요." }, 404);
+    }
+
+    const staticEntries = new Map([
+      ["/", "/index.html"],
+      ["/app", "/app.html"],
+      ["/privacy", "/privacy.html"],
+      ["/terms", "/terms.html"],
+      ["/support", "/support.html"],
+      ["/delete-account", "/delete-account.html"],
+    ]);
+    if ((request.method === "GET" || request.method === "HEAD") && staticEntries.has(url.pathname)) {
+      const assetUrl = new URL(request.url);
+      assetUrl.pathname = staticEntries.get(url.pathname);
+      return env.ASSETS.fetch(new Request(assetUrl.toString(), request));
+    }
+
     return env.ASSETS.fetch(request);
+}
+
+export default {
+  async fetch(request, env) {
+    return secureResponse(await handleFetch(request, env));
   },
   async scheduled(_controller, env, ctx) {
     if (!env.USERS_KV) return;
+    const userStore = createKvStore(env.USERS_KV);
     ctx.waitUntil(
-      renewDueSubscriptions({ env, store: createKvStore(env.USERS_KV) }).then((result) => console.log("Subscription renewal completed", result)),
+      Promise.all([
+        renewDueSubscriptions({ env, store: userStore }).then((result) => console.log("Subscription renewal completed", result)),
+        purgeDueAccountDeletions({ store: userStore }).then((result) => console.log("Account deletion purge completed", result)),
+      ]),
     );
   },
 };

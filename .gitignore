@@ -5,3 +5,13 @@
 Thumbs.db
 .DS_Store
 tmp/dev-users.json
+tmp/dev-settings.json
+
+# Playwright dependencies and local QA artifacts
+node_modules/
+playwright-report/
+test-results/
+blob-report/
+debug.log
+.wrangler/preview-dry-run/
+.wrangler/production-dry-run/

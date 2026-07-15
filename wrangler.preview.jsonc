@@ -1,6 +1,5 @@
 {
-  "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "on-my-way-nonproduction",
+  "name": "on-my-way-pr-3",
   "main": "./worker.mjs",
   "compatibility_date": "2026-07-11",
   "workers_dev": true,
@@ -14,10 +13,10 @@
   },
   "vars": {
     "OPENAI_MODEL": "gpt-5.4-mini",
-    "APP_ENV": "preview",
     "ALLOW_DEV_LOGIN": "false",
     "ALLOW_DEMO_BILLING": "false",
-    "PAYMENTS_ENABLED": "false"
+    "PAYMENTS_ENABLED": "false",
+    "APP_ENV": "preview"
   },
   "kv_namespaces": [
     {

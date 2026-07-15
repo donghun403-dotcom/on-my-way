@@ -35,27 +35,27 @@
     <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin />
     <link rel="stylesheet" href="styles.css" />
   </head>
-  <body class="home-page">
+  <body class="home-page" data-page-view="home">
     <header class="site-header">
-      <a class="brand" href="/" aria-label="On My Way home">
+      <a class="brand" href="#top" aria-label="On My Way 홈">
         <img class="brand-logo" src="assets/logo-horizontal-ollie.png" alt="On My Way" />
       </a>
-      <button class="menu-button" type="button" aria-label="메뉴 열기" aria-expanded="false">
+      <button class="menu-button" type="button" aria-label="메뉴 열기" aria-expanded="false" aria-controls="mainNav">
         <span></span>
         <span></span>
         <span></span>
       </button>
-      <nav class="main-nav" aria-label="주요 메뉴">
-        <a href="#designFlow">목표 만들기</a>
+      <nav class="main-nav" id="mainNav" aria-label="주요 메뉴">
+        <a href="#top">처음으로</a>
         <a href="#appTour">앱 구경</a>
         <a href="#pricing">가격</a>
-        <a href="app.html">앱 실행</a>
-        <a class="nav-login-link" id="navLoginLink" href="app.html?auth=login">로그인</a>
+        <a href="#designFlow">1일 무료 체험</a>
+        <a class="nav-login-link" id="navLoginLink" href="app.html?auth=login&amp;return=%2F">로그인</a>
       </nav>
     </header>
 
     <main id="top">
-      <section class="hero section-band">
+      <section class="hero section-band" data-page-view="home">
         <div class="hero-copy">
           <article class="hero-poster">
             <div>
@@ -76,17 +76,16 @@
 
       </section>
 
-      <nav class="bottom-tabbar" aria-label="빠른 이동">
-        <a class="active" href="/" aria-label="홈" aria-current="page">⌂</a>
-        <a href="#designFlow" aria-label="설계">◈</a>
-        <a href="#pricing" aria-label="가격">₩</a>
-      </nav>
-
-      <section class="design-flow section-band story-flow" id="designFlow" aria-live="polite">
+      <section class="design-flow section-band story-flow" id="designFlow" data-page-view="trial" aria-live="polite" hidden>
         <div class="section-heading">
-          <p class="eyebrow">Start Your 1-Day Trial</p>
-          <h2>이제 내 목표로 직접 체험해보세요</h2>
-          <p>목표만 입력하면 결제정보 없이 24시간 동안 올리의 핵심 기능을 이용할 수 있어요.</p>
+          <p class="eyebrow">3 Steps · About 30 Seconds</p>
+          <h2>세 가지만 고르면 오늘 계획이 완성돼요</h2>
+          <p>정답은 없어요. 편하게 고르고 나중에 언제든 바꿀 수 있어요.</p>
+          <ul class="trial-trust-list" aria-label="무료 체험 안내">
+            <li><span aria-hidden="true">✓</span> 카드 등록 없음</li>
+            <li><span aria-hidden="true">✓</span> 자동 결제 없음</li>
+            <li><span aria-hidden="true">✓</span> 언제든 수정 가능</li>
+          </ul>
         </div>
         <div class="design-panel first-meeting-panel goal-builder-shell">
           <nav class="diagnosis-stepper" aria-label="목표 설정 단계">
@@ -98,14 +97,15 @@
           <form class="personality-form ollie-goal-card" id="personalityForm">
             <header class="builder-header">
               <div>
-                <p class="builder-kicker">Goal Builder</p>
-                <h3 id="diagnosisStepTitle" aria-live="polite">올리와 함께 첫 목표를 골라볼까요?</h3>
+                <p class="builder-kicker">한 번에 하나씩만 선택해요</p>
+                <h3 id="diagnosisStepTitle" aria-live="polite">무엇을 시작해볼까요?</h3>
               </div>
               <span id="diagnosisStepCount">1 / 3</span>
             </header>
             <div class="builder-progress" aria-hidden="true"><span id="diagnosisProgressBar" style="width: 33%"></span></div>
+            <p class="builder-reassurance"><span aria-hidden="true">✓</span> 지금 선택은 임시 설정이에요. 앱에서 편하게 다시 바꿀 수 있어요.</p>
 
-            <section class="diagnosis-step active" data-step-title="올리와 함께 첫 목표를 골라볼까요?">
+            <section class="diagnosis-step active" data-step-title="무엇을 시작해볼까요?">
               <div class="ollie-message compact-ollie-message">
                 <img class="mascot-art mascot-avatar" src="assets/ollie-thinking.png" alt="" />
                 <div>
@@ -131,10 +131,10 @@
               </div>
             </section>
 
-            <section class="diagnosis-step" data-step-title="내 생활에 맞는 실행 리듬을 찾아볼게요" hidden>
+            <section class="diagnosis-step" data-step-title="언제 하면 가장 편할까요?" hidden>
               <div class="builder-field-grid">
                 <label class="builder-field" for="goalPeriod">
-                  <span>목표 기간</span>
+                  <span>얼마 동안 해볼까요?</span>
                   <select id="goalPeriod" required>
                     <option value="7">7일 · 가볍게 시작</option>
                     <option value="14">14일 · 2주 도전</option>
@@ -145,7 +145,7 @@
                   </select>
                 </label>
                 <label class="builder-field" for="routineTime">
-                  <span>집중하기 좋은 시간</span>
+                  <span>언제 가장 여유롭나요?</span>
                   <select id="routineTime" required>
                     <option selected>아침</option>
                     <option>점심</option>
@@ -153,7 +153,10 @@
                     <option>자기 전</option>
                   </select>
                 </label>
-                <label class="builder-field builder-field-wide" for="routineReadiness">
+              </div>
+              <details class="optional-settings">
+                <summary><span>조금 더 맞춤 설정</span><small>선택</small></summary>
+                <label class="builder-field" for="routineReadiness">
                   <span>평소 실행 스타일</span>
                   <select id="routineReadiness" required>
                     <option>바로 실행하는 편이에요</option>
@@ -163,40 +166,43 @@
                     <option>시작해도 쉽게 중단돼요</option>
                   </select>
                 </label>
-              </div>
+              </details>
             </section>
 
-            <section class="diagnosis-step" data-step-title="나에게 맞는 응원 방식을 선택해요" hidden>
+            <section class="diagnosis-step" data-step-title="이대로 바로 시작할까요?" hidden>
               <div class="profile-intro refined-profile-intro">
-                <span>맞춤 입력 (선택)</span>
-                <p>건너뛰어도 돼요 — 나중에 입력하면 계획이 더 정교해져요.</p>
+                <span>필수 설정은 모두 끝났어요</span>
+                <p>아래 정보는 건너뛰어도 계획을 바로 만들 수 있어요.</p>
               </div>
-              <div class="personality-fields" aria-label="성향 분석 입력">
-                <label for="birthDate">생년월일<input id="birthDate" type="date" /></label>
-                <label for="birthTime">출생 시간<input id="birthTime" type="time" /></label>
-                <label for="birthPlace">출생지<input id="birthPlace" type="text" placeholder="예: 서울" /></label>
-                <label for="mbti">MBTI
-                  <select id="mbti">
-                    <option value="" selected>나중에 입력</option>
-                    <option>INTJ</option><option>INTP</option><option>ENTJ</option><option>ENTP</option>
-                    <option>INFJ</option><option>INFP</option><option>ENFJ</option><option>ENFP</option>
-                    <option>ISTJ</option><option>ISFJ</option><option>ESTJ</option><option>ESFJ</option>
-                    <option>ISTP</option><option>ISFP</option><option>ESTP</option><option>ESFP</option>
-                  </select>
-                </label>
-              </div>
-              <div class="privacy-note"><span aria-hidden="true">✓</span> 입력 내용은 목표 계획을 만드는 데만 사용됩니다.</div>
+              <details class="optional-settings personality-optional-settings">
+                <summary><span>성향 정보를 추가할게요</span><small>선택</small></summary>
+                <div class="personality-fields" aria-label="성향 분석 입력">
+                  <label for="birthDate">생년월일<input id="birthDate" type="date" /></label>
+                  <label for="birthTime">출생 시간<input id="birthTime" type="time" /></label>
+                  <label for="birthPlace">출생지<input id="birthPlace" type="text" placeholder="예: 서울" /></label>
+                  <label for="mbti">MBTI
+                    <select id="mbti">
+                      <option value="" selected>나중에 입력</option>
+                      <option>INTJ</option><option>INTP</option><option>ENTJ</option><option>ENTP</option>
+                      <option>INFJ</option><option>INFP</option><option>ENFJ</option><option>ENFP</option>
+                      <option>ISTJ</option><option>ISFJ</option><option>ESTJ</option><option>ESFJ</option>
+                      <option>ISTP</option><option>ISFP</option><option>ESTP</option><option>ESFP</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="privacy-note"><span aria-hidden="true">✓</span> 입력 내용은 목표 계획을 만드는 데만 사용됩니다.</div>
+              </details>
               <div class="trial-terms-note"><span aria-hidden="true">✓</span> 결제정보 없이 24시간 이용 · 자동 결제 없음 · 체험 종료 후 결제 전까지 이용 일시 중단</div>
             </section>
 
             <footer class="builder-actions">
               <button class="builder-back" type="button" id="diagnosisBackButton" hidden>이전</button>
               <button class="builder-next" type="button" id="diagnosisNextButton">다음 단계</button>
-              <button type="submit" id="aiPreviewButton" hidden>AI 맞춤 계획 만들고 1일 체험 준비</button>
+              <button type="submit" id="aiPreviewButton" hidden>이대로 1일 체험 시작하기</button>
             </footer>
           </form>
 
-          <aside class="analysis-card app-plan-preview" id="planPreviewPanel" tabindex="-1">
+          <aside class="analysis-card app-plan-preview" id="firstStep" aria-label="Your First Step" tabindex="-1">
             <div class="live-summary">
               <div class="summary-head">
                 <span>Live Preview</span>
@@ -210,12 +216,13 @@
               </dl>
               <div class="summary-progress"><span>설정 완성도</span><strong id="wizardProgressValue">25%</strong></div>
             </div>
+            <a class="first-step-back" href="#designFlow"><span aria-hidden="true">←</span> 목표 입력으로 돌아가기</a>
             <div class="preview-result-content">
               <div class="result-scroll-area">
                 <div class="analysis-header result-analysis-header">
                   <div>
                     <small>YOUR FIRST STEP</small>
-                    <span id="aiPreviewStatus">올리가 만든 오늘의 계획</span>
+                    <span id="aiPreviewStatus">오늘은 이것 하나면 충분해요</span>
                   </div>
                   <strong id="planningStyle">루틴 점검형</strong>
                 </div>
@@ -228,41 +235,43 @@
                   <strong id="previewAction">단어 40개 + LC 1세트</strong>
                   <p id="previewCompletionRule">작게 시작하고 완료 표시까지 남겨요.</p>
                 </article>
-                <article class="result-schedule-card" aria-labelledby="todayScheduleTitle">
-                  <div class="result-section-head"><span>DAY 1</span><strong id="todayScheduleTitle">오늘의 맞춤 스케줄</strong></div>
-                  <ol id="aiTodaySchedule" class="result-schedule-list">
-                    <li><time>아침</time><div><strong>첫 행동 시작하기</strong><small>15분 · 완료 체크 남기기</small></div></li>
-                  </ol>
-                </article>
-                <article class="tomorrow-card result-tomorrow-card">
-                  <span>다음 단계</span><strong id="aiPreviewTitle">이번 주에는 루틴을 고정합니다</strong>
-                </article>
-                <article class="result-week-card" aria-labelledby="weekPlanTitle">
-                  <div class="result-section-head"><span>FIRST 7 DAYS</span><strong id="weekPlanTitle">첫 주 실행 로드맵</strong></div>
-                  <ol id="aiVisibleWeekPlan" class="result-week-list">
-                    <li>같은 시간에 작은 행동 1개를 반복합니다.</li>
-                  </ol>
-                </article>
-                <article class="result-roadmap-card" aria-labelledby="roadmapTitle">
-                  <div class="result-section-head"><span>GOAL JOURNEY</span><strong id="roadmapTitle">목표까지 가는 방법</strong></div>
-                  <div id="aiGoalRoadmap" class="result-roadmap-list">
-                    <div><b>1단계</b><span><strong>실행 리듬 만들기</strong><small>작은 행동을 정해진 시간에 반복해요.</small></span></div>
+                <div class="result-inline-start" role="region" aria-label="오늘 계획 시작하기">
+                  <div><span>READY TO GO</span><strong>설명은 나중에 봐도 괜찮아요. 올리와 첫 일정부터 시작해요.</strong></div>
+                  <a id="trialStartInlineLink" href="app.html" aria-label="방금 만든 오늘의 맞춤 계획 바로 시작하기"><span>오늘 계획 바로 시작</span><b aria-hidden="true">→</b></a>
+                </div>
+                <details class="result-details-disclosure">
+                  <summary>
+                    <span><strong>내 계획 자세히 보기</strong><small>오늘 스케줄 · 첫 주 로드맵 · 맞춤 분석</small></span>
+                    <b aria-hidden="true">보기</b>
+                  </summary>
+                  <div class="result-details-content">
+                    <article class="result-schedule-card" aria-labelledby="todayScheduleTitle">
+                      <div class="result-section-head"><span>DAY 1</span><strong id="todayScheduleTitle">오늘의 맞춤 스케줄</strong></div>
+                      <ol id="aiTodaySchedule" class="result-schedule-list">
+                        <li><time>아침</time><div><strong>첫 행동 시작하기</strong><small>15분 · 완료 체크 남기기</small></div></li>
+                      </ol>
+                    </article>
+                    <article class="tomorrow-card result-tomorrow-card">
+                      <span>다음 단계</span><strong id="aiPreviewTitle">이번 주에는 루틴을 고정합니다</strong>
+                    </article>
+                    <article class="result-week-card" aria-labelledby="weekPlanTitle">
+                      <div class="result-section-head"><span>FIRST 7 DAYS</span><strong id="weekPlanTitle">첫 주 실행 로드맵</strong></div>
+                      <ol id="aiVisibleWeekPlan" class="result-week-list">
+                        <li>같은 시간에 작은 행동 1개를 반복합니다.</li>
+                      </ol>
+                    </article>
+                    <article class="result-roadmap-card" aria-labelledby="roadmapTitle">
+                      <div class="result-section-head"><span>GOAL JOURNEY</span><strong id="roadmapTitle">목표까지 가는 방법</strong></div>
+                      <div id="aiGoalRoadmap" class="result-roadmap-list">
+                        <div><b>1단계</b><span><strong>실행 리듬 만들기</strong><small>작은 행동을 정해진 시간에 반복해요.</small></span></div>
+                      </div>
+                    </article>
+                    <div class="analysis-grid compact-analysis result-insight-grid">
+                      <article><span>성향 요약</span><p id="manseProfile">생년월일시와 MBTI를 입력하면 AI가 목표 설계 관점으로 요약합니다.</p></article>
+                      <article><span>추천 방식</span><p id="mbtiProfile">목표 기간과 현재 상태에 맞는 실행 방식을 보여줍니다.</p></article>
+                    </div>
                   </div>
-                </article>
-                <div class="analysis-grid compact-analysis result-insight-grid">
-                  <article><span>성향 요약</span><p id="manseProfile">생년월일시와 MBTI를 입력하면 AI가 목표 설계 관점으로 요약합니다.</p></article>
-                  <article><span>추천 방식</span><p id="mbtiProfile">목표 기간과 현재 상태에 맞는 실행 방식을 보여줍니다.</p></article>
-                </div>
-              </div>
-              <div class="result-trial-cta">
-                <div>
-                  <span>1일 무료 체험이 시작됐어요</span>
-                  <strong>앱에서 오늘 계획을 실행해볼까요?</strong>
-                </div>
-                <a id="trialStartLink" href="app.html" aria-label="방금 만든 오늘의 맞춤 계획 시작하기">
-                  <span>오늘 계획 시작하기</span><b aria-hidden="true">→</b>
-                </a>
-                <p>방금 만든 계획과 올리가 앱에서 그대로 기다리고 있어요.</p>
+                </details>
               </div>
             </div>
             <ul id="aiPreviewList" class="hidden-preview-list"><li>평일에는 같은 시간에 작은 행동 1개를 반복합니다.</li></ul>
@@ -272,111 +281,7 @@
         </div>
       </section>
 
-      <section class="problem section-band">
-        <div class="section-heading">
-          <p class="eyebrow">Ollie Says, It’s Okay</p>
-          <h2>왜 목표는 늘 실패할까요?</h2>
-          <p class="problem-lead">의지가 약해서가 아니라, 시작이 어려운 순간에는 늘 이유가 있어요.</p>
-        </div>
-        <div class="problem-scene">
-          <div class="problem-ollie">
-            <span class="ollie-spark ollie-spark-one" aria-hidden="true">✦</span>
-            <span class="ollie-spark ollie-spark-two" aria-hidden="true">●</span>
-            <div class="ollie-portrait" aria-hidden="true">
-              <span class="ollie-orbit"></span>
-              <img class="mascot-art mascot-card" src="assets/ollie-comfort.png" alt="" />
-            </div>
-            <div class="ollie-talk">
-              <span>올리의 한마디</span>
-              <p>“그래서 많이 포기했구나.<br />이번엔 아주 작게 시작해보자.”</p>
-            </div>
-          </div>
-
-          <ol class="problem-reasons" aria-label="목표를 포기하게 되는 세 가지 이유">
-            <li>
-              <span class="reason-number">01</span>
-              <div>
-                <small>막막함</small>
-                <h3>오늘 무엇을 해야 하는지 모르겠어요.</h3>
-              </div>
-              <span class="reason-mark reason-mark-blue" aria-hidden="true">?</span>
-            </li>
-            <li>
-              <span class="reason-number">02</span>
-              <div>
-                <small>부담감</small>
-                <h3>계획이 너무 커서 며칠 못 가요.</h3>
-              </div>
-              <span class="reason-mark reason-mark-peach" aria-hidden="true">↗</span>
-            </li>
-            <li>
-              <span class="reason-number">03</span>
-              <div>
-                <small>자책</small>
-                <h3>하루 놓치면 그대로 포기하게 돼요.</h3>
-              </div>
-              <span class="reason-mark reason-mark-lilac" aria-hidden="true">…</span>
-            </li>
-          </ol>
-        </div>
-      </section>
-
-      <section class="product-pillars section-band" aria-label="On My Way 핵심 흐름">
-        <div class="section-heading">
-          <p class="eyebrow">Tiny Steps With Ollie</p>
-          <h2>On My Way는 다르게 시작합니다.</h2>
-          <p class="pillar-lead">거창한 계획 대신, 오늘의 작은 한 걸음부터 올리가 함께해요.</p>
-        </div>
-        <div class="pillar-garden">
-          <article class="pillar-card pillar-plan">
-            <span class="pillar-number">01</span>
-            <div class="pillar-copy">
-              <small>Plan</small>
-              <h3>오늘 할 딱 한 가지</h3>
-              <p>AI가 큰 목표를 지금 시작할 수 있는 작은 행동으로 바꿔요.</p>
-            </div>
-            <span class="pillar-symbol pillar-symbol-plan" aria-hidden="true">✦</span>
-          </article>
-
-          <article class="pillar-card pillar-do">
-            <span class="pillar-number">02</span>
-            <div class="pillar-copy">
-              <small>Do</small>
-              <h3>혼자가 아닌 시작</h3>
-              <p>망설이는 순간, 올리가 다정하게 첫걸음을 함께해요.</p>
-            </div>
-            <span class="pillar-symbol pillar-symbol-do" aria-hidden="true">→</span>
-          </article>
-
-          <div class="pillar-ollie" aria-label="올리가 작은 성장을 함께 응원합니다">
-            <span class="pillar-spark pillar-spark-one" aria-hidden="true">✦</span>
-            <span class="pillar-spark pillar-spark-two" aria-hidden="true">●</span>
-            <div class="pillar-ollie-halo" aria-hidden="true"></div>
-            <img class="mascot-art" src="assets/ollie-action.png" alt="" aria-hidden="true" />
-            <div class="pillar-ollie-bubble">
-              <span aria-hidden="true">♥</span>
-              <strong>오늘도 같이 가요!</strong>
-            </div>
-          </div>
-
-          <div class="pillar-promise">
-            <span>Start Tiny</span>
-            <strong>작아도 괜찮아요.<br />계속 가는 게 더 중요해요.</strong>
-          </div>
-
-          <article class="pillar-card pillar-grow">
-            <span class="pillar-number">03</span>
-            <div class="pillar-copy">
-              <small>Grow Together</small>
-              <h3>눈에 보이는 작은 성장</h3>
-              <p>매일의 성공이 차곡차곡 쌓여 어느새 목표에 가까워져요.</p>
-            </div>
-            <span class="pillar-symbol pillar-symbol-grow" aria-hidden="true">↗</span>
-          </article>
-        </div>
-      </section>
-
-      <section class="app-dashboard section-band" id="appTour">
+      <section class="app-dashboard section-band" id="appTour" data-page-view="app" hidden>
         <div class="section-heading">
           <p class="eyebrow">See It Before You Start</p>
           <h2>결제 전에, 올리와 보내는 하루를 먼저 구경하세요</h2>
@@ -397,7 +302,7 @@
                 <span class="feature-number">01 · TODAY</span>
                 <h3>AI가 목표를 쪼개<br />오늘의 스케줄로 만들어요</h3>
                 <p>목표와 기간만 넣으면 하루 단위 스케줄이 생겨요. 아침부터 마무리까지 시간 순서대로 하나씩 체크하면 돼요.</p>
-                <ul><li>시간대별 AI 스케줄 체크리스트</li><li>첫 일정부터 집중 타이머로 시작</li><li>난이도 피드백으로 다음 날 자동 조절</li></ul>
+                <ul><li>시간대별 AI 스케줄 체크리스트</li><li>첫 일정부터 집중 타이머로 시작</li><li>완료 기록으로 다음 날 계획 조절</li></ul>
               </div>
               <div class="feature-phone-card">
                 <div class="feature-phone-top">
@@ -483,7 +388,7 @@
         </div>
       </section>
 
-      <section class="pricing section-band" id="pricing">
+      <section class="pricing section-band" id="pricing" data-page-view="pricing" hidden>
         <div class="section-heading">
           <p class="eyebrow">Pricing</p>
           <h2>하루 써본 뒤, 계속할지 결정하세요</h2>
@@ -539,13 +444,13 @@
           <section class="energy-packs" aria-labelledby="energyPackTitle">
             <div>
               <span>Extra Energy</span>
-              <h3 id="energyPackTitle">이번 달에 조금 더 필요하다면</h3>
-              <p>구독 변경 없이 필요한 만큼만 추가할 수 있어요.</p>
+              <h3 id="energyPackTitle">추가 에너지는 준비 중이에요</h3>
+              <p>아래 구성은 출시 예정안이며, 현재는 실제 구매나 충전을 지원하지 않아요.</p>
             </div>
             <div class="energy-pack-grid">
-              <article><span>가볍게</span><strong>100 에너지</strong><b>990원</b></article>
-              <article class="recommended"><span>추천</span><strong>300 에너지</strong><b>1,990원</b></article>
-              <article><span>넉넉하게</span><strong>1,000 에너지</strong><b>4,900원</b></article>
+              <article><span>출시 예정</span><strong>100 에너지</strong><b>990원 예정</b></article>
+              <article class="recommended"><span>출시 예정</span><strong>300 에너지</strong><b>1,990원 예정</b></article>
+              <article><span>출시 예정</span><strong>1,000 에너지</strong><b>4,900원 예정</b></article>
             </div>
           </section>
 
@@ -561,7 +466,7 @@
         </div>
       </section>
 
-      <section class="final-cta section-band">
+      <section class="final-cta section-band" data-page-view="pricing" hidden>
         <img class="final-cta-mascot" src="assets/ollie-comfort.png" alt="" aria-hidden="true" />
         <div>
           <p class="eyebrow">Start</p>
@@ -579,15 +484,10 @@
       </div>
       <div class="footer-information">
         <p>작은 시작이 오래 이어지도록 돕는 목표 성장 앱</p>
+        <nav class="footer-legal-links" aria-label="법적 문서"><a href="/privacy">개인정보 처리방침</a><a href="/terms">이용약관</a><a href="/support">고객지원</a><a href="/delete-account">계정 탈퇴</a></nav>
         <small>© 2026 Olive&amp;Rich. All rights reserved. On My Way is a service of Olive&amp;Rich.</small>
       </div>
     </footer>
-
-    <a class="floating-payment-cta" href="#designFlow" aria-label="결제정보 없이 1일 무료 체험 시작하기">
-      <img src="assets/ollie-celebrate.png" alt="" aria-hidden="true" />
-      <span>1일 무료 체험</span>
-      <strong>카드 등록 없음</strong>
-    </a>
 
     <script src="script.js"></script>
   </body>
