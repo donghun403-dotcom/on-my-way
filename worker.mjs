@@ -114,7 +114,7 @@ async function handleFetch(request, env) {
       const isAppleCallback = url.pathname === "/api/auth/callback/apple" && request.method === "POST";
       const trustedApplePost = isAppleCallback && origin === "https://appleid.apple.com";
       if (origin && origin !== url.origin && !trustedApplePost) return json({ error: "허용되지 않은 요청 출처입니다." }, 403);
-      if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: { Allow: "GET, POST, OPTIONS" } });
+      if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: { Allow: "GET, POST, PUT, OPTIONS" } });
     }
 
     const cookies = parseCookies(request.headers.get("cookie"));
@@ -130,6 +130,19 @@ async function handleFetch(request, env) {
       // 전용 binding이 구성되면 물리적으로 분리하고, 그 전에는 USERS_KV의 legal: namespace로 논리 분리한다.
       legalStore: createLegalRetentionStore(env.LEGAL_RETENTION_KV || env.USERS_KV),
     };
+
+    if (url.pathname === "/api/health" && request.method === "GET") {
+      const billingConfigured = Boolean(env.TOSS_CLIENT_KEY && env.TOSS_SECRET_KEY);
+      return json({
+        ok: Boolean(env.USERS_KV),
+        environment: String(env.APP_ENV || "unknown"),
+        services: {
+          accountStorage: Boolean(env.USERS_KV),
+          ai: Boolean(env.OPENAI_API_KEY),
+          payments: billingConfigured && String(env.PAYMENTS_ENABLED || "").toLowerCase() === "true",
+        },
+      }, env.USERS_KV ? 200 : 503);
+    }
 
     if (url.pathname === "/admin.html" || url.pathname === "/admin") {
       if (!env.USERS_KV) return json({ error: "USERS_KV 바인딩이 필요합니다." }, 503);
@@ -216,7 +229,7 @@ async function handleFetch(request, env) {
         return json(result);
       } catch (error) {
         console.error("Companion chat request failed", error);
-        return json({ error: error.message || "올리의 답을 만들지 못했어요." }, error.status || 500);
+        return json({ error: error.message || "올리의 답을 만들지 못했어요.", code: error.code || undefined }, error.status || 500);
       }
     }
 
@@ -245,7 +258,7 @@ async function handleFetch(request, env) {
         return json(result);
       } catch (error) {
         console.error("AI plan revision request failed", error);
-        return json({ error: error.message || "AI 변경안을 만들지 못했어요." }, error.status || 500);
+        return json({ error: error.message || "AI 변경안을 만들지 못했어요.", code: error.code || undefined }, error.status || 500);
       }
     }
 

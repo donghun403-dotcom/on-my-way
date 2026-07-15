@@ -1,0 +1,66 @@
+name: Production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  validate-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    environment: production
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+
+      - name: Refuse non-main production deploys
+        run: test "$GITHUB_REF_NAME" = "main"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Check JavaScript syntax
+        shell: bash
+        run: |
+          while IFS= read -r -d '' file; do
+            node --check "$file"
+          done < <(find . -type f \( -name '*.js' -o -name '*.mjs' -o -name '*.cjs' \) -not -path './node_modules/*' -print0)
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium webkit
+
+      - name: Run release Playwright suite
+        run: npm run test:e2e -- --reporter=line
+
+      - name: Deploy production from main only
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: "4.81.0"
+          command: deploy --config wrangler.production.jsonc
+
+      - name: Verify production routes
+        shell: bash
+        run: |
+          curl --fail --silent --show-error https://onmyway.olivenrich.com/ >/dev/null
+          curl --fail --silent --show-error https://onmyway.olivenrich.com/api/auth/providers >/dev/null
+          curl --fail --silent --show-error https://onmyway.olivenrich.com/api/health > health.json
+          node -e "const h=require('./health.json'); if (!h.ok || !h.services.accountStorage || !h.services.ai) process.exit(1)"

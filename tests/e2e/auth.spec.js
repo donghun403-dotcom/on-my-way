@@ -26,6 +26,8 @@ async function waitForAccountScope(page, expectedScope) {
 
 async function mockAccountApi(page, state = { user: null, configured: true }) {
   await mockExternalAssets(page);
+  const syncedStates = new Map();
+  const revisions = new Map();
   await page.route("**/api/auth/providers", (route) => route.fulfill({
     status: 200,
     contentType: "application/json",
@@ -39,6 +41,25 @@ async function mockAccountApi(page, state = { user: null, configured: true }) {
   await page.route("**/api/auth/logout", (route) => {
     state.user = null;
     return route.fulfill({ status: 200, contentType: "application/json", body: '{"ok":true}' });
+  });
+  await page.route("**/api/account/state", async (route) => {
+    if (!state.user) return route.fulfill({ status: 401, contentType: "application/json", body: '{"error":"login required"}' });
+    const body = route.request().method() === "GET" ? null : route.request().postDataJSON();
+    if (body && body.userId !== state.user.id) {
+      return route.fulfill({ status: 409, contentType: "application/json", body: '{"error":"account changed","code":"ACCOUNT_CHANGED"}' });
+    }
+    const userId = body?.userId || state.user.id;
+    const syncedState = syncedStates.get(userId) || {};
+    const revision = revisions.get(userId) || 0;
+    if (route.request().method() === "GET") {
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ state: syncedState, revision, updatedAt: Date.now() }) });
+    }
+    if (Number(body.baseRevision || 0) !== revision) {
+      return route.fulfill({ status: 409, contentType: "application/json", body: JSON.stringify({ state: syncedState, revision, updatedAt: Date.now() }) });
+    }
+    syncedStates.set(userId, body.state || {});
+    revisions.set(userId, revision + 1);
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ revision: revision + 1, updatedAt: Date.now() }) });
   });
 }
 
@@ -127,6 +148,7 @@ test("첫 화면에서 연 로그인은 X, 배경, ESC로 취소하면 첫 화�
 
   const cancelLogin = async (cancel) => {
     await page.goto("/");
+    await page.getByRole("button", { name: "메뉴 열기" }).click();
     await page.getByRole("link", { name: "로그인" }).click();
     await expect(page.locator("#authSheet")).toBeVisible();
     await cancel();

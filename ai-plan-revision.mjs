@@ -1,3 +1,5 @@
+import { fetchAiResponse } from "./ai-request.mjs";
+
 const REVISION_SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -128,7 +130,7 @@ function extractOutputText(response) {
   return "";
 }
 
-export async function createAiPlanRevision(input, { apiKey, model = "gpt-5.4-mini", fetchImpl = fetch } = {}) {
+export async function createAiPlanRevision(input, { apiKey, model = "gpt-5.4-mini", fetchImpl = fetch, timeoutMs } = {}) {
   if (!apiKey) {
     const error = new Error("서버에 OPENAI_API_KEY가 설정되지 않았어요.");
     error.status = 503;
@@ -142,7 +144,7 @@ export async function createAiPlanRevision(input, { apiKey, model = "gpt-5.4-min
     throw error;
   }
 
-  const response = await fetchImpl("https://api.openai.com/v1/responses", {
+  const response = await fetchAiResponse("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -180,7 +182,7 @@ export async function createAiPlanRevision(input, { apiKey, model = "gpt-5.4-min
         },
       },
     }),
-  });
+  }, { fetchImpl, timeoutMs });
 
   const responseBody = await response.json().catch(() => ({}));
   if (!response.ok) {

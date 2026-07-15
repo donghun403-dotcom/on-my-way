@@ -202,7 +202,18 @@ const ACCOUNT_SCOPED_STORAGE_KEYS = [
   "omwFocusSession",
   "omwExecutionTheme",
 ];
+const SERVER_SYNC_STORAGE_KEYS = [
+  OLLIE_ENERGY_KEY,
+  "omwPersonalityProfile",
+  "omwExecutionPlan",
+  "omwExecutionState",
+  "omwCompanionState",
+  "omwCompanionEvents",
+  "omwExecutionTheme",
+];
 let activePlanScreen = "home";
+let accountSyncTimer = null;
+let accountSyncInFlight = false;
 
 function getAccountStorageScope(user) {
   if (user?.id) return `user:${user.id}`;
@@ -248,6 +259,116 @@ function restoreAccountSnapshot(snapshot) {
   Object.entries(snapshot).forEach(([key, value]) => {
     if (ACCOUNT_SCOPED_STORAGE_KEYS.includes(key) && typeof value === "string") localStorage.setItem(key, value);
   });
+}
+
+function captureServerSyncState() {
+  return Object.fromEntries(
+    SERVER_SYNC_STORAGE_KEYS.map((key) => [key, localStorage.getItem(key)]).filter(([, value]) => value !== null),
+  );
+}
+
+function accountSyncMetaKey(userId) {
+  return `onmyway:user:${userId}:sync-meta`;
+}
+
+function readAccountSyncMeta(userId) {
+  try {
+    const value = JSON.parse(localStorage.getItem(accountSyncMetaKey(userId)) || "null");
+    return value && typeof value === "object" ? value : { revision: 0, lastState: "{}" };
+  } catch {
+    return { revision: 0, lastState: "{}" };
+  }
+}
+
+function writeAccountSyncMeta(userId, revision, state) {
+  localStorage.setItem(accountSyncMetaKey(userId), JSON.stringify({
+    revision: Number(revision || 0),
+    lastState: JSON.stringify(state || {}),
+    syncedAt: Date.now(),
+  }));
+}
+
+function backupSyncConflict(userId, state) {
+  const key = `onmyway:user:${userId}:sync-conflict:${Date.now()}`;
+  localStorage.setItem(key, JSON.stringify(state));
+  return key;
+}
+
+function applyServerSyncState(userId, state) {
+  SERVER_SYNC_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
+  Object.entries(state || {}).forEach(([key, value]) => {
+    if (SERVER_SYNC_STORAGE_KEYS.includes(key) && typeof value === "string") localStorage.setItem(key, value);
+  });
+  const scope = `user:${userId}`;
+  localStorage.setItem(accountSnapshotKey(scope), JSON.stringify(captureAccountStorage()));
+}
+
+async function saveAccountStateToServer({ keepalive = false } = {}) {
+  const user = authUiState.user;
+  if (!user?.id || accountSyncInFlight) return;
+  const state = captureServerSyncState();
+  const serialized = JSON.stringify(state);
+  const meta = readAccountSyncMeta(user.id);
+  if (serialized === meta.lastState) return;
+  accountSyncInFlight = true;
+  try {
+    const response = await fetch("/api/account/state", {
+      method: "PUT",
+      credentials: "same-origin",
+      keepalive,
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        userId: user.id,
+        state,
+        baseRevision: meta.revision,
+        deviceId: localStorage.getItem(ANONYMOUS_DEVICE_KEY) || "",
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (response.status === 409 && data.code === "ACCOUNT_CHANGED") return;
+    if (response.status === 409) {
+      backupSyncConflict(user.id, state);
+      applyServerSyncState(user.id, data.state || {});
+      writeAccountSyncMeta(user.id, data.revision, data.state || {});
+      showToast("다른 기기의 최신 데이터를 불러왔어요. 이 기기의 충돌 사본도 안전하게 보관했어요.");
+      return;
+    }
+    if (!response.ok) throw new Error(data.error || "데이터를 동기화하지 못했어요.");
+    writeAccountSyncMeta(user.id, data.revision, state);
+  } catch (error) {
+    if (!keepalive) console.warn("Unable to sync account state", error);
+  } finally {
+    accountSyncInFlight = false;
+  }
+}
+
+async function initializeAccountStateSync() {
+  const user = authUiState.user;
+  if (!user?.id) return;
+  const response = await accountRequest("/api/account/state");
+  const serverState = response.state || {};
+  const serverRevision = Number(response.revision || 0);
+  const localState = captureServerSyncState();
+  const localSerialized = JSON.stringify(localState);
+  const meta = readAccountSyncMeta(user.id);
+
+  if (serverRevision === 0) {
+    writeAccountSyncMeta(user.id, 0, {});
+    if (Object.keys(localState).length) await saveAccountStateToServer();
+  } else if (meta.revision === serverRevision) {
+    if (localSerialized !== meta.lastState) await saveAccountStateToServer();
+  } else if (localSerialized === meta.lastState || !Object.keys(localState).length) {
+    applyServerSyncState(user.id, serverState);
+    writeAccountSyncMeta(user.id, serverRevision, serverState);
+  } else {
+    backupSyncConflict(user.id, localState);
+    applyServerSyncState(user.id, serverState);
+    writeAccountSyncMeta(user.id, serverRevision, serverState);
+    showToast("서버의 최신 데이터를 불러왔어요. 이 기기의 이전 사본도 보관했어요.");
+  }
+
+  window.clearInterval(accountSyncTimer);
+  accountSyncTimer = window.setInterval(() => saveAccountStateToServer(), 5000);
 }
 
 function switchAccountStorageScope(targetScope, { allowAnonymousMerge = false } = {}) {
@@ -886,10 +1007,14 @@ async function cancelProSubscription() {
 }
 
 async function logoutAccount() {
+  await saveAccountStateToServer();
+  window.clearInterval(accountSyncTimer);
+  const wasPro = authUiState.user?.plan === "pro";
   try {
     await accountRequest("/api/auth/logout", { method: "POST", body: "{}" });
   } catch {}
-  if (authUiState.user?.plan === "pro") {
+  authUiState.user = null;
+  if (wasPro) {
     try {
       localStorage.removeItem(TRIAL_ACCESS_KEY);
     } catch {}
@@ -988,6 +1113,15 @@ async function initAccountExperience() {
     return false;
   }
   authUiState.loaded = true;
+
+  if (authUiState.user) {
+    try {
+      await initializeAccountStateSync();
+    } catch (error) {
+      console.warn("Unable to initialize account sync", error);
+      showToast("서버 동기화를 시작하지 못했어요. 이 기기에는 계속 안전하게 저장됩니다.");
+    }
+  }
 
   syncServerPlanToLocal();
   renderAccountUi();

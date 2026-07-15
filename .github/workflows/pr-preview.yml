@@ -1,8 +1,6 @@
 name: PR Preview
 
 on:
-  push:
-    branches: ["codex/**"]
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened]
@@ -57,7 +55,7 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           wranglerVersion: "4.81.0"
-          command: deploy --config wrangler.preview.jsonc
+          command: deploy --config wrangler.preview.jsonc --name on-my-way-pr-${{ github.event.pull_request.number || 'manual' }}
 
       - name: Require a preview deployment URL
         env:

@@ -4,6 +4,9 @@
   "private": true,
   "scripts": {
     "test": "node --test *.test.mjs",
+    "deploy:production": "node scripts/deploy-production.cjs",
+    "deploy:preview": "wrangler deploy --config wrangler.preview.jsonc",
+    "deploy:nonproduction": "wrangler deploy --config wrangler.jsonc",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:debug": "playwright test --debug",

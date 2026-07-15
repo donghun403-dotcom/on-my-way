@@ -8,7 +8,7 @@ async function readWranglerConfig(name) {
 }
 
 test("Production과 Preview는 저장소 루트 자산에 SPA fallback을 적용한다", async () => {
-  for (const name of ["wrangler.jsonc", "wrangler.preview.jsonc"]) {
+  for (const name of ["wrangler.jsonc", "wrangler.preview.jsonc", "wrangler.production.jsonc"]) {
     const config = await readWranglerConfig(name);
     assert.equal(config.assets.directory, ".");
     assert.equal(config.assets.binding, "ASSETS");
@@ -16,6 +16,34 @@ test("Production과 Preview는 저장소 루트 자산에 SPA fallback을 적용
     assert.equal(config.assets.html_handling, "none");
     assert.equal(config.assets.not_found_handling, "single-page-application");
   }
+});
+
+test("운영 배포 설정만 사용자 도메인과 운영 환경을 소유한다", async () => {
+  const nonproduction = await readWranglerConfig("wrangler.jsonc");
+  const preview = await readWranglerConfig("wrangler.preview.jsonc");
+  const production = await readWranglerConfig("wrangler.production.jsonc");
+  assert.equal(nonproduction.vars.APP_ENV, "preview");
+  assert.equal(preview.vars.APP_ENV, "preview");
+  assert.equal(nonproduction.routes, undefined);
+  assert.equal(preview.routes, undefined);
+  assert.equal(production.vars.APP_ENV, "production");
+  assert.equal(production.routes[0].pattern, "onmyway.olivenrich.com");
+  assert.equal(production.vars.PAYMENTS_ENABLED, "false");
+});
+
+test("상태 점검 API는 비밀값 없이 운영 의존성 준비 여부를 반환한다", async () => {
+  const response = await worker.fetch(new Request("https://onmyway.olivenrich.com/api/health"), {
+    APP_ENV: "production",
+    USERS_KV: {},
+    OPENAI_API_KEY: "secret-ai-key",
+    TOSS_CLIENT_KEY: "client-key",
+    TOSS_SECRET_KEY: "secret-toss-key",
+    PAYMENTS_ENABLED: "false",
+  });
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.deepEqual(body.services, { accountStorage: true, ai: true, payments: false });
+  assert.equal(JSON.stringify(body).includes("secret"), false);
 });
 
 test("알 수 없는 API 경로는 SPA 자산으로 전달하지 않고 JSON 404를 반환한다", async () => {

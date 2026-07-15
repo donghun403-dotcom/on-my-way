@@ -11,6 +11,18 @@ const OAUTH_TRANSACTION_TTL_MS = 10 * 60 * 1000;
 const TRIAL_DURATION_MS = 24 * 60 * 60 * 1000;
 const ACCOUNT_DELETION_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
 const LEGAL_PAYMENT_RETENTION_MS = 5 * 365 * 24 * 60 * 60 * 1000;
+const PAYMENT_RETRY_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const MAX_PAYMENT_RETRIES = 3;
+const MAX_APP_STATE_BYTES = 250_000;
+const SYNCED_APP_STATE_KEYS = new Set([
+  "omwOllieEnergy",
+  "omwPersonalityProfile",
+  "omwExecutionPlan",
+  "omwExecutionState",
+  "omwCompanionState",
+  "omwCompanionEvents",
+  "omwExecutionTheme",
+]);
 
 const textEncoder = new TextEncoder();
 
@@ -80,6 +92,17 @@ function randomId(length = 24) {
   const bytes = new Uint8Array(length);
   crypto.getRandomValues(bytes);
   return base64UrlEncode(bytes).slice(0, length);
+}
+
+function normalizeSyncedAppState(input) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return null;
+  const state = {};
+  for (const [key, value] of Object.entries(input)) {
+    if (!SYNCED_APP_STATE_KEYS.has(key) || typeof value !== "string") continue;
+    state[key] = value;
+  }
+  if (textEncoder.encode(JSON.stringify(state)).byteLength > MAX_APP_STATE_BYTES) return null;
+  return state;
 }
 
 function constantTimeEqual(left, right) {
@@ -359,7 +382,9 @@ function demoBillingAllowed(env) {
 function billingConfig(env) {
   const clientKey = String(env.TOSS_CLIENT_KEY || "");
   const secretKey = String(env.TOSS_SECRET_KEY || "");
-  return { clientKey, secretKey, configured: Boolean(clientKey && secretKey) };
+  const configured = Boolean(clientKey && secretKey);
+  const enabled = configured && String(env.PAYMENTS_ENABLED || "").toLowerCase() === "true";
+  return { clientKey, secretKey, configured, enabled };
 }
 
 function addBillingMonth(value) {
@@ -397,9 +422,13 @@ async function ensureCustomerKey(ctx, user) {
   return user.customerKey;
 }
 
-async function chargeSubscription(env, user) {
-  const orderId = `omw_${Date.now()}_${randomId(10)}`;
+function createPaymentOrderId() {
+  return `omw_${Date.now()}_${randomId(10)}`;
+}
+
+async function chargeSubscription(env, user, { orderId = createPaymentOrderId(), fetcher = fetch } = {}) {
   return tossBillingRequest(env, `/v1/billing/${encodeURIComponent(user.billingKey)}`, {
+    fetcher,
     body: {
       customerKey: user.customerKey,
       amount: 2900,
@@ -409,6 +438,31 @@ async function chargeSubscription(env, user) {
       customerName: user.name || undefined,
     },
   });
+}
+
+async function recoverCompletedPayment(env, orderId, fetcher = fetch) {
+  if (!orderId) return null;
+  try {
+    const payment = await tossBillingRequest(env, `/v1/payments/orders/${encodeURIComponent(orderId)}`, { method: "GET", fetcher });
+    return ["DONE", "PARTIAL_CANCELED"].includes(payment.status) ? payment : null;
+  } catch {
+    return null;
+  }
+}
+
+function applySuccessfulPayment(user, payment, now) {
+  user.plan = "pro";
+  user.proSince = user.proSince || now;
+  user.subscriptionStatus = "active";
+  user.currentPeriodEnd = addBillingMonth(now);
+  user.lastPaymentKey = payment.paymentKey || null;
+  user.lastOrderId = payment.orderId || null;
+  user.lastPaymentAt = now;
+  user.paymentFailure = null;
+  user.paymentRetryCount = 0;
+  user.nextPaymentRetryAt = null;
+  user.pendingOrderId = null;
+  user.pendingRenewalOrderId = null;
 }
 
 function devLoginPage(provider, redirect) {
@@ -714,6 +768,57 @@ export async function handleAccountApi(ctx) {
     return { status: 200, json: { ok: true }, cookies: [cookie(SESSION_COOKIE, "", { maxAgeSeconds: 0, secure: ctx.secure })] };
   }
 
+  if (path === "/api/account/state" && method === "GET") {
+    const user = await currentSessionUser(ctx);
+    if (!user) return { status: 401, json: { error: "로그인 후 동기화할 수 있어요." } };
+    const record = typeof store(ctx).getAppState === "function" ? await store(ctx).getAppState(user.id) : null;
+    return {
+      status: 200,
+      json: {
+        state: record?.state || {},
+        revision: Number(record?.revision || 0),
+        updatedAt: Number(record?.updatedAt || 0),
+      },
+    };
+  }
+
+  if (path === "/api/account/state" && method === "PUT") {
+    const user = await currentSessionUser(ctx);
+    if (!user) return { status: 401, json: { error: "로그인 후 동기화할 수 있어요." } };
+    if (typeof store(ctx).getAppState !== "function" || typeof store(ctx).putAppState !== "function") {
+      return { status: 503, json: { error: "동기화 저장소가 준비되지 않았어요." } };
+    }
+    const body = await ctx.readJson();
+    if (String(body.userId || "") !== user.id) {
+      return { status: 409, json: { error: "로그인 계정이 변경되어 동기화를 중단했습니다.", code: "ACCOUNT_CHANGED" } };
+    }
+    const state = normalizeSyncedAppState(body.state);
+    if (!state) return { status: 413, json: { error: "동기화 데이터가 너무 크거나 올바르지 않아요." } };
+    const existing = await store(ctx).getAppState(user.id);
+    const serverRevision = Number(existing?.revision || 0);
+    const baseRevision = Math.max(0, Number(body.baseRevision || 0));
+    if (baseRevision !== serverRevision) {
+      return {
+        status: 409,
+        json: {
+          error: "다른 기기에서 데이터가 변경되었어요.",
+          state: existing?.state || {},
+          revision: serverRevision,
+          updatedAt: Number(existing?.updatedAt || 0),
+        },
+      };
+    }
+    const record = {
+      userId: user.id,
+      state,
+      revision: serverRevision + 1,
+      updatedAt: Date.now(),
+      deviceId: String(body.deviceId || "").slice(0, 80),
+    };
+    await store(ctx).putAppState(user.id, record);
+    return { status: 200, json: { revision: record.revision, updatedAt: record.updatedAt } };
+  }
+
   if (path === "/api/account/delete" && method === "POST") {
     const user = await currentSessionUser(ctx);
     if (!user) return { status: 401, json: { error: "로그인 후 계정을 삭제할 수 있어요." } };
@@ -770,6 +875,7 @@ export async function handleAccountApi(ctx) {
 
     await userStore.deleteIdentitiesByUserId(user.id);
     await userStore.deleteSessionsByUserId(user.id);
+    if (typeof userStore.deleteAppState === "function") await userStore.deleteAppState(user.id);
     await userStore.putUser({
       id: user.id,
       status: "deletion_pending",
@@ -836,7 +942,7 @@ export async function handleAccountApi(ctx) {
     if (!user) return { status: 401, json: { error: "로그인 후 이용할 수 있어요." } };
     const config = billingConfig(ctx.env);
     const customerKey = await ensureCustomerKey(ctx, user);
-    return { status: 200, json: { configured: config.configured, clientKey: config.configured ? config.clientKey : null, customerKey, demo: demoBillingAllowed(ctx.env) } };
+    return { status: 200, json: { configured: config.enabled, clientKey: config.enabled ? config.clientKey : null, customerKey, demo: demoBillingAllowed(ctx.env) } };
   }
 
   if (path === "/api/billing/activate" && method === "POST") {
@@ -846,27 +952,33 @@ export async function handleAccountApi(ctx) {
     const authKey = String(body.authKey || "");
     const customerKey = String(body.customerKey || "");
     if (!authKey || !customerKey || customerKey !== user.customerKey) return { status: 400, json: { error: "자동결제 인증 정보가 올바르지 않습니다." } };
+    if (!billingConfig(ctx.env).enabled) return { status: 503, json: { error: "결제 운영 승인이 완료되지 않았습니다." } };
     if (user.subscriptionStatus === "active" && user.billingKey) return { status: 200, json: { user: publicUser(user), alreadyActive: true } };
 
-    const issued = await tossBillingRequest(ctx.env, "/v1/billing/authorizations/issue", { body: { authKey, customerKey } });
-    user.billingKey = issued.billingKey;
+    if (!user.billingKey) {
+      const issued = await tossBillingRequest(ctx.env, "/v1/billing/authorizations/issue", {
+        body: { authKey, customerKey },
+        fetcher: ctx.fetcher || fetch,
+      });
+      user.billingKey = issued.billingKey;
+    }
+    user.pendingOrderId = user.pendingOrderId || createPaymentOrderId();
     user.subscriptionStatus = "pending";
     await store(ctx).putUser(user);
 
     try {
-      const payment = await chargeSubscription(ctx.env, user);
+      const payment = await chargeSubscription(ctx.env, user, { orderId: user.pendingOrderId, fetcher: ctx.fetcher || fetch });
       const now = Date.now();
-      user.plan = "pro";
-      user.proSince = user.proSince || now;
-      user.subscriptionStatus = "active";
-      user.currentPeriodEnd = addBillingMonth(now);
-      user.lastPaymentKey = payment.paymentKey || null;
-      user.lastOrderId = payment.orderId || null;
-      user.lastPaymentAt = now;
-      user.paymentFailure = null;
+      applySuccessfulPayment(user, payment, now);
       await store(ctx).putUser(user);
       return { status: 200, json: { user: publicUser(user) } };
     } catch (error) {
+      const recovered = await recoverCompletedPayment(ctx.env, user.pendingOrderId, ctx.fetcher || fetch);
+      if (recovered) {
+        applySuccessfulPayment(user, recovered, Date.now());
+        await store(ctx).putUser(user);
+        return { status: 200, json: { user: publicUser(user), recovered: true } };
+      }
       user.subscriptionStatus = "payment_failed";
       user.paymentFailure = { code: error.code || "BILLING_ERROR", at: Date.now() };
       await store(ctx).putUser(user);
@@ -877,8 +989,15 @@ export async function handleAccountApi(ctx) {
   if (path === "/api/billing/cancel" && method === "POST") {
     const user = await currentSessionUser(ctx);
     if (!user) return { status: 401, json: { error: "로그인 후 이용할 수 있어요." } };
-    if (user.billingKey && billingConfig(ctx.env).configured) {
-      await tossBillingRequest(ctx.env, `/v1/billing/${encodeURIComponent(user.billingKey)}`, { method: "DELETE" }).catch(() => null);
+    if (user.billingKey && !billingConfig(ctx.env).configured) {
+      return { status: 503, json: { error: "결제사 해지 설정을 확인할 수 없어 구독 상태를 유지했습니다." } };
+    }
+    if (user.billingKey) {
+      try {
+        await tossBillingRequest(ctx.env, `/v1/billing/${encodeURIComponent(user.billingKey)}`, { method: "DELETE", fetcher: ctx.fetcher || fetch });
+      } catch {
+        return { status: 502, json: { error: "결제사에서 해지를 확인하지 못해 구독 상태를 유지했습니다. 잠시 후 다시 시도해 주세요." } };
+      }
     }
     user.billingKey = null;
     user.subscriptionStatus = "canceled";
@@ -907,8 +1026,15 @@ export async function handleAccountApi(ctx) {
       target.proSince = Date.now();
       target.subscriptionStatus = target.billingKey ? "active" : "complimentary";
     } else if (body.plan === "trial") {
-      if (target.billingKey && billingConfig(ctx.env).configured) {
-        await tossBillingRequest(ctx.env, `/v1/billing/${encodeURIComponent(target.billingKey)}`, { method: "DELETE" }).catch(() => null);
+      if (target.billingKey && !billingConfig(ctx.env).configured) {
+        return { status: 503, json: { error: "결제사 해지 설정을 확인할 수 없어 회원 구독을 유지했습니다." } };
+      }
+      if (target.billingKey) {
+        try {
+          await tossBillingRequest(ctx.env, `/v1/billing/${encodeURIComponent(target.billingKey)}`, { method: "DELETE", fetcher: ctx.fetcher || fetch });
+        } catch {
+          return { status: 502, json: { error: "결제사 해지를 확인하지 못해 회원 구독을 유지했습니다." } };
+        }
       }
       target.plan = "trial";
       target.proSince = null;
@@ -928,12 +1054,13 @@ export async function handleAccountApi(ctx) {
   return null;
 }
 
-export async function renewDueSubscriptions({ env, store: userStore, now = Date.now() }) {
-  const canCharge = billingConfig(env).configured;
+export async function renewDueSubscriptions({ env, store: userStore, now = Date.now(), fetcher = fetch }) {
+  const canCharge = billingConfig(env).enabled;
   const users = await userStore.listUsers();
   let processed = 0;
   let renewed = 0;
   let failed = 0;
+  let retrying = 0;
   for (const user of users) {
     if (user.subscriptionStatus === "canceled" && user.plan === "pro" && Number(user.currentPeriodEnd || 0) <= now) {
       user.plan = "trial";
@@ -942,26 +1069,41 @@ export async function renewDueSubscriptions({ env, store: userStore, now = Date.
       continue;
     }
     if (!canCharge) continue;
-    if (user.subscriptionStatus !== "active" || !user.billingKey || Number(user.currentPeriodEnd || 0) > now) continue;
+    if (!["active", "past_due"].includes(user.subscriptionStatus) || !user.billingKey) continue;
+    if (user.subscriptionStatus === "active" && Number(user.currentPeriodEnd || 0) > now) continue;
+    if (user.subscriptionStatus === "past_due" && Number(user.nextPaymentRetryAt || 0) > now) continue;
     processed += 1;
+    user.pendingRenewalOrderId = user.pendingRenewalOrderId || createPaymentOrderId();
+    await userStore.putUser(user);
     try {
-      const payment = await chargeSubscription(env, user);
-      user.plan = "pro";
-      user.currentPeriodEnd = addBillingMonth(now);
-      user.lastPaymentKey = payment.paymentKey || null;
-      user.lastOrderId = payment.orderId || null;
-      user.lastPaymentAt = now;
-      user.paymentFailure = null;
+      const payment = await chargeSubscription(env, user, { orderId: user.pendingRenewalOrderId, fetcher });
+      applySuccessfulPayment(user, payment, now);
       renewed += 1;
     } catch (error) {
-      user.subscriptionStatus = "payment_failed";
-      user.plan = "trial";
-      user.paymentFailure = { code: error.code || "BILLING_ERROR", at: now };
-      failed += 1;
+      const recovered = await recoverCompletedPayment(env, user.pendingRenewalOrderId, fetcher);
+      if (recovered) {
+        applySuccessfulPayment(user, recovered, now);
+        renewed += 1;
+      } else {
+        const retryCount = Number(user.paymentRetryCount || 0) + 1;
+        user.paymentRetryCount = retryCount;
+        user.paymentFailure = { code: error.code || "BILLING_ERROR", at: now };
+        if (retryCount >= MAX_PAYMENT_RETRIES) {
+          user.subscriptionStatus = "payment_failed";
+          user.plan = "trial";
+          user.nextPaymentRetryAt = null;
+          failed += 1;
+        } else {
+          user.subscriptionStatus = "past_due";
+          user.plan = "pro";
+          user.nextPaymentRetryAt = now + PAYMENT_RETRY_INTERVAL_MS;
+          retrying += 1;
+        }
+      }
     }
     await userStore.putUser(user);
   }
-  return { processed, renewed, failed };
+  return { processed, renewed, failed, retrying };
 }
 
 export async function purgeDueAccountDeletions({ store: userStore, now = Date.now() }) {
@@ -971,6 +1113,7 @@ export async function purgeDueAccountDeletions({ store: userStore, now = Date.no
     if (user.status !== "deletion_pending" || Number(user.deletionScheduledAt || 0) > now) continue;
     if (typeof userStore.deleteIdentitiesByUserId === "function") await userStore.deleteIdentitiesByUserId(user.id);
     if (typeof userStore.deleteSessionsByUserId === "function") await userStore.deleteSessionsByUserId(user.id);
+    if (typeof userStore.deleteAppState === "function") await userStore.deleteAppState(user.id);
     if (typeof userStore.deleteUser === "function") await userStore.deleteUser(user.id);
     purged += 1;
   }
@@ -994,6 +1137,7 @@ const memorySettings = new Map();
 const memoryIdentities = new Map();
 const memorySessions = new Map();
 const memoryOAuthTransactions = new Map();
+const memoryAppStates = new Map();
 
 function identityStorageKey(provider, providerUserId) {
   return `identity:${provider}:${encodeURIComponent(providerUserId)}`;
@@ -1013,6 +1157,15 @@ export function createKvStore(kv) {
       },
       async deleteUser(id) {
         memoryUsers.delete(id);
+      },
+      async getAppState(userId) {
+        return memoryAppStates.get(userId) || null;
+      },
+      async putAppState(userId, record) {
+        memoryAppStates.set(userId, record);
+      },
+      async deleteAppState(userId) {
+        memoryAppStates.delete(userId);
       },
       async getIdentity(provider, providerUserId) {
         return memoryIdentities.get(identityStorageKey(provider, providerUserId)) || null;
@@ -1074,6 +1227,15 @@ export function createKvStore(kv) {
     },
     async deleteUser(id) {
       await kv.delete(`user:${id}`);
+    },
+    async getAppState(userId) {
+      return kv.get(`appstate:${userId}`, "json");
+    },
+    async putAppState(userId, record) {
+      await kv.put(`appstate:${userId}`, JSON.stringify(record));
+    },
+    async deleteAppState(userId) {
+      await kv.delete(`appstate:${userId}`);
     },
     async getIdentity(provider, providerUserId) {
       return kv.get(identityStorageKey(provider, providerUserId), "json");

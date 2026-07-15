@@ -17,16 +17,21 @@ function memoryStore(seed = []) {
   const identities = new Map();
   const sessions = new Map();
   const oauth = new Map();
+  const appStates = new Map();
   return {
     users,
     settings,
     identities,
     sessions,
     oauth,
+    appStates,
     async getUser(id) { return users.get(id) || null; },
     async putUser(user) { users.set(user.id, user); },
     async listUsers() { return [...users.values()]; },
     async deleteUser(id) { users.delete(id); },
+    async getAppState(userId) { return appStates.get(userId) || null; },
+    async putAppState(userId, record) { appStates.set(userId, record); },
+    async deleteAppState(userId) { appStates.delete(userId); },
     async getIdentity(provider, providerUserId) { return identities.get(`${provider}:${providerUserId}`) || null; },
     async putIdentity(identity) { identities.set(`${identity.provider}:${identity.providerUserId}`, identity); },
     async deleteIdentitiesByUserId(userId) {
@@ -478,6 +483,102 @@ test("해지된 구독은 결제 기간 종료 후 체험 상태로 내려간다
   assert.equal(store.users.get(user.id).plan, "trial");
 });
 
+test("운영 승인 스위치가 꺼져 있으면 결제 키가 있어도 결제창을 열지 않는다", async () => {
+  const env = testEnv({ ALLOW_DEV_LOGIN: "true", TOSS_CLIENT_KEY: "test_ck", TOSS_SECRET_KEY: "test_sk" });
+  const store = memoryStore();
+  const login = await handleAccountApi(context({ path: "/api/auth/dev-login", method: "POST", env, store, body: { provider: "google", name: "회원" } }));
+  const result = await handleAccountApi(context({ path: "/api/billing/config", env, store, cookie: login.cookies[0] }));
+  assert.equal(result.json.configured, false);
+  assert.equal(result.json.clientKey, null);
+});
+
+test("첫 결제 응답이 유실돼도 주문 조회로 복구하고 다시 청구하지 않는다", async () => {
+  const env = testEnv({
+    ALLOW_DEV_LOGIN: "true",
+    TOSS_CLIENT_KEY: "test_ck",
+    TOSS_SECRET_KEY: "test_sk",
+    PAYMENTS_ENABLED: "true",
+  });
+  const store = memoryStore();
+  const login = await handleAccountApi(context({ path: "/api/auth/dev-login", method: "POST", env, store, body: { provider: "google", name: "결제회원" } }));
+  const cookie = login.cookies[0];
+  const config = await handleAccountApi(context({ path: "/api/billing/config", env, store, cookie }));
+  let charges = 0;
+  const fetcher = async (url, options) => {
+    if (url.includes("/authorizations/issue")) return Response.json({ billingKey: "billing-key" });
+    if (url.includes("/v1/billing/")) {
+      charges += 1;
+      return Response.json({ code: "TEMPORARY_ERROR", message: "timeout" }, { status: 500 });
+    }
+    const orderId = decodeURIComponent(url.split("/").at(-1));
+    return Response.json({ status: "DONE", paymentKey: "payment-key", orderId });
+  };
+  const activated = await handleAccountApi(context({
+    path: "/api/billing/activate",
+    method: "POST",
+    env,
+    store,
+    cookie,
+    fetcher,
+    body: { authKey: "auth-key", customerKey: config.json.customerKey },
+  }));
+  assert.equal(activated.status, 200);
+  assert.equal(activated.json.recovered, true);
+  assert.equal(activated.json.user.plan, "pro");
+  assert.equal(charges, 1);
+  assert.equal((await store.getUser(login.json.user.id)).pendingOrderId, null);
+});
+
+test("갱신 실패는 같은 주문으로 하루 간격 재시도하고 세 번째 실패 후 중단한다", async () => {
+  const now = Date.now();
+  const user = {
+    id: "google:retry",
+    plan: "pro",
+    subscriptionStatus: "active",
+    currentPeriodEnd: now - 1,
+    billingKey: "billing-key",
+    customerKey: "customer-key",
+  };
+  const store = memoryStore([user]);
+  const env = testEnv({ TOSS_CLIENT_KEY: "test_ck", TOSS_SECRET_KEY: "test_sk", PAYMENTS_ENABLED: "true" });
+  const orderIds = [];
+  const fetcher = async (url, options) => {
+    if (url.includes("/v1/billing/")) orderIds.push(JSON.parse(options.body).orderId);
+    return Response.json({ code: "TEMPORARY_ERROR", message: "failed" }, { status: url.includes("/payments/orders/") ? 404 : 500 });
+  };
+
+  const first = await renewDueSubscriptions({ env, store, now, fetcher });
+  assert.equal(first.retrying, 1);
+  assert.equal(user.subscriptionStatus, "past_due");
+  assert.equal(user.plan, "pro");
+  await renewDueSubscriptions({ env, store, now: now + 24 * 60 * 60 * 1000, fetcher });
+  const third = await renewDueSubscriptions({ env, store, now: now + 2 * 24 * 60 * 60 * 1000, fetcher });
+  assert.equal(third.failed, 1);
+  assert.equal(user.subscriptionStatus, "payment_failed");
+  assert.equal(user.plan, "trial");
+  assert.equal(new Set(orderIds).size, 1);
+});
+
+test("결제사 해지를 확인하지 못하면 빌링키와 구독 상태를 보존한다", async () => {
+  const env = testEnv({ ALLOW_DEV_LOGIN: "true", TOSS_CLIENT_KEY: "test_ck", TOSS_SECRET_KEY: "test_sk" });
+  const store = memoryStore();
+  const login = await handleAccountApi(context({ path: "/api/auth/dev-login", method: "POST", env, store, body: { provider: "google", name: "해지회원" } }));
+  const user = await store.getUser(login.json.user.id);
+  Object.assign(user, { plan: "pro", billingKey: "billing-key", subscriptionStatus: "active" });
+  await store.putUser(user);
+  const result = await handleAccountApi(context({
+    path: "/api/billing/cancel",
+    method: "POST",
+    env,
+    store,
+    cookie: login.cookies[0],
+    fetcher: async () => Response.json({ code: "FAIL", message: "failed" }, { status: 500 }),
+  }));
+  assert.equal(result.status, 502);
+  assert.equal((await store.getUser(user.id)).billingKey, "billing-key");
+  assert.equal((await store.getUser(user.id)).subscriptionStatus, "active");
+});
+
 test("계정 탈퇴는 인증과 정확한 확인 문구를 요구한다", async () => {
   const env = testEnv({ ALLOW_DEV_LOGIN: "true" });
   const store = memoryStore();
@@ -487,6 +588,73 @@ test("계정 탈퇴는 인증과 정확한 확인 문구를 요구한다", async
   const invalid = await handleAccountApi(context({ path: "/api/account/delete", method: "POST", env, store, cookie: login.cookies[0], body: { confirmation: "삭제" } }));
   assert.equal(invalid.status, 400);
   assert.equal((await store.getUser(login.json.user.id)).status, "active");
+});
+
+test("회원 앱 상태는 허용된 키만 동기화하고 revision 충돌과 탈퇴 삭제를 처리한다", async () => {
+  const store = memoryStore();
+  const env = testEnv({ ALLOW_DEV_LOGIN: "true" });
+  const login = await handleAccountApi(context({
+    path: "/api/auth/dev-login",
+    method: "POST",
+    env,
+    store,
+    body: { provider: "google", name: "동기화 회원", email: "sync@example.com" },
+  }));
+  const cookie = login.cookies[0].split(";")[0];
+
+  const saved = await handleAccountApi(context({
+    path: "/api/account/state",
+    method: "PUT",
+    env,
+    store,
+    cookie,
+    body: {
+      userId: login.json.user.id,
+      baseRevision: 0,
+      deviceId: "device-a",
+      state: { omwExecutionPlan: '{"goal":"launch"}', omwTrialLead: '{"phone":"010"}', unknown: "discard" },
+    },
+  }));
+  assert.equal(saved.status, 200);
+  assert.equal(saved.json.revision, 1);
+
+  const loaded = await handleAccountApi(context({ path: "/api/account/state", env, store, cookie }));
+  assert.deepEqual(loaded.json.state, { omwExecutionPlan: '{"goal":"launch"}' });
+  assert.equal(loaded.json.revision, 1);
+
+  const conflict = await handleAccountApi(context({
+    path: "/api/account/state",
+    method: "PUT",
+    env,
+    store,
+    cookie,
+    body: { userId: login.json.user.id, baseRevision: 0, state: { omwExecutionPlan: "stale" } },
+  }));
+  assert.equal(conflict.status, 409);
+  assert.equal(conflict.json.revision, 1);
+
+  const changedAccount = await handleAccountApi(context({
+    path: "/api/account/state",
+    method: "PUT",
+    env,
+    store,
+    cookie,
+    body: { userId: "another-user", baseRevision: 1, state: { omwExecutionPlan: "wrong account" } },
+  }));
+  assert.equal(changedAccount.status, 409);
+  assert.equal(changedAccount.json.code, "ACCOUNT_CHANGED");
+  assert.equal((await store.getAppState(login.json.user.id)).state.omwExecutionPlan, '{"goal":"launch"}');
+
+  const deleted = await handleAccountApi(context({
+    path: "/api/account/delete",
+    method: "POST",
+    env,
+    store,
+    cookie,
+    body: { confirmation: "계정 삭제" },
+  }));
+  assert.equal(deleted.status, 202);
+  assert.equal(store.appStates.size, 0);
 });
 
 test("무료 회원 탈퇴는 모든 인증 연결과 세션을 제거하고 최소 대기 표식만 남긴다", async () => {
