@@ -734,6 +734,7 @@ const myPageEmail = document.querySelector("#myPageEmail");
 const myPageProvider = document.querySelector("#myPageProvider");
 const myPagePlanTitle = document.querySelector("#myPagePlanTitle");
 const myPagePlanMeta = document.querySelector("#myPagePlanMeta");
+const myPagePaymentNote = document.querySelector("#myPagePaymentNote");
 const myPageSubscribeButton = document.querySelector("#myPageSubscribe");
 const myPageCancelProButton = document.querySelector("#myPageCancelPro");
 const myPageLogoutButton = document.querySelector("#myPageLogout");
@@ -823,11 +824,31 @@ function renderMyPageSheet() {
   if (myPageEmail) myPageEmail.textContent = user.email || "이메일 미등록";
   if (myPageProvider) myPageProvider.textContent = AUTH_PROVIDER_LABELS[user.provider] || "소셜 계정";
 
+  const isAdmin = user.role === "admin";
   const isPro = user.plan === "pro";
-  if (myPagePlanTitle) myPagePlanTitle.textContent = isPro ? "PRO 구독 중" : "1일 무료 체험";
+  const isCancellationScheduled = isPro && user.subscriptionStatus === "canceled";
+  const hasPaidSubscription = isPro && ["active", "pending"].includes(user.subscriptionStatus);
+  const periodEndLabel = formatAccountDate(user.currentPeriodEnd);
+  if (myPagePlanTitle) {
+    myPagePlanTitle.textContent = isAdmin
+      ? "운영자 이용권"
+      : isCancellationScheduled
+        ? "PRO 이용 중 · 해지 예약"
+        : isPro
+          ? "PRO 월 구독"
+          : Number(user.trialExpiresAt || 0) > Date.now()
+            ? "1일 무료 체험"
+            : "무료 체험 종료";
+  }
   if (myPagePlanMeta) {
-    if (isPro) {
-      myPagePlanMeta.textContent = `${formatAccountDate(user.proSince)}부터 이용 중 · 월 2,900원`;
+    if (isAdmin) {
+      myPagePlanMeta.textContent = "결제 없이 모든 기능 이용";
+    } else if (isCancellationScheduled) {
+      myPagePlanMeta.textContent = `${periodEndLabel}까지 이용 가능 · 이후 결제 없음`;
+    } else if (isPro) {
+      myPagePlanMeta.textContent = user.currentPeriodEnd
+        ? `다음 결제일 ${periodEndLabel} · 월 2,900원`
+        : `${formatAccountDate(user.proSince)}부터 이용 중 · 월 2,900원`;
     } else {
       const remaining = Math.max(0, Number(user.trialExpiresAt || 0) - Date.now());
       const hours = Math.floor(remaining / 3600000);
@@ -835,8 +856,19 @@ function renderMyPageSheet() {
       myPagePlanMeta.textContent = remaining > 0 ? `체험 종료까지 ${hours}시간 ${minutes}분` : "체험이 종료되었어요. PRO로 이어가 보세요.";
     }
   }
-  if (myPageSubscribeButton) myPageSubscribeButton.hidden = isPro;
-  if (myPageCancelProButton) myPageCancelProButton.hidden = !isPro;
+  if (myPagePaymentNote) {
+    myPagePaymentNote.textContent = isAdmin
+      ? "운영자 계정은 결제 대상이 아니며, 서비스 점검을 위해 전체 기능을 이용할 수 있어요."
+      : isCancellationScheduled
+        ? `해지 예약이 완료됐어요. ${periodEndLabel} 이후에는 자동 결제되지 않으며, 그때까지 PRO와 기록을 그대로 이용할 수 있어요.`
+        : hasPaidSubscription
+          ? "매월 2,900원이 정기결제됩니다. 언제든 해지할 수 있고, 해지해도 현재 결제 기간까지 이용할 수 있어요."
+          : isPro
+            ? "별도 결제 없이 제공된 PRO 이용권입니다."
+            : "체험 종료 후 자동 결제되지 않아요. PRO 결제를 완료하면 기존 계획과 기록을 그대로 이어갈 수 있어요.";
+  }
+  if (myPageSubscribeButton) myPageSubscribeButton.hidden = isAdmin || isPro;
+  if (myPageCancelProButton) myPageCancelProButton.hidden = !hasPaidSubscription;
 }
 
 function renderAccountUi() {
@@ -848,8 +880,8 @@ function renderAccountUi() {
     if (drawerAvatar) drawerAvatar.textContent = accountInitial(user);
     if (drawerName) drawerName.textContent = user.name;
     if (drawerPlanBadge) {
-      drawerPlanBadge.textContent = user.plan === "pro" ? "PRO 이용 중" : "무료 체험 중";
-      drawerPlanBadge.classList.toggle("pro", user.plan === "pro");
+      drawerPlanBadge.textContent = user.role === "admin" ? "운영자" : user.plan === "pro" ? "PRO 이용 중" : "무료 체험 중";
+      drawerPlanBadge.classList.toggle("pro", user.plan === "pro" || user.role === "admin");
     }
   }
   if (drawerMyPage) drawerMyPage.hidden = !user;
