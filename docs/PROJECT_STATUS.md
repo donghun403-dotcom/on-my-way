@@ -13,6 +13,14 @@
 - Preview의 `/plan-policy.mjs`는 `200 OK`와 JavaScript MIME을 반환하며, 존재하지 않는 `.mjs`, `.js`, `.css` 요청은 HTML fallback 없이 `404`를 반환한다.
 - Preview Playwright에서 flaky retry가 관찰되었으므로 출시 준비 단계에서 불안정 테스트 여부를 별도로 추적한다.
 
+## 인증 안정화 자동 검증
+
+- Preview 정적 자산 수정을 담은 PR #8은 `9bb20959f7d8107885a6ec8fc7427c5cb11263c7`로 `main`에 병합되었으며, 인증 안정화 작업은 이 커밋에서 분리한 `fix/omw-auth-stabilization` 브랜치와 전용 worktree에서 수행한다.
+- 백업된 인증 제품 코드 후보는 최신 `main`에 이미 같거나 더 강한 형태로 반영되어 있어 다시 적용하지 않았다. 대신 Preview·Production 동일 Origin 허용, 서버 세션 사용자 기준 AI 요청 제한, 로그아웃 후 계정 데이터 차단과 동일 계정 재로그인 복원을 명시적으로 고정하는 회귀 테스트만 보완했다.
+- JavaScript 문법 검사, 인증·Worker 단위 테스트, 계정 격리·로그아웃·재로그인·탈퇴 E2E 및 지원 브라우저별 인증 회귀 검사가 성공했다.
+- Google·Kakao·Naver·Apple의 실제 Provider 계정 로그인과 외부 콘솔 설정 검증은 아직 완료되지 않았다.
+- 다음 단일 작업은 PR Preview에서 실제 Google 계정으로 로그인·세션 복원·로그아웃·계정 격리·탈퇴 흐름을 수동 검증하는 것이다.
+
 ## 현재 저장소
 
 - 현재 브랜치: `codex/detailed-plan-editor`

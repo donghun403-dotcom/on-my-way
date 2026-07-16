@@ -53,6 +53,25 @@ test("account changes isolate local plans and restore only the matching account"
   expect(result).toEqual({ bInitiallySaw: null, aRestored: "A-only goal", bRestored: "B-only goal" });
 });
 
+test("logout scope hides account data and the same account login restores it", async ({ page }) => {
+  await mockExternalAssets(page);
+  await page.goto("/app.html");
+  const result = await page.evaluate(() => {
+    switchAccountStorageScope("user:account-a");
+    localStorage.setItem("omwExecutionPlan", JSON.stringify({ goal: "A-only goal" }));
+
+    switchAccountStorageScope("anonymous:logout-device");
+    const anonymousSaw = localStorage.getItem("omwExecutionPlan");
+    localStorage.setItem("omwExecutionPlan", JSON.stringify({ goal: "anonymous goal" }));
+
+    switchAccountStorageScope("user:account-a");
+    const restored = JSON.parse(localStorage.getItem("omwExecutionPlan") || "{}").goal || null;
+    return { anonymousSaw, restored };
+  });
+
+  expect(result).toEqual({ anonymousSaw: null, restored: "A-only goal" });
+});
+
 test("a corrupt account snapshot recovers without a reload loop", async ({ page }) => {
   await mockExternalAssets(page);
   await page.goto("/app.html");
