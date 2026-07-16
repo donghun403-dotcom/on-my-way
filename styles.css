@@ -16,15 +16,6 @@
   --small-shadow: 0 14px 34px rgba(91, 106, 151, 0.12);
 }
 
-/* 여기어때 잘난체 — 단일 굵기 폰트라 모든 weight(100–900)에 매핑 */
-@font-face {
-  font-family: "Jalnan";
-  src: url("https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_four@1.2/JalnanOTF00.woff") format("woff");
-  font-display: swap;
-  font-style: normal;
-  font-weight: 100 900;
-}
-
 * {
   box-sizing: border-box;
 }

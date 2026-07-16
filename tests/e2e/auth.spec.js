@@ -1,5 +1,5 @@
 const { test, expect } = require("@playwright/test");
-const { createUsageResponse, expectNoHorizontalOverflow, mockExternalAssets, monitorPage } = require("./helpers");
+const { createUsageResponse, expectNoHorizontalOverflow, mockExternalAssets, monitorPage, waitForAppReady } = require("./helpers");
 
 const providers = ["kakao", "naver", "google", "apple"];
 const androidProviders = ["kakao", "naver", "google"];
@@ -24,6 +24,7 @@ function activeTrialUser(overrides) {
 
 async function waitForAccountScope(page, expectedScope) {
   await expect(page.locator("html")).not.toHaveClass(/account-storage-pending/, { timeout: 15_000 });
+  await waitForAppReady(page);
   await expect.poll(() => page.evaluate(() => localStorage.getItem("onmyway:active-scope"))).toBe(expectedScope);
 }
 

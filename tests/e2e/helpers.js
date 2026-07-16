@@ -110,6 +110,10 @@ async function prepareApp(page, storage = {}) {
   );
 }
 
+async function waitForAppReady(page) {
+  await expect(page.locator("body")).toHaveAttribute("data-app-ready", "true", { timeout: 15_000 });
+}
+
 async function mockAccountExperience(page, {
   user = null,
   usage = user ? createUsageResponse({ plan: user.plan || "free" }) : null,
@@ -274,6 +278,7 @@ module.exports = {
   mockExternalAssets,
   monitorPage,
   prepareApp,
+  waitForAppReady,
   readStored,
   testPlan,
 };

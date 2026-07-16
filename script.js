@@ -232,21 +232,48 @@ let aiUsageRequest = null;
 let aiUsageError = "";
 let paymentsEnabled = false;
 let pendingRevisionAction = "revise_plan";
-const pricingPolicyRequest = import("./plan-policy.mjs")
-  .then((module) => {
-    pricingPolicy = module;
-    hydratePolicyValues();
-    renderOllieEnergy();
-    renderPricingExperience();
-    renderPlanFeatureAccess();
-    return module;
-  })
-  .catch((error) => {
-    console.error("Unable to load pricing policy", error);
+let pricingPolicyPromise = null;
+
+function isTransientPricingPolicyError(error) {
+  const message = String(error?.message || "").toLowerCase();
+  return error?.name === "AbortError" || /abort|cancel|load request|importing a module script failed/.test(message);
+}
+
+function loadPricingPolicy() {
+  if (pricingPolicyPromise) return pricingPolicyPromise;
+
+  pricingPolicyPromise = (async () => {
+    let lastError = null;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const response = await fetch("/plan-policy.mjs", { cache: "no-store", credentials: "same-origin" });
+        const contentType = response.headers.get("content-type") || "";
+        if (!response.ok || !contentType.includes("javascript")) {
+          throw new Error(`Pricing policy request failed with ${response.status}`);
+        }
+
+        const module = await import("/plan-policy.mjs");
+        pricingPolicy = module;
+        hydratePolicyValues();
+        renderOllieEnergy();
+        renderPricingExperience();
+        renderPlanFeatureAccess();
+        return module;
+      } catch (error) {
+        lastError = error;
+        if (attempt === 0 && isTransientPricingPolicyError(error)) continue;
+        break;
+      }
+    }
+
+    console.error("Unable to load pricing policy", lastError);
     pricingPolicyError = "플랜 정책을 불러오지 못했어요. 새로고침 후 다시 확인해 주세요.";
     if (pricingPolicyStatus) pricingPolicyStatus.textContent = pricingPolicyError;
     return null;
-  });
+  })();
+
+  return pricingPolicyPromise;
+}
 let activePlanScreen = "home";
 let accountSyncTimer = null;
 let accountSyncInFlight = false;
@@ -1200,7 +1227,7 @@ async function initAccountExperience() {
   authUiState.loaded = true;
 
   await Promise.allSettled([
-    pricingPolicyRequest,
+    loadPricingPolicy(),
     loadPaymentAvailability(),
     authUiState.user ? loadAiUsage({ force: true }) : Promise.resolve(null),
   ]);
@@ -1536,7 +1563,7 @@ function renderPlanFeatureAccess() {
 }
 
 async function ensureAiActionAvailable(action) {
-  await pricingPolicyRequest;
+  await loadPricingPolicy();
   if (!pricingPolicy) {
     showToast(pricingPolicyError || "AI 크레딧 정책을 확인하지 못했어요. 새로고침 후 다시 시도해 주세요.");
     return false;
@@ -6085,12 +6112,22 @@ executionThemeButtons.forEach((button) => {
   });
 });
 
+function markAppReady() {
+  if (!document.body?.classList.contains("execution-page")) return;
+  document.body.dataset.appReady = "true";
+  window.dispatchEvent(new CustomEvent("omw:app-ready"));
+}
+
 accountExperienceReady
   .then((ready) => {
-    if (ready) initializeExecutionPage();
+    if (ready) {
+      initializeExecutionPage();
+      markAppReady();
+    }
   })
   .catch((error) => {
     console.error("Unable to initialize the account experience", error);
     document.documentElement.classList.remove("account-storage-pending");
     initializeExecutionPage();
+    markAppReady();
   });
