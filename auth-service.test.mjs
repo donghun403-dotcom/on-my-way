@@ -941,6 +941,23 @@ test("최초 승인 금액이 서버 정책과 다르면 Pro를 부여하지 않
   assert.equal(JSON.stringify(env.BILLING_DB).includes("billing-key"), false);
 });
 
+test("billing key customerKey 불일치는 Pro를 부여하지 않는다", async () => {
+  const env = testEnv({ ALLOW_DEV_LOGIN: "true", TOSS_CLIENT_KEY: "test_ck", TOSS_SECRET_KEY: "test_sk", PAYMENTS_ENABLED: "true" });
+  const store = memoryStore();
+  const login = await handleAccountApi(context({ path: "/api/auth/dev-login", method: "POST", env, store, body: { provider: "google", name: "customerKey검증회원" } }));
+  const cookie = login.cookies[0];
+  const config = await handleAccountApi(context({ path: "/api/billing/config", env, store, cookie }));
+  const fetcher = async (url) => {
+    if (url.includes("/authorizations/issue")) return Response.json({ billingKey: "billing-key", customerKey: "other-customer" });
+    throw new Error("order lookup unavailable");
+  };
+  await assert.rejects(
+    handleAccountApi(context({ path: "/api/billing/activate", method: "POST", env, store, cookie, fetcher, body: { authKey: "mismatched-customer-auth", customerKey: config.json.customerKey } })),
+    (error) => error.code === "BILLING_CUSTOMER_MISMATCH" && error.message === "빌링키의 customerKey가 현재 사용자와 일치하지 않습니다.",
+  );
+  assert.equal((await store.getUser(login.json.user.id)).plan, "free");
+});
+
 test("결과가 불명확한 최초 승인은 같은 원장 주문을 유지하고 새 청구를 만들지 않는다", async () => {
   const env = testEnv({ ALLOW_DEV_LOGIN: "true", TOSS_CLIENT_KEY: "test_ck", TOSS_SECRET_KEY: "test_sk", PAYMENTS_ENABLED: "true" });
   const store = memoryStore();

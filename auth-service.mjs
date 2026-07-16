@@ -1118,7 +1118,7 @@ export async function handleAccountApi(ctx) {
           fetcher,
         });
         if (!issued.billingKey) throw paymentValidationError("BILLING_KEY_MISSING", "빌링키를 발급받지 못했습니다.");
-        if (issued.customerKey && issued.customerKey !== account.customerKey) throw paymentValidationError("BILLING_CUSTOMER_MISMATCH", "鍮뚮쭅?ㅻ? ?ъ슜??customerKey? ?쇱튂?섏? ?딆뒿?덈떎.");
+        if (issued.customerKey && issued.customerKey !== account.customerKey) throw paymentValidationError("BILLING_CUSTOMER_MISMATCH", "빌링키의 customerKey가 현재 사용자와 일치하지 않습니다.");
         user.billingKey = issued.billingKey;
         await ledger.recordBillingKeyFingerprint({ userId: user.id, billingKeyFingerprint: await fingerprint(issued.billingKey), now: Date.now() });
         await store(ctx).putUser(user);

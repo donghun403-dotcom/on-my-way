@@ -62,6 +62,21 @@ jobs:
           PREVIEW_URL: ${{ steps.deploy.outputs.deployment-url }}
         run: test -n "$PREVIEW_URL"
 
+      - name: Wait for preview static assets
+        env:
+          PREVIEW_URL: ${{ steps.deploy.outputs.deployment-url }}
+        shell: bash
+        run: |
+          for attempt in {1..24}; do
+            status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "$PREVIEW_URL/plan-policy.mjs")"
+            if [ "$status" = "200" ]; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Preview /plan-policy.mjs did not become ready (last status: $status)"
+          exit 1
+
       - name: Run Playwright against the Cloudflare preview
         env:
           E2E_BASE_URL: ${{ steps.deploy.outputs.deployment-url }}
