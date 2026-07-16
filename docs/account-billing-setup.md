@@ -65,6 +65,20 @@ Toss Payments 자동결제 코드는 부분 구현 상태입니다. 운영의 `w
 
 결제가 활성화되기 전 CTA는 `Pro 출시 준비 중`처럼 실제 상태를 표시해야 합니다. 실제 전송 경로가 없는 출시 알림이나 카드 등록창, 결제 완료, Pro 전환이 일어난 것처럼 가장하지 않습니다. Toss 브라우저 SDK도 결제 운영 승인이 켜지고 사용자가 결제를 시작할 때만 동적으로 불러옵니다.
 
+### 4-1. 최초 승인 결제 원장
+
+최초 정기결제 승인 주문은 전용 D1 데이터베이스의 `BILLING_DB` 바인딩을 사용합니다. migration은 `migrations/0001_billing_ledger.sql`이며 다음 테이블을 만듭니다.
+
+- `billing_accounts`: 사용자 ID와 서버 생성 `customerKey`의 1:1 연결, billing key fingerprint와 상태
+- `billing_orders`: 서버 확정 금액, 논리 요청 fingerprint, Toss `Idempotency-Key`, 주문 상태와 `paymentKey`
+- `billing_events`: 주문 상태 전이를 보존하는 append-only 이벤트
+
+Preview와 Production은 서로 다른 D1 database를 `BILLING_DB`로 연결해야 합니다. 실제 database ID는 외부 Cloudflare 작업 후에만 각 Wrangler 설정에 추가하며, 저장소에는 placeholder ID를 기록하지 않습니다. D1에는 raw billing key를 저장하지 않고, Worker 사용자 KV에 있는 기존 billing key와 단방향 fingerprint만 연결합니다.
+
+최초 승인 재시도는 같은 논리 요청의 기존 주문과 같은 `Idempotency-Key`를 재사용합니다. Toss 응답의 완료 상태·금액 4,900원·주문 ID·customerKey·paymentKey를 서버에서 검증한 뒤에만 Pro 권한을 부여합니다. timeout 또는 결과 불명확 상태는 `unknown`으로 남기고 신규 청구를 만들지 않습니다.
+
+이번 단계에서 갱신 전체 통합, 환불·부분 환불, webhook/reconciliation, Toss Sandbox 실계정 검증과 Production 활성화는 아직 완료하지 않습니다.
+
 ## 5. 결제 활성화 선행 조건
 
 다음을 모두 마친 뒤에만 운영의 `PAYMENTS_ENABLED`를 `true`로 변경합니다.

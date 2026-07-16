@@ -11,6 +11,7 @@ import {
   upsertUserFromProfile,
 } from "./auth-service.mjs";
 import { commitAiCredits, getAiCreditUsage, reserveAiCredits, startAiTrial } from "./ai-credits-service.mjs";
+import { createMemoryBillingDb } from "./billing-ledger.mjs";
 import worker, { createGoalPlanForUser } from "./worker.mjs";
 
 function memoryStore(seed = []) {
@@ -54,7 +55,7 @@ function memoryStore(seed = []) {
 }
 
 const TEST_SECRET = "test-session-secret-that-is-longer-than-32-characters";
-const testEnv = (overrides = {}) => ({ APP_ENV: "test", SESSION_SECRET: TEST_SECRET, ...overrides });
+const testEnv = (overrides = {}) => ({ APP_ENV: "test", SESSION_SECRET: TEST_SECRET, BILLING_DB: createMemoryBillingDb(), ...overrides });
 
 function context({ path, method = "GET", env = {}, store, legalStore, body = {}, form = {}, cookie = "", fetcher, origin = "https://example.test" }) {
   const cookies = parseCookies(cookie);
@@ -864,14 +865,16 @@ test("첫 결제 응답이 유실돼도 주문 조회로 복구하고 다시 청
   const cookie = login.cookies[0];
   const config = await handleAccountApi(context({ path: "/api/billing/config", env, store, cookie }));
   let charges = 0;
+  const idempotencyKeys = [];
   const fetcher = async (url, options) => {
     if (url.includes("/authorizations/issue")) return Response.json({ billingKey: "billing-key" });
     if (url.includes("/v1/billing/")) {
       charges += 1;
+      idempotencyKeys.push(options.headers["Idempotency-Key"]);
       return Response.json({ code: "TEMPORARY_ERROR", message: "timeout" }, { status: 500 });
     }
     const orderId = decodeURIComponent(url.split("/").at(-1));
-    return Response.json({ status: "DONE", paymentKey: "payment-key", orderId });
+    return Response.json({ status: "DONE", type: "BILLING", amount: 4900, customerKey: config.json.customerKey, paymentKey: "payment-key", orderId });
   };
   const activated = await handleAccountApi(context({
     path: "/api/billing/activate",
@@ -886,7 +889,81 @@ test("첫 결제 응답이 유실돼도 주문 조회로 복구하고 다시 청
   assert.equal(activated.json.recovered, true);
   assert.equal(activated.json.user.plan, "pro");
   assert.equal(charges, 1);
+  assert.equal(idempotencyKeys.length, 1);
+  assert.match(idempotencyKeys[0], /^idem_[a-f0-9]{36}$/);
   assert.equal((await store.getUser(login.json.user.id)).pendingOrderId, null);
+});
+
+test("성공한 최초 주문을 같은 logical request로 다시 호출해도 Toss를 재호출하지 않는다", async () => {
+  const env = testEnv({ ALLOW_DEV_LOGIN: "true", TOSS_CLIENT_KEY: "test_ck", TOSS_SECRET_KEY: "test_sk", PAYMENTS_ENABLED: "true" });
+  const store = memoryStore();
+  const login = await handleAccountApi(context({ path: "/api/auth/dev-login", method: "POST", env, store, body: { provider: "google", name: "중복회원" } }));
+  const cookie = login.cookies[0];
+  const config = await handleAccountApi(context({ path: "/api/billing/config", env, store, cookie }));
+  let chargeCalls = 0;
+  const fetcher = async (url, options = {}) => {
+    if (url.includes("/authorizations/issue")) return Response.json({ billingKey: "billing-key" });
+    if (url.includes("/v1/billing/")) {
+      chargeCalls += 1;
+      return Response.json({ status: "DONE", type: "BILLING", amount: 4900, customerKey: config.json.customerKey, paymentKey: "payment-key", orderId: JSON.parse(options.body || "{}").orderId });
+    }
+    throw new Error("unexpected payment lookup");
+  };
+  const body = { authKey: "same-auth-key", customerKey: config.json.customerKey };
+  const first = await handleAccountApi(context({ path: "/api/billing/activate", method: "POST", env, store, cookie, fetcher, body }));
+  assert.equal(first.status, 200);
+  const user = await store.getUser(login.json.user.id);
+  user.plan = "free";
+  user.subscriptionStatus = "canceled";
+  await store.putUser(user);
+  const second = await handleAccountApi(context({ path: "/api/billing/activate", method: "POST", env, store, cookie, fetcher, body }));
+  assert.equal(second.status, 200);
+  assert.equal(second.json.recovered, true);
+  assert.equal(chargeCalls, 1);
+});
+
+test("최초 승인 금액이 서버 정책과 다르면 Pro를 부여하지 않고 주문을 실패 처리한다", async () => {
+  const env = testEnv({ ALLOW_DEV_LOGIN: "true", TOSS_CLIENT_KEY: "test_ck", TOSS_SECRET_KEY: "test_sk", PAYMENTS_ENABLED: "true" });
+  const store = memoryStore();
+  const login = await handleAccountApi(context({ path: "/api/auth/dev-login", method: "POST", env, store, body: { provider: "google", name: "금액검증회원" } }));
+  const cookie = login.cookies[0];
+  const config = await handleAccountApi(context({ path: "/api/billing/config", env, store, cookie }));
+  const fetcher = async (url, options = {}) => {
+    if (url.includes("/authorizations/issue")) return Response.json({ billingKey: "billing-key" });
+    const orderId = url.includes("/v1/billing/") ? JSON.parse(options.body || "{}").orderId : decodeURIComponent(url.split("/").at(-1));
+    return Response.json({ status: "DONE", type: "BILLING", amount: 1, customerKey: config.json.customerKey, paymentKey: "payment-key", orderId });
+  };
+  await assert.rejects(
+    handleAccountApi(context({ path: "/api/billing/activate", method: "POST", env, store, cookie, fetcher, body: { authKey: "bad-amount-auth", customerKey: config.json.customerKey, amount: 1, plan: "pro" } })),
+    (error) => error.code === "PAYMENT_AMOUNT_MISMATCH",
+  );
+  assert.equal((await store.getUser(login.json.user.id)).plan, "free");
+  assert.equal(JSON.stringify(env.BILLING_DB).includes("billing-key"), false);
+});
+
+test("결과가 불명확한 최초 승인은 같은 원장 주문을 유지하고 새 청구를 만들지 않는다", async () => {
+  const env = testEnv({ ALLOW_DEV_LOGIN: "true", TOSS_CLIENT_KEY: "test_ck", TOSS_SECRET_KEY: "test_sk", PAYMENTS_ENABLED: "true" });
+  const store = memoryStore();
+  const login = await handleAccountApi(context({ path: "/api/auth/dev-login", method: "POST", env, store, body: { provider: "google", name: "불명확회원" } }));
+  const cookie = login.cookies[0];
+  const config = await handleAccountApi(context({ path: "/api/billing/config", env, store, cookie }));
+  let chargeCalls = 0;
+  const fetcher = async (url) => {
+    if (url.includes("/authorizations/issue")) return Response.json({ billingKey: "billing-key" });
+    if (url.includes("/v1/billing/")) {
+      chargeCalls += 1;
+      throw new Error("timeout");
+    }
+    throw new Error("order lookup unavailable");
+  };
+  const body = { authKey: "unknown-auth", customerKey: config.json.customerKey };
+  const first = await handleAccountApi(context({ path: "/api/billing/activate", method: "POST", env, store, cookie, fetcher, body }));
+  const second = await handleAccountApi(context({ path: "/api/billing/activate", method: "POST", env, store, cookie, fetcher, body }));
+  assert.equal(first.status, 409);
+  assert.equal(second.status, 409);
+  assert.equal(first.json.code, "PAYMENT_RESULT_UNKNOWN");
+  assert.equal(second.json.code, "PAYMENT_RESULT_UNKNOWN");
+  assert.equal(chargeCalls, 1);
 });
 
 test("갱신 실패는 같은 주문으로 하루 간격 재시도하고 세 번째 실패 후 중단한다", async () => {
