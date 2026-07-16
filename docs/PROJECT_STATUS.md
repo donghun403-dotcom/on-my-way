@@ -36,7 +36,7 @@
 - `migrations/0001_billing_ledger.sql`을 원격 적용하고 billing 테이블·index·제약조건을 확인했다.
 - PR Preview workflow가 Repository Secret의 Preview D1 식별자를 일반 Actions 단계에서만 읽어 임시 generated Wrangler 설정에 `BILLING_DB`를 연결하도록 했다. 식별자는 로그·PR·문서·정적 assets에 노출하지 않는다.
 - `smoke_test_` 가짜 데이터로 계정 격리, 멱등 주문, 상태 전이, event 원장을 검증했다. PASS 후 테스트 데이터는 모두 정리됐다.
-- `PAYMENTS_ENABLED=false`를 유지했으며 Toss key, Sandbox 결제, Production D1, Production binding은 수행하지 않았다.
+- `PAYMENTS_ENABLED=false`를 유지했으며 Preview Toss Test Key 구성만 완료했다. Sandbox 결제, Production D1, Production binding과 Production key 설정은 수행하지 않았다.
 
 ### PR #10 최신 Preview 검증 결과
 
@@ -45,7 +45,7 @@
 - Preview 정적 자산 readiness와 `/plan-policy.mjs` 응답 확인이 성공했으며, `PAYMENTS_ENABLED=false`에서 일반 앱·인증 흐름과 결제 비활성 경로가 정상 동작했다.
 - 이전 Preview Playwright 실패는 외부 폰트 요청 취소, pricing policy module import 취소, 앱 hydration 완료 전 상태를 읽은 테스트 타이밍 문제로 분류했다. 외부 폰트 의존성을 제거하고 pricing policy를 lazy singleton import로 전환했으며, 앱 readiness marker와 hydration 대기를 추가했다.
 - 최신 PR Preview CI에서 단위 테스트, JavaScript 문법 검사, CI server Playwright, Preview 배포·URL 확인, Preview Playwright가 모두 성공했다. 브라우저 콘솔 오류와 인증 회귀도 재현되지 않았다.
-- Toss key와 Sandbox 결제는 설정·실행하지 않았고, Production D1·Production binding·결제 활성화는 수행하지 않았다.
+- Preview Toss Test Key Secret 이름 등록과 동일 테스트 환경 구성 확인을 완료했다. Sandbox 결제, Production key, Production D1·Production binding·결제 활성화는 수행하지 않았다.
 
 ### Toss Test Key 구성 게이트
 
@@ -53,8 +53,9 @@
 - `TOSS_CLIENT_KEY`와 `TOSS_SECRET_KEY`는 각각 `test_ck_...`·`test_sk_...` 또는 `live_ck_...`·`live_sk_...`의 동일 환경·동일 세트여야 한다. Preview에서는 라이브 키를 거부하고, 테스트/라이브 혼용도 거부한다.
 - 키 구성과 결제 활성화는 분리했다. 양쪽 테스트 키가 있으면 config 응답은 `configured=true`, `environment=test`를 공개하지만 `PAYMENTS_ENABLED=false`이면 `enabled=false`이고 클라이언트 키·시크릿 키는 공개하지 않는다. health 응답의 결제 상태도 유효한 동일 세트와 활성화 스위치를 함께 통과해야 true가 된다.
 - 결제 비활성 테스트에서 Toss fetch 0회, billing account/order 0건, Pro 권한 변경 없음과 키 비노출을 확인했다. 전체 단위 테스트 108/108 및 JavaScript 문법 검사가 통과했다.
-- Preview Worker Secret `TOSS_CLIENT_KEY`와 `TOSS_SECRET_KEY`는 현재 미설정 상태다. 실제 키·MID는 저장소·PR·문서·Codex 대화에 기록하지 않는다.
-- ACTION REQUIRED: 사용자가 Toss 개발자센터에서 자동결제 계약 또는 개발 연동 체험 상점의 API 개별 연동 Test MID와 동일 세트의 테스트 키를 확인한 뒤 Preview Worker Secret 두 이름에만 등록해야 한다. `PAYMENTS_ENABLED=false`, `ALLOW_DEMO_BILLING=false`와 Production 설정은 변경하지 않는다.
+- Preview Worker Secret `TOSS_CLIENT_KEY`와 `TOSS_SECRET_KEY` 이름이 존재하고 사용자 측에서 동일 테스트 환경·세트임을 확인했다. 실제 키·MID는 저장소·PR·문서·Codex 대화에 기록하지 않는다.
+- Preview 구성 판정은 `configured=true`, `environment=test`, `enabled=false`이며 `PAYMENTS_ENABLED=false`, `ALLOW_DEMO_BILLING=false`를 유지한다. Production Worker에는 Toss key가 없다.
+- Toss API 호출, D1 billing account/order/event 생성, Pro 권한 변경은 발생하지 않았다. Sandbox 결제는 수행하지 않았다.
 
 - PR #7은 `d09e508d8a1f34e7af52adda5645eb5b40a3bc68`로 `main`에 병합되었다.
 - Preview 정적 자산 수정 PR의 최종 CI에서 단위 테스트, JavaScript 문법 검사, CI 서버 Playwright, Preview 배포와 URL 확인, Preview Playwright가 모두 성공했다.
