@@ -55,6 +55,8 @@ function memoryStore(seed = []) {
 }
 
 const TEST_SECRET = "test-session-secret-that-is-longer-than-32-characters";
+const TEST_TOSS_CLIENT_KEY = "test_ck_TEST_FIXTURE";
+const TEST_TOSS_SECRET_KEY = "test_sk_TEST_FIXTURE";
 const testEnv = (overrides = {}) => ({ APP_ENV: "test", SESSION_SECRET: TEST_SECRET, BILLING_DB: createMemoryBillingDb(), ...overrides });
 
 function context({ path, method = "GET", env = {}, store, legalStore, body = {}, form = {}, cookie = "", fetcher, origin = "https://example.test" }) {
@@ -845,19 +847,71 @@ test("해지된 구독은 결제 기간 종료 후 Free로 내려간다", async 
 });
 
 test("운영 승인 스위치가 꺼져 있으면 결제 키가 있어도 결제창을 열지 않는다", async () => {
-  const env = testEnv({ ALLOW_DEV_LOGIN: "true", TOSS_CLIENT_KEY: "test_ck", TOSS_SECRET_KEY: "test_sk" });
+  const env = testEnv({ ALLOW_DEV_LOGIN: "true", TOSS_CLIENT_KEY: TEST_TOSS_CLIENT_KEY, TOSS_SECRET_KEY: TEST_TOSS_SECRET_KEY });
   const store = memoryStore();
   const login = await handleAccountApi(context({ path: "/api/auth/dev-login", method: "POST", env, store, body: { provider: "google", name: "회원" } }));
   const result = await handleAccountApi(context({ path: "/api/billing/config", env, store, cookie: login.cookies[0] }));
-  assert.equal(result.json.configured, false);
+  assert.equal(result.json.configured, true);
+  assert.equal(result.json.enabled, false);
+  assert.equal(result.json.environment, "test");
   assert.equal(result.json.clientKey, null);
+  assert.equal(JSON.stringify(result.json).includes(TEST_TOSS_SECRET_KEY), false);
+});
+
+test("Toss 키 구성은 양쪽 키·동일 환경·Preview 테스트 키를 모두 요구한다", async () => {
+  const cases = [
+    [{}, false, "disabled"],
+    [{ TOSS_CLIENT_KEY: TEST_TOSS_CLIENT_KEY }, false, "disabled"],
+    [{ TOSS_SECRET_KEY: TEST_TOSS_SECRET_KEY }, false, "disabled"],
+    [{ TOSS_CLIENT_KEY: TEST_TOSS_CLIENT_KEY, TOSS_SECRET_KEY: TEST_TOSS_SECRET_KEY }, true, "test"],
+    [{ TOSS_CLIENT_KEY: "test_ck_TEST_FIXTURE", TOSS_SECRET_KEY: "live_sk_TEST_FIXTURE" }, false, "disabled"],
+    [{ APP_ENV: "preview", TOSS_CLIENT_KEY: "live_ck_TEST_FIXTURE", TOSS_SECRET_KEY: "live_sk_TEST_FIXTURE" }, false, "disabled"],
+  ];
+  for (const [overrides, configured, environment] of cases) {
+    const env = testEnv({ ALLOW_DEV_LOGIN: "true", ...overrides });
+    const store = memoryStore();
+    const login = await handleAccountApi(context({ path: "/api/auth/dev-login", method: "POST", env: { ...env, APP_ENV: "test" }, store, body: { provider: "google", name: "구성검사회원" } }));
+    const result = await handleAccountApi(context({ path: "/api/billing/config", env, store, cookie: login.cookies[0] }));
+    assert.equal(result.json.configured, configured, JSON.stringify(overrides));
+    assert.equal(result.json.enabled, false, JSON.stringify(overrides));
+    assert.equal(result.json.environment, environment, JSON.stringify(overrides));
+    assert.equal(JSON.stringify(result.json).includes("TEST_FIXTURE"), false);
+  }
+});
+
+test("결제가 비활성화되면 빌링키·D1 주문·Pro 권한을 만들지 않는다", async () => {
+  const env = testEnv({
+    ALLOW_DEV_LOGIN: "true",
+    TOSS_CLIENT_KEY: TEST_TOSS_CLIENT_KEY,
+    TOSS_SECRET_KEY: TEST_TOSS_SECRET_KEY,
+    PAYMENTS_ENABLED: "false",
+  });
+  const store = memoryStore();
+  const login = await handleAccountApi(context({ path: "/api/auth/dev-login", method: "POST", env, store, body: { provider: "google", name: "비활성결제회원" } }));
+  const cookie = login.cookies[0];
+  const config = await handleAccountApi(context({ path: "/api/billing/config", env, store, cookie }));
+  let tossCalls = 0;
+  const result = await handleAccountApi(context({
+    path: "/api/billing/activate",
+    method: "POST",
+    env,
+    store,
+    cookie,
+    fetcher: async () => { tossCalls += 1; throw new Error("Toss 호출 금지"); },
+    body: { authKey: "TEST_FIXTURE_AUTH", customerKey: config.json.customerKey },
+  }));
+  assert.equal(result.status, 503);
+  assert.equal(tossCalls, 0);
+  assert.equal(env.BILLING_DB.accounts.size, 0);
+  assert.equal(env.BILLING_DB.orders.size, 0);
+  assert.equal((await store.getUser(login.json.user.id)).plan, "free");
 });
 
 test("첫 결제 응답이 유실돼도 주문 조회로 복구하고 다시 청구하지 않는다", async () => {
   const env = testEnv({
     ALLOW_DEV_LOGIN: "true",
-    TOSS_CLIENT_KEY: "test_ck",
-    TOSS_SECRET_KEY: "test_sk",
+    TOSS_CLIENT_KEY: TEST_TOSS_CLIENT_KEY,
+    TOSS_SECRET_KEY: TEST_TOSS_SECRET_KEY,
     PAYMENTS_ENABLED: "true",
   });
   const store = memoryStore();
@@ -895,7 +949,7 @@ test("첫 결제 응답이 유실돼도 주문 조회로 복구하고 다시 청
 });
 
 test("성공한 최초 주문을 같은 logical request로 다시 호출해도 Toss를 재호출하지 않는다", async () => {
-  const env = testEnv({ ALLOW_DEV_LOGIN: "true", TOSS_CLIENT_KEY: "test_ck", TOSS_SECRET_KEY: "test_sk", PAYMENTS_ENABLED: "true" });
+  const env = testEnv({ ALLOW_DEV_LOGIN: "true", TOSS_CLIENT_KEY: TEST_TOSS_CLIENT_KEY, TOSS_SECRET_KEY: TEST_TOSS_SECRET_KEY, PAYMENTS_ENABLED: "true" });
   const store = memoryStore();
   const login = await handleAccountApi(context({ path: "/api/auth/dev-login", method: "POST", env, store, body: { provider: "google", name: "중복회원" } }));
   const cookie = login.cookies[0];
@@ -923,7 +977,7 @@ test("성공한 최초 주문을 같은 logical request로 다시 호출해도 T
 });
 
 test("최초 승인 금액이 서버 정책과 다르면 Pro를 부여하지 않고 주문을 실패 처리한다", async () => {
-  const env = testEnv({ ALLOW_DEV_LOGIN: "true", TOSS_CLIENT_KEY: "test_ck", TOSS_SECRET_KEY: "test_sk", PAYMENTS_ENABLED: "true" });
+  const env = testEnv({ ALLOW_DEV_LOGIN: "true", TOSS_CLIENT_KEY: TEST_TOSS_CLIENT_KEY, TOSS_SECRET_KEY: TEST_TOSS_SECRET_KEY, PAYMENTS_ENABLED: "true" });
   const store = memoryStore();
   const login = await handleAccountApi(context({ path: "/api/auth/dev-login", method: "POST", env, store, body: { provider: "google", name: "금액검증회원" } }));
   const cookie = login.cookies[0];
@@ -942,7 +996,7 @@ test("최초 승인 금액이 서버 정책과 다르면 Pro를 부여하지 않
 });
 
 test("billing key customerKey 불일치는 Pro를 부여하지 않는다", async () => {
-  const env = testEnv({ ALLOW_DEV_LOGIN: "true", TOSS_CLIENT_KEY: "test_ck", TOSS_SECRET_KEY: "test_sk", PAYMENTS_ENABLED: "true" });
+  const env = testEnv({ ALLOW_DEV_LOGIN: "true", TOSS_CLIENT_KEY: TEST_TOSS_CLIENT_KEY, TOSS_SECRET_KEY: TEST_TOSS_SECRET_KEY, PAYMENTS_ENABLED: "true" });
   const store = memoryStore();
   const login = await handleAccountApi(context({ path: "/api/auth/dev-login", method: "POST", env, store, body: { provider: "google", name: "customerKey검증회원" } }));
   const cookie = login.cookies[0];
@@ -959,7 +1013,7 @@ test("billing key customerKey 불일치는 Pro를 부여하지 않는다", async
 });
 
 test("결과가 불명확한 최초 승인은 같은 원장 주문을 유지하고 새 청구를 만들지 않는다", async () => {
-  const env = testEnv({ ALLOW_DEV_LOGIN: "true", TOSS_CLIENT_KEY: "test_ck", TOSS_SECRET_KEY: "test_sk", PAYMENTS_ENABLED: "true" });
+  const env = testEnv({ ALLOW_DEV_LOGIN: "true", TOSS_CLIENT_KEY: TEST_TOSS_CLIENT_KEY, TOSS_SECRET_KEY: TEST_TOSS_SECRET_KEY, PAYMENTS_ENABLED: "true" });
   const store = memoryStore();
   const login = await handleAccountApi(context({ path: "/api/auth/dev-login", method: "POST", env, store, body: { provider: "google", name: "불명확회원" } }));
   const cookie = login.cookies[0];
@@ -994,7 +1048,7 @@ test("갱신 실패는 같은 주문으로 하루 간격 재시도하고 세 번
     customerKey: "customer-key",
   };
   const store = memoryStore([user]);
-  const env = testEnv({ TOSS_CLIENT_KEY: "test_ck", TOSS_SECRET_KEY: "test_sk", PAYMENTS_ENABLED: "true" });
+  const env = testEnv({ TOSS_CLIENT_KEY: TEST_TOSS_CLIENT_KEY, TOSS_SECRET_KEY: TEST_TOSS_SECRET_KEY, PAYMENTS_ENABLED: "true" });
   const orderIds = [];
   const fetcher = async (url, options) => {
     if (url.includes("/v1/billing/")) orderIds.push(JSON.parse(options.body).orderId);
@@ -1014,7 +1068,7 @@ test("갱신 실패는 같은 주문으로 하루 간격 재시도하고 세 번
 });
 
 test("결제사 해지를 확인하지 못하면 빌링키와 구독 상태를 보존한다", async () => {
-  const env = testEnv({ ALLOW_DEV_LOGIN: "true", TOSS_CLIENT_KEY: "test_ck", TOSS_SECRET_KEY: "test_sk" });
+  const env = testEnv({ ALLOW_DEV_LOGIN: "true", TOSS_CLIENT_KEY: TEST_TOSS_CLIENT_KEY, TOSS_SECRET_KEY: TEST_TOSS_SECRET_KEY });
   const store = memoryStore();
   const login = await handleAccountApi(context({ path: "/api/auth/dev-login", method: "POST", env, store, body: { provider: "google", name: "해지회원" } }));
   const user = await store.getUser(login.json.user.id);
@@ -1136,7 +1190,7 @@ test("무료 회원 탈퇴는 모든 인증 연결과 세션을 제거하고 최
 });
 
 test("결제 회원 탈퇴는 결제를 먼저 해지하고 법정 기록에서 billingKey를 제외한다", async () => {
-  const env = testEnv({ ALLOW_DEV_LOGIN: "true", TOSS_CLIENT_KEY: "test_ck", TOSS_SECRET_KEY: "test_sk" });
+  const env = testEnv({ ALLOW_DEV_LOGIN: "true", TOSS_CLIENT_KEY: TEST_TOSS_CLIENT_KEY, TOSS_SECRET_KEY: TEST_TOSS_SECRET_KEY });
   const store = memoryStore();
   const retained = [];
   const legalStore = { async put(record, retainedUntil) { retained.push({ record, retainedUntil }); } };
@@ -1157,7 +1211,7 @@ test("결제 회원 탈퇴는 결제를 먼저 해지하고 법정 기록에서 
 });
 
 test("결제 해지 실패 시 회원 정보와 로그인은 유지된다", async () => {
-  const env = testEnv({ ALLOW_DEV_LOGIN: "true", TOSS_CLIENT_KEY: "test_ck", TOSS_SECRET_KEY: "test_sk" });
+  const env = testEnv({ ALLOW_DEV_LOGIN: "true", TOSS_CLIENT_KEY: TEST_TOSS_CLIENT_KEY, TOSS_SECRET_KEY: TEST_TOSS_SECRET_KEY });
   const store = memoryStore();
   const login = await handleAccountApi(context({ path: "/api/auth/dev-login", method: "POST", env, store, body: { provider: "google", name: "결제회원" } }));
   const user = await store.getUser(login.json.user.id);

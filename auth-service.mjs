@@ -393,12 +393,47 @@ function demoBillingAllowed(env) {
   return String(env.ALLOW_DEMO_BILLING || "").toLowerCase() === "true";
 }
 
+function classifyTossKey(value, expectedPart) {
+  const normalized = String(value || "").trim();
+  if (!normalized) return null;
+  const match = normalized.match(/^(test|live)_(ck|sk)_[A-Za-z0-9_-]+$/);
+  return match?.[2] === expectedPart ? match[1] : "invalid";
+}
+
 function billingConfig(env) {
   const clientKey = String(env.TOSS_CLIENT_KEY || "");
   const secretKey = String(env.TOSS_SECRET_KEY || "");
-  const configured = Boolean(clientKey && secretKey);
+  const clientEnvironment = classifyTossKey(clientKey, "ck");
+  const secretEnvironment = classifyTossKey(secretKey, "sk");
+  let state = "unconfigured";
+  if (clientKey || secretKey) {
+    if (!clientKey || !secretKey) {
+      state = "partial";
+    } else if (
+      clientEnvironment === secretEnvironment
+      && ["test", "live"].includes(clientEnvironment)
+      && !(String(env.APP_ENV || "").toLowerCase() === "preview" && clientEnvironment !== "test")
+      && !(String(env.APP_ENV || "").toLowerCase() === "production" && clientEnvironment !== "live")
+    ) {
+      state = `${clientEnvironment}_configured`;
+    } else {
+      state = "mixed_invalid";
+    }
+  }
+  const configured = state === "test_configured" || state === "live_configured";
   const enabled = configured && String(env.PAYMENTS_ENABLED || "").toLowerCase() === "true";
-  return { clientKey, secretKey, configured, enabled };
+  return {
+    clientKey,
+    configured,
+    enabled,
+    environment: configured ? clientEnvironment : "disabled",
+    state,
+  };
+}
+
+export function billingStatus(env) {
+  const config = billingConfig(env);
+  return { configured: config.configured, enabled: config.enabled, environment: config.environment };
 }
 
 function billingLedger(env) {
@@ -414,12 +449,13 @@ function addBillingMonth(value) {
 async function tossBillingRequest(env, path, { method = "POST", body, idempotencyKey = "", fetcher = fetch } = {}) {
   const config = billingConfig(env);
   if (!config.configured) throw new Error("자동결제 환경 변수가 설정되지 않았습니다.");
+  const secretKey = String(env.TOSS_SECRET_KEY || "");
   let response;
   try {
     response = await fetcher(`https://api.tosspayments.com${path}`, {
     method,
     headers: {
-      Authorization: `Basic ${btoa(`${config.secretKey}:`)}`,
+      Authorization: `Basic ${btoa(`${secretKey}:`)}`,
       "Content-Type": "application/json",
       ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
     },
@@ -1055,7 +1091,17 @@ export async function handleAccountApi(ctx) {
     if (!user) return { status: 401, json: { error: "로그인 후 이용할 수 있어요." } };
     const config = billingConfig(ctx.env);
     const customerKey = await ensureCustomerKey(ctx, user);
-    return { status: 200, json: { configured: config.enabled, clientKey: config.enabled ? config.clientKey : null, customerKey, demo: demoBillingAllowed(ctx.env) } };
+    return {
+      status: 200,
+      json: {
+        configured: config.configured,
+        enabled: config.enabled,
+        environment: config.environment,
+        clientKey: config.enabled ? config.clientKey : null,
+        customerKey,
+        demo: demoBillingAllowed(ctx.env),
+      },
+    };
   }
 
   if (path === "/api/billing/activate" && method === "POST") {
