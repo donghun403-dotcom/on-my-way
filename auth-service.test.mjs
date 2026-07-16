@@ -321,6 +321,21 @@ test("Google provider is configured only when both expected client variables exi
   }
 });
 
+test("Kakao provider는 REST API 키를 기준으로 설정 상태를 공개한다", async () => {
+  const configurations = [
+    [{}, false],
+    [{ KAKAO_CLIENT_SECRET: "test-kakao-client-secret" }, false],
+    [{ KAKAO_CLIENT_ID: "test-kakao-rest-api-key" }, true],
+    [{ KAKAO_CLIENT_ID: "test-kakao-rest-api-key", KAKAO_CLIENT_SECRET: "test-kakao-client-secret" }, true],
+  ];
+  for (const [overrides, expected] of configurations) {
+    const result = await handleAccountApi(context({ path: "/api/auth/providers", env: testEnv(overrides), store: memoryStore() }));
+    const kakao = result.json.providers.find(({ id }) => id === "kakao");
+    assert.equal(kakao.configured, expected);
+    assert.deepEqual(Object.keys(kakao).sort(), ["configured", "id", "label"]);
+  }
+});
+
 test("OAuth 시작은 allowlist, redirect allowlist, PKCE와 일회용 transaction을 적용한다", async () => {
   const store = memoryStore();
   const env = testEnv({ GOOGLE_CLIENT_ID: "google-client", GOOGLE_CLIENT_SECRET: "google-secret" });
@@ -434,6 +449,103 @@ test("Google OAuth uses the Preview callback, PKCE, secure host-only cookies, an
   assert.match(blocked.redirect, /auth=deletion_pending/);
   assert.equal(store.sessions.size, 1);
   assert.equal(store.oauth.has(secondState), false);
+});
+
+test("Kakao OAuth는 Preview callback, state, client secret, 고유 ID와 이메일 없는 재로그인을 처리한다", async () => {
+  const previewOrigin = "https://on-my-way-pr-9.jungslawyer.workers.dev";
+  const expectedCallback = `${previewOrigin}/api/auth/callback/kakao`;
+  const env = testEnv({
+    KAKAO_CLIENT_ID: "test-kakao-rest-api-key",
+    KAKAO_CLIENT_SECRET: "test-kakao-client-secret",
+    IDENTITY_SECRET: "test-identity-secret-that-is-longer-than-32-characters",
+  });
+  const store = memoryStore();
+
+  const startKakaoLogin = async () => {
+    const start = await handleAccountApi(context({
+      path: "/api/auth/kakao/start?redirect=%2Fapp.html",
+      env,
+      store,
+      origin: previewOrigin,
+    }));
+    assert.equal(start.status, 302);
+    const authorization = new URL(start.redirect);
+    const state = authorization.searchParams.get("state");
+    assert.equal(authorization.origin, "https://kauth.kakao.com");
+    assert.equal(authorization.pathname, "/oauth/authorize");
+    assert.equal(authorization.searchParams.get("client_id"), "test-kakao-rest-api-key");
+    assert.equal(authorization.searchParams.get("redirect_uri"), expectedCallback);
+    assert.equal(authorization.searchParams.get("response_type"), "code");
+    assert.ok(state);
+    assert.equal(store.oauth.get(state).provider, "kakao");
+    assert.match(start.cookies[0], new RegExp(`omw_oauth_state=${state}`));
+    return state;
+  };
+
+  const mismatchedState = await startKakaoLogin();
+  const mismatch = await handleAccountApi(context({
+    path: "/api/auth/callback/kakao?error=access_denied&state=attacker-state",
+    env,
+    store,
+    cookie: `omw_oauth_state=${mismatchedState}`,
+    origin: previewOrigin,
+  }));
+  assert.match(mismatch.redirect, /auth=invalid_state/);
+  assert.equal(store.oauth.has(mismatchedState), true);
+
+  const cancelledState = await startKakaoLogin();
+  const cancelled = await handleAccountApi(context({
+    path: `/api/auth/callback/kakao?error=access_denied&state=${encodeURIComponent(cancelledState)}`,
+    env,
+    store,
+    cookie: `omw_oauth_state=${cancelledState}`,
+    origin: previewOrigin,
+  }));
+  assert.equal(cancelled.redirect, "/app.html?auth=cancelled&provider=kakao");
+  assert.equal(store.oauth.has(cancelledState), false);
+  assert.equal(store.sessions.size, 0);
+
+  const fetcher = async (url, options = {}) => {
+    if (String(url) === "https://kauth.kakao.com/oauth/token") {
+      const body = new URLSearchParams(options.body);
+      assert.equal(options.method, "POST");
+      assert.equal(body.get("grant_type"), "authorization_code");
+      assert.equal(body.get("client_id"), "test-kakao-rest-api-key");
+      assert.equal(body.get("client_secret"), "test-kakao-client-secret");
+      assert.equal(body.get("redirect_uri"), expectedCallback);
+      return Response.json({ access_token: "test-kakao-access-token" });
+    }
+    assert.equal(String(url), "https://kapi.kakao.com/v2/user/me");
+    assert.equal(options.headers.Authorization, "Bearer test-kakao-access-token");
+    return Response.json({ id: 123456789, kakao_account: { profile: { nickname: "Kakao Preview User" } } });
+  };
+
+  const login = async () => {
+    const state = await startKakaoLogin();
+    return handleAccountApi(context({
+      path: `/api/auth/callback/kakao?code=test-code&state=${encodeURIComponent(state)}`,
+      env,
+      store,
+      cookie: `omw_oauth_state=${state}`,
+      fetcher,
+      origin: previewOrigin,
+    }));
+  };
+
+  const first = await login();
+  assert.equal(first.redirect, "/app.html?auth=success");
+  assert.equal(store.users.size, 1);
+  const createdUser = [...store.users.values()][0];
+  assert.equal(createdUser.provider, "kakao");
+  assert.equal(createdUser.email, "");
+  assert.equal(store.identities.get("kakao:123456789").userId, createdUser.id);
+  assert.equal(store.sessions.size, 1);
+
+  const second = await login();
+  assert.equal(second.redirect, "/app.html?auth=success");
+  assert.equal(store.users.size, 1);
+  assert.equal([...store.users.values()][0].id, createdUser.id);
+  assert.equal(store.sessions.size, 2);
 });
 
 test("Apple OAuth 시작은 nonce와 form_post를 사용한다", async () => {

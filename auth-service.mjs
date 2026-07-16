@@ -712,13 +712,15 @@ export async function handleAccountApi(ctx) {
     const code = String(callback.code || "");
     const state = String(callback.state || "");
     const clearStateCookie = cookie(STATE_COOKIE, "", { maxAgeSeconds: 0, secure: ctx.secure });
-    if (callback.error) {
-      return { status: 302, redirect: authErrorRedirect(callback.error === "user_cancelled_authorize" ? "cancelled" : "provider_error", provider), cookies: [clearStateCookie] };
-    }
     const transaction = await consumeOAuthTransaction(ctx, provider, state);
-    if (!code || !transaction) {
+    if (!transaction) {
       return { status: 302, redirect: authErrorRedirect("invalid_state", provider), cookies: [clearStateCookie] };
     }
+    if (callback.error) {
+      const cancelled = callback.error === "access_denied" || callback.error === "user_cancelled_authorize";
+      return { status: 302, redirect: authErrorRedirect(cancelled ? "cancelled" : "provider_error", provider), cookies: [clearStateCookie] };
+    }
+    if (!code) return { status: 302, redirect: authErrorRedirect("invalid_state", provider), cookies: [clearStateCookie] };
 
     const redirect = safeRedirectPath(transaction.redirect);
     let firstPartyProfile = {};
