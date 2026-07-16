@@ -759,6 +759,7 @@ const navLoginLink = document.querySelector("#navLoginLink");
 const AUTH_PROVIDER_LABELS = { kakao: "카카오 계정", naver: "네이버 계정", google: "Google 계정", apple: "Apple 계정", password: "운영자 계정" };
 const AUTH_PROVIDER_IDS = new Set(["kakao", "naver", "google", "apple"]);
 const authProviderAvailability = new Map();
+const authProviderVisibility = new Map();
 let authProviderRequest = null;
 let activeAuthProvider = null;
 
@@ -949,7 +950,13 @@ async function loadAuthProviders() {
   if (authProviderRequest) return authProviderRequest;
   authProviderRequest = accountRequest("/api/auth/providers")
     .then((data) => {
-      (data.providers || []).forEach((provider) => authProviderAvailability.set(provider.id, Boolean(provider.configured)));
+      (data.providers || []).forEach((provider) => {
+        const visible = provider.visible !== false;
+        authProviderVisibility.set(provider.id, visible);
+        authProviderAvailability.set(provider.id, visible && Boolean(provider.configured));
+        const button = document.querySelector(`[data-auth-provider="${provider.id}"]`);
+        if (button) button.hidden = !visible;
+      });
       return data;
     })
     .catch((error) => {
@@ -965,6 +972,9 @@ async function startOAuth(provider) {
   setAuthProviderBusy(provider);
   try {
     await loadAuthProviders();
+    if (!authProviderVisibility.get(provider)) {
+      throw new Error("Apple 로그인은 iOS 출시 준비 단계에서 제공할 예정입니다.");
+    }
     if (!authProviderAvailability.get(provider)) {
       throw new Error(`${AUTH_PROVIDER_LABELS[provider] || "소셜 로그인"} 설정이 아직 완료되지 않았습니다. 다른 로그인 방법을 선택해 주세요.`);
     }

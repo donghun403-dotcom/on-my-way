@@ -207,6 +207,27 @@ test("AI 경로는 고정 비용을 사용하고 클라이언트 plan·creditCos
   assert.equal(usage.body.metrics.successfulCalls, 5);
 });
 
+test("AI 요청 제한은 클라이언트 userId가 아니라 인증된 세션 사용자 ID를 사용한다", { concurrency: false }, async () => {
+  const context = await authenticatedWorker({ plan: "pro", userId: "authenticated-user" });
+  const keys = [];
+  context.env.AI_RATE_LIMITER = {
+    async limit({ key }) {
+      keys.push(key);
+      return { success: false };
+    },
+  };
+
+  const result = await callApi(context, "/api/ai/companion-chat", {
+    method: "POST",
+    requestId: "spoofed-user-id",
+    body: { message: "사용자 ID 위조 시도", userId: "attacker-selected-user" },
+  });
+
+  assert.equal(result.response.status, 429);
+  assert.equal(result.body.code, "AI_RATE_LIMITED");
+  assert.deepEqual(keys, ["ai:companion_chat:authenticated-user:unknown"]);
+});
+
 test("올리 개인화 문맥은 실제 Pro·체험 사용자에게만 공급자로 전달한다", { concurrency: false }, async () => {
   const proContext = await authenticatedWorker({ plan: "pro", userId: "personalized-pro-user" });
   const freeContext = await authenticatedWorker({ plan: "free", userId: "personalization-spoof-user" });

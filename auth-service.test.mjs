@@ -300,10 +300,12 @@ test("클라이언트가 전달한 userId는 데모 identity 생성에 사용되
   assert.notEqual(result.json.user.id, "admin:password");
 });
 
-test("Provider 목록은 네 로그인을 노출하고 외부 설정 상태만 공개한다", async () => {
+test("Provider 목록은 Android 로그인 세 개를 노출하고 Apple 연기 상태를 공개한다", async () => {
   const result = await handleAccountApi(context({ path: "/api/auth/providers", env: testEnv(), store: memoryStore() }));
   assert.deepEqual(result.json.providers.map(({ id }) => id), ["kakao", "naver", "google", "apple"]);
   assert.equal(result.json.providers.every(({ configured }) => configured === false), true);
+  assert.deepEqual(result.json.providers.filter(({ visible }) => visible).map(({ id }) => id), ["kakao", "naver", "google"]);
+  assert.equal(result.json.providers.find(({ id }) => id === "apple").visible, false);
 });
 
 test("Google provider is configured only when both expected client variables exist", async () => {
@@ -317,7 +319,37 @@ test("Google provider is configured only when both expected client variables exi
     const result = await handleAccountApi(context({ path: "/api/auth/providers", env: testEnv(overrides), store: memoryStore() }));
     const google = result.json.providers.find(({ id }) => id === "google");
     assert.equal(google.configured, expected);
-    assert.deepEqual(Object.keys(google).sort(), ["configured", "id", "label"]);
+    assert.deepEqual(Object.keys(google).sort(), ["configured", "id", "label", "visible"]);
+  }
+});
+
+test("Naver provider는 Client ID와 Client Secret이 모두 있을 때만 설정 상태를 공개한다", async () => {
+  const configurations = [
+    [{}, false],
+    [{ NAVER_CLIENT_ID: "test-naver-client-id" }, false],
+    [{ NAVER_CLIENT_SECRET: "test-naver-client-secret" }, false],
+    [{ NAVER_CLIENT_ID: "test-naver-client-id", NAVER_CLIENT_SECRET: "test-naver-client-secret" }, true],
+  ];
+  for (const [overrides, expected] of configurations) {
+    const result = await handleAccountApi(context({ path: "/api/auth/providers", env: testEnv(overrides), store: memoryStore() }));
+    const naver = result.json.providers.find(({ id }) => id === "naver");
+    assert.equal(naver.configured, expected);
+    assert.deepEqual(Object.keys(naver).sort(), ["configured", "id", "label", "visible"]);
+  }
+});
+
+test("Kakao provider는 REST API 키를 기준으로 설정 상태를 공개한다", async () => {
+  const configurations = [
+    [{}, false],
+    [{ KAKAO_CLIENT_SECRET: "test-kakao-client-secret" }, false],
+    [{ KAKAO_CLIENT_ID: "test-kakao-rest-api-key" }, true],
+    [{ KAKAO_CLIENT_ID: "test-kakao-rest-api-key", KAKAO_CLIENT_SECRET: "test-kakao-client-secret" }, true],
+  ];
+  for (const [overrides, expected] of configurations) {
+    const result = await handleAccountApi(context({ path: "/api/auth/providers", env: testEnv(overrides), store: memoryStore() }));
+    const kakao = result.json.providers.find(({ id }) => id === "kakao");
+    assert.equal(kakao.configured, expected);
+    assert.deepEqual(Object.keys(kakao).sort(), ["configured", "id", "label", "visible"]);
   }
 });
 
@@ -436,9 +468,223 @@ test("Google OAuth uses the Preview callback, PKCE, secure host-only cookies, an
   assert.equal(store.oauth.has(secondState), false);
 });
 
+test("Kakao OAuth는 Preview callback, state, client secret, 고유 ID와 이메일 없는 재로그인을 처리한다", async () => {
+  const previewOrigin = "https://on-my-way-pr-9.jungslawyer.workers.dev";
+  const expectedCallback = `${previewOrigin}/api/auth/callback/kakao`;
+  const env = testEnv({
+    KAKAO_CLIENT_ID: "test-kakao-rest-api-key",
+    KAKAO_CLIENT_SECRET: "test-kakao-client-secret",
+    IDENTITY_SECRET: "test-identity-secret-that-is-longer-than-32-characters",
+  });
+  const store = memoryStore();
+
+  const startKakaoLogin = async () => {
+    const start = await handleAccountApi(context({
+      path: "/api/auth/kakao/start?redirect=%2Fapp.html",
+      env,
+      store,
+      origin: previewOrigin,
+    }));
+    assert.equal(start.status, 302);
+    const authorization = new URL(start.redirect);
+    const state = authorization.searchParams.get("state");
+    assert.equal(authorization.origin, "https://kauth.kakao.com");
+    assert.equal(authorization.pathname, "/oauth/authorize");
+    assert.equal(authorization.searchParams.get("client_id"), "test-kakao-rest-api-key");
+    assert.equal(authorization.searchParams.get("redirect_uri"), expectedCallback);
+    assert.equal(authorization.searchParams.get("response_type"), "code");
+    assert.ok(state);
+    assert.equal(store.oauth.get(state).provider, "kakao");
+    assert.match(start.cookies[0], new RegExp(`omw_oauth_state=${state}`));
+    return state;
+  };
+
+  const mismatchedState = await startKakaoLogin();
+  const mismatch = await handleAccountApi(context({
+    path: "/api/auth/callback/kakao?error=access_denied&state=attacker-state",
+    env,
+    store,
+    cookie: `omw_oauth_state=${mismatchedState}`,
+    origin: previewOrigin,
+  }));
+  assert.match(mismatch.redirect, /auth=invalid_state/);
+  assert.equal(store.oauth.has(mismatchedState), true);
+
+  const cancelledState = await startKakaoLogin();
+  const cancelled = await handleAccountApi(context({
+    path: `/api/auth/callback/kakao?error=access_denied&state=${encodeURIComponent(cancelledState)}`,
+    env,
+    store,
+    cookie: `omw_oauth_state=${cancelledState}`,
+    origin: previewOrigin,
+  }));
+  assert.equal(cancelled.redirect, "/app.html?auth=cancelled&provider=kakao");
+  assert.equal(store.oauth.has(cancelledState), false);
+  assert.equal(store.sessions.size, 0);
+
+  const fetcher = async (url, options = {}) => {
+    if (String(url) === "https://kauth.kakao.com/oauth/token") {
+      const body = new URLSearchParams(options.body);
+      assert.equal(options.method, "POST");
+      assert.equal(body.get("grant_type"), "authorization_code");
+      assert.equal(body.get("client_id"), "test-kakao-rest-api-key");
+      assert.equal(body.get("client_secret"), "test-kakao-client-secret");
+      assert.equal(body.get("redirect_uri"), expectedCallback);
+      return Response.json({ access_token: "test-kakao-access-token" });
+    }
+    assert.equal(String(url), "https://kapi.kakao.com/v2/user/me");
+    assert.equal(options.headers.Authorization, "Bearer test-kakao-access-token");
+    return Response.json({ id: 123456789, kakao_account: { profile: { nickname: "Kakao Preview User" } } });
+  };
+
+  const login = async () => {
+    const state = await startKakaoLogin();
+    return handleAccountApi(context({
+      path: `/api/auth/callback/kakao?code=test-code&state=${encodeURIComponent(state)}`,
+      env,
+      store,
+      cookie: `omw_oauth_state=${state}`,
+      fetcher,
+      origin: previewOrigin,
+    }));
+  };
+
+  const first = await login();
+  assert.equal(first.redirect, "/app.html?auth=success");
+  assert.equal(store.users.size, 1);
+  const createdUser = [...store.users.values()][0];
+  assert.equal(createdUser.provider, "kakao");
+  assert.equal(createdUser.email, "");
+  assert.equal(store.identities.get("kakao:123456789").userId, createdUser.id);
+  assert.equal(store.sessions.size, 1);
+
+  const second = await login();
+  assert.equal(second.redirect, "/app.html?auth=success");
+  assert.equal(store.users.size, 1);
+  assert.equal([...store.users.values()][0].id, createdUser.id);
+  assert.equal(store.sessions.size, 2);
+});
+
+test("Naver OAuth는 Preview callback, state, 취소, token query와 이메일 없는 재로그인을 처리한다", async () => {
+  const previewOrigin = "https://on-my-way-pr-9.jungslawyer.workers.dev";
+  const expectedCallback = `${previewOrigin}/api/auth/callback/naver`;
+  const env = testEnv({
+    NAVER_CLIENT_ID: "test-naver-client-id",
+    NAVER_CLIENT_SECRET: "test-naver-client-secret",
+    IDENTITY_SECRET: "test-identity-secret-that-is-longer-than-32-characters",
+  });
+  const store = memoryStore();
+
+  const startNaverLogin = async () => {
+    const start = await handleAccountApi(context({
+      path: "/api/auth/naver/start?redirect=%2Fapp.html",
+      env,
+      store,
+      origin: previewOrigin,
+    }));
+    assert.equal(start.status, 302);
+    const authorization = new URL(start.redirect);
+    const state = authorization.searchParams.get("state");
+    assert.equal(authorization.origin, "https://nid.naver.com");
+    assert.equal(authorization.pathname, "/oauth2.0/authorize");
+    assert.equal(authorization.searchParams.get("client_id"), "test-naver-client-id");
+    assert.equal(authorization.searchParams.get("redirect_uri"), expectedCallback);
+    assert.equal(authorization.searchParams.get("response_type"), "code");
+    assert.ok(state);
+    assert.equal(store.oauth.get(state).provider, "naver");
+    assert.match(start.cookies[0], new RegExp(`omw_oauth_state=${state}`));
+    return state;
+  };
+
+  const mismatchedState = await startNaverLogin();
+  const mismatch = await handleAccountApi(context({
+    path: "/api/auth/callback/naver?error=access_denied&state=attacker-state",
+    env,
+    store,
+    cookie: `omw_oauth_state=${mismatchedState}`,
+    origin: previewOrigin,
+  }));
+  assert.match(mismatch.redirect, /auth=invalid_state/);
+  assert.equal(store.oauth.has(mismatchedState), true);
+
+  const cancelledState = await startNaverLogin();
+  const cancelled = await handleAccountApi(context({
+    path: `/api/auth/callback/naver?error=access_denied&state=${encodeURIComponent(cancelledState)}`,
+    env,
+    store,
+    cookie: `omw_oauth_state=${cancelledState}`,
+    origin: previewOrigin,
+  }));
+  assert.equal(cancelled.redirect, "/app.html?auth=cancelled&provider=naver");
+  assert.equal(store.oauth.has(cancelledState), false);
+  assert.equal(store.sessions.size, 0);
+
+  const fetcher = async (url, options = {}) => {
+    if (String(url).startsWith("https://nid.naver.com/oauth2.0/token?")) {
+      const tokenRequest = new URL(url);
+      assert.equal(options.method, "GET");
+      assert.equal(tokenRequest.searchParams.get("grant_type"), "authorization_code");
+      assert.equal(tokenRequest.searchParams.get("client_id"), "test-naver-client-id");
+      assert.equal(tokenRequest.searchParams.get("client_secret"), "test-naver-client-secret");
+      assert.equal(tokenRequest.searchParams.get("redirect_uri"), expectedCallback);
+      assert.equal(tokenRequest.searchParams.get("code"), "test-code");
+      assert.ok(tokenRequest.searchParams.get("state"));
+      return Response.json({ access_token: "test-naver-token" });
+    }
+    assert.equal(String(url), "https://openapi.naver.com/v1/nid/me");
+    assert.equal(options.headers.Authorization, "Bearer test-naver-token");
+    return Response.json({ resultcode: "00", response: { id: "naver-preview-subject", nickname: "Naver Preview User" } });
+  };
+
+  const login = async () => {
+    const state = await startNaverLogin();
+    return handleAccountApi(context({
+      path: `/api/auth/callback/naver?code=test-code&state=${encodeURIComponent(state)}`,
+      env,
+      store,
+      cookie: `omw_oauth_state=${state}`,
+      fetcher,
+      origin: previewOrigin,
+    }));
+  };
+
+  const first = await login();
+  assert.equal(first.redirect, "/app.html?auth=success");
+  assert.equal(store.users.size, 1);
+  const createdUser = [...store.users.values()][0];
+  assert.equal(createdUser.provider, "naver");
+  assert.equal(createdUser.email, "");
+  assert.equal(store.identities.get("naver:naver-preview-subject").userId, createdUser.id);
+  assert.equal(store.sessions.size, 1);
+
+  const second = await login();
+  assert.equal(second.redirect, "/app.html?auth=success");
+  assert.equal(store.users.size, 1);
+  assert.equal([...store.users.values()][0].id, createdUser.id);
+  assert.equal(store.sessions.size, 2);
+});
+
 test("Apple OAuth 시작은 nonce와 form_post를 사용한다", async () => {
   const store = memoryStore();
-  const env = testEnv({ APPLE_CLIENT_ID: "com.example.web", APPLE_TEAM_ID: "TEAMID1234", APPLE_KEY_ID: "KEYID12345", APPLE_PRIVATE_KEY: "configured-secret" });
+  const credentials = { APPLE_CLIENT_ID: "com.example.web", APPLE_TEAM_ID: "TEAMID1234", APPLE_KEY_ID: "KEYID12345", APPLE_PRIVATE_KEY: "configured-secret" };
+  const deferredProviders = await handleAccountApi(context({ path: "/api/auth/providers", env: testEnv(credentials), store }));
+  const deferredApple = deferredProviders.json.providers.find(({ id }) => id === "apple");
+  assert.equal(deferredApple.configured, true);
+  assert.equal(deferredApple.visible, false);
+  const deferredStart = await handleAccountApi(context({ path: "/api/auth/apple/start", env: testEnv(credentials), store }));
+  assert.equal(deferredStart.status, 403);
+  assert.equal(deferredStart.json.code, "PROVIDER_DEFERRED");
+
+  const visibleWithoutCredentials = await handleAccountApi(context({
+    path: "/api/auth/providers",
+    env: testEnv({ APPLE_LOGIN_VISIBLE: "true" }),
+    store,
+  }));
+  const unconfiguredApple = visibleWithoutCredentials.json.providers.find(({ id }) => id === "apple");
+  assert.equal(unconfiguredApple.visible, true);
+  assert.equal(unconfiguredApple.configured, false);
+
+  const env = testEnv({ ...credentials, APPLE_LOGIN_VISIBLE: "true" });
   const result = await handleAccountApi(context({ path: "/api/auth/apple/start", env, store }));
   const authorization = new URL(result.redirect);
   assert.equal(authorization.origin, "https://appleid.apple.com");
@@ -878,6 +1124,15 @@ test("API requests from arbitrary origins are rejected", async () => {
   }), { ASSETS: { async fetch() { return new Response("asset"); } } });
   assert.equal(response.status, 403);
   assert.equal(response.headers.get("access-control-allow-origin"), null);
+});
+
+test("Preview와 Production의 동일 Origin API 요청은 정상 처리한다", async () => {
+  for (const origin of ["https://on-my-way-pr-auth-test.jungslawyer.workers.dev", "https://onmyway.olivenrich.com"]) {
+    const response = await worker.fetch(new Request(`${origin}/api/auth/providers`, {
+      headers: { Origin: origin },
+    }), { ASSETS: { async fetch() { return new Response("asset"); } } });
+    assert.equal(response.status, 200, origin);
+  }
 });
 
 test("Apple form_post는 Apple origin만 callback으로 허용한다", async () => {

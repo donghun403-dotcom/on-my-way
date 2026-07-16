@@ -15,6 +15,7 @@
   "vars": {
     "OPENAI_MODEL": "gpt-5.4-mini",
     "APP_ENV": "preview",
+    "APPLE_LOGIN_VISIBLE": "false",
     "ALLOW_DEV_LOGIN": "false",
     "ALLOW_DEMO_BILLING": "false",
     "PAYMENTS_ENABLED": "false"
