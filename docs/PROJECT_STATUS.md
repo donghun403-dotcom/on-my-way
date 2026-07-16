@@ -34,9 +34,18 @@
 
 - Preview 전용 D1 `on-my-way-billing-preview`를 APAC 위치로 생성했다.
 - `migrations/0001_billing_ledger.sql`을 원격 적용하고 billing 테이블·index·제약조건을 확인했다.
-- PR Preview workflow가 database 이름으로 `BILLING_DB`를 해석해 배포 직전 임시 설정에만 연결하도록 했다. database ID는 로그·PR·문서·정적 assets에 노출하지 않는다.
+- PR Preview workflow가 Repository Secret의 Preview D1 식별자를 일반 Actions 단계에서만 읽어 임시 generated Wrangler 설정에 `BILLING_DB`를 연결하도록 했다. 식별자는 로그·PR·문서·정적 assets에 노출하지 않는다.
 - `smoke_test_` 가짜 데이터로 계정 격리, 멱등 주문, 상태 전이, event 원장을 검증했다. PASS 후 테스트 데이터는 모두 정리됐다.
 - `PAYMENTS_ENABLED=false`를 유지했으며 Toss key, Sandbox 결제, Production D1, Production binding은 수행하지 않았다.
+
+### PR #10 최신 Preview 검증 결과
+
+- Preview D1 생성, migration 적용, 원장 smoke test와 테스트 데이터 cleanup은 완료된 상태를 재사용했다. 이번 검증에서 D1을 재생성하거나 migration을 재적용하지 않았다.
+- Repository Secret의 Preview D1 식별자를 독립적인 Actions 단계에서 generated Wrangler 설정에 주입했고, `BILLING_DB` binding을 포함한 Preview Worker 배포와 generated 설정 cleanup이 성공했다.
+- Preview 정적 자산 readiness와 `/plan-policy.mjs` 응답 확인이 성공했으며, `PAYMENTS_ENABLED=false`에서 일반 앱·인증 흐름과 결제 비활성 경로가 정상 동작했다.
+- 이전 Preview Playwright 실패는 외부 폰트 요청 취소, pricing policy module import 취소, 앱 hydration 완료 전 상태를 읽은 테스트 타이밍 문제로 분류했다. 외부 폰트 의존성을 제거하고 pricing policy를 lazy singleton import로 전환했으며, 앱 readiness marker와 hydration 대기를 추가했다.
+- 최신 PR Preview CI에서 단위 테스트, JavaScript 문법 검사, CI server Playwright, Preview 배포·URL 확인, Preview Playwright가 모두 성공했다. 브라우저 콘솔 오류와 인증 회귀도 재현되지 않았다.
+- Toss key와 Sandbox 결제는 설정·실행하지 않았고, Production D1·Production binding·결제 활성화는 수행하지 않았다.
 
 - PR #7은 `d09e508d8a1f34e7af52adda5645eb5b40a3bc68`로 `main`에 병합되었다.
 - Preview 정적 자산 수정 PR의 최종 CI에서 단위 테스트, JavaScript 문법 검사, CI 서버 Playwright, Preview 배포와 URL 확인, Preview Playwright가 모두 성공했다.
