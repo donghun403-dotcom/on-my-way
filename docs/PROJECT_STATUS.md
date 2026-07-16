@@ -19,7 +19,7 @@
 - 백업된 인증 제품 코드 후보는 최신 `main`에 이미 같거나 더 강한 형태로 반영되어 있어 다시 적용하지 않았다. 대신 Preview·Production 동일 Origin 허용, 서버 세션 사용자 기준 AI 요청 제한, 로그아웃 후 계정 데이터 차단과 동일 계정 재로그인 복원을 명시적으로 고정하는 회귀 테스트만 보완했다.
 - JavaScript 문법 검사, 인증·Worker 단위 테스트, 계정 격리·로그아웃·재로그인·탈퇴 E2E 및 지원 브라우저별 인증 회귀 검사가 성공했다.
 - Google 실제 Provider 검증은 완료됐다. Kakao는 실제 계정 로그인과 OAuth callback 복귀까지 확인했으며, 나머지 세션·계정 정책 시나리오는 아직 미확인이다.
-- Naver·Apple의 실제 Provider 검증은 아직 완료되지 않았으며, 다음 단일 작업은 Naver 구현·자동 검증과 외부 설정 준비다.
+- Naver는 실제 로그인, 세션 유지, 로그아웃 후 데이터 비노출, 동일 계정 복원과 Google·Kakao·Naver 데이터 격리를 확인했다. Apple 실제 Provider 검증은 아직 완료되지 않았다.
 
 ## Google 실제 Preview 인증 검증
 
@@ -28,8 +28,8 @@
 - 로그아웃 후 회원 데이터 비노출, 동일 Google 계정 재로그인 후 데이터 복원, 서로 다른 Google 계정 간 데이터 격리가 성공했다.
 - 계정 탈퇴, 탈퇴 후 기존 세션 무효화, 삭제 대기 계정 재로그인 정책을 확인했다.
 - 검증 기록에는 Secret, 이메일 주소, 사용자 ID, 토큰을 포함하지 않는다.
-- Kakao는 실제 로그인과 callback 복귀까지만 확인됐고 Naver·Apple은 아직 미완료이므로 인증 안정화 전체를 완료로 표시하지 않는다.
-- 다음 단일 작업은 Naver 구현·자동 검증과 외부 설정 준비다.
+- Kakao는 실제 로그인과 callback 복귀까지만 확인됐고 Naver는 아래 시나리오까지 확인됐다. Apple은 아직 미완료이므로 인증 안정화 전체를 완료로 표시하지 않는다.
+- 다음 단일 작업은 Apple 구현·자동 검증과 외부 설정 준비다.
 
 ## Kakao 실제 Preview 인증 검증
 
@@ -39,7 +39,18 @@
 - 새로고침 후 세션 유지, 로그아웃, 동일 Kakao 계정 재로그인과 데이터 복원, Google 계정과의 데이터 격리, 계정 탈퇴와 기존 세션 무효화, 삭제 대기 중 재로그인 차단, 로그인 취소 안내는 아직 미확인이다.
 - Kakao 연결 해제(unlink) API는 현재 구현되지 않아 계정 탈퇴 시 Provider 연결 해제 정책을 별도로 확정해야 한다.
 - 검증 기록에는 Secret, 이메일 주소, 사용자 ID, access token을 포함하지 않는다.
-- Naver·Apple의 실제 Provider 검증은 아직 완료되지 않았다.
+- Naver는 아래 시나리오까지 확인됐고 Apple의 실제 Provider 검증은 아직 완료되지 않았다.
+
+## Naver 실제 Preview 인증 검증
+
+- 검증일: 2026-07-16 (KST)
+- PR #9 Preview의 `/api/auth/providers`에서 Google·Kakao·Naver가 모두 설정된 상태로 동작함을 확인했다.
+- 신규 Naver 로그인, OAuth callback을 통한 앱 복귀, 회원 UI 표시와 새로고침 후 세션 유지가 성공했다.
+- 로그아웃 후 회원 데이터 비노출, 동일 Naver 계정 재로그인과 기존 데이터 복원이 성공했다.
+- Google·Kakao·Naver 계정 간 데이터 격리가 성공했다.
+- Naver 계정 탈퇴, 탈퇴 후 기존 세션 무효화, 삭제 대기 중 재로그인 차단, 로그인 취소·거부 안내와 Provider 연결 해제는 아직 미확인이다.
+- 검증 기록에는 Secret, 이메일 주소, 사용자 ID, access token을 포함하지 않는다.
+- Apple 실제 Provider 검증은 아직 완료되지 않았다.
 
 ## 현재 저장소
 
@@ -141,7 +152,7 @@ Apple을 포함한 필요한 Provider의 실제 가입·재로그인·세션 유
 ## 출시 차단 항목
 
 1. Apple 로그인 구현·Provider 검증 근거가 없다.
-2. Google 실제 계정 검증은 완료됐고 Kakao는 로그인·callback 복귀까지만 확인됐다. Kakao 잔여 시나리오와 Naver·Apple 실제 계정, 세션, 계정 격리, 탈퇴 후 재로그인 검증이 남아 있다.
+2. Google 실제 계정 검증은 완료됐고 Naver는 로그인·세션·로그아웃·재로그인·3 Provider 격리를 확인했다. Kakao 잔여 시나리오, Naver 탈퇴·취소 정책과 Apple 실제 계정 검증이 남아 있다.
 3. 결제는 `PAYMENTS_ENABLED=false`이며 Toss sandbox/live 승인·실패·webhook·환불·중복 결제·탈퇴 연계 검증이 남아 있다.
 4. PR #6 현재 HEAD와 `origin/main` 최신 커밋에 대해 GitHub status/workflow 조회가 비어 있어 최신 CI·Preview 결과를 완료 근거로 삼을 수 없다.
 5. PR #5 병합 이후의 Production 배포 상태와 최신 Preview URL을 확인할 근거가 없다.
@@ -175,7 +186,7 @@ Apple을 포함한 필요한 Provider의 실제 가입·재로그인·세션 유
 
 ## 다음에 수행할 단일 작업
 
-Naver Provider 자동 검증을 완료하고 Naver Developers와 Cloudflare Preview 설정값을 확정한 뒤 실제 계정 검증 체크리스트를 수행한다.
+Apple Provider 구현과 자동 검증을 완료하고 Apple Developer와 Cloudflare Preview 설정값을 확정한 뒤 실제 계정 검증 체크리스트를 수행한다.
 
 ## 다시 수행하면 안 되는 작업
 
