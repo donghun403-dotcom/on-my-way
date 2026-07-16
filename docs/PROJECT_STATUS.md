@@ -47,6 +47,15 @@
 - 최신 PR Preview CI에서 단위 테스트, JavaScript 문법 검사, CI server Playwright, Preview 배포·URL 확인, Preview Playwright가 모두 성공했다. 브라우저 콘솔 오류와 인증 회귀도 재현되지 않았다.
 - Toss key와 Sandbox 결제는 설정·실행하지 않았고, Production D1·Production binding·결제 활성화는 수행하지 않았다.
 
+### Toss Test Key 구성 게이트
+
+- 현재 자동결제 코드는 Toss Payments SDK v2의 `payment().requestBillingAuth()`와 API 개별 연동 키 쌍을 기준으로 한다. 성공·실패 URL은 `/app.html?billing=success`와 `/app.html?billing=fail`이며, 성공 리다이렉트의 `authKey`·`customerKey`는 서버의 `/api/billing/activate`에서만 처리한다.
+- `TOSS_CLIENT_KEY`와 `TOSS_SECRET_KEY`는 각각 `test_ck_...`·`test_sk_...` 또는 `live_ck_...`·`live_sk_...`의 동일 환경·동일 세트여야 한다. Preview에서는 라이브 키를 거부하고, 테스트/라이브 혼용도 거부한다.
+- 키 구성과 결제 활성화는 분리했다. 양쪽 테스트 키가 있으면 config 응답은 `configured=true`, `environment=test`를 공개하지만 `PAYMENTS_ENABLED=false`이면 `enabled=false`이고 클라이언트 키·시크릿 키는 공개하지 않는다. health 응답의 결제 상태도 유효한 동일 세트와 활성화 스위치를 함께 통과해야 true가 된다.
+- 결제 비활성 테스트에서 Toss fetch 0회, billing account/order 0건, Pro 권한 변경 없음과 키 비노출을 확인했다. 전체 단위 테스트 108/108 및 JavaScript 문법 검사가 통과했다.
+- Preview Worker Secret `TOSS_CLIENT_KEY`와 `TOSS_SECRET_KEY`는 현재 미설정 상태다. 실제 키·MID는 저장소·PR·문서·Codex 대화에 기록하지 않는다.
+- ACTION REQUIRED: 사용자가 Toss 개발자센터에서 자동결제 계약 또는 개발 연동 체험 상점의 API 개별 연동 Test MID와 동일 세트의 테스트 키를 확인한 뒤 Preview Worker Secret 두 이름에만 등록해야 한다. `PAYMENTS_ENABLED=false`, `ALLOW_DEMO_BILLING=false`와 Production 설정은 변경하지 않는다.
+
 - PR #7은 `d09e508d8a1f34e7af52adda5645eb5b40a3bc68`로 `main`에 병합되었다.
 - Preview 정적 자산 수정 PR의 최종 CI에서 단위 테스트, JavaScript 문법 검사, CI 서버 Playwright, Preview 배포와 URL 확인, Preview Playwright가 모두 성공했다.
 - Preview의 `/plan-policy.mjs`는 `200 OK`와 JavaScript MIME을 반환하며, 존재하지 않는 `.mjs`, `.js`, `.css` 요청은 HTML fallback 없이 `404`를 반환한다.
