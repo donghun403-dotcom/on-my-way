@@ -56,7 +56,7 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           wranglerVersion: "4.81.0"
           preCommands: |
-            database_id="$(wrangler d1 list --json | jq -r '.[] | select(.name == "on-my-way-billing-preview") | .uuid')"
+            database_id="$(npx --yes wrangler@4.81.0 d1 list --json | jq -r '.[] | select(.name == "on-my-way-billing-preview") | .uuid')"
             test -n "$database_id"
             test "$database_id" != "null"
             echo "::add-mask::$database_id"
