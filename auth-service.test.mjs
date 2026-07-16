@@ -321,6 +321,21 @@ test("Google provider is configured only when both expected client variables exi
   }
 });
 
+test("Naver provider는 Client ID와 Client Secret이 모두 있을 때만 설정 상태를 공개한다", async () => {
+  const configurations = [
+    [{}, false],
+    [{ NAVER_CLIENT_ID: "test-naver-client-id" }, false],
+    [{ NAVER_CLIENT_SECRET: "test-naver-client-secret" }, false],
+    [{ NAVER_CLIENT_ID: "test-naver-client-id", NAVER_CLIENT_SECRET: "test-naver-client-secret" }, true],
+  ];
+  for (const [overrides, expected] of configurations) {
+    const result = await handleAccountApi(context({ path: "/api/auth/providers", env: testEnv(overrides), store: memoryStore() }));
+    const naver = result.json.providers.find(({ id }) => id === "naver");
+    assert.equal(naver.configured, expected);
+    assert.deepEqual(Object.keys(naver).sort(), ["configured", "id", "label"]);
+  }
+});
+
 test("Kakao provider는 REST API 키를 기준으로 설정 상태를 공개한다", async () => {
   const configurations = [
     [{}, false],
@@ -539,6 +554,105 @@ test("Kakao OAuth는 Preview callback, state, client secret, 고유 ID와 이메
   assert.equal(createdUser.provider, "kakao");
   assert.equal(createdUser.email, "");
   assert.equal(store.identities.get("kakao:123456789").userId, createdUser.id);
+  assert.equal(store.sessions.size, 1);
+
+  const second = await login();
+  assert.equal(second.redirect, "/app.html?auth=success");
+  assert.equal(store.users.size, 1);
+  assert.equal([...store.users.values()][0].id, createdUser.id);
+  assert.equal(store.sessions.size, 2);
+});
+
+test("Naver OAuth는 Preview callback, state, 취소, token query와 이메일 없는 재로그인을 처리한다", async () => {
+  const previewOrigin = "https://on-my-way-pr-9.jungslawyer.workers.dev";
+  const expectedCallback = `${previewOrigin}/api/auth/callback/naver`;
+  const env = testEnv({
+    NAVER_CLIENT_ID: "test-naver-client-id",
+    NAVER_CLIENT_SECRET: "test-naver-client-secret",
+    IDENTITY_SECRET: "test-identity-secret-that-is-longer-than-32-characters",
+  });
+  const store = memoryStore();
+
+  const startNaverLogin = async () => {
+    const start = await handleAccountApi(context({
+      path: "/api/auth/naver/start?redirect=%2Fapp.html",
+      env,
+      store,
+      origin: previewOrigin,
+    }));
+    assert.equal(start.status, 302);
+    const authorization = new URL(start.redirect);
+    const state = authorization.searchParams.get("state");
+    assert.equal(authorization.origin, "https://nid.naver.com");
+    assert.equal(authorization.pathname, "/oauth2.0/authorize");
+    assert.equal(authorization.searchParams.get("client_id"), "test-naver-client-id");
+    assert.equal(authorization.searchParams.get("redirect_uri"), expectedCallback);
+    assert.equal(authorization.searchParams.get("response_type"), "code");
+    assert.ok(state);
+    assert.equal(store.oauth.get(state).provider, "naver");
+    assert.match(start.cookies[0], new RegExp(`omw_oauth_state=${state}`));
+    return state;
+  };
+
+  const mismatchedState = await startNaverLogin();
+  const mismatch = await handleAccountApi(context({
+    path: "/api/auth/callback/naver?error=access_denied&state=attacker-state",
+    env,
+    store,
+    cookie: `omw_oauth_state=${mismatchedState}`,
+    origin: previewOrigin,
+  }));
+  assert.match(mismatch.redirect, /auth=invalid_state/);
+  assert.equal(store.oauth.has(mismatchedState), true);
+
+  const cancelledState = await startNaverLogin();
+  const cancelled = await handleAccountApi(context({
+    path: `/api/auth/callback/naver?error=access_denied&state=${encodeURIComponent(cancelledState)}`,
+    env,
+    store,
+    cookie: `omw_oauth_state=${cancelledState}`,
+    origin: previewOrigin,
+  }));
+  assert.equal(cancelled.redirect, "/app.html?auth=cancelled&provider=naver");
+  assert.equal(store.oauth.has(cancelledState), false);
+  assert.equal(store.sessions.size, 0);
+
+  const fetcher = async (url, options = {}) => {
+    if (String(url).startsWith("https://nid.naver.com/oauth2.0/token?")) {
+      const tokenRequest = new URL(url);
+      assert.equal(options.method, "GET");
+      assert.equal(tokenRequest.searchParams.get("grant_type"), "authorization_code");
+      assert.equal(tokenRequest.searchParams.get("client_id"), "test-naver-client-id");
+      assert.equal(tokenRequest.searchParams.get("client_secret"), "test-naver-client-secret");
+      assert.equal(tokenRequest.searchParams.get("redirect_uri"), expectedCallback);
+      assert.equal(tokenRequest.searchParams.get("code"), "test-code");
+      assert.ok(tokenRequest.searchParams.get("state"));
+      return Response.json({ access_token: "test-naver-token" });
+    }
+    assert.equal(String(url), "https://openapi.naver.com/v1/nid/me");
+    assert.equal(options.headers.Authorization, "Bearer test-naver-token");
+    return Response.json({ resultcode: "00", response: { id: "naver-preview-subject", nickname: "Naver Preview User" } });
+  };
+
+  const login = async () => {
+    const state = await startNaverLogin();
+    return handleAccountApi(context({
+      path: `/api/auth/callback/naver?code=test-code&state=${encodeURIComponent(state)}`,
+      env,
+      store,
+      cookie: `omw_oauth_state=${state}`,
+      fetcher,
+      origin: previewOrigin,
+    }));
+  };
+
+  const first = await login();
+  assert.equal(first.redirect, "/app.html?auth=success");
+  assert.equal(store.users.size, 1);
+  const createdUser = [...store.users.values()][0];
+  assert.equal(createdUser.provider, "naver");
+  assert.equal(createdUser.email, "");
+  assert.equal(store.identities.get("naver:naver-preview-subject").userId, createdUser.id);
   assert.equal(store.sessions.size, 1);
 
   const second = await login();
