@@ -203,6 +203,11 @@ function providerConfig(env, provider) {
   return { clientId, clientSecret, configured: Boolean(clientId && clientSecret) };
 }
 
+function providerVisible(env, provider) {
+  if (provider !== "apple") return true;
+  return String(env.APPLE_LOGIN_VISIBLE || "").toLowerCase() === "true";
+}
+
 function sessionSecret(env) {
   const secret = String(env.SESSION_SECRET || "");
   if (secret) {
@@ -672,6 +677,7 @@ export async function handleAccountApi(ctx) {
           id,
           label: PROVIDERS[id].label,
           configured: providerConfig(ctx.env, id).configured,
+          visible: providerVisible(ctx.env, id),
         })),
         devLoginEnabled: devLoginAllowed(ctx.env),
       },
@@ -683,6 +689,15 @@ export async function handleAccountApi(ctx) {
     const provider = providerStartMatch?.[1] || String(url.searchParams.get("provider") || "");
     const redirect = safeRedirectPath(url.searchParams.get("redirect"));
     if (!PROVIDERS[provider]) return { status: 400, json: { error: "지원하지 않는 로그인 방식이에요." } };
+    if (!providerVisible(ctx.env, provider)) {
+      return {
+        status: 403,
+        json: {
+          error: "Apple 로그인은 iOS 출시 준비 단계에서 제공할 예정이에요.",
+          code: "PROVIDER_DEFERRED",
+        },
+      };
+    }
 
     const config = providerConfig(ctx.env, provider);
     if (!config.configured) {

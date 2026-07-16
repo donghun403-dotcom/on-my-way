@@ -2,6 +2,7 @@ const { test, expect } = require("@playwright/test");
 const { createUsageResponse, expectNoHorizontalOverflow, mockExternalAssets, monitorPage } = require("./helpers");
 
 const providers = ["kakao", "naver", "google", "apple"];
+const androidProviders = ["kakao", "naver", "google"];
 const providerNames = {
   kakao: "카카오로 계속하기",
   naver: "네이버로 계속하기",
@@ -33,7 +34,13 @@ async function mockAccountApi(page, state = { user: null, configured: true }) {
   await page.route("**/api/auth/providers", (route) => route.fulfill({
     status: 200,
     contentType: "application/json",
-    body: JSON.stringify({ providers: providers.map((id) => ({ id, configured: state.configured !== false })) }),
+    body: JSON.stringify({
+      providers: providers.map((id) => ({
+        id,
+        configured: state.configured !== false,
+        visible: id !== "apple" || state.appleVisible === true,
+      })),
+    }),
   }));
   await page.route("**/api/auth/me", (route) => route.fulfill({
     status: 200,
@@ -80,13 +87,28 @@ async function mockAccountApi(page, state = { user: null, configured: true }) {
   });
 }
 
-test("네 Provider 로그인 버튼과 Apple 접근성이 모바일 레이아웃에 표시된다", async ({ page }) => {
+test("Android 로그인에는 세 Provider만 표시되고 Apple은 레이아웃과 포커스 순서에서 제외된다", async ({ page }) => {
   const diagnostics = monitorPage(page);
   await mockAccountApi(page);
   await page.goto("/app.html?auth=login");
-  for (const provider of providers) await expect(page.getByRole("button", { name: providerNames[provider] })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Apple로 계속하기" })).toHaveAttribute("aria-label", "Apple로 계속하기");
+  for (const provider of androidProviders) await expect(page.getByRole("button", { name: providerNames[provider] })).toBeVisible();
+  await expect(page.locator('[data-auth-provider="apple"]')).toBeHidden();
+  await expect(page.locator("#authProviderList > .auth-provider:visible")).toHaveCount(3);
+  const focusableProviders = await page.locator("#authProviderList > .auth-provider").evaluateAll((buttons) => buttons
+    .filter((button) => !button.hidden && !button.disabled && button.tabIndex >= 0)
+    .map((button) => button.dataset.authProvider));
+  expect(focusableProviders).toEqual(androidProviders);
   await expectNoHorizontalOverflow(page);
+  diagnostics.expectClean();
+});
+
+test("Apple 노출 플래그가 true일 때만 버튼을 표시하며 Secret이 없으면 시작하지 않는다", async ({ page }) => {
+  const diagnostics = monitorPage(page);
+  await mockAccountApi(page, { user: null, configured: false, appleVisible: true });
+  await page.goto("/app.html?auth=login");
+  await expect(page.getByRole("button", { name: "Apple로 계속하기" })).toBeVisible();
+  await page.getByRole("button", { name: "Apple로 계속하기" }).click();
+  await expect(page.locator("#authProviderStatus")).toContainText("설정이 아직 완료되지 않았습니다");
   diagnostics.expectClean();
 });
 
@@ -100,10 +122,10 @@ test("각 Provider는 allowlisted Worker OAuth 시작 URL로 이동한다", asyn
     return route.fulfill({ status: 200, contentType: "text/html", body: "<!doctype html><title>OAuth handoff</title>" });
   });
 
-  for (const provider of providers) {
+  for (const provider of androidProviders) {
     await page.goto("/app.html?auth=login");
     await page.getByRole("button", { name: providerNames[provider] }).click();
-    await expect.poll(() => starts.length).toBe(providers.indexOf(provider) + 1);
+    await expect.poll(() => starts.length).toBe(androidProviders.indexOf(provider) + 1);
     const start = new URL(starts.at(-1));
     expect(start.pathname).toBe(`/api/auth/${provider}/start`);
     expect(start.searchParams.get("redirect")).toBe("/app.html");
@@ -129,11 +151,11 @@ test("로그인 중 연속 클릭은 OAuth 요청을 한 번만 시작한다", a
   diagnostics.expectClean();
 });
 
-test("Provider 설정이 없으면 가짜 세션 없이 명확한 안내를 표시한다", async ({ page }) => {
+test("노출된 Provider 설정이 없으면 가짜 세션 없이 명확한 안내를 표시한다", async ({ page }) => {
   const diagnostics = monitorPage(page);
   await mockAccountApi(page, { user: null, configured: false });
   await page.goto("/app.html?auth=login");
-  await page.getByRole("button", { name: "Apple로 계속하기" }).click();
+  await page.getByRole("button", { name: "Google로 계속하기" }).click();
   await expect(page.locator("#authProviderStatus")).toContainText("설정이 아직 완료되지 않았습니다");
   await expect(page).toHaveURL(/app\.html/);
   diagnostics.expectClean();
