@@ -305,6 +305,7 @@ export async function upsertUserFromProfile(userStore, env, provider, profile) {
   user.name = profile.name || user.name || "회원";
   user.email = profile.email || user.email || "";
   user.avatar = profile.avatar || user.avatar || "";
+  if (provider === "apple" && profile.providerRefreshToken) user.appleRefreshToken = String(profile.providerRefreshToken);
   user.lastLoginAt = now;
   if (isAdminEmail) {
     user.role = "admin";
@@ -548,6 +549,23 @@ async function createAppleClientSecret(config, now = Date.now()) {
   return `${headerPart}.${payloadPart}.${base64UrlEncode(new Uint8Array(signature))}`;
 }
 
+async function revokeAppleAuthorization(env, refreshToken, fetcher = fetch) {
+  const config = providerConfig(env, "apple");
+  if (!config.configured || !refreshToken) throw new Error("Apple 연결 해제 설정이 필요합니다.");
+  const params = new URLSearchParams({
+    client_id: config.clientId,
+    client_secret: await createAppleClientSecret(config),
+    token: refreshToken,
+    token_type_hint: "refresh_token",
+  });
+  const response = await fetcher("https://appleid.apple.com/auth/revoke", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: params.toString(),
+  });
+  if (!response.ok) throw new Error("Apple 연결 해제에 실패했습니다.");
+}
+
 export async function verifyAppleIdentityToken(idToken, { clientId, nonce, fetcher = fetch, now = Date.now() }) {
   const parsed = parseJwt(idToken);
   if (parsed.header.alg !== "RS256" || !parsed.header.kid) throw new Error("Apple identity token header가 올바르지 않습니다.");
@@ -599,12 +617,14 @@ async function exchangeOAuthCode(env, provider, code, redirectUri, transaction, 
   if (!tokenResponse.ok || (!tokenData.access_token && !tokenData.id_token)) throw new Error(`${meta.label} 토큰 발급에 실패했어요.`);
 
   if (provider === "apple") {
+    if (!tokenData.id_token || !tokenData.refresh_token) throw new Error("Apple 계정 검증 정보를 확인하지 못했어요.");
     const claims = await verifyAppleIdentityToken(tokenData.id_token, { clientId, nonce: transaction.nonce, fetcher });
     return {
       providerUserId: String(claims.sub),
       name: firstPartyProfile.name || "",
       email: claims.email || firstPartyProfile.email || "",
       avatar: "",
+      providerRefreshToken: String(tokenData.refresh_token),
     };
   }
 
@@ -860,6 +880,17 @@ export async function handleAccountApi(ctx) {
       } catch (error) {
         console.error("Billing cancellation before account deletion failed", { code: error?.code, message: error?.message });
         return { status: 502, json: { error: "정기결제 해지를 확인하지 못해 탈퇴를 중단했습니다. 잠시 후 다시 시도해 주세요." } };
+      }
+    }
+    if (user.provider === "apple") {
+      if (!user.appleRefreshToken) {
+        return { status: 503, json: { error: "Apple 연결 해제 정보를 확인할 수 없어 탈퇴를 중단했습니다. 고객지원에 문의해 주세요." } };
+      }
+      try {
+        await revokeAppleAuthorization(ctx.env, user.appleRefreshToken, ctx.fetcher || fetch);
+      } catch (error) {
+        console.error("Apple authorization revocation before account deletion failed", { name: error?.name, message: error?.message });
+        return { status: 502, json: { error: "Apple 연결 해제를 확인하지 못해 탈퇴를 중단했습니다. 잠시 후 다시 시도해 주세요." } };
       }
     }
 

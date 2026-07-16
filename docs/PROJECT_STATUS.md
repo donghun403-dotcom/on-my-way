@@ -17,7 +17,7 @@
 
 - Preview 정적 자산 수정을 담은 PR #8은 `9bb20959f7d8107885a6ec8fc7427c5cb11263c7`로 `main`에 병합되었으며, 인증 안정화 작업은 이 커밋에서 분리한 `fix/omw-auth-stabilization` 브랜치와 전용 worktree에서 수행한다.
 - 백업된 인증 제품 코드 후보는 최신 `main`에 이미 같거나 더 강한 형태로 반영되어 있어 다시 적용하지 않았다. 대신 Preview·Production 동일 Origin 허용, 서버 세션 사용자 기준 AI 요청 제한, 로그아웃 후 계정 데이터 차단과 동일 계정 재로그인 복원을 명시적으로 고정하는 회귀 테스트만 보완했다.
-- JavaScript 문법 검사, 인증·Worker 단위 테스트, 계정 격리·로그아웃·재로그인·탈퇴 E2E 및 지원 브라우저별 인증 회귀 검사가 성공했다.
+- JavaScript 문법 검사와 전체 단위 테스트, 데스크톱 Chromium의 계정 격리·로그아웃·재로그인·탈퇴 E2E가 성공했다. 지원 브라우저별 인증 회귀에서는 태블릿 Chromium의 페이지 전환 중 `script.js` 요청 취소가 한 번 관찰됐고 해당 테스트 재실행은 성공했다. 최신 PR CI 결과는 Apple 변경 push 후 별도로 확인한다.
 - Google 실제 Provider 검증은 완료됐다. Kakao는 실제 계정 로그인과 OAuth callback 복귀까지 확인했으며, 나머지 세션·계정 정책 시나리오는 아직 미확인이다.
 - Naver는 실제 로그인, 세션 유지, 로그아웃 후 데이터 비노출, 동일 계정 복원과 Google·Kakao·Naver 데이터 격리를 확인했다. Apple 실제 Provider 검증은 아직 완료되지 않았다.
 
@@ -51,6 +51,16 @@
 - Naver 계정 탈퇴, 탈퇴 후 기존 세션 무효화, 삭제 대기 중 재로그인 차단, 로그인 취소·거부 안내와 Provider 연결 해제는 아직 미확인이다.
 - 검증 기록에는 Secret, 이메일 주소, 사용자 ID, access token을 포함하지 않는다.
 - Apple 실제 Provider 검증은 아직 완료되지 않았다.
+
+## Apple 구현 및 자동 검증
+
+- 현재 구현은 Apple authorize `https://appleid.apple.com/auth/authorize`, token `https://appleid.apple.com/auth/token`, callback `/api/auth/callback/apple`을 사용한다. Preview callback은 `https://on-my-way-pr-9.jungslawyer.workers.dev/api/auth/callback/apple`, Production callback은 `https://onmyway.olivenrich.com/api/auth/callback/apple`이다.
+- 인가 요청은 일회용 `state`와 `nonce`, `response_type=code`, `response_mode=form_post`, 최소 scope `name email`을 사용한다. callback은 state cookie와 서버 transaction을 대조하고, Apple ID token의 서명·issuer·audience·만료·nonce를 검증한 뒤 이메일이 아닌 `sub`를 Provider 고유 ID로 저장한다.
+- 서버는 `APPLE_CLIENT_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`가 모두 있을 때만 Apple을 configured로 표시한다. 정적 `APPLE_CLIENT_SECRET`은 사용하지 않고 private key로 짧은 수명의 client secret을 서버에서 생성한다.
+- Apple token 응답의 refresh token을 서버 계정에만 보관하고 공개 사용자 응답에서는 제외한다. 계정 탈퇴는 Apple revoke endpoint에서 연결 해제가 확인된 뒤에만 내부 identity와 session을 삭제하도록 보완했다.
+- 자동 테스트는 Provider 설정 조건, Preview authorize URL과 callback, state 불일치, 로그인 취소, client secret 요청, ID token 검증, 이메일 없는 `sub` 기반 가입·재로그인, 최초 이름·private relay 유지, refresh token 비노출, revoke 실패 시 탈퇴 중단과 성공 시 세션·identity 삭제를 확인한다.
+- Apple Developer 설정과 Cloudflare Preview Secret은 아직 입력하지 않았으며, 현재 Preview의 Apple `configured`는 `false`다. 실제 Apple 계정 로그인·세션·격리·탈퇴·취소 검증도 아직 완료하지 않았다.
+- 문서와 PR에는 Secret, 이메일 주소, 사용자 ID, token 값을 기록하지 않는다.
 
 ## 현재 저장소
 
@@ -106,9 +116,9 @@ GitHub PR 전체 조회 결과는 열린 1개와 병합된 3개이며, 별도의
 
 | ID | 단계 | 작업 항목 | 상태 | 확인 근거 | 관련 파일·PR | 다음 조치 |
 | -- | -- | ----- | -- | ----- | -------- | ----- |
-| A1 | 1단계 — 인증 안정화 | Kakao·Naver·Google 가입/로그인, 세션 유지, 로그아웃 | 진행 중 | `auth-service.mjs`에 3개 Provider·세션 쿠키·계정 API가 있고 PR #2/#3에 테스트 근거가 있으나 실제 Provider 계정 검증과 현재 HEAD CI는 없음 | `auth-service.mjs`, `auth-service.test.mjs`, PR #2/#3/#6 | 최신 `main` 기준으로 실제 계정·세션 수동 검증 범위 확정 |
-| A2 | 1단계 — 인증 안정화 | Apple 로그인 | 진행 중 | 현재 `PROVIDERS`에는 Kakao·Naver·Google만 존재하며 Apple Provider 구현·검증 근거를 찾지 못함 | `auth-service.mjs`, `app.html` | Apple 콘솔 설정과 구현 여부를 별도 목표로 확인 |
-| A3 | 1단계 — 인증 안정화 | 계정 격리, 탈퇴, 재로그인 정책, 인증 실패 처리와 테스트 | 진행 중 | 서버 계정·탈퇴 흐름과 테스트가 존재하고, 작업 트리에는 계정별 localStorage 격리 및 AI 인증 테스트가 미커밋 상태임. PR #5가 Provider 재인증·Apple revoke·동의 증적을 잔여 차단으로 기록 | `auth-service.mjs`, `worker.mjs`, `auth-service.test.mjs`, `tests/e2e/storage-recovery.spec.js`, PR #5/#6 | 미커밋 변경을 최신 `main`과 대조한 뒤 실제 계정 정책 검증 |
+| A1 | 1단계 — 인증 안정화 | Kakao·Naver·Google 가입/로그인, 세션 유지, 로그아웃 | 진행 중 | Google 실제 검증은 완료됐다. Kakao는 실제 로그인·callback 복귀를 확인했고 Naver는 로그인·세션·로그아웃·재로그인·3 Provider 격리를 확인했다. Kakao와 Naver의 명시된 잔여 수동 항목은 미확인이다. | `auth-service.mjs`, `auth-service.test.mjs`, PR #9 | Kakao·Naver 잔여 수동 항목만 검증 |
+| A2 | 1단계 — 인증 안정화 | Apple 로그인 | 진행 중 | Apple authorize/token/callback, state·nonce, 동적 client secret, ID token 검증, `sub` 기반 계정과 탈퇴 전 token revoke를 구현하고 자동 테스트했다. 외부 설정과 실제 계정 검증은 미완료다. | `auth-service.mjs`, `apple-auth.test.mjs`, `app.html`, PR #9 | Apple Developer·Preview Secret 설정 후 실제 계정 검증 |
+| A3 | 1단계 — 인증 안정화 | 계정 격리, 탈퇴, 재로그인 정책, 인증 실패 처리와 테스트 | 진행 중 | 공통 서버 계정·탈퇴·계정별 저장소 격리와 회귀 테스트가 존재한다. Apple은 revoke 실패 시 탈퇴를 중단하고 성공 후 세션·identity를 제거하도록 자동 검증했으나 실제 Provider 검증은 남아 있다. | `auth-service.mjs`, `worker.mjs`, `auth-service.test.mjs`, `apple-auth.test.mjs`, `tests/e2e/storage-recovery.spec.js`, PR #9 | Apple 실제 계정 격리·탈퇴·재로그인 정책 검증 |
 | B1 | 2단계 — 결제·구독 | Pricing, 무료 체험, Pro 권한, AI 크레딧 정책 | 진행 중 | PR #5가 `origin/main`에 병합되었고 PR 설명에 85/85 단위·34/34 문법·브라우저 회귀 근거가 있으나 독립적인 최신 CI/Preview status는 없음 | PR #5, `index.html`, `app.html`, `auth-service.mjs` | 병합된 `main` 기준 정책과 현재 PR #6의 중복 범위 비교 |
 | B2 | 2단계 — 결제·구독 | 결제 성공·실패, webhook, 환불, 해지·갱신, 중복 결제 방지 | 차단 | 코드에 Toss billing·해지·갱신 경로는 있으나 `PAYMENTS_ENABLED=false`이고 Toss 승인·sandbox 실패/환불·webhook·실결제 검증 근거가 없음 | `auth-service.mjs`, `worker.mjs`, PR #5 | 외부 결제 콘솔·sandbox 검증 전에는 결제 활성화나 재구현을 하지 않음 |
 | C1 | 3단계 — 모바일 UX | 오늘·계획·올리·기록 탭과 주요 실행 흐름 | 진행 중 | `app.html`과 `script.js`에 탭·계획·기록·올리 흐름 및 E2E가 존재하고, 현재 작업 트리에 모바일 이미지·스크롤 관련 변경이 미커밋 상태임 | `app.html`, `script.js`, `styles.css`, `tests/e2e/*`, PR #3/#6 | 최신 기준으로 최소 모바일 회귀 범위만 확인 |
@@ -151,8 +161,8 @@ Apple을 포함한 필요한 Provider의 실제 가입·재로그인·세션 유
 
 ## 출시 차단 항목
 
-1. Apple 로그인 구현·Provider 검증 근거가 없다.
-2. Google 실제 계정 검증은 완료됐고 Naver는 로그인·세션·로그아웃·재로그인·3 Provider 격리를 확인했다. Kakao 잔여 시나리오, Naver 탈퇴·취소 정책과 Apple 실제 계정 검증이 남아 있다.
+1. Apple 구현과 자동 검증은 준비됐지만 Apple Developer·Cloudflare Preview 설정과 실제 계정 검증이 남아 있다.
+2. Google 실제 계정 검증은 완료됐고 Naver는 로그인·세션·로그아웃·재로그인·3 Provider 격리를 확인했다. Kakao 잔여 시나리오와 Naver 탈퇴·취소·연결 해제 정책이 남아 있다.
 3. 결제는 `PAYMENTS_ENABLED=false`이며 Toss sandbox/live 승인·실패·webhook·환불·중복 결제·탈퇴 연계 검증이 남아 있다.
 4. PR #6 현재 HEAD와 `origin/main` 최신 커밋에 대해 GitHub status/workflow 조회가 비어 있어 최신 CI·Preview 결과를 완료 근거로 삼을 수 없다.
 5. PR #5 병합 이후의 Production 배포 상태와 최신 Preview URL을 확인할 근거가 없다.
@@ -160,7 +170,8 @@ Apple을 포함한 필요한 Provider의 실제 가입·재로그인·세션 유
 
 ## 미확인 항목
 
-- Apple OAuth 콘솔·callback·token revoke 설정
+- Apple Developer Services ID·도메인·return URL·private key 설정과 Cloudflare Preview Secret
+- Apple 실제 callback·세션·계정 격리·탈퇴 token revoke 결과
 - 운영 Provider callback과 실제 계정 데이터 격리
 - Cloudflare Production의 현재 배포 커밋·health·Secret/KV 상태
 - PR #6의 Preview 생성 여부와 최신 Preview 회귀 결과
@@ -186,7 +197,7 @@ Apple을 포함한 필요한 Provider의 실제 가입·재로그인·세션 유
 
 ## 다음에 수행할 단일 작업
 
-Apple Provider 구현과 자동 검증을 완료하고 Apple Developer와 Cloudflare Preview 설정값을 확정한 뒤 실제 계정 검증 체크리스트를 수행한다.
+Apple Developer와 Cloudflare Preview 외부 설정을 완료해 `/api/auth/providers`의 Apple `configured:true`를 확인한 뒤 실제 Apple 계정 검증 체크리스트를 수행한다.
 
 ## 다시 수행하면 안 되는 작업
 
