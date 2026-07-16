@@ -48,6 +48,26 @@ jobs:
       - name: Run Playwright against the CI server
         run: npm run test:e2e -- --reporter=line
 
+      - name: Resolve Preview billing D1 binding
+        id: billing_db
+        shell: bash
+        run: |
+          database_id="$(npx --yes wrangler@4.81.0 d1 list --json | jq -r '.[] | select(.name == "on-my-way-billing-preview") | .uuid')"
+          test -n "$database_id"
+          test "$database_id" != "null"
+          echo "::add-mask::$database_id"
+          generated_config="$GITHUB_WORKSPACE/wrangler.preview.generated.jsonc"
+          jq --arg database_id "$database_id" '
+            .d1_databases = [{
+              "binding": "BILLING_DB",
+              "database_name": "on-my-way-billing-preview",
+              "database_id": $database_id,
+              "migrations_dir": "migrations"
+            }] |
+            .assets.exclude = ((.assets.exclude // []) + ["wrangler.preview.generated.jsonc"])
+          ' wrangler.preview.jsonc > "$generated_config"
+          echo "config=$generated_config" >> "$GITHUB_OUTPUT"
+
       - name: Deploy the Cloudflare PR preview
         id: deploy
         uses: cloudflare/wrangler-action@v3
@@ -55,7 +75,7 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           wranglerVersion: "4.81.0"
-          command: deploy --config wrangler.preview.jsonc --name on-my-way-pr-${{ github.event.pull_request.number || 'manual' }}
+          command: deploy --config ${{ steps.billing_db.outputs.config }} --name on-my-way-pr-${{ github.event.pull_request.number || 'manual' }}
 
       - name: Require a preview deployment URL
         env:

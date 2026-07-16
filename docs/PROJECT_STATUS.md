@@ -30,6 +30,14 @@
 - `BILLING_CUSTOMER_MISMATCH`의 깨진 소스 문구를 정상 UTF-8 문구로 복구하고, 불일치 시 Pro를 부여하지 않는 결제 테스트를 추가했다.
 - 이번 조사에서도 D1 생성, `BILLING_DB` 연결, Toss Secret 설정, 결제 활성화는 수행하지 않았다.
 
+### Preview 결제 원장 인프라
+
+- Preview 전용 D1 `on-my-way-billing-preview`를 APAC 위치로 생성했다.
+- `migrations/0001_billing_ledger.sql`을 원격 적용하고 billing 테이블·index·제약조건을 확인했다.
+- PR Preview workflow가 database 이름으로 `BILLING_DB`를 해석해 배포 직전 임시 설정에만 연결하도록 했다. database ID는 로그·PR·문서·정적 assets에 노출하지 않는다.
+- `smoke_test_` 가짜 데이터로 계정 격리, 멱등 주문, 상태 전이, event 원장을 검증했다. PASS 후 테스트 데이터는 모두 정리됐다.
+- `PAYMENTS_ENABLED=false`를 유지했으며 Toss key, Sandbox 결제, Production D1, Production binding은 수행하지 않았다.
+
 - PR #7은 `d09e508d8a1f34e7af52adda5645eb5b40a3bc68`로 `main`에 병합되었다.
 - Preview 정적 자산 수정 PR의 최종 CI에서 단위 테스트, JavaScript 문법 검사, CI 서버 Playwright, Preview 배포와 URL 확인, Preview Playwright가 모두 성공했다.
 - Preview의 `/plan-policy.mjs`는 `200 OK`와 JavaScript MIME을 반환하며, 존재하지 않는 `.mjs`, `.js`, `.css` 요청은 HTML fallback 없이 `404`를 반환한다.
