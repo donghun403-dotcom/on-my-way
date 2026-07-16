@@ -18,8 +18,18 @@
 - Preview 정적 자산 수정을 담은 PR #8은 `9bb20959f7d8107885a6ec8fc7427c5cb11263c7`로 `main`에 병합되었으며, 인증 안정화 작업은 이 커밋에서 분리한 `fix/omw-auth-stabilization` 브랜치와 전용 worktree에서 수행한다.
 - 백업된 인증 제품 코드 후보는 최신 `main`에 이미 같거나 더 강한 형태로 반영되어 있어 다시 적용하지 않았다. 대신 Preview·Production 동일 Origin 허용, 서버 세션 사용자 기준 AI 요청 제한, 로그아웃 후 계정 데이터 차단과 동일 계정 재로그인 복원을 명시적으로 고정하는 회귀 테스트만 보완했다.
 - JavaScript 문법 검사, 인증·Worker 단위 테스트, 계정 격리·로그아웃·재로그인·탈퇴 E2E 및 지원 브라우저별 인증 회귀 검사가 성공했다.
-- Google·Kakao·Naver·Apple의 실제 Provider 계정 로그인과 외부 콘솔 설정 검증은 아직 완료되지 않았다.
-- 다음 단일 작업은 PR Preview에서 실제 Google 계정으로 로그인·세션 복원·로그아웃·계정 격리·탈퇴 흐름을 수동 검증하는 것이다.
+- Google 실제 Provider 검증은 아래와 같이 완료됐으며 Kakao·Naver·Apple의 실제 계정 로그인과 외부 콘솔 설정 검증은 아직 완료되지 않았다.
+- 다음 단일 작업은 Kakao Developers와 Preview 환경을 설정하고 실제 Kakao 로그인 전 자동 검증을 완료하는 것이다.
+
+## Google 실제 Preview 인증 검증
+
+- 검증일: 2026-07-16 (KST)
+- PR #9 Preview에서 신규 Google 로그인과 회원 생성, 앱 복귀와 회원 UI 표시, 새로고침 후 세션 유지가 성공했다.
+- 로그아웃 후 회원 데이터 비노출, 동일 Google 계정 재로그인 후 데이터 복원, 서로 다른 Google 계정 간 데이터 격리가 성공했다.
+- 계정 탈퇴, 탈퇴 후 기존 세션 무효화, 삭제 대기 계정 재로그인 정책을 확인했다.
+- 검증 기록에는 Secret, 이메일 주소, 사용자 ID, 토큰을 포함하지 않는다.
+- Kakao·Naver·Apple의 실제 Provider 검증은 아직 완료되지 않았으며 인증 안정화 전체를 완료로 표시하지 않는다.
+- 다음 단일 작업은 Kakao Developers와 Preview 환경을 설정하고 실제 Kakao 로그인 전 자동 검증을 완료하는 것이다.
 
 ## 현재 저장소
 
