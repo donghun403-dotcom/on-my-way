@@ -880,6 +880,15 @@ test("API requests from arbitrary origins are rejected", async () => {
   assert.equal(response.headers.get("access-control-allow-origin"), null);
 });
 
+test("Preview와 Production의 동일 Origin API 요청은 정상 처리한다", async () => {
+  for (const origin of ["https://on-my-way-pr-auth-test.jungslawyer.workers.dev", "https://onmyway.olivenrich.com"]) {
+    const response = await worker.fetch(new Request(`${origin}/api/auth/providers`, {
+      headers: { Origin: origin },
+    }), { ASSETS: { async fetch() { return new Response("asset"); } } });
+    assert.equal(response.status, 200, origin);
+  }
+});
+
 test("Apple form_post는 Apple origin만 callback으로 허용한다", async () => {
   const kv = { async get() { return null; }, async put() {}, async delete() {}, async list() { return { keys: [], list_complete: true }; } };
   const assets = { async fetch() { return new Response("asset"); } };
