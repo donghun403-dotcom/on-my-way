@@ -57,12 +57,14 @@ Production keeps its existing callback and OAuth client unchanged.
 Before running `Staging Deploy`, the user must:
 
 1. Create a Staging-only KV namespace and record its ID in the protected `staging` GitHub Environment secret `CLOUDFLARE_STAGING_USERS_KV_ID`.
-2. Create a Staging-only D1 database named `on-my-way-billing-staging`, apply `migrations/0001_billing_ledger.sql`, and record its ID in `CLOUDFLARE_STAGING_D1_DATABASE_ID`.
+2. Create a Staging-only D1 database named `on-my-way-billing-staging` and record its ID in `CLOUDFLARE_STAGING_D1_DATABASE_ID`. The workflow applies `migrations/0001_billing_ledger.sql` remotely before deployment; do not manually point it at Preview or Production.
 3. Confirm the `staging` GitHub Environment uses the intended Cloudflare account and token without exposing either value.
 4. Register the Google callback above and set the Worker secrets listed above on `on-my-way-staging` only.
 5. Run the workflow manually, then verify `/api/health` reports `environment=staging`, account storage is available, and payments remain disabled.
 
 These are ACTION REQUIRED. This repository change does not create Cloudflare resources, change DNS, register OAuth callbacks, set secrets, or deploy Staging.
+
+The workflow order is fixed: generate and validate the isolated config, apply the Staging migration, verify `billing_accounts`, `billing_orders`, and `billing_events` through a read-only `sqlite_master` query, deploy `on-my-way-staging`, then verify health/providers/static routes. A migration or schema failure stops the Worker deploy. The schema check creates no billing data or smoke-test order.
 
 ## Later validation order
 

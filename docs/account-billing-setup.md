@@ -1,6 +1,6 @@
 # 회원·관리자·결제 운영 설정
 
-배포 환경의 Production·고정 Staging·PR Preview 경계와 Staging 외부 설정 절차는 [deployment-environments.md](deployment-environments.md)에 따릅니다. Production OAuth와 Worker 설정은 이 단계에서 변경하지 않습니다.
+배포 환경의 Production·고정 Staging·PR Preview 경계와 Staging 외부 설정 절차는 [deployment-environments.md](deployment-environments.md)에 따릅니다. Staging 배포 workflow는 Worker 배포 전에 Staging D1 migration과 결제 원장 schema를 검증합니다. Production OAuth와 Worker 설정은 이 단계에서 변경하지 않습니다.
 
 애플리케이션에는 소셜 OAuth, 계정 저장·동기화, 관리자 권한과 Toss Payments 빌링 코드가 포함되어 있습니다. 다만 외부 서비스 설정이 필요하고 운영 결제는 `PAYMENTS_ENABLED=false`로 비활성화되어 있습니다. 이 문서는 설정과 출시 조건을 설명하며 실제 결제나 새 크레딧 정책의 배포 완료를 보장하지 않습니다.
 
