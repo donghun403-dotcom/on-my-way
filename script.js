@@ -233,10 +233,32 @@ let aiUsageError = "";
 let paymentsEnabled = false;
 let pendingRevisionAction = "revise_plan";
 let pricingPolicyPromise = null;
+let pageLeaving = false;
+
+window.addEventListener("pagehide", () => {
+  pageLeaving = true;
+}, { once: true });
+
+function isActivePage() {
+  return !pageLeaving;
+}
+
+function setBootstrapMarker(name, value) {
+  if (document.body) document.body.dataset[name] = value;
+}
+
+function isTransientBootstrapError(error) {
+  const message = String(error?.message || "").toLowerCase();
+  return error?.name === "AbortError" || /abort|cancel|failed to fetch|load failed|load request|access control checks|importing a module script failed|net::err_aborted/.test(message);
+}
+
+function waitForBootstrapRetry(attempt) {
+  const delay = Math.min(250, 50 * 2 ** attempt);
+  return new Promise((resolve) => window.setTimeout(resolve, delay));
+}
 
 function isTransientPricingPolicyError(error) {
-  const message = String(error?.message || "").toLowerCase();
-  return error?.name === "AbortError" || /abort|cancel|load request|importing a module script failed/.test(message);
+  return isTransientBootstrapError(error);
 }
 
 function loadPricingPolicy() {
@@ -253,22 +275,31 @@ function loadPricingPolicy() {
         }
 
         const module = await import("/plan-policy.mjs");
+        if (!isActivePage()) return null;
         pricingPolicy = module;
         hydratePolicyValues();
         renderOllieEnergy();
         renderPricingExperience();
         renderPlanFeatureAccess();
+        setBootstrapMarker("pricingReady", "true");
+        setBootstrapMarker("pricingState", "ready");
         return module;
       } catch (error) {
         lastError = error;
-        if (attempt === 0 && isTransientPricingPolicyError(error)) continue;
+        if (attempt === 0 && isTransientPricingPolicyError(error) && isActivePage()) {
+          await waitForBootstrapRetry(attempt);
+          continue;
+        }
         break;
       }
     }
 
+    if (!isActivePage()) return null;
     console.error("Unable to load pricing policy", lastError);
     pricingPolicyError = "플랜 정책을 불러오지 못했어요. 새로고침 후 다시 확인해 주세요.";
     if (pricingPolicyStatus) pricingPolicyStatus.textContent = pricingPolicyError;
+    setBootstrapMarker("pricingReady", "true");
+    setBootstrapMarker("pricingState", "error");
     return null;
   })();
 
@@ -731,7 +762,8 @@ personalityNudgeDismissButton?.addEventListener("click", () => {
 })();
 
 // ===== 회원 · 인증 =====
-const authUiState = { user: null, loaded: false };
+const authUiState = { user: null, loaded: false, error: null };
+let authBootstrapPromise = null;
 const menuToggle = document.querySelector("#menuToggle");
 const appMenuDrawer = document.querySelector("#appMenuDrawer");
 const appMenuBackdrop = document.querySelector("#appMenuBackdrop");
@@ -1204,22 +1236,50 @@ async function handleBillingQueryParams() {
 }
 
 async function initAccountExperience() {
+  if (authBootstrapPromise) return authBootstrapPromise;
+  authBootstrapPromise = (async () => {
   const initialParams = new URLSearchParams(location.search);
   const accountOnlyRoute =
     initialParams.get("redirect") === "admin" ||
     initialParams.get("admin") === "denied" ||
     ["login", "my", "deletion_pending"].includes(initialParams.get("auth"));
-  const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), 10_000);
   try {
-    const data = await accountRequest("/api/auth/me", { signal: controller.signal });
+    const data = await (async () => {
+      let lastError = null;
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        if (!isActivePage()) return null;
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => controller.abort(), 10_000);
+        try {
+          return await accountRequest("/api/auth/me", { signal: controller.signal });
+        } catch (error) {
+          lastError = error;
+          if (attempt === 0 && isTransientBootstrapError(error) && isActivePage()) {
+            await waitForBootstrapRetry(attempt);
+            continue;
+          }
+          throw error;
+        } finally {
+          window.clearTimeout(timeoutId);
+        }
+      }
+      throw lastError;
+    })();
+    if (!isActivePage()) return false;
     authUiState.user = data.user || null;
-  } catch {
+    authUiState.error = null;
+  } catch (error) {
+    if (!isActivePage()) return false;
     authUiState.user = null;
+    authUiState.error = error;
   } finally {
-    window.clearTimeout(timeoutId);
+    if (isActivePage()) {
+      setBootstrapMarker("authReady", "true");
+      setBootstrapMarker("authState", authUiState.error ? "error" : authUiState.user ? "member" : "anonymous");
+    }
   }
 
+  if (!isActivePage()) return false;
   if (switchAccountStorageScope(getAccountStorageScope(authUiState.user), { allowAnonymousMerge: Boolean(authUiState.user) })) {
     location.reload();
     return false;
@@ -1231,6 +1291,7 @@ async function initAccountExperience() {
     loadPaymentAvailability(),
     authUiState.user ? loadAiUsage({ force: true }) : Promise.resolve(null),
   ]);
+  if (!isActivePage()) return false;
 
   if (authUiState.user) {
     try {
@@ -1249,6 +1310,8 @@ async function initAccountExperience() {
   if (!accountOnlyRoute) initializeTrialAccess();
   document.documentElement.classList.remove("account-storage-pending");
   return true;
+  })();
+  return authBootstrapPromise;
 }
 
 menuToggle?.addEventListener("click", () => setDrawerOpen(appMenuDrawer?.hidden !== false));
@@ -6114,6 +6177,8 @@ executionThemeButtons.forEach((button) => {
 
 function markAppReady() {
   if (!document.body?.classList.contains("execution-page")) return;
+  if (document.body.dataset.authReady !== "true" || !["anonymous", "member"].includes(document.body.dataset.authState)) return;
+  if (document.body.dataset.pricingState !== "ready") return;
   document.body.dataset.appReady = "true";
   window.dispatchEvent(new CustomEvent("omw:app-ready"));
 }
