@@ -1,0 +1,115 @@
+name: Staging Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref to deploy (defaults to the selected ref)"
+        required: false
+        type: string
+
+concurrency:
+  group: staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  validate-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    environment: staging
+    steps:
+      - name: Check out selected ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Check JavaScript syntax
+        shell: bash
+        run: |
+          while IFS= read -r -d '' file; do
+            node --check "$file"
+          done < <(find . -type f \( -name '*.js' -o -name '*.mjs' -o -name '*.cjs' \) -not -path './node_modules/*' -print0)
+
+      - name: Generate isolated Staging Wrangler config
+        shell: bash
+        env:
+          STAGING_USERS_KV_ID: ${{ secrets.CLOUDFLARE_STAGING_USERS_KV_ID }}
+          STAGING_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_STAGING_D1_DATABASE_ID }}
+        run: |
+          test -n "${STAGING_USERS_KV_ID:-}"
+          test "$STAGING_USERS_KV_ID" != "null"
+          test -n "${STAGING_D1_DATABASE_ID:-}"
+          test "$STAGING_D1_DATABASE_ID" != "null"
+          echo "::add-mask::$STAGING_USERS_KV_ID"
+          echo "::add-mask::$STAGING_D1_DATABASE_ID"
+
+          generated_config="$GITHUB_WORKSPACE/wrangler.staging.generated.jsonc"
+          jq --arg kv_id "$STAGING_USERS_KV_ID" --arg d1_id "$STAGING_D1_DATABASE_ID" '
+            .kv_namespaces = [{"binding":"USERS_KV","id":$kv_id}] |
+            .d1_databases = [{
+              "binding":"BILLING_DB",
+              "database_name":"on-my-way-billing-staging",
+              "database_id":$d1_id,
+              "migrations_dir":"migrations"
+            }] |
+            .assets.exclude = ((.assets.exclude // []) + ["wrangler.staging.generated.jsonc"])
+          ' wrangler.staging.jsonc > "$generated_config"
+
+          jq -e '
+            (.name == "on-my-way-staging") and
+            (.vars.APP_ENV == "staging") and
+            (.vars.PAYMENTS_ENABLED == "false") and
+            (.kv_namespaces | length == 1) and
+            (.kv_namespaces[0].binding == "USERS_KV") and
+            (.d1_databases | length == 1) and
+            (.d1_databases[0].binding == "BILLING_DB") and
+            (.d1_databases[0].database_name == "on-my-way-billing-staging")
+          ' "$generated_config" > /dev/null
+
+      - name: Deploy isolated Staging Worker
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: "4.81.0"
+          command: deploy --config wrangler.staging.generated.jsonc
+
+      - name: Verify Staging routes and disabled billing
+        env:
+          STAGING_URL: ${{ steps.deploy.outputs.deployment-url }}
+        shell: bash
+        run: |
+          test -n "$STAGING_URL"
+          curl --fail --silent --show-error "$STAGING_URL/plan-policy.mjs" -o /dev/null
+          curl --fail --silent --show-error "$STAGING_URL/api/auth/providers" -o providers.json
+          curl --fail --silent --show-error "$STAGING_URL/api/health" -o health.json
+          node <<'NODE'
+          const fs = require("node:fs");
+          const health = JSON.parse(fs.readFileSync("health.json", "utf8"));
+          if (health.environment !== "staging" || !health.services.accountStorage || health.services.payments !== false) {
+            throw new Error("Staging environment or disabled billing policy is invalid");
+          }
+          const providers = JSON.parse(fs.readFileSync("providers.json", "utf8"));
+          if (!Array.isArray(providers.providers)) throw new Error("Staging provider response is invalid");
+          NODE
+
+      - name: Remove generated Staging config
+        if: always()
+        shell: bash
+        run: rm -f "$GITHUB_WORKSPACE/wrangler.staging.generated.jsonc" health.json providers.json
