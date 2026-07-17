@@ -98,14 +98,45 @@ jobs:
           PREVIEW_URL: ${{ steps.deploy.outputs.deployment-url }}
         shell: bash
         run: |
+          consecutive=0
+          last_result=""
           for attempt in {1..24}; do
-            status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "$PREVIEW_URL/plan-policy.mjs")"
-            if [ "$status" = "200" ]; then
-              exit 0
+            all_ready=1
+            last_result=""
+            while IFS=$'\t' read -r path expected_type; do
+              probe="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}\t%{content_type}' "$PREVIEW_URL$path")"
+              status="${probe%%$'\t'*}"
+              content_type="${probe#*$'\t'}"
+              case "$expected_type:$content_type" in
+                html:text/html*) ;;
+                javascript:*javascript*) ;;
+                json:application/json*) ;;
+                *) all_ready=0; last_result="$path status=$status content-type=$content_type"; break ;;
+              esac
+              if [ "$status" != "200" ]; then
+                all_ready=0
+                last_result="$path status=$status content-type=$content_type"
+                break
+              fi
+            done <<'ENDPOINTS'
+          /app.html	html
+          /script.js	javascript
+          /plan-policy.mjs	javascript
+          /api/health	json
+          /api/auth/providers	json
+          ENDPOINTS
+
+            if [ "$all_ready" -eq 1 ]; then
+              consecutive=$((consecutive + 1))
+              if [ "$consecutive" -ge 2 ]; then
+                exit 0
+              fi
+            else
+              consecutive=0
             fi
             sleep 5
           done
-          echo "Preview /plan-policy.mjs did not become ready (last status: $status)"
+          echo "Preview core assets did not become stable (last: $last_result)"
           exit 1
 
       - name: Run Playwright against the Cloudflare preview
