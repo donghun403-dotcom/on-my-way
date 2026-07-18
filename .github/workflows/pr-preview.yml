@@ -93,12 +93,11 @@ jobs:
                 html:text/html*) ;;
                 javascript:*javascript*) ;;
                 json:application/json*) ;;
-                *) all_ready=0; last_result="$path status=$status content-type=$content_type"; break ;;
+                *) all_ready=0; last_result="$path status=$status content-type=$content_type" ;;
               esac
               if [ "$status" != "200" ]; then
                 all_ready=0
                 last_result="$path status=$status content-type=$content_type"
-                break
               fi
             done <<'ENDPOINTS'
           /app.html|html
