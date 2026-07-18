@@ -269,15 +269,6 @@ jobs:
           wranglerVersion: "4.81.0"
           command: deploy --config wrangler.staging.generated.jsonc --secrets-file ${{ runner.temp }}/staging-worker-secrets.json
 
-      - name: Start bounded Sandbox window
-        id: sandbox_window
-        shell: bash
-        run: |
-          started_at="$(date +%s)"
-          deadline="$((started_at + 600))"
-          echo "deadline=$deadline" >> "$GITHUB_OUTPUT"
-          echo "Staging Sandbox window opened with a 10-minute hard limit"
-
       - name: Verify Staging Worker secret names
         shell: bash
         env:
@@ -437,20 +428,86 @@ jobs:
             exit 1
           fi
 
-      - name: Verify Staging routes and enabled Sandbox billing
+      - name: Wait for stable enabled Sandbox policy
+        env:
+          STAGING_URL: https://on-my-way-staging.jungslawyer.workers.dev
+        shell: bash
+        run: |
+          consecutive=0
+          observed=()
+          health_file="$RUNNER_TEMP/staging-sandbox-enabled-health.json"
+
+          for attempt in $(seq 1 24); do
+            probe="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${attempt}-$(date +%s%N)"
+            result="$(curl --silent --show-error \
+              --header 'Cache-Control: no-cache' \
+              --output "$health_file" \
+              --write-out '%{http_code}|%{content_type}' \
+              --max-time 15 \
+              "$STAGING_URL/api/health?probe=$probe" 2>/dev/null || true)"
+            status="${result%%|*}"
+            content_type="${result#*|}"
+            policy_state="invalid"
+
+            if [[ "$status" == "200" && "${content_type,,}" == application/json* ]]; then
+              policy_state="$(
+                HEALTH_FILE="$health_file" node <<'NODE'
+          const fs = require("node:fs");
+          try {
+            const health = JSON.parse(fs.readFileSync(process.env.HEALTH_FILE, "utf8"));
+            if (
+              health.environment === "staging" &&
+              health.services?.accountStorage === true &&
+              health.services?.payments === true
+            ) {
+              process.stdout.write("true");
+            } else if (health.services?.payments === false) {
+              process.stdout.write("false");
+            } else {
+              process.stdout.write("invalid");
+            }
+          } catch {
+            process.stdout.write("invalid");
+          }
+          NODE
+              )"
+            fi
+
+            observed+=("$policy_state")
+            if [[ "$policy_state" == "true" ]]; then
+              consecutive=$((consecutive + 1))
+              if (( consecutive >= 2 )); then
+                echo "Enabled Sandbox revision became stable"
+                break
+              fi
+            else
+              consecutive=0
+            fi
+
+            if (( attempt < 24 )); then
+              sleep 5
+            fi
+          done
+
+          if (( consecutive < 2 )); then
+            echo "Enabled Sandbox revision did not become stable"
+            (IFS=,; echo "Observed payments sequence: ${observed[*]}")
+            exit 1
+          fi
+
+      - name: Verify Staging authentication boundary
         env:
           STAGING_URL: ${{ steps.deploy_sandbox.outputs.deployment-url }}
         shell: bash
         run: |
           test -n "$STAGING_URL"
-          curl --fail --silent --show-error "$STAGING_URL/api/auth/providers" -o providers.json
-          curl --fail --silent --show-error "$STAGING_URL/api/health" -o health.json
+          probe="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-providers-$(date +%s%N)"
+          curl --fail --silent --show-error \
+            --header 'Cache-Control: no-cache' \
+            "$STAGING_URL/api/auth/providers?probe=$probe" \
+            -o providers.json
           node <<'NODE'
           const fs = require("node:fs");
-          const health = JSON.parse(fs.readFileSync("health.json", "utf8"));
-          if (health.environment !== "staging" || !health.services.accountStorage || health.services.payments !== true) {
-            throw new Error("Staging environment or Sandbox billing policy is invalid");
-          }
           const providers = JSON.parse(fs.readFileSync("providers.json", "utf8"));
           if (!Array.isArray(providers.providers)) throw new Error("Staging provider response is invalid");
           const google = providers.providers.find((provider) => provider.id === "google" || provider.name === "google");
@@ -459,6 +516,22 @@ jobs:
             throw new Error("Staging authentication boundary is invalid");
           }
           NODE
+
+      - name: Start bounded Sandbox window
+        id: sandbox_window
+        shell: bash
+        run: |
+          started_at="$(date +%s)"
+          deadline="$((started_at + 600))"
+          echo "deadline=$deadline" >> "$GITHUB_OUTPUT"
+          echo "Staging Sandbox window opened with a 10-minute hard limit"
+
+      - name: Signal Staging Toss readiness
+        shell: bash
+        run: |
+          message="STAGING_TOSS_READY: 같은 로그인된 Chrome 탭을 새로고침하고 PRO 버튼을 눌러 테스트 카드 인증을 완료하세요."
+          echo "::notice::$message"
+          echo "$message"
 
       - name: Wait for initial Sandbox payment and replay window
         id: sandbox_payment
@@ -616,4 +689,4 @@ jobs:
       - name: Remove generated Staging config
         if: always()
         shell: bash
-        run: rm -f "$GITHUB_WORKSPACE/wrangler.staging.generated.jsonc" "$GITHUB_WORKSPACE/wrangler.staging.rollback.jsonc" health.json providers.json "$RUNNER_TEMP/staging-billing-schema.json" "$RUNNER_TEMP/staging-billing-baseline.json" "$RUNNER_TEMP/staging-billing-counts.json" "$RUNNER_TEMP/staging-worker-secrets.json" "$RUNNER_TEMP/staging-worker-secret-list.raw" "$RUNNER_TEMP/staging-disabled-health.json"
+        run: rm -f "$GITHUB_WORKSPACE/wrangler.staging.generated.jsonc" "$GITHUB_WORKSPACE/wrangler.staging.rollback.jsonc" health.json providers.json "$RUNNER_TEMP/staging-billing-schema.json" "$RUNNER_TEMP/staging-billing-baseline.json" "$RUNNER_TEMP/staging-billing-counts.json" "$RUNNER_TEMP/staging-worker-secrets.json" "$RUNNER_TEMP/staging-worker-secret-list.raw" "$RUNNER_TEMP/staging-sandbox-enabled-health.json" "$RUNNER_TEMP/staging-disabled-health.json"
