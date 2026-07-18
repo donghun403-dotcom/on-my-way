@@ -49,8 +49,8 @@ test("첫 진입부터 목표 생성과 새로고침까지 이어진다", async 
   });
   await page.goto("/index.html");
 
-  await expect(page.getByRole("link", { name: "내 목표로 24시간 Pro 체험 시작하기" })).toBeVisible();
-  await page.getByRole("link", { name: "내 목표로 24시간 Pro 체험 시작하기" }).click();
+  await expect(page.getByRole("link", { name: "내 목표로 24시간 무료 체험 시작하기" })).toBeVisible();
+  await page.getByRole("link", { name: "내 목표로 24시간 무료 체험 시작하기" }).click();
   await expect(page.locator("#designFlow")).toBeVisible();
 
   await page.locator("#designGoal").fill("   ");

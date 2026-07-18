@@ -30,13 +30,13 @@
           <div>
             <p class="eyebrow">Operations Dashboard</p>
             <h1>서비스 건강 상태</h1>
-            <p class="admin-toolbar-copy">유입부터 Pro 체험, 실행, 재방문, 이탈과 AI 크레딧 사용량까지 한 흐름으로 확인합니다.</p>
+            <p class="admin-toolbar-copy">유입부터 무료 체험, 실행, 재방문, 이탈과 AI 크레딧 사용량까지 한 흐름으로 확인합니다.</p>
           </div>
           <div class="admin-toolbar-side">
             <span class="admin-data-status"><i></i>샘플 데이터 · 실제 운영 수치 아님</span>
             <div class="admin-filters">
               <select aria-label="분석 기간"><option>최근 30일</option><option>최근 7일</option><option>이번 달</option><option>지난 90일</option></select>
-              <select aria-label="유저 세그먼트"><option>전체 유저</option><option>Pro 체험</option><option>Pro</option><option>이탈 위험</option></select>
+              <select aria-label="유저 세그먼트"><option>전체 유저</option><option>무료 체험 중</option><option>Pro</option><option>이탈 위험</option></select>
             </div>
           </div>
         </header>
@@ -45,7 +45,7 @@
 
         <section class="admin-stat-grid admin-kpi-grid" id="overview" aria-label="핵심 운영 지표">
           <article class="admin-kpi-card"><span>주간 활성 사용자 <button class="metric-help" title="최근 7일 동안 핵심 행동을 1회 이상 수행한 고유 사용자">?</button></span><strong>3,240</strong><em>↑ 4.1%</em><small>WAU / 가입자 26.0%</small></article>
-          <article class="admin-kpi-card"><span><b data-policy-plan="pro" data-policy-field="trial-duration">—</b> Pro 체험 시작</span><strong>1,084</strong><em>샘플 ↑ 8.2%</em><small>체험 크레딧 <b data-policy-plan="pro" data-policy-field="trial-credits">—</b> · 계정당 1회</small></article>
+          <article class="admin-kpi-card"><span><b data-policy-plan="pro" data-policy-field="trial-duration">—</b> 무료 체험 시작</span><strong>1,084</strong><em>샘플 ↑ 8.2%</em><small>체험 크레딧 <b data-policy-plan="pro" data-policy-field="trial-credits">—</b> · 계정당 1회</small></article>
           <article class="admin-kpi-card"><span>체험 → Pro 관심</span><strong>18.4%</strong><em>샘플 ↑ 2.7%p</em><small>결제 전환이 아닌 CTA 관심 지표</small></article>
           <article class="admin-kpi-card"><span>D7 리텐션 <button class="metric-help" title="가입 7일 뒤 다시 핵심 행동을 수행한 비율">?</button></span><strong>41.8%</strong><em>↑ 3.4%p</em><small>올리 대화 유저 52.1%</small></article>
           <article class="admin-kpi-card is-risk"><span>30일 이탈률 <button class="metric-help" title="최근 30일간 7일 이상 핵심 행동이 없는 활성 사용자 비율">?</button></span><strong>7.6%</strong><em class="negative">↑ 1.2%p</em><small>운동 목표군 10.8%</small></article>
@@ -53,8 +53,8 @@
         </section>
 
         <section class="admin-health-strip" aria-label="오늘의 운영 판단">
-          <article><span class="health-icon danger">!</span><div><small>샘플 · 이탈 방어</small><strong>Pro 체험 첫 실행 미완료 126명</strong><p>첫 실행 2시간 뒤 리마인드 후보로 분류한 화면 검토용 샘플입니다.</p></div></article>
-          <article><span class="health-icon warning">↗</span><div><small>샘플 · 체험 개선</small><strong>결과 확인 → Pro 체험 안내 구간 24% 이탈</strong><p><b data-policy-plan="pro" data-policy-field="trial-duration">—</b>·<b data-policy-plan="pro" data-policy-field="trial-credits">—</b> 체험 안내의 위치와 이해도를 우선 점검합니다.</p></div></article>
+          <article><span class="health-icon danger">!</span><div><small>샘플 · 이탈 방어</small><strong>무료 체험 첫 실행 미완료 126명</strong><p>첫 실행 2시간 뒤 리마인드 후보로 분류한 화면 검토용 샘플입니다.</p></div></article>
+          <article><span class="health-icon warning">↗</span><div><small>샘플 · 체험 개선</small><strong>결과 확인 → 무료 체험 안내 구간 24% 이탈</strong><p><b data-policy-plan="pro" data-policy-field="trial-duration">—</b>·<b data-policy-plan="pro" data-policy-field="trial-credits">—</b> 체험 안내의 위치와 이해도를 우선 점검합니다.</p></div></article>
           <article><span class="health-icon stable">✓</span><div><small>정책 · 읽기 전용</small><strong>Free 월 <b data-policy-plan="free" data-policy-field="monthly-credits">—</b> · Pro 월 <b data-policy-plan="pro" data-policy-field="monthly-credits">—</b> / 일 <b data-policy-plan="pro" data-policy-field="daily-limit">—</b></strong><p>차감은 서버가 계산하며, 관리자 임의 조정과 추가 크레딧 판매는 지원하지 않습니다.</p></div></article>
         </section>
 
@@ -65,7 +65,7 @@
               <div style="--funnel-width:100%"><span>랜딩 방문</span><strong>18,420</strong><em>100%</em></div>
               <div style="--funnel-width:72%"><span>목표 입력</span><strong>9,860</strong><em>53.5% · 이탈 46.5%</em></div>
               <div style="--funnel-width:56%"><span>성향 진단 완료</span><strong>7,104</strong><em>72.0% · 이탈 28.0%</em></div>
-              <div class="is-bottleneck" style="--funnel-width:36%"><span>24시간 Pro 체험 시작</span><strong>3,098</strong><em>43.6% · 이탈 56.4%</em></div>
+              <div class="is-bottleneck" style="--funnel-width:36%"><span>24시간 무료 체험 시작</span><strong>3,098</strong><em>43.6% · 이탈 56.4%</em></div>
               <div style="--funnel-width:22%"><span>Pro 이용 안내 확인</span><strong>570</strong><em>18.4% · 이탈 81.6%</em></div>
             </div>
             <p class="chart-insight"><b>가장 큰 병목</b> 진단 결과를 본 뒤 체험을 시작하지 않는 유저가 4,006명입니다.</p>
@@ -109,7 +109,7 @@
           <article class="admin-chart-card" id="costs">
             <div class="card-title"><div><h2>AI 크레딧 정책·사용량</h2><span>서버 집계 기준 · 관리자 수정 불가</span></div><span class="card-tag good">읽기 전용</span></div>
             <div class="cost-meter"><div><span>Pro 월간 사용량 샘플</span><strong>96 / 250</strong></div><b><i style="width:38.4%"></i></b><small>오늘 12 / 30 · 실제 사용량 API가 아닌 화면 검토용 샘플</small></div>
-            <ul class="signal-list compact"><li><span>Free 한도</span><strong>월 <b data-policy-plan="free" data-policy-field="monthly-credits">—</b> · 일 <b data-policy-plan="free" data-policy-field="daily-limit">—</b></strong></li><li><span>Pro 한도</span><strong>월 <b data-policy-plan="pro" data-policy-field="monthly-credits">—</b> · 일 <b data-policy-plan="pro" data-policy-field="daily-limit">—</b></strong></li><li><span>Pro 체험</span><strong><b data-policy-plan="pro" data-policy-field="trial-duration">—</b> · <b data-policy-plan="pro" data-policy-field="trial-credits">—</b></strong></li><li><span>Pro 가격·결제</span><strong><b data-policy-plan="pro" data-policy-field="price">—</b>/월 · 운영 비활성</strong></li></ul>
+            <ul class="signal-list compact"><li><span>Free 한도</span><strong>월 <b data-policy-plan="free" data-policy-field="monthly-credits">—</b> · 일 <b data-policy-plan="free" data-policy-field="daily-limit">—</b></strong></li><li><span>Pro 한도</span><strong>월 <b data-policy-plan="pro" data-policy-field="monthly-credits">—</b> · 일 <b data-policy-plan="pro" data-policy-field="daily-limit">—</b></strong></li><li><span>무료 체험</span><strong><b data-policy-plan="pro" data-policy-field="trial-duration">—</b> · <b data-policy-plan="pro" data-policy-field="trial-credits">—</b></strong></li><li><span>Pro 가격·결제</span><strong><b data-policy-plan="pro" data-policy-field="price">—</b>/월 · 운영 비활성</strong></li></ul>
           </article>
 
           <article class="admin-chart-card">
@@ -121,7 +121,7 @@
 
         <section class="admin-action-center" aria-labelledby="actionCenterTitle">
           <div class="card-title"><div><h2 id="actionCenterTitle">이번 주 운영 액션</h2><span>지표에서 바로 이어지는 우선순위 예시</span></div><span class="card-tag">샘플 시나리오</span></div>
-          <div class="action-list"><article><b>P0</b><div><strong>첫 일정 미완료 유저 회복</strong><p>가입 2시간 뒤 미체크 유저에게 5분 타이머 딥링크를 제안하는 샘플입니다.</p></div><span>예상 회복 +8%</span></article><article><b>P1</b><div><strong>Pro 체험 안내 A/B 테스트</strong><p>결과 화면 중단 CTA와 하단 CTA의 체험 시작률을 비교하는 샘플입니다.</p></div><span>목표 +5%p</span></article><article><b>P1</b><div><strong>운동 목표 2주차 난이도 완화</strong><p>실행률 30% 미만 유저에게 사용자 승인형 AI 재설계안을 제안합니다.</p></div><span>대상 184명</span></article></div>
+          <div class="action-list"><article><b>P0</b><div><strong>첫 일정 미완료 유저 회복</strong><p>가입 2시간 뒤 미체크 유저에게 5분 타이머 딥링크를 제안하는 샘플입니다.</p></div><span>예상 회복 +8%</span></article><article><b>P1</b><div><strong>무료 체험 안내 A/B 테스트</strong><p>결과 화면 중단 CTA와 하단 CTA의 체험 시작률을 비교하는 샘플입니다.</p></div><span>목표 +5%p</span></article><article><b>P1</b><div><strong>운동 목표 2주차 난이도 완화</strong><p>실행률 30% 미만 유저에게 사용자 승인형 AI 재설계안을 제안합니다.</p></div><span>대상 184명</span></article></div>
         </section>
 
         <section class="admin-table-section" id="members">
@@ -150,7 +150,7 @@
               <input id="adminUserSearch" type="search" placeholder="유저 ID 검색" aria-label="유저 ID 검색" />
               <select id="riskFilter" aria-label="위험 상태"><option value="all">전체 상태</option><option value="3days">3일 미접속</option><option value="prepay">체험·Pro 관심 이탈</option><option value="pause">목표 중단 위험</option><option value="stable">안정</option></select>
               <select id="goalFilter" aria-label="목표 유형"><option value="all">전체 목표</option><option value="exam">시험/자격증</option><option value="fitness">운동/다이어트</option><option value="habit">습관 형성</option><option value="career">취업/창업</option></select>
-              <select id="planFilter" aria-label="요금제"><option value="all">전체 요금제</option><option value="trial">Pro 체험</option><option value="free">Free</option><option value="pro">Pro</option></select>
+              <select id="planFilter" aria-label="이용 상태"><option value="all">전체 상태</option><option value="trial">무료 체험 중</option><option value="free">Free</option><option value="pro">Pro</option></select>
               <button id="resetAdminFilters" type="button">초기화</button>
             </div>
           </div>
@@ -161,9 +161,9 @@
               <tbody>
                 <tr data-user="user_1024" data-risk="3days" data-goal="fitness" data-plan="pro"><td><strong>user_1024</strong><small>가입 D18</small></td><td><span class="plan-pill pro">Pro</span></td><td>운동/다이어트</td><td>3일 전</td><td>18%</td><td>월 204 / 250</td><td><span class="status-pill danger">3일 미접속</span></td><td>5분 재시작 제안</td></tr>
                 <tr data-user="user_1188" data-risk="stable" data-goal="exam" data-plan="pro"><td><strong>user_1188</strong><small>가입 D42</small></td><td><span class="plan-pill pro">Pro</span></td><td>시험/자격증</td><td>오늘</td><td>86%</td><td>월 128 / 250</td><td><span class="status-pill stable">안정</span></td><td>유지 · 개입 없음</td></tr>
-                <tr data-user="user_1371" data-risk="prepay" data-goal="habit" data-plan="trial"><td><strong>user_1371</strong><small>체험 18시간</small></td><td><span class="plan-pill trial">Pro 체험</span></td><td>습관 형성</td><td>2일 전</td><td>9%</td><td>체험 8 / 15</td><td><span class="status-pill warning">체험 이탈</span></td><td>체험 종료 전 가치 안내</td></tr>
+                <tr data-user="user_1371" data-risk="prepay" data-goal="habit" data-plan="trial"><td><strong>user_1371</strong><small>체험 18시간</small></td><td><span class="plan-pill trial">무료 체험 중</span></td><td>습관 형성</td><td>2일 전</td><td>9%</td><td>체험 8 / 15</td><td><span class="status-pill warning">체험 이탈</span></td><td>체험 종료 전 가치 안내</td></tr>
                 <tr data-user="user_1410" data-risk="pause" data-goal="exam" data-plan="pro"><td><strong>user_1410</strong><small>가입 D29</small></td><td><span class="plan-pill pro">Pro</span></td><td>시험/자격증</td><td>4일 전</td><td>26%</td><td>월 236 / 250</td><td><span class="status-pill danger">중단 위험</span></td><td>난이도 재설계 제안</td></tr>
-                <tr data-user="user_1502" data-risk="prepay" data-goal="fitness" data-plan="trial"><td><strong>user_1502</strong><small>체험 4시간</small></td><td><span class="plan-pill trial">Pro 체험</span></td><td>운동/다이어트</td><td>가입 후 없음</td><td>0%</td><td>체험 9 / 15</td><td><span class="status-pill warning">첫 실행 전</span></td><td>첫 일정 딥링크</td></tr>
+                <tr data-user="user_1502" data-risk="prepay" data-goal="fitness" data-plan="trial"><td><strong>user_1502</strong><small>체험 4시간</small></td><td><span class="plan-pill trial">무료 체험 중</span></td><td>운동/다이어트</td><td>가입 후 없음</td><td>0%</td><td>체험 9 / 15</td><td><span class="status-pill warning">첫 실행 전</span></td><td>첫 일정 딥링크</td></tr>
                 <tr data-user="user_1633" data-risk="3days" data-goal="career" data-plan="free"><td><strong>user_1633</strong><small>가입 D11</small></td><td><span class="plan-pill free">Free</span></td><td>취업/창업</td><td>3일 전</td><td>32%</td><td>월 4 / 5</td><td><span class="status-pill danger">3일 미접속</span></td><td>다이어리 회고 알림</td></tr>
                 <tr data-user="user_1704" data-risk="stable" data-goal="habit" data-plan="free"><td><strong>user_1704</strong><small>가입 D7</small></td><td><span class="plan-pill free">Free</span></td><td>습관 형성</td><td>오늘</td><td>71%</td><td>월 2 / 5</td><td><span class="status-pill stable">안정</span></td><td>Pro 가치 노출 후보</td></tr>
                 <tr data-user="user_1822" data-risk="pause" data-goal="fitness" data-plan="pro"><td><strong>user_1822</strong><small>가입 D63</small></td><td><span class="plan-pill pro">Pro</span></td><td>운동/다이어트</td><td>어제</td><td>24%</td><td>월 248 / 250</td><td><span class="status-pill warning">실행 급감</span></td><td>주간 계획 완화 제안</td></tr>
@@ -171,7 +171,7 @@
               </tbody>
             </table>
           </div>
-          <p class="admin-table-note">위험 신호 샘플 기준: 3일 미접속, 최근 7일 실행률 30% 미만, Pro 체험 시작 후 핵심 행동 0회, AI 크레딧 80% 이상 사용 후 재방문 없음. 사용량은 읽기 전용입니다.</p>
+          <p class="admin-table-note">위험 신호 샘플 기준: 3일 미접속, 최근 7일 실행률 30% 미만, 무료 체험 시작 후 핵심 행동 0회, AI 크레딧 80% 이상 사용 후 재방문 없음. 사용량은 읽기 전용입니다.</p>
         </section>
 
         <section class="admin-table-section admin-security-section" id="security">

@@ -442,7 +442,11 @@ function billingLedger(env) {
 
 function addBillingMonth(value) {
   const date = new Date(Number(value) || Date.now());
-  date.setMonth(date.getMonth() + 1);
+  const billingDay = date.getUTCDate();
+  date.setUTCDate(1);
+  date.setUTCMonth(date.getUTCMonth() + 1);
+  const lastDayOfBillingMonth = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate();
+  date.setUTCDate(Math.min(billingDay, lastDayOfBillingMonth));
   return date.getTime();
 }
 
@@ -545,13 +549,17 @@ async function recoverInitialPayment(env, order, fetcher = fetch) {
 }
 
 function applySuccessfulPayment(user, payment, now) {
+  const approvedAt = Date.parse(String(payment?.approvedAt || ""));
+  const billingStartedAt = Number.isFinite(approvedAt) ? approvedAt : now;
+  const wasTrial = user.plan === "trial";
   user.plan = "pro";
-  user.proSince = user.proSince || now;
+  if (wasTrial) user.trialEndedAt = billingStartedAt;
+  user.proSince = user.proSince || billingStartedAt;
   user.subscriptionStatus = "active";
-  user.currentPeriodEnd = addBillingMonth(now);
+  user.currentPeriodEnd = addBillingMonth(billingStartedAt);
   user.lastPaymentKey = payment.paymentKey || null;
   user.lastOrderId = payment.orderId || null;
-  user.lastPaymentAt = now;
+  user.lastPaymentAt = billingStartedAt;
   user.paymentFailure = null;
   user.paymentRetryCount = 0;
   user.nextPaymentRetryAt = null;
@@ -1078,10 +1086,12 @@ export async function handleAccountApi(ctx) {
     const user = await currentSessionUser(ctx);
     if (!user) return { status: 401, json: { error: "로그인 후 이용할 수 있어요." } };
     if (!demoBillingAllowed(ctx.env)) return { status: 409, json: { error: "결제창에서 카드 등록을 먼저 완료해 주세요." } };
+    const now = Date.now();
+    if (user.plan === "trial") user.trialEndedAt = now;
     user.plan = "pro";
-    user.proSince = user.proSince || Date.now();
+    user.proSince = user.proSince || now;
     user.subscriptionStatus = "active";
-    user.currentPeriodEnd = addBillingMonth(Date.now());
+    user.currentPeriodEnd = addBillingMonth(now);
     await store(ctx).putUser(user);
     return { status: 200, json: { user: publicUser(user) } };
   }
@@ -1171,7 +1181,7 @@ export async function handleAccountApi(ctx) {
       }
 
       const payment = await chargeSubscription(ctx.env, user, { orderId: order.orderId, idempotencyKey: order.idempotencyKey, fetcher });
-      return applyLedgerSuccess(payment);
+      return await applyLedgerSuccess(payment);
     } catch (error) {
       const recovered = await recoverInitialPayment(ctx.env, order, fetcher);
       if (recovered.status === "succeeded") return applyLedgerSuccess(recovered.payment, true);

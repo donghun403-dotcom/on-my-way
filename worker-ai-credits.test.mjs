@@ -128,7 +128,7 @@ async function withMockFetch(mock, operation) {
   }
 }
 
-test("인증된 사용자는 usage를 조회하고 Pro 체험을 명시적으로 한 번만 시작한다", { concurrency: false }, async () => {
+test("인증된 사용자는 usage를 조회하고 무료 체험을 명시적으로 한 번만 시작한다", { concurrency: false }, async () => {
   const context = await authenticatedWorker({ plan: "free", userId: "usage-trial-user" });
 
   const initial = await callApi(context, "/api/ai/usage");

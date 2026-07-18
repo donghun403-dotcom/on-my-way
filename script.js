@@ -86,6 +86,7 @@ const pricingBottomCta = document.querySelector("#pricingBottomCta");
 const pricingBottomProCta = document.querySelector("#pricingBottomProCta");
 const pricingProCtaStatus = document.querySelector("#pricingProCtaStatus");
 const pricingPaymentState = document.querySelector("#pricingPaymentState");
+const billingConfirmDialog = document.querySelector("#billingConfirmDialog");
 const pricingUsagePanel = document.querySelector("#pricingUsagePanel");
 const pricingUsageStatus = document.querySelector("#pricingUsageStatus");
 const pricingTrialUsage = document.querySelector("#pricingTrialUsage");
@@ -563,10 +564,10 @@ async function startTrialAccess() {
     syncServerPlanToLocal();
     renderAccountUi();
     sendFunnelEvent("trial_started");
-    showToast("24시간 Pro 체험이 시작됐어요 · 체험용 AI 크레딧을 확인해 보세요");
+    showToast("24시간 무료 체험이 시작됐어요 · 체험용 AI 크레딧을 확인해 보세요");
     return data;
   } catch (error) {
-    showToast(error.message || "Pro 체험을 시작하지 못했어요.");
+    showToast(error.message || "무료 체험을 시작하지 못했어요.");
     return null;
   }
 }
@@ -579,7 +580,7 @@ function lockTrialExperience(mode) {
   });
   if (trialPaywall) trialPaywall.hidden = true;
   if (mode === "expired") {
-    showToast("24시간 Pro 체험이 종료되었어요 · Free 플랜으로 계속 이용할 수 있어요");
+    showToast("24시간 무료 체험이 종료되었어요 · Free 플랜으로 계속 이용할 수 있어요");
   }
 }
 
@@ -681,7 +682,7 @@ function hasPersonalityInfo() {
 function openPersonalitySheet() {
   if (!personalitySheet) return;
   if (!planHasFeature("companionPersonalization")) {
-    showToast("올리 개인화는 Pro 또는 Pro 체험에서 이용할 수 있어요.");
+    showToast("올리 개인화는 Pro 또는 무료 체험 중에 이용할 수 있어요.");
     openEnergyCharge();
     return;
   }
@@ -697,7 +698,7 @@ function openPersonalitySheet() {
 
 function savePersonalityProfileFromSheet() {
   if (!planHasFeature("companionPersonalization")) {
-    showToast("올리 개인화는 Pro 또는 Pro 체험에서 이용할 수 있어요.");
+    showToast("올리 개인화는 Pro 또는 무료 체험 중에 이용할 수 있어요.");
     return;
   }
   const profile = {
@@ -907,6 +908,27 @@ function formatAccountDate(value) {
   return new Date(Number(value)).toLocaleDateString("ko-KR", { year: "numeric", month: "short", day: "numeric" });
 }
 
+function formatTrialRemaining(value) {
+  const numericValue = Number(value);
+  const timestamp = Number.isFinite(numericValue) ? numericValue : Date.parse(String(value || ""));
+  if (!Number.isFinite(timestamp)) return "확인 중";
+  const remaining = Math.max(0, timestamp - Date.now());
+  const totalMinutes = Math.ceil(remaining / (60 * 1000));
+  if (totalMinutes >= 60) return `${Math.floor(totalMinutes / 60)}시간 ${totalMinutes % 60}분`;
+  return `${totalMinutes}분`;
+}
+
+function getProCtaState(plan, trialEligible) {
+  if (plan === "pro") return { label: "현재 이용 중", disabled: true };
+  if (plan === "trial") {
+    return paymentsEnabled
+      ? { label: "지금 Pro로 전환하기", disabled: false }
+      : { label: "Pro 결제 준비 중", disabled: true };
+  }
+  if (trialEligible) return { label: "24시간 무료 체험 시작", disabled: false };
+  return { label: "Pro 시작하기", disabled: !paymentsEnabled };
+}
+
 function renderMyPageSheet() {
   const user = authUiState.user;
   if (!myPageSheet || !user) return;
@@ -920,7 +942,7 @@ function renderMyPageSheet() {
   const isPro = plan === "pro";
   const isTrial = plan === "trial";
   const isComplimentary = isPro && user.subscriptionStatus === "complimentary";
-  if (myPagePlanTitle) myPagePlanTitle.textContent = isPro ? (isComplimentary ? "Pro 이용 중" : "Pro 구독 중") : isTrial ? "Pro 체험 중" : "Free 플랜";
+  if (myPagePlanTitle) myPagePlanTitle.textContent = isPro ? "Pro" : isTrial ? "무료 체험 중" : "Free";
   if (myPagePlanMeta) {
     if (isPro) {
       const price = pricingPolicy?.PLAN_CONFIG?.pro?.priceKRW;
@@ -928,20 +950,27 @@ function renderMyPageSheet() {
         ? `${formatAccountDate(user.proSince)}부터 무료·관리자 제공으로 이용 중 · 결제 없음`
         : `${formatAccountDate(user.proSince)}부터 이용 중${price ? ` · 월 ${formatWon(price)}` : ""}`;
     } else if (isTrial) {
-      myPagePlanMeta.textContent = `체험 종료 ${formatUsageTime(aiUsageState?.trial?.endsAt || user.trialExpiresAt, aiUsageState?.timeZone)} · 자동 결제 없음`;
+      const trialEndsAt = aiUsageState?.trial?.endsAt || user.trialExpiresAt;
+      myPagePlanMeta.textContent = `남은 시간 ${formatTrialRemaining(trialEndsAt)} · ${formatUsageTime(trialEndsAt, aiUsageState?.timeZone)} 종료`;
     } else {
       myPagePlanMeta.textContent = aiUsageState?.trial?.eligible
-        ? "Free로 계속 이용 · 원할 때 24시간 Pro 체험 1회"
-        : "Free로 계속 이용 · Pro 결제는 현재 출시 준비 중";
+        ? "Free로 계속 이용 · 원할 때 24시간 무료 체험 1회"
+        : "Free로 계속 이용 · Pro는 월정액으로 전환";
     }
   }
   if (myPageSubscribeButton) {
-    myPageSubscribeButton.hidden = isPro || isTrial;
     const eligible = Boolean(aiUsageState?.trial?.eligible);
-    myPageSubscribeButton.disabled = !eligible && !paymentsEnabled;
-    myPageSubscribeButton.childNodes[0].textContent = eligible ? "24시간 Pro 체험 " : paymentsEnabled ? "Pro 시작하기 " : "Pro 출시 준비 중 ";
+    const cta = getProCtaState(plan, eligible);
+    myPageSubscribeButton.hidden = false;
+    myPageSubscribeButton.disabled = cta.disabled;
+    myPageSubscribeButton.childNodes[0].textContent = `${cta.label} `;
     const meta = myPageSubscribeButton.querySelector("em");
-    if (meta) meta.textContent = eligible ? "15크레딧 · 자동 결제 없음" : pricingPolicy ? `월 ${formatWon(pricingPolicy.PLAN_CONFIG.pro.priceKRW)}` : "월 요금 확인 중";
+    if (meta) {
+      if (isPro) meta.textContent = "중복 결제 없음";
+      else if (isTrial && !paymentsEnabled) meta.textContent = "무료 체험은 계속 이용 가능";
+      else if (eligible) meta.textContent = "15크레딧 · 자동 결제 없음";
+      else meta.textContent = pricingPolicy ? `월 ${formatWon(pricingPolicy.PLAN_CONFIG.pro.priceKRW)}` : "월 요금 확인 중";
+    }
   }
   if (myPageCancelProButton) myPageCancelProButton.hidden = !isPro || isComplimentary;
   renderMyPageUsage();
@@ -957,7 +986,7 @@ function renderAccountUi() {
     if (drawerName) drawerName.textContent = user.name;
     if (drawerPlanBadge) {
       const plan = aiUsageState?.plan || user.plan || "free";
-      drawerPlanBadge.textContent = plan === "pro" ? "Pro 이용 중" : plan === "trial" ? "Pro 체험 중" : "Free 이용 중";
+      drawerPlanBadge.textContent = plan === "pro" ? "Pro" : plan === "trial" ? "무료 체험 중" : "Free";
       drawerPlanBadge.classList.toggle("pro", plan === "pro" || plan === "trial");
     }
   }
@@ -965,9 +994,10 @@ function renderAccountUi() {
   if (drawerLogout) drawerLogout.hidden = !user;
   if (drawerUpgrade) {
     const plan = aiUsageState?.plan || user?.plan;
-    drawerUpgrade.hidden = !user || plan === "pro" || plan === "trial";
-    drawerUpgrade.disabled = Boolean(user && !aiUsageState?.trial?.eligible && !paymentsEnabled);
-    drawerUpgrade.textContent = aiUsageState?.trial?.eligible ? "⭐ 24시간 Pro 체험" : paymentsEnabled ? "⭐ Pro 시작하기" : "⭐ Pro 출시 준비 중";
+    const cta = getProCtaState(plan, Boolean(aiUsageState?.trial?.eligible));
+    drawerUpgrade.hidden = !user;
+    drawerUpgrade.disabled = Boolean(user && cta.disabled);
+    drawerUpgrade.textContent = `⭐ ${cta.label}`;
   }
   if (drawerAdminLink) drawerAdminLink.hidden = user?.role !== "admin";
 
@@ -1075,6 +1105,34 @@ function authRedirectTarget() {
 }
 
 let tossPaymentsSdkPromise = null;
+let billingConfirmationPromise = null;
+let billingStartPromise = null;
+
+function confirmTrialPaidUpgrade() {
+  if (!billingConfirmDialog || typeof billingConfirmDialog.showModal !== "function") {
+    return Promise.resolve(window.confirm("4,900원을 결제하고 Pro를 시작할까요?"));
+  }
+  if (billingConfirmationPromise) return billingConfirmationPromise;
+
+  billingConfirmationPromise = new Promise((resolve) => {
+    billingConfirmDialog.returnValue = "";
+    billingConfirmDialog.addEventListener("close", () => {
+      resolve(billingConfirmDialog.returnValue === "confirm");
+    }, { once: true });
+    billingConfirmDialog.showModal();
+  }).finally(() => {
+    billingConfirmationPromise = null;
+  });
+  return billingConfirmationPromise;
+}
+
+function setBillingStartPending(pending) {
+  [pricingProCta, pricingBottomProCta, drawerUpgrade, myPageSubscribeButton].forEach((button) => {
+    if (!button) return;
+    button.toggleAttribute("aria-busy", pending);
+    if (pending) button.disabled = true;
+  });
+}
 
 function loadTossPaymentsSdk() {
   if (typeof window.TossPayments === "function") return Promise.resolve();
@@ -1093,7 +1151,7 @@ function loadTossPaymentsSdk() {
   return tossPaymentsSdkPromise;
 }
 
-async function startSubscription() {
+async function performStartSubscription() {
   if (!authUiState.user) {
     openAuthSheet();
     return;
@@ -1125,6 +1183,18 @@ async function startSubscription() {
   } catch (error) {
     showToast(error.message);
   }
+}
+
+function startSubscription() {
+  if (billingStartPromise) return billingStartPromise;
+  setBillingStartPending(true);
+  billingStartPromise = performStartSubscription().finally(() => {
+    billingStartPromise = null;
+    renderAccountUi();
+    renderPricingExperience();
+    setBillingStartPending(false);
+  });
+  return billingStartPromise;
 }
 
 function configureAdminLoginMode(enabled) {
@@ -1220,9 +1290,11 @@ async function handleBillingQueryParams() {
         body: JSON.stringify({ authKey: params.get("authKey"), customerKey: params.get("customerKey") }),
       });
       authUiState.user = data.user;
+      aiUsageState = null;
+      await loadAiUsage({ force: true }).catch(() => null);
       syncServerPlanToLocal();
       renderAccountUi();
-      showToast(data.alreadyActive ? "이미 PRO 구독을 이용 중이에요." : "PRO 월정액이 시작되었어요!");
+      showToast(data.alreadyActive ? "이미 Pro를 이용 중이에요." : "Pro 월정액이 시작되었어요!");
     } else {
       showToast(params.get("message") || "결제가 취소되었어요. 다시 시도할 수 있어요.");
     }
@@ -1495,7 +1567,7 @@ function renderMyPageUsage() {
   setUsageProgress(myPageMonthlyProgress, usage.monthly);
   if (myPageTrialUsage) {
     myPageTrialUsage.hidden = !usage.trial?.active;
-    if (usage.trial?.active) myPageTrialUsage.textContent = `Pro 체험 ${usage.trial.remainingCredits}크레딧 남음 · ${formatUsageTime(usage.trial.endsAt, usage.timeZone)} 종료`;
+    if (usage.trial?.active) myPageTrialUsage.textContent = `무료 체험 중 · ${formatTrialRemaining(usage.trial.endsAt)} 남음 · ${usage.trial.remainingCredits}크레딧 남음`;
   }
 }
 
@@ -1535,7 +1607,7 @@ function renderPricingUsage() {
   setPolicyUsageValue("monthly.limit", usage.monthly.limit);
   setPolicyUsageValue("monthly.resetsAt", formatUsageTime(usage.monthly.resetsAt, usage.timeZone));
   setPolicyUsageValue("trial.remainingCredits", usage.trial?.remainingCredits ?? 0);
-  setPolicyUsageValue("trial.endsAt", formatUsageTime(usage.trial?.endsAt, usage.timeZone));
+  setPolicyUsageValue("trial.endsAt", formatTrialRemaining(usage.trial?.endsAt));
   setUsageProgress(pricingDailyProgress, usage.daily);
   setUsageProgress(pricingMonthlyProgress, usage.monthly);
   document.querySelectorAll("[data-policy-usage-bar='daily']").forEach((bar) => { bar.style.width = `${Math.min(100, usage.daily.used / Math.max(1, usage.daily.limit) * 100)}%`; });
@@ -1548,10 +1620,17 @@ function renderPricingExperience() {
   const user = authUiState.user;
   const usage = aiUsageState;
   const plan = usage?.plan || user?.plan || null;
-  pricingFreeCard?.setAttribute("aria-current", plan === "free" ? "true" : "false");
-  pricingProCard?.setAttribute("aria-current", plan === "trial" || plan === "pro" ? "true" : "false");
-  pricingFreeCard?.querySelectorAll("[data-current-plan-label]").forEach((label) => { label.hidden = plan !== "free"; });
-  pricingProCard?.querySelectorAll("[data-current-plan-label]").forEach((label) => { label.hidden = plan !== "trial" && plan !== "pro"; label.textContent = plan === "trial" ? "체험 중" : "현재 플랜"; });
+  const usesFreePlan = plan === "free" || plan === "trial";
+  pricingFreeCard?.setAttribute("aria-current", usesFreePlan ? "true" : "false");
+  pricingProCard?.setAttribute("aria-current", plan === "pro" ? "true" : "false");
+  pricingFreeCard?.querySelectorAll("[data-current-plan-label]").forEach((label) => {
+    label.hidden = !usesFreePlan;
+    label.textContent = plan === "trial" ? "무료 체험 중" : "현재 플랜";
+  });
+  pricingProCard?.querySelectorAll("[data-current-plan-label]").forEach((label) => {
+    label.hidden = plan !== "pro";
+    label.textContent = "현재 플랜";
+  });
 
   if (!user) {
     setPricingCta(pricingFreeCta, "무료로 시작하기", { href: "#designFlow" });
@@ -1559,21 +1638,12 @@ function renderPricingExperience() {
     setPricingCta(pricingProCta, "무료 체험 시작하기");
     setPricingCta(pricingBottomProCta, "무료 체험 시작하기");
   } else {
-    setPricingCta(pricingFreeCta, plan === "free" ? "현재 플랜" : "Free 플랜", { disabled: plan === "free", href: "#designFlow" });
-    setPricingCta(pricingBottomCta, plan === "free" ? "현재 Free 플랜" : "Free 플랜 보기", { disabled: plan === "free", href: "#designFlow" });
-    let proLabel = "Pro 출시 준비 중";
-    let proDisabled = true;
-    if (plan === "trial") proLabel = "Pro 체험 중";
-    else if (plan === "pro") proLabel = "현재 플랜";
-    else if (usage?.trial?.eligible) {
-      proLabel = "24시간 무료 체험";
-      proDisabled = false;
-    } else if (paymentsEnabled) {
-      proLabel = "Pro 시작하기";
-      proDisabled = false;
-    }
-    setPricingCta(pricingProCta, proLabel, { disabled: proDisabled });
-    setPricingCta(pricingBottomProCta, proLabel, { disabled: proDisabled });
+    const cta = getProCtaState(plan, Boolean(usage?.trial?.eligible));
+    const freeLabel = plan === "trial" ? "무료 체험 중" : plan === "free" ? "현재 플랜" : "Free 플랜";
+    setPricingCta(pricingFreeCta, freeLabel, { disabled: usesFreePlan, href: "#designFlow" });
+    setPricingCta(pricingBottomCta, plan === "trial" ? "무료 체험 중" : plan === "free" ? "현재 Free 플랜" : "Free 플랜 보기", { disabled: usesFreePlan, href: "#designFlow" });
+    setPricingCta(pricingProCta, cta.label, { disabled: cta.disabled });
+    setPricingCta(pricingBottomProCta, cta.label, { disabled: cta.disabled });
   }
   if (pricingPaymentState) pricingPaymentState.textContent = paymentsEnabled ? "결제 연결 상태를 확인한 뒤 Pro를 시작할 수 있어요." : "현재 운영 결제는 비활성화되어 있어요. 실제 결제는 발생하지 않습니다.";
   if (pricingProCtaStatus) pricingProCtaStatus.textContent = paymentsEnabled ? "운영 결제 승인 상태" : "Pro 결제는 출시 준비 중이며 자동 결제되지 않아요.";
@@ -1620,7 +1690,7 @@ function renderPlanFeatureAccess() {
   if (drawerPersonalityButton) {
     drawerPersonalityButton.classList.toggle("is-plan-locked", !personalization);
     drawerPersonalityButton.setAttribute("aria-disabled", personalization ? "false" : "true");
-    drawerPersonalityButton.title = personalization ? "성향 설정" : "Pro 또는 Pro 체험에서 이용할 수 있어요";
+    drawerPersonalityButton.title = personalization ? "성향 설정" : "Pro 또는 무료 체험 중에 이용할 수 있어요";
   }
   if (!personalization && personalityNudgeCard) personalityNudgeCard.hidden = true;
 }
@@ -1657,7 +1727,7 @@ async function ensureAiActionAvailable(action) {
   if (Number(usage.daily.remaining) < cost) {
     const trialEnded = usage.plan === "free" && !usage.trial?.eligible && authUiState.user?.trialUsedAt;
     showToast(trialEnded && action === "create_plan"
-      ? `24시간 Pro 체험이 종료되었거나 체험 크레딧을 모두 사용했어요. Free 플랜으로 계속 이용할 수 있어요.`
+      ? `24시간 무료 체험이 종료되었거나 체험 크레딧을 모두 사용했어요. Free 플랜으로 계속 이용할 수 있어요.`
       : `이 기능에는 ${cost}크레딧이 필요해요. 오늘 사용할 수 있는 크레딧이 부족하며 ${formatUsageTime(usage.daily.resetsAt, usage.timeZone)}에 다시 제공돼요.`);
     sendFunnelEvent("ai_credit_insufficient");
     openEnergyCharge();
@@ -1679,6 +1749,22 @@ async function handleProPricingCta() {
   sendFunnelEvent("pricing_plan_selected");
   if (!authUiState.user) {
     location.assign("app.html?auth=login&return=%2F");
+    return;
+  }
+  const plan = aiUsageState?.plan || authUiState.user.plan || "free";
+  if (plan === "pro") {
+    showToast("현재 Pro를 이용 중이에요. 중복 결제되지 않습니다.");
+    return;
+  }
+  if (plan === "trial") {
+    if (paymentsEnabled) {
+      const confirmed = await confirmTrialPaidUpgrade();
+      if (!confirmed) return;
+      sendFunnelEvent("pro_cta_clicked");
+      await startSubscription();
+    } else {
+      showToast("무료 체험은 계속 이용할 수 있어요. Pro 결제는 현재 준비 중이에요.");
+    }
     return;
   }
   if (aiUsageState?.trial?.eligible) {
@@ -2565,7 +2651,7 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
   if (showLoading) {
     await accountExperienceReady;
     if (!authUiState.user) {
-      showToast("로그인 후 24시간 Pro 체험과 AI 계획 생성을 시작할 수 있어요.");
+      showToast("로그인 후 24시간 무료 체험과 AI 계획 생성을 시작할 수 있어요.");
       openAuthSheet();
       return;
     }
@@ -2640,7 +2726,7 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
       if (aiPreviewStatus) aiPreviewStatus.textContent = "무료 목표 계획 1개를 이미 만들었어요";
       if (aiPreviewButton) {
         aiPreviewButton.disabled = false;
-        setAiPreviewButtonLabel("24시간 Pro 체험으로 계획 만들기");
+        setAiPreviewButtonLabel("24시간 무료 체험으로 계획 만들기");
       }
       planPreviewPanel?.classList.add("is-ready");
       showToast(error.message);
@@ -2665,7 +2751,7 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
   if (aiPreviewStatus) aiPreviewStatus.textContent = usedFallback ? "AI 연결 없이 제공하는 기본 계획 템플릿" : "올리가 AI로 만든 맞춤 계획";
   if (aiPreviewButton) {
     aiPreviewButton.disabled = false;
-    setAiPreviewButtonLabel("24시간 Pro 체험으로 계획 만들기");
+    setAiPreviewButtonLabel("24시간 무료 체험으로 계획 만들기");
   }
 
   try {
@@ -2780,7 +2866,7 @@ async function loadAdminMembers() {
       .map((user) => {
         const usage = user.aiUsage;
         const effectivePlan = usage?.plan || user.plan || "free";
-        const planLabel = effectivePlan === "pro" ? "Pro" : effectivePlan === "trial" ? "Pro 체험" : "Free";
+        const planLabel = effectivePlan === "pro" ? "Pro" : effectivePlan === "trial" ? "무료 체험 중" : "Free";
         const usageSummary = usage
           ? `오늘 ${usage.daily.used}/${usage.daily.limit} · ${effectivePlan === "trial" ? "체험" : "월"} ${usage.monthly.used}/${usage.monthly.limit}`
           : "사용량 확인 불가";

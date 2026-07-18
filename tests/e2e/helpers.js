@@ -39,15 +39,15 @@ function createUsageResponse({
 } = {}) {
   const dailyLimit = plan === "free" ? 2 : 30;
   const monthlyLimit = plan === "free" ? 5 : plan === "trial" ? 15 : 250;
-  const trialStartedAt = trialActive ? "2026-07-15T00:00:00.000Z" : null;
-  const trialEndsAt = trialActive ? "2026-07-16T00:00:00.000Z" : null;
+  const trialStartedAt = trialActive ? new Date(Date.now() - 60 * 1000).toISOString() : null;
+  const trialEndsAt = trialActive ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : null;
   return {
     ok: true,
     schemaVersion: 1,
     policyVersion: "2026-07-15.v1",
     timeZone: "Asia/Seoul",
     plan,
-    planLabel: plan === "trial" ? "Pro 체험" : plan === "pro" ? "Pro" : "Free",
+    planLabel: plan === "trial" ? "무료 체험 중" : plan === "pro" ? "Pro" : "Free",
     trial: {
       eligible: trialEligible,
       active: trialActive,
@@ -165,8 +165,8 @@ async function mockAccountExperience(page, {
         body: JSON.stringify({ ok: true, started: false, idempotent: true, user: state.user, usage: state.usage }),
       });
     }
-    const startedAt = Date.parse("2026-07-15T00:00:00.000Z");
-    const expiresAt = Date.parse("2026-07-16T00:00:00.000Z");
+    const startedAt = Date.now();
+    const expiresAt = startedAt + 24 * 60 * 60 * 1000;
     state.user = { ...state.user, plan: "trial", trialStartedAt: startedAt, trialExpiresAt: expiresAt };
     state.usage = createUsageResponse({ plan: "trial", trialEligible: false, trialActive: true });
     return route.fulfill({

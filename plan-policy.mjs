@@ -70,7 +70,7 @@ export const AI_ACTION_LABELS = deepFreeze({
 
 export const PLAN_LABELS = deepFreeze({
   free: "Free",
-  trial: "Pro 체험",
+  trial: "무료 체험 중",
   pro: "Pro",
 });
 
