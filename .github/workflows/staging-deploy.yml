@@ -143,13 +143,74 @@ jobs:
           wranglerVersion: "4.81.0"
           command: deploy --config wrangler.staging.generated.jsonc
 
+      - name: Wait for stable Staging endpoints
+        env:
+          STAGING_URL: ${{ steps.deploy.outputs.deployment-url }}
+        shell: bash
+        run: |
+          test -n "$STAGING_URL"
+          consecutive=0
+          last_endpoint=""
+          last_status=""
+          last_content_type=""
+
+          probe_endpoint() {
+            local endpoint="$1"
+            local result status content_type
+            result="$(curl --silent --output /dev/null --write-out '%{http_code}\t%{content_type}' --max-time 15 "$STAGING_URL$endpoint" 2>/dev/null || true)"
+            status="${result%%$'\t'*}"
+            content_type="${result#*$'\t'}"
+
+            if [[ "$status" == "200" ]]; then
+              case "$endpoint" in
+                /plan-policy.mjs)
+                  [[ "${content_type,,}" == *javascript* ]] && return 0
+                  ;;
+                /api/auth/providers|/api/health)
+                  [[ "${content_type,,}" == application/json* ]] && return 0
+                  ;;
+              esac
+            fi
+
+            last_endpoint="$endpoint"
+            last_status="$status"
+            last_content_type="$content_type"
+            return 1
+          }
+
+          for attempt in $(seq 1 24); do
+            all_ready=true
+            for endpoint in /plan-policy.mjs /api/auth/providers /api/health; do
+              if ! probe_endpoint "$endpoint"; then
+                all_ready=false
+              fi
+            done
+
+            if [[ "$all_ready" == true ]]; then
+              consecutive=$((consecutive + 1))
+              if (( consecutive >= 2 )); then
+                break
+              fi
+            else
+              consecutive=0
+            fi
+
+            if (( attempt < 24 )); then
+              sleep 5
+            fi
+          done
+
+          if (( consecutive < 2 )); then
+            echo "Staging readiness failed: endpoint=$last_endpoint status=$last_status content-type=$last_content_type"
+            exit 1
+          fi
+
       - name: Verify Staging routes and disabled billing
         env:
           STAGING_URL: ${{ steps.deploy.outputs.deployment-url }}
         shell: bash
         run: |
           test -n "$STAGING_URL"
-          curl --fail --silent --show-error "$STAGING_URL/plan-policy.mjs" -o /dev/null
           curl --fail --silent --show-error "$STAGING_URL/api/auth/providers" -o providers.json
           curl --fail --silent --show-error "$STAGING_URL/api/health" -o health.json
           node <<'NODE'
