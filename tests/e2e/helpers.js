@@ -110,6 +110,16 @@ async function prepareApp(page, storage = {}) {
   );
 }
 
+async function waitForAppReady(page) {
+  await expect(page.locator("body")).toHaveAttribute("data-app-ready", "true", { timeout: 15_000 });
+}
+
+async function waitForBootstrap(page) {
+  await expect(page.locator("body")).toHaveAttribute("data-auth-ready", "true", { timeout: 15_000 });
+  await expect(page.locator("body")).toHaveAttribute("data-auth-state", /^(anonymous|member|error)$/);
+  await expect(page.locator("body")).toHaveAttribute("data-pricing-ready", "true", { timeout: 15_000 });
+}
+
 async function mockAccountExperience(page, {
   user = null,
   usage = user ? createUsageResponse({ plan: user.plan || "free" }) : null,
@@ -274,6 +284,8 @@ module.exports = {
   mockExternalAssets,
   monitorPage,
   prepareApp,
+  waitForBootstrap,
+  waitForAppReady,
   readStored,
   testPlan,
 };

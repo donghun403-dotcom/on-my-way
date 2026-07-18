@@ -1,5 +1,5 @@
 const { test, expect } = require("@playwright/test");
-const { createUsageResponse, expectNoHorizontalOverflow, mockExternalAssets, monitorPage } = require("./helpers");
+const { createUsageResponse, expectNoHorizontalOverflow, mockExternalAssets, monitorPage, waitForAppReady, waitForBootstrap } = require("./helpers");
 
 const providers = ["kakao", "naver", "google", "apple"];
 const androidProviders = ["kakao", "naver", "google"];
@@ -24,6 +24,8 @@ function activeTrialUser(overrides) {
 
 async function waitForAccountScope(page, expectedScope) {
   await expect(page.locator("html")).not.toHaveClass(/account-storage-pending/, { timeout: 15_000 });
+  await waitForBootstrap(page);
+  await waitForAppReady(page);
   await expect.poll(() => page.evaluate(() => localStorage.getItem("onmyway:active-scope"))).toBe(expectedScope);
 }
 
@@ -86,6 +88,55 @@ async function mockAccountApi(page, state = { user: null, configured: true }) {
     return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ revision: revision + 1, updatedAt: Date.now() }) });
   });
 }
+
+test("auth bootstrap retries one transient failure before settling the member state", async ({ page }) => {
+  const state = { user: activeTrialUser({ id: "usr_bootstrap", provider: "google", name: "Bootstrap User", email: "bootstrap@example.com" }), configured: true };
+  await mockAccountApi(page, state);
+  await page.unroute("**/api/auth/me");
+  let attempts = 0;
+  await page.route("**/api/auth/me", (route) => {
+    attempts += 1;
+    if (attempts === 1) return route.abort("failed");
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ user: state.user }) });
+  });
+
+  await page.goto("/app.html");
+  await waitForBootstrap(page);
+  await waitForAppReady(page);
+  await expect.poll(() => attempts).toBeGreaterThanOrEqual(2);
+  await expect(page.locator("body")).toHaveAttribute("data-auth-state", "member");
+});
+
+test("pricing bootstrap retries a transient module load without masking a valid response", async ({ page }) => {
+  await mockAccountApi(page);
+  let policyRequests = 0;
+  await page.route("**/plan-policy.mjs", (route) => {
+    policyRequests += 1;
+    if (policyRequests === 1) return route.abort("failed");
+    return route.continue();
+  });
+
+  await page.goto("/app.html");
+  await waitForBootstrap(page);
+  await waitForAppReady(page);
+  await expect.poll(() => policyRequests).toBeGreaterThan(1);
+  await expect(page.locator("body")).toHaveAttribute("data-pricing-state", "ready");
+});
+
+test("pricing bootstrap exposes a permanent response failure without marking the app ready", async ({ page }) => {
+  await mockAccountApi(page);
+  let policyRequests = 0;
+  await page.route("**/plan-policy.mjs", (route) => {
+    policyRequests += 1;
+    return route.fulfill({ status: 503, contentType: "application/javascript", body: "" });
+  });
+
+  await page.goto("/app.html");
+  await waitForBootstrap(page);
+  await expect(page.locator("body")).toHaveAttribute("data-pricing-state", "error");
+  await expect(page.locator("body")).toHaveAttribute("data-app-ready", "false");
+  expect(policyRequests).toBe(1);
+});
 
 test("Android 로그인에는 세 Provider만 표시되고 Apple은 레이아웃과 포커스 순서에서 제외된다", async ({ page }) => {
   const diagnostics = monitorPage(page);
@@ -190,6 +241,7 @@ test("첫 화면에서 연 로그인은 X, 배경, ESC로 취소하면 첫 화�
   const cancelLogin = async (cancel, { openFromLanding = false } = {}) => {
     if (openFromLanding) {
       await page.goto("/");
+      await waitForBootstrap(page);
       await expect(page.locator("html")).not.toHaveClass(/account-storage-pending/, { timeout: 15_000 });
       await page.getByRole("button", { name: "메뉴 열기" }).click();
       const loginLink = page.getByRole("link", { name: "로그인" });
@@ -197,10 +249,12 @@ test("첫 화면에서 연 로그인은 X, 배경, ESC로 취소하면 첫 화�
       await Promise.all([page.waitForURL(/\/app\.html\?auth=login/), loginLink.click()]);
     } else {
       await page.goto("/app.html?auth=login&return=%2F");
+      await waitForBootstrap(page);
     }
     await expect(page.locator("#authSheet")).toBeVisible();
     await cancel();
     await expect(page).toHaveURL(/\/$/);
+    await waitForBootstrap(page);
     await expect(page.locator("#top")).toBeVisible();
   };
 

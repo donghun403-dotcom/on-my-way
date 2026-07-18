@@ -1,11 +1,12 @@
 const { test, expect } = require("@playwright/test");
-const { expectNoDuplicateIds, monitorPage, prepareApp, readStored } = require("./helpers");
+const { expectNoDuplicateIds, monitorPage, prepareApp, readStored, waitForAppReady } = require("./helpers");
 
 test.beforeEach(async ({ page }) => prepareApp(page));
 
 test("일정을 검증하고 한 번만 추가해 새로고침 후 유지한다", async ({ page }) => {
   const diagnostics = monitorPage(page);
   await page.goto("/app.html");
+  await waitForAppReady(page);
   const initialRows = await page.locator("#executionChecklist .task-row").count();
 
   await page.locator("#addTodayScheduleButton").click();
@@ -39,6 +40,7 @@ test("일정을 검증하고 한 번만 추가해 새로고침 후 유지한다"
 test("완료, 해제, 재완료에도 XP와 완료 기록이 중복되지 않는다", async ({ page }) => {
   const diagnostics = monitorPage(page);
   await page.goto("/app.html");
+  await waitForAppReady(page);
   await page.locator("#completeTodayButton").click();
   const rewarded = await readStored(page, "omwCompanionState");
   const firstState = await readStored(page, "omwExecutionState");
