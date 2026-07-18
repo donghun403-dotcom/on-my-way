@@ -81,6 +81,11 @@ jobs:
             exit 1
           fi
 
+          if [[ "$TOSS_CLIENT_KEY" != test_ck_* || "$TOSS_SECRET_KEY" != test_sk_* ]]; then
+            echo "Invalid Staging Toss key type: expected test key"
+            exit 1
+          fi
+
       - name: Generate isolated Staging Wrangler config
         shell: bash
         env:
@@ -199,14 +204,84 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          SECRET_LIST_FILE: ${{ runner.temp }}/staging-worker-secret-list.json
+          SECRET_LIST_RAW: ${{ runner.temp }}/staging-worker-secret-list.raw
         run: |
           npx --yes wrangler@4.81.0 secret list \
             --config wrangler.staging.generated.jsonc \
-            --format json > "$SECRET_LIST_FILE"
+            --format json > "$SECRET_LIST_RAW"
           node <<'NODE'
           const fs = require("node:fs");
-          const payload = JSON.parse(fs.readFileSync(process.env.SECRET_LIST_FILE, "utf8"));
+
+          function extractFirstJsonPayload(output) {
+            const source = output
+              .replace(/\uFEFF/g, "")
+              .replace(/\u001B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, "");
+
+            for (let start = 0; start < source.length; start += 1) {
+              const opener = source[start];
+              if (opener !== "[" && opener !== "{") continue;
+
+              const stack = [];
+              let inString = false;
+              let escaped = false;
+              let end = -1;
+              let invalid = false;
+
+              for (let index = start; index < source.length; index += 1) {
+                const character = source[index];
+
+                if (inString) {
+                  if (escaped) {
+                    escaped = false;
+                  } else if (character === "\\") {
+                    escaped = true;
+                  } else if (character === '"') {
+                    inString = false;
+                  }
+                  continue;
+                }
+
+                if (character === '"') {
+                  inString = true;
+                  continue;
+                }
+
+                if (character === "[" || character === "{") {
+                  stack.push(character);
+                  continue;
+                }
+
+                if (character !== "]" && character !== "}") continue;
+                const expected = character === "]" ? "[" : "{";
+                if (stack.pop() !== expected) {
+                  invalid = true;
+                  break;
+                }
+                if (stack.length > 0) continue;
+                end = index;
+                break;
+              }
+
+              if (invalid || end < 0) throw new Error("Unable to parse Wrangler secret list JSON output");
+              try {
+                const payload = JSON.parse(source.slice(start, end + 1));
+                if (Array.isArray(payload) || (payload && typeof payload === "object")) return payload;
+              } catch {
+                // Continue looking after this complete non-JSON candidate.
+              }
+              start = end;
+            }
+
+            throw new Error("Unable to parse Wrangler secret list JSON output");
+          }
+
+          let payload;
+          try {
+            payload = extractFirstJsonPayload(fs.readFileSync(process.env.SECRET_LIST_RAW, "utf8"));
+          } catch {
+            console.error("Unable to parse Wrangler secret list JSON output");
+            process.exit(1);
+          }
           const rows = Array.isArray(payload) ? payload : (Array.isArray(payload.secrets) ? payload.secrets : []);
           const names = new Set(rows.map((item) => item.name));
           const required = [
@@ -304,4 +379,4 @@ jobs:
       - name: Remove generated Staging config
         if: always()
         shell: bash
-        run: rm -f "$GITHUB_WORKSPACE/wrangler.staging.generated.jsonc" health.json providers.json "$RUNNER_TEMP/staging-billing-schema.json" "$RUNNER_TEMP/staging-worker-secrets.json" "$RUNNER_TEMP/staging-worker-secret-list.json"
+        run: rm -f "$GITHUB_WORKSPACE/wrangler.staging.generated.jsonc" health.json providers.json "$RUNNER_TEMP/staging-billing-schema.json" "$RUNNER_TEMP/staging-worker-secrets.json" "$RUNNER_TEMP/staging-worker-secret-list.raw"
