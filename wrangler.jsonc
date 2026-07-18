@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "on-my-way-nonproduction",
+  "name": "on-my-way",
   "main": "./worker.mjs",
   "compatibility_date": "2026-07-11",
   "workers_dev": true,
