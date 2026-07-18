@@ -258,10 +258,6 @@ function waitForBootstrapRetry(attempt) {
   return new Promise((resolve) => window.setTimeout(resolve, delay));
 }
 
-function isTransientPricingPolicyError(error) {
-  return isTransientBootstrapError(error);
-}
-
 function loadPricingPolicy() {
   if (pricingPolicyPromise) return pricingPolicyPromise;
 
@@ -271,7 +267,7 @@ function loadPricingPolicy() {
       try {
         const response = await fetch("/plan-policy.mjs", { cache: "no-store", credentials: "same-origin" });
         const contentType = response.headers.get("content-type") || "";
-        if (!response.ok || !contentType.includes("javascript")) {
+        if (response.status !== 200 || !contentType.toLowerCase().includes("javascript")) {
           throw new Error(`Pricing policy request failed with ${response.status}`);
         }
 
@@ -287,7 +283,7 @@ function loadPricingPolicy() {
         return module;
       } catch (error) {
         lastError = error;
-        if (attempt === 0 && isTransientPricingPolicyError(error) && isActivePage()) {
+        if (attempt === 0 && isTransientBootstrapError(error) && isActivePage()) {
           await waitForBootstrapRetry(attempt);
           continue;
         }
@@ -6263,6 +6259,7 @@ executionThemeButtons.forEach((button) => {
 
 function markAppReady() {
   if (!document.body?.classList.contains("execution-page")) return;
+  if (document.body.dataset.appReady === "true") return;
   if (document.body.dataset.authReady !== "true" || !["anonymous", "member"].includes(document.body.dataset.authState)) return;
   if (document.body.dataset.pricingState !== "ready") return;
   document.body.dataset.appReady = "true";

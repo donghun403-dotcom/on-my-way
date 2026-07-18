@@ -4,8 +4,8 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "Git ref to deploy (defaults to the selected ref)"
-        required: false
+        description: "Staging에 배포할 검증된 branch 또는 commit SHA"
+        required: true
         type: string
 
 concurrency:
@@ -21,10 +21,23 @@ jobs:
     timeout-minutes: 35
     environment: staging
     steps:
+      - name: Refuse unsafe Staging ref
+        shell: bash
+        env:
+          DEPLOY_REF: ${{ inputs.ref }}
+        run: |
+          test -n "${DEPLOY_REF:-}"
+          case "$DEPLOY_REF" in
+            main|refs/heads/main|origin/main|refs/remotes/origin/main)
+              echo "Staging deployment from main is not allowed"
+              exit 1
+              ;;
+          esac
+
       - name: Check out selected ref
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.ref || github.ref }}
+          ref: ${{ inputs.ref }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -44,6 +57,34 @@ jobs:
           while IFS= read -r -d '' file; do
             node --check "$file"
           done < <(find . -type f \( -name '*.js' -o -name '*.mjs' -o -name '*.cjs' \) -not -path './node_modules/*' -print0)
+
+      - name: Validate required Staging Worker secrets
+        shell: bash
+        env:
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          TOSS_CLIENT_KEY: ${{ secrets.TOSS_CLIENT_KEY }}
+          TOSS_SECRET_KEY: ${{ secrets.TOSS_SECRET_KEY }}
+        run: |
+          missing=()
+          for secret_name in SESSION_SECRET GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET TOSS_CLIENT_KEY TOSS_SECRET_KEY; do
+            if [[ -z "${!secret_name:-}" ]]; then
+              missing+=("$secret_name")
+            else
+              echo "::add-mask::${!secret_name}"
+            fi
+          done
+
+          if (( ${#missing[@]} > 0 )); then
+            printf 'Missing Staging Worker secret: %s\n' "${missing[@]}"
+            exit 1
+          fi
+
+          if [[ "$TOSS_CLIENT_KEY" != test_ck_* || "$TOSS_SECRET_KEY" != test_sk_* ]]; then
+            echo "Invalid Staging Toss key type: expected test key"
+            exit 1
+          fi
 
       - name: Generate isolated Staging Wrangler config
         shell: bash
@@ -121,6 +162,34 @@ jobs:
           }
           NODE
 
+      - name: Create temporary Staging Worker secrets file
+        shell: bash
+        env:
+          SECRETS_FILE: ${{ runner.temp }}/staging-worker-secrets.json
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          TOSS_CLIENT_KEY: ${{ secrets.TOSS_CLIENT_KEY }}
+          TOSS_SECRET_KEY: ${{ secrets.TOSS_SECRET_KEY }}
+        run: |
+          for secret_name in SESSION_SECRET GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET TOSS_CLIENT_KEY TOSS_SECRET_KEY; do
+            echo "::add-mask::${!secret_name}"
+          done
+          node <<'NODE'
+          const fs = require("node:fs");
+          const names = [
+            "SESSION_SECRET",
+            "GOOGLE_CLIENT_ID",
+            "GOOGLE_CLIENT_SECRET",
+            "TOSS_CLIENT_KEY",
+            "TOSS_SECRET_KEY",
+          ];
+          const secrets = Object.fromEntries(names.map((name) => [name, process.env[name]]));
+          const missing = names.filter((name) => !secrets[name]);
+          if (missing.length > 0) throw new Error(`Missing Staging Worker secret names: ${missing.join(", ")}`);
+          fs.writeFileSync(process.env.SECRETS_FILE, JSON.stringify(secrets), { encoding: "utf8", mode: 0o600 });
+          NODE
+
       - name: Deploy isolated Staging Worker
         id: deploy
         uses: cloudflare/wrangler-action@v3
@@ -128,7 +197,166 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           wranglerVersion: "4.81.0"
-          command: deploy --config wrangler.staging.generated.jsonc
+          command: deploy --config wrangler.staging.generated.jsonc --secrets-file ${{ runner.temp }}/staging-worker-secrets.json
+
+      - name: Verify Staging Worker secret names
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          SECRET_LIST_RAW: ${{ runner.temp }}/staging-worker-secret-list.raw
+        run: |
+          npx --yes wrangler@4.81.0 secret list \
+            --config wrangler.staging.generated.jsonc \
+            --format json > "$SECRET_LIST_RAW"
+          node <<'NODE'
+          const fs = require("node:fs");
+
+          function extractFirstJsonPayload(output) {
+            const source = output
+              .replace(/\uFEFF/g, "")
+              .replace(/\u001B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, "");
+
+            for (let start = 0; start < source.length; start += 1) {
+              const opener = source[start];
+              if (opener !== "[" && opener !== "{") continue;
+
+              const stack = [];
+              let inString = false;
+              let escaped = false;
+              let end = -1;
+              let invalid = false;
+
+              for (let index = start; index < source.length; index += 1) {
+                const character = source[index];
+
+                if (inString) {
+                  if (escaped) {
+                    escaped = false;
+                  } else if (character === "\\") {
+                    escaped = true;
+                  } else if (character === '"') {
+                    inString = false;
+                  }
+                  continue;
+                }
+
+                if (character === '"') {
+                  inString = true;
+                  continue;
+                }
+
+                if (character === "[" || character === "{") {
+                  stack.push(character);
+                  continue;
+                }
+
+                if (character !== "]" && character !== "}") continue;
+                const expected = character === "]" ? "[" : "{";
+                if (stack.pop() !== expected) {
+                  invalid = true;
+                  break;
+                }
+                if (stack.length > 0) continue;
+                end = index;
+                break;
+              }
+
+              if (invalid || end < 0) throw new Error("Unable to parse Wrangler secret list JSON output");
+              try {
+                const payload = JSON.parse(source.slice(start, end + 1));
+                if (Array.isArray(payload) || (payload && typeof payload === "object")) return payload;
+              } catch {
+                // Continue looking after this complete non-JSON candidate.
+              }
+              start = end;
+            }
+
+            throw new Error("Unable to parse Wrangler secret list JSON output");
+          }
+
+          let payload;
+          try {
+            payload = extractFirstJsonPayload(fs.readFileSync(process.env.SECRET_LIST_RAW, "utf8"));
+          } catch {
+            console.error("Unable to parse Wrangler secret list JSON output");
+            process.exit(1);
+          }
+          const rows = Array.isArray(payload) ? payload : (Array.isArray(payload.secrets) ? payload.secrets : []);
+          const names = new Set(rows.map((item) => item.name));
+          const required = [
+            "SESSION_SECRET",
+            "GOOGLE_CLIENT_ID",
+            "GOOGLE_CLIENT_SECRET",
+            "TOSS_CLIENT_KEY",
+            "TOSS_SECRET_KEY",
+          ];
+          const missing = required.filter((name) => !names.has(name));
+          if (missing.length > 0) throw new Error(`Missing Staging Worker secret names: ${missing.join(", ")}`);
+          console.log("Required Staging Worker secret names are present");
+          NODE
+
+      - name: Wait for stable Staging endpoints
+        env:
+          STAGING_URL: ${{ steps.deploy.outputs.deployment-url }}
+        shell: bash
+        run: |
+          test -n "$STAGING_URL"
+          consecutive=0
+          last_endpoint=""
+          last_status=""
+          last_content_type=""
+
+          probe_endpoint() {
+            local endpoint="$1"
+            local result status content_type
+            result="$(curl --silent --output /dev/null --write-out '%{http_code}\t%{content_type}' --max-time 15 "$STAGING_URL$endpoint" 2>/dev/null || true)"
+            status="${result%%$'\t'*}"
+            content_type="${result#*$'\t'}"
+
+            if [[ "$status" == "200" ]]; then
+              case "$endpoint" in
+                /plan-policy.mjs)
+                  [[ "${content_type,,}" == *javascript* ]] && return 0
+                  ;;
+                /api/auth/providers|/api/health)
+                  [[ "${content_type,,}" == application/json* ]] && return 0
+                  ;;
+              esac
+            fi
+
+            last_endpoint="$endpoint"
+            last_status="$status"
+            last_content_type="$content_type"
+            return 1
+          }
+
+          for attempt in $(seq 1 24); do
+            all_ready=true
+            for endpoint in /plan-policy.mjs /api/auth/providers /api/health; do
+              if ! probe_endpoint "$endpoint"; then
+                all_ready=false
+              fi
+            done
+
+            if [[ "$all_ready" == true ]]; then
+              consecutive=$((consecutive + 1))
+              if (( consecutive >= 2 )); then
+                break
+              fi
+            else
+              consecutive=0
+            fi
+
+            if (( attempt < 24 )); then
+              sleep 5
+            fi
+          done
+
+          if (( consecutive < 2 )); then
+            echo "Staging readiness failed: endpoint=$last_endpoint status=$last_status content-type=$last_content_type"
+            exit 1
+          fi
 
       - name: Verify Staging routes and disabled billing
         env:
@@ -136,7 +364,6 @@ jobs:
         shell: bash
         run: |
           test -n "$STAGING_URL"
-          curl --fail --silent --show-error "$STAGING_URL/plan-policy.mjs" -o /dev/null
           curl --fail --silent --show-error "$STAGING_URL/api/auth/providers" -o providers.json
           curl --fail --silent --show-error "$STAGING_URL/api/health" -o health.json
           node <<'NODE'
@@ -152,4 +379,4 @@ jobs:
       - name: Remove generated Staging config
         if: always()
         shell: bash
-        run: rm -f "$GITHUB_WORKSPACE/wrangler.staging.generated.jsonc" health.json providers.json "$RUNNER_TEMP/staging-billing-schema.json"
+        run: rm -f "$GITHUB_WORKSPACE/wrangler.staging.generated.jsonc" health.json providers.json "$RUNNER_TEMP/staging-billing-schema.json" "$RUNNER_TEMP/staging-worker-secrets.json" "$RUNNER_TEMP/staging-worker-secret-list.raw"

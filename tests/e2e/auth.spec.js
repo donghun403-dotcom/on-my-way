@@ -123,6 +123,21 @@ test("pricing bootstrap retries a transient module load without masking a valid 
   await expect(page.locator("body")).toHaveAttribute("data-pricing-state", "ready");
 });
 
+test("pricing bootstrap exposes a permanent response failure without marking the app ready", async ({ page }) => {
+  await mockAccountApi(page);
+  let policyRequests = 0;
+  await page.route("**/plan-policy.mjs", (route) => {
+    policyRequests += 1;
+    return route.fulfill({ status: 503, contentType: "application/javascript", body: "" });
+  });
+
+  await page.goto("/app.html");
+  await waitForBootstrap(page);
+  await expect(page.locator("body")).toHaveAttribute("data-pricing-state", "error");
+  await expect(page.locator("body")).toHaveAttribute("data-app-ready", "false");
+  expect(policyRequests).toBe(1);
+});
+
 test("Android 로그인에는 세 Provider만 표시되고 Apple은 레이아웃과 포커스 순서에서 제외된다", async ({ page }) => {
   const diagnostics = monitorPage(page);
   await mockAccountApi(page);

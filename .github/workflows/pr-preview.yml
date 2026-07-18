@@ -103,28 +103,45 @@ jobs:
           for attempt in {1..24}; do
             all_ready=1
             last_result=""
-            while IFS=$'\t' read -r path expected_type; do
-              probe="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}\t%{content_type}' "$PREVIEW_URL$path")"
+            endpoint_count=0
+            while IFS='|' read -r path expected_type; do
+              endpoint_count=$((endpoint_count + 1))
+              if [ -z "$path" ] || [[ "$path" != /* ]]; then
+                echo "Invalid readiness endpoint definition: path=$path type=$expected_type"
+                exit 1
+              fi
+              case "$expected_type" in
+                html|javascript|json) ;;
+                *)
+                  echo "Invalid readiness endpoint definition: path=$path type=$expected_type"
+                  exit 1
+                  ;;
+              esac
+              probe="$(curl --silent --output /dev/null --write-out '%{http_code}\t%{content_type}' --max-time 15 "$PREVIEW_URL$path" 2>/dev/null || true)"
               status="${probe%%$'\t'*}"
               content_type="${probe#*$'\t'}"
               case "$expected_type:$content_type" in
                 html:text/html*) ;;
                 javascript:*javascript*) ;;
                 json:application/json*) ;;
-                *) all_ready=0; last_result="$path status=$status content-type=$content_type"; break ;;
+                *) all_ready=0; last_result="$path status=$status content-type=$content_type" ;;
               esac
               if [ "$status" != "200" ]; then
                 all_ready=0
                 last_result="$path status=$status content-type=$content_type"
-                break
               fi
             done <<'ENDPOINTS'
-          /app.html	html
-          /script.js	javascript
-          /plan-policy.mjs	javascript
-          /api/health	json
-          /api/auth/providers	json
+          /app.html|html
+          /script.js|javascript
+          /plan-policy.mjs|javascript
+          /api/health|json
+          /api/auth/providers|json
           ENDPOINTS
+
+            if [ "$endpoint_count" -ne 5 ]; then
+              echo "Invalid readiness endpoint count: $endpoint_count"
+              exit 1
+            fi
 
             if [ "$all_ready" -eq 1 ]; then
               consecutive=$((consecutive + 1))
