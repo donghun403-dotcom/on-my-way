@@ -141,6 +141,10 @@ const revisionChipButtons = document.querySelectorAll("[data-revision-chip]");
 const selectedScheduleTitle = document.querySelector("#selectedScheduleTitle");
 const selectedScheduleMeta = document.querySelector("#selectedScheduleMeta");
 const executionChecklist = document.querySelector("#executionChecklist");
+const scheduleListToggle = document.querySelector("#scheduleListToggle");
+const todayEmptyState = document.querySelector("#todayEmptyState");
+const todaySummaryGoal = document.querySelector("#todaySummaryGoal");
+const todaySummaryRemaining = document.querySelector("#todaySummaryRemaining");
 const planScreenElements = document.querySelectorAll("[data-plan-screen]");
 const planOpenDetailButton = document.querySelector("#planOpenDetailButton");
 const planOpenEditorButton = document.querySelector("#planOpenEditorButton");
@@ -4337,13 +4341,13 @@ function renderFocusTask(dayPlan, selectedCompletion) {
   if (!focusTaskTitle || !dayPlan) return;
 
   if (!dayPlan.tasks.length) {
-    focusTaskTitle.textContent = "오늘은 계획된 휴식일이에요";
-    if (focusTaskMeta) focusTaskMeta.textContent = "입력한 가능 요일을 기준으로 학습을 비워두었어요";
-    if (minimumGoalText) minimumGoalText.textContent = "충분히 쉬고 다음 학습일 준비";
+    focusTaskTitle.textContent = "오늘은 계획된 일정이 없어요";
+    if (focusTaskMeta) focusTaskMeta.textContent = "계획 탭에서 아주 작은 한 걸음을 확인해 보세요";
+    if (minimumGoalText) minimumGoalText.textContent = "다음 한 걸음 준비";
     if (focusProgressText) focusProgressText.textContent = "휴식일";
     if (startFocusButton) {
       startFocusButton.disabled = true;
-      startFocusButton.textContent = "계획된 휴식일";
+      startFocusButton.textContent = "계획 확인하기";
     }
     return;
   }
@@ -4357,13 +4361,13 @@ function renderFocusTask(dayPlan, selectedCompletion) {
   const suggestedMinutes = getSuggestedFocusMinutes(task);
   if (focusTaskTitle) focusTaskTitle.textContent = task?.text || "오늘 기록 돌아보기";
   const taskPosition = dayPlan.scheduleMode === "priority" ? `${taskIndex + 1}순위` : task?.time || "시간 미정";
-  if (focusTaskMeta) focusTaskMeta.textContent = selectedCompletion.percent === 100 ? "오늘 AI 스케줄을 모두 완료했어요" : `${taskPosition} · 타이머를 켜고 올리와 함께 시작해요`;
-  if (minimumGoalText) minimumGoalText.textContent = selectedCompletion.percent === 100 ? "오늘 일정 모두 완료" : `집중 시간 ${suggestedMinutes}분`;
+  if (focusTaskMeta) focusTaskMeta.textContent = selectedCompletion.percent === 100 ? "오늘 일정을 모두 완료했어요" : `${taskPosition} · 예상 ${suggestedMinutes}분`;
+  if (minimumGoalText) minimumGoalText.textContent = selectedCompletion.percent === 100 ? "오늘 일정 모두 완료" : `최소 실행 ${suggestedMinutes}분`;
   if (focusProgressText) focusProgressText.textContent = `${selectedCompletion.completed}/${selectedCompletion.total} 완료`;
   if (startFocusButton) {
     startFocusButton.disabled = false;
     startFocusButton.dataset.taskIndex = String(taskIndex);
-    startFocusButton.textContent = selectedCompletion.percent === 100 ? "오늘 일정 다시 보기" : "올리랑 시간 재기";
+    startFocusButton.textContent = selectedCompletion.percent === 100 ? "오늘 일정 다시 보기" : "지금 시작하기";
   }
 }
 
@@ -4390,6 +4394,8 @@ function renderChecklist(dayPlan, state) {
   executionChecklist.innerHTML = "";
   executionChecklist.dataset.mode = dayPlan.scheduleMode || "time";
   const checked = state.checkedByDay[String(dayPlan.day)] || [];
+  executionChecklist.classList.toggle("is-expanded", executionChecklist.dataset.expanded === "true");
+  if (todayEmptyState) todayEmptyState.hidden = dayPlan.tasks.length !== 0;
 
   if (!dayPlan.tasks.length) {
     const rest = document.createElement("div");
@@ -4407,7 +4413,7 @@ function renderChecklist(dayPlan, state) {
     const time = document.createElement("span");
     const startTime = document.createElement("strong");
     const endTime = document.createElement("small");
-    const text = document.createElement("span");
+    const text = document.createElement("label");
     const head = document.createElement("span");
     const periodBadge = document.createElement("span");
     const orderControl = document.createElement(dayPlan.scheduleMode === "priority" ? "button" : "i");
@@ -4421,6 +4427,7 @@ function renderChecklist(dayPlan, state) {
     checkbox.type = "checkbox";
     checkbox.dataset.taskIndex = String(index);
     checkbox.checked = Boolean(checked[index]);
+    checkbox.id = `executionTask-${dayPlan.day}-${index}`;
     checkbox.setAttribute("aria-label", `${task.text} 완료 표시`);
     content.className = "task-content";
     time.className = "task-time";
@@ -4451,6 +4458,7 @@ function renderChecklist(dayPlan, state) {
     }
     periodBadge.textContent = `${period.icon} ${period.label}`;
     text.textContent = task.text;
+    text.htmlFor = checkbox.id;
 
     const minimum = document.createElement("small");
     minimum.className = "minimum-action";
@@ -4463,6 +4471,14 @@ function renderChecklist(dayPlan, state) {
     row.append(time, orderControl, content, checkbox);
     executionChecklist.append(row);
   });
+
+  if (scheduleListToggle) {
+    const extraCount = Math.max(0, dayPlan.tasks.length - 3);
+    const expanded = executionChecklist.dataset.expanded === "true";
+    scheduleListToggle.hidden = extraCount === 0;
+    scheduleListToggle.setAttribute("aria-expanded", String(expanded));
+    scheduleListToggle.textContent = expanded ? "다시 접기" : `남은 일정 ${extraCount}개 모두 보기`;
+  }
 }
 
 function getPlanStartDate(plan, state) {
@@ -5409,12 +5425,14 @@ function renderExecutionPage(bundle) {
   if (reviseAgainButton) reviseAgainButton.disabled = false;
   const now = new Date();
   const hour = now.getHours();
-  if (todayGreeting) todayGreeting.textContent = hour < 12 ? "좋은 아침이에요!" : hour < 18 ? "좋은 오후예요!" : "좋은 저녁이에요!";
+  if (todayGreeting) todayGreeting.textContent = "오늘";
   if (todayDateLabel) {
-    todayDateLabel.textContent = `${now.toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "long" })} · 오늘도 멋진 하루를 만들어봐요.`;
+    todayDateLabel.textContent = now.toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "long" });
   }
   executionGoal.textContent = plan.goal || "오늘의 한 걸음";
   const isRestDay = selectedDay.tasks.length === 0;
+  if (todaySummaryGoal) todaySummaryGoal.textContent = plan.goal || "오늘의 한 걸음";
+  if (todaySummaryRemaining) todaySummaryRemaining.textContent = `남은 일정 ${remainingTasks}개`;
   if (executionStyle) {
     const todayLabel = new Date().toLocaleDateString("ko-KR", {
       month: "long",
@@ -5727,6 +5745,12 @@ executionChecklist?.addEventListener("change", (event) => {
     showToast("완료 상태를 다시 표시했어요 · XP는 중복 지급되지 않아요");
   }
   renderExecutionPage(bundle);
+});
+
+scheduleListToggle?.addEventListener("click", () => {
+  if (!executionChecklist) return;
+  executionChecklist.dataset.expanded = executionChecklist.dataset.expanded === "true" ? "false" : "true";
+  renderExecutionPage(getPlanBundle());
 });
 
 completeTodayButton?.addEventListener("click", () => {

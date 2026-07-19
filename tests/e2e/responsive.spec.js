@@ -4,7 +4,7 @@ const { expectNoHorizontalOverflow, monitorPage, prepareApp } = require("./helpe
 const viewports = [
   [320, 568],
   [360, 800],
-  [375, 667],
+  [375, 812],
   [390, 844],
   [393, 852],
   [430, 932],

@@ -31,9 +31,6 @@
     <link rel="icon" href="assets/logo-ollie-symbol.png" type="image/png" />
     <link rel="stylesheet" href="styles.css" />
     <link rel="preload" href="assets/ollie-action.png" as="image" />
-    <link rel="preload" href="assets/ollie-celebrate.png" as="image" />
-    <link rel="preload" href="assets/ollie-comfort.png" as="image" />
-    <link rel="preload" href="assets/ollie-thinking.png" as="image" />
   </head>
   <body class="execution-page" data-app-ready="false" data-auth-ready="false" data-auth-state="pending" data-pricing-ready="false" data-pricing-state="pending">
     <header class="execution-header">
@@ -220,8 +217,9 @@
       <div class="app-view is-active" id="view-today" data-view="today" role="tabpanel" aria-labelledby="tab-today">
         <section class="today-welcome" aria-labelledby="todayGreeting">
           <div>
-            <h1 id="todayGreeting">좋은 아침이에요!</h1>
-            <p id="todayDateLabel">오늘도 멋진 하루를 만들어봐요.</p>
+            <p id="todayDateLabel">오늘 날짜</p>
+            <h1 id="todayGreeting">오늘</h1>
+            <p class="today-summary-line"><strong id="todaySummaryGoal">현재 목표</strong><span id="todaySummaryRemaining">남은 일정 0개</span></p>
           </div>
           <button class="today-alert-button" id="todayNotificationButton" type="button" aria-label="오늘의 알림 확인">
             <span aria-hidden="true">♢</span><i aria-hidden="true"></i>
@@ -242,12 +240,25 @@
             </div>
           </div>
           <div class="today-ollie-stage">
-            <img class="mascot-art" src="assets/ollie-action.png" alt="오늘의 한 걸음을 시작하는 올리" />
+            <img class="mascot-art" src="assets/ollie-action.png" alt="오늘의 한 걸음을 시작하는 올리" loading="lazy" />
             <span>오늘도<br />같이 가요!</span>
           </div>
         </section>
 
-        <section class="execution-card today-card">
+        <section class="today-next-action" aria-labelledby="focusTaskTitle">
+          <div>
+            <span>오늘의 한 걸음</span>
+            <h2 id="focusTaskTitle">가장 먼저 할 행동</h2>
+            <p id="focusTaskMeta">시작 시간 · 예상 소요 시간</p>
+          </div>
+          <div class="focus-task-goal">
+            <strong id="minimumGoalText">최소 실행 15분</strong>
+            <span id="focusProgressText" aria-live="polite">시작 전</span>
+          </div>
+          <button class="focus-start-button" id="startFocusButton" type="button">지금 시작하기</button>
+        </section>
+
+        <section class="execution-card today-card" aria-labelledby="selectedScheduleTitle">
           <div class="card-title compact">
             <div>
               <h2 id="selectedScheduleTitle">오늘의 일정</h2>
@@ -257,29 +268,26 @@
               <span aria-hidden="true">＋</span><strong>새 일정 추가</strong>
             </button>
           </div>
-          <div class="today-schedule-actions" aria-label="오늘 일정 도구">
-            <div class="schedule-mode-switch" role="group" aria-label="오늘 일정 정렬 방식">
-              <button type="button" class="active" data-schedule-mode="time" aria-pressed="true">시간순</button>
-              <button type="button" data-schedule-mode="priority" aria-pressed="false">우선순위</button>
-            </div>
-            <button class="text-button" id="completeTodayButton" type="button">모두 완료</button>
-          </div>
-          <div class="today-next-action" aria-labelledby="focusTaskTitle">
-            <div>
-              <span>올리랑 똑딱, 같이 해요</span>
-              <h3 id="focusTaskTitle">가장 먼저 할 행동</h3>
-              <p id="focusTaskMeta">타이머를 켜고 올리와 함께 시작해요</p>
-            </div>
-            <div class="focus-task-goal">
-              <strong id="minimumGoalText">집중 시간 15분</strong>
-              <span id="focusProgressText">시작 전</span>
-            </div>
-            <button class="focus-start-button" id="startFocusButton" type="button">올리랑 시간 재기</button>
+          <div class="today-empty-state" id="todayEmptyState" hidden>
+            <strong>오늘은 계획된 일정이 없어요</strong>
+            <span>아주 작은 한 걸음을 추가해 볼까요?</span>
+            <button class="view-jump-link" data-goto-view="plan" type="button">계획 확인하기</button>
           </div>
           <div class="execution-checklist" id="executionChecklist"></div>
-          <p class="today-order-hint" id="todayOrderHint"><span aria-hidden="true">✣</span> 시간을 눌러 오늘 일정에 맞게 조정할 수 있어요.</p>
+          <button class="schedule-list-toggle" id="scheduleListToggle" type="button" aria-expanded="false" hidden>남은 일정 모두 보기</button>
+          <details class="today-tools" id="todayTools">
+            <summary>일정 도구</summary>
+            <div class="today-schedule-actions" aria-label="오늘 일정 도구">
+              <div class="schedule-mode-switch" role="group" aria-label="오늘 일정 정렬 방식">
+                <button type="button" class="active" data-schedule-mode="time" aria-pressed="true">시간순</button>
+                <button type="button" data-schedule-mode="priority" aria-pressed="false">우선순위</button>
+              </div>
+              <button class="text-button" id="completeTodayButton" type="button">모두 완료</button>
+            </div>
+            <p class="today-order-hint" id="todayOrderHint">시간을 눌러 오늘 일정에 맞게 조정할 수 있어요.</p>
+            <button class="view-jump-link" data-goto-view="plan" type="button">이번 주 계획 보기</button>
+          </details>
           <button class="focus-adjust-link" data-open-companion-chat type="button">오늘 계획 조정하기</button>
-          <button class="view-jump-link" data-goto-view="plan" type="button">이번 주 계획 다듬기 →</button>
         </section>
 
         <section class="execution-card personality-nudge-card" id="personalityNudgeCard" hidden>
@@ -309,10 +317,10 @@
           <p class="recovery-credit-note">선택한 뒤 AI 회복 계획을 생성하면 <strong><b data-ai-credit-cost="recovery_plan">—</b>크레딧</strong>이 사용돼요. 확인 전에는 기존 계획이 바뀌지 않아요.</p>
         </section>
 
-        <section class="execution-card progress-card">
+        <section class="execution-card progress-card" aria-labelledby="todayProgressTitle">
           <div class="card-title compact">
             <div>
-              <h2>오늘 진행률</h2>
+              <h2 id="todayProgressTitle">오늘 진행과 올리</h2>
               <span id="executionDay">Day 18 / 90</span>
             </div>
             <strong id="executionStreak">5일 연속</strong>
@@ -324,15 +332,17 @@
             </div>
           </div>
           <p id="executionMessage">오늘 계획 3개를 모두 끝내면 성장 대상이 한 단계 자랍니다.</p>
-        </section>
-
-        <section class="execution-card coach-card">
-          <img id="dailyCoachImage" src="assets/ollie-comfort.png" alt="" aria-hidden="true" />
-          <div>
+          <details class="today-progress-details">
+            <summary>자세히 보기</summary>
+            <div class="coach-card">
+              <img id="dailyCoachImage" src="assets/ollie-comfort.png" alt="" aria-hidden="true" loading="lazy" />
+              <div>
             <p class="eyebrow" id="dailyCoachKicker">OLLIE COACH · 오늘의 응원</p>
             <h2 id="dailyCoachTitle">오늘 할 수 있는 한 가지부터 시작해요.</h2>
             <p id="dailyCoachMessage">어제의 기록과 오늘의 스케줄을 살펴보고 올리가 가장 필요한 응원을 전해드려요.</p>
-          </div>
+              </div>
+            </div>
+          </details>
         </section>
       </div>
 

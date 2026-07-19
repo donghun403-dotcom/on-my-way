@@ -1,5 +1,5 @@
 const { test, expect } = require("@playwright/test");
-const { expectNoDuplicateIds, monitorPage, prepareApp, readStored, waitForAppReady } = require("./helpers");
+const { expectNoDuplicateIds, expectNoHorizontalOverflow, monitorPage, prepareApp, readStored, waitForAppReady } = require("./helpers");
 
 test.beforeEach(async ({ page }) => prepareApp(page));
 
@@ -42,6 +42,7 @@ test("완료, 해제, 재완료에도 XP와 완료 기록이 중복되지 않는
   const diagnostics = monitorPage(page);
   await page.goto("/app.html");
   await waitForAppReady(page);
+  await page.locator("#todayTools summary").click();
   await page.locator("#completeTodayButton").click();
   const rewarded = await readStored(page, "omwCompanionState");
   const firstState = await readStored(page, "omwExecutionState");
@@ -62,4 +63,55 @@ test("완료, 해제, 재완료에도 XP와 완료 기록이 중복되지 않는
   await page.reload();
   expect((await readStored(page, "omwCompanionState")).xp).toBe(rewarded.xp);
   diagnostics.expectClean();
+});
+
+test("모바일 첫 화면은 오늘의 한 걸음과 CTA를 우선하고 가로로 넘치지 않는다", async ({ page }) => {
+  for (const viewport of [
+    { width: 320, height: 568 },
+    { width: 360, height: 800 },
+    { width: 375, height: 812 },
+    { width: 390, height: 844 },
+    { width: 430, height: 932 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto("/app.html");
+    await waitForAppReady(page);
+    await expectNoHorizontalOverflow(page);
+    await expect(page.locator("#focusTaskTitle")).toBeVisible();
+    await expect(page.locator("#startFocusButton")).toBeVisible();
+    const cta = await page.locator("#startFocusButton").boundingBox();
+    expect(cta.y + cta.height).toBeLessThanOrEqual(viewport.height);
+    await expect(page.locator(".execution-header .ghost-link")).toBeHidden();
+    await expect(page.locator(".execution-tabbar .tab")).toHaveCount(4);
+  }
+});
+
+test("일정이 많으면 세 개만 보여주고 펼치고 다시 접는다", async ({ page }) => {
+  await page.goto("/app.html");
+  await waitForAppReady(page);
+  await page.evaluate(() => {
+    const state = JSON.parse(localStorage.getItem("omwExecutionState") || "{}");
+    state.selectedDay = 1;
+    state.customTasksByDay = {
+      "1": Array.from({ length: 4 }, (_, index) => ({
+          id: `extra-${index}`,
+          text: `추가 일정 ${index + 1}`,
+          time: `${14 + index}:00`,
+          durationMinutes: 15,
+          completionRule: "15분 실행",
+          custom: true,
+      })),
+    };
+    localStorage.setItem("omwExecutionState", JSON.stringify(state));
+  });
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.reload();
+  await waitForAppReady(page);
+  await expect(page.locator("#executionChecklist .task-row:visible")).toHaveCount(3);
+  await expect(page.locator("#scheduleListToggle")).toHaveAttribute("aria-expanded", "false");
+  await page.locator("#scheduleListToggle").click();
+  await expect(page.locator("#executionChecklist .task-row:visible")).toHaveCount(7);
+  await expect(page.locator("#scheduleListToggle")).toHaveAttribute("aria-expanded", "true");
+  await page.locator("#scheduleListToggle").click();
+  await expect(page.locator("#executionChecklist .task-row:visible")).toHaveCount(3);
 });
