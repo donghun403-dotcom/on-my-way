@@ -10,6 +10,7 @@ test("빈 상태와 완료 기록이 저장 상태와 일치한다", async ({ pa
   await expect(page.locator("#memoryCount")).toHaveText("0장");
 
   await page.locator("#tab-today").click();
+  await page.locator("#todayTools summary").click();
   await page.locator("#completeTodayButton").click();
   const state = await readStored(page, "omwExecutionState");
   const checks = state.checkedByDay[String(state.selectedDay)];

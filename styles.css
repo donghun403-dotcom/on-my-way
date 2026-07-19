@@ -13369,6 +13369,97 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 }
 
 /* Today tab wireframe: preserve the existing palette and typography while simplifying hierarchy. */
+:root {
+  --mobile-page-padding: 16px;
+  --mobile-card-gap: 12px;
+  --mobile-tabbar-height: 68px;
+  --mobile-header-height: 60px;
+}
+
+.execution-page .today-summary-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  align-items: center;
+}
+.execution-page .today-summary-line strong { color: var(--app-ink); }
+.execution-page .today-summary-line span { color: var(--app-muted); font-weight: 800; }
+.execution-page .today-empty-state { display: grid; gap: 7px; padding: 20px; text-align: center; background: #f6faf8; border-radius: 16px; }
+.execution-page .today-empty-state[hidden] { display: none; }
+.execution-page .today-empty-state strong { color: var(--app-ink); font-size: 15px; }
+.execution-page .today-empty-state span { color: var(--app-muted); font-size: 12px; }
+.execution-page .schedule-list-toggle,
+.execution-page .today-tools > summary {
+  min-height: 44px;
+  color: #60776f;
+  background: transparent;
+  border: 0;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+.execution-page .schedule-list-toggle { width: 100%; }
+.execution-page .today-tools { margin-top: 6px; border-top: 1px solid rgba(107, 122, 166, 0.1); }
+.execution-page .today-tools > summary { display: flex; align-items: center; justify-content: space-between; list-style: none; }
+.execution-page .today-tools > summary::after { content: "+"; font-size: 18px; }
+.execution-page .today-tools[open] > summary::after { content: "−"; }
+.execution-page .today-progress-details > summary { min-height: 44px; cursor: pointer; color: #60776f; font-size: 11px; font-weight: 900; }
+.execution-page .today-progress-details .coach-card { display: grid; grid-template-columns: 72px 1fr; gap: 12px; align-items: center; padding-top: 12px; }
+.execution-page .today-progress-details .coach-card img { width: 68px; height: 78px; object-fit: contain; }
+
+@media (max-width: 759px) {
+  .execution-page .execution-header {
+    min-height: var(--mobile-header-height);
+    height: var(--mobile-header-height);
+    padding: 8px var(--mobile-page-padding);
+    box-shadow: none;
+  }
+  .execution-page .execution-header .brand-logo { width: 104px; height: 38px; object-fit: contain; object-position: left center; }
+  .execution-page .execution-header-actions .ghost-link { display: none; }
+  .execution-page .ollie-energy-meter { min-height: 44px; }
+  .execution-page .ollie-energy-meter small,
+  .execution-page .ollie-energy-track,
+  .execution-page .energy-charge-button em,
+  .execution-page .menu-toggle em { display: none; }
+  .execution-page .menu-toggle,
+  .execution-page .energy-charge-button { min-width: 44px; min-height: 44px; }
+  .execution-page .execution-app { padding-inline: var(--mobile-page-padding); padding-bottom: calc(var(--mobile-tabbar-height) + 32px + env(safe-area-inset-bottom)); }
+  .execution-page #view-today.app-view.is-active { gap: var(--mobile-card-gap); }
+  .execution-page .today-welcome { padding: 4px 2px 0; }
+  .execution-page .today-welcome h1 { margin-top: 2px; font-size: 24px; }
+  .execution-page .today-welcome > button { display: none; }
+  .execution-page #view-today .today-goal-card { padding: 14px 16px; min-height: 0; grid-template-columns: 1fr; background: rgba(255,255,255,.62); border-radius: 18px; box-shadow: none; }
+  .execution-page #view-today .today-goal-card .eyebrow,
+  .execution-page #view-today .today-goal-card .today-goal-copy > p:last-of-type,
+  .execution-page #view-today .today-ollie-stage { display: none; }
+  .execution-page #view-today .today-goal-card h2 { margin: 0 0 8px; font-size: 15px; }
+  .execution-page .today-goal-progress { margin-top: 8px; }
+  .execution-page .today-next-action { order: 3; grid-template-columns: 1fr; margin-top: 0; padding: 18px; border-radius: 20px; }
+  .execution-page .today-next-action h2 { margin: 5px 0; font-size: 20px; line-height: 1.25; }
+  .execution-page .today-next-action .focus-task-goal { display: flex; justify-content: space-between; padding: 0; background: transparent; }
+  .execution-page .today-next-action .focus-start-button { width: 100%; min-height: 48px; font-size: 14px; }
+  .execution-page #view-today .today-card { order: 4; padding: 18px 14px; }
+  .execution-page #view-today .today-card > .card-title .today-add-button { min-width: 44px; min-height: 44px; padding-inline: 9px; }
+  .execution-page #view-today .today-card > .card-title .today-add-button strong { display: none; }
+  .execution-page #view-today .execution-checklist:not(.is-expanded) .task-row:nth-child(n+4) { display: none; }
+  .execution-page #view-today .execution-checklist .task-row { min-height: 68px; }
+  .execution-page #view-today .personality-nudge-card { order: 8; }
+  .execution-page #view-today .recovery-card { order: 5; }
+  .execution-page #view-today .progress-card { order: 6; }
+  .execution-page #view-today .coach-card { box-shadow: none; background: transparent; }
+  .execution-page .execution-tabbar { bottom: 0; width: 100%; max-width: none; min-height: calc(var(--mobile-tabbar-height) + env(safe-area-inset-bottom)); padding: 6px max(8px, env(safe-area-inset-left)) env(safe-area-inset-bottom) max(8px, env(safe-area-inset-right)); border-radius: 18px 18px 0 0; }
+  .execution-page .execution-tabbar .tab { min-width: 0; min-height: 52px; padding: 5px 2px; border-radius: 13px; }
+  .execution-page .execution-tabbar .tab.active { font-weight: 950; background: rgba(120,159,155,.16); }
+}
+
+@media (max-width: 360px) {
+  :root { --mobile-page-padding: 10px; }
+  .execution-page .execution-header .brand-logo { width: 88px; }
+  .execution-page .ollie-energy-meter { padding-inline: 6px; }
+  .execution-page #view-today .execution-checklist .task-row { grid-template-columns: 52px 8px minmax(0,1fr) 30px; gap: 6px; }
+}
+
 .execution-page #view-today.app-view.is-active {
   grid-template-columns: minmax(0, 1fr);
   gap: 16px;
@@ -15298,4 +15389,18 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
     font-size: 11px;
     line-height: 1.5;
   }
+}
+
+/* Stage 3A final mobile shell override. */
+@media (max-width: 759px) {
+  .execution-page .execution-header { display: flex; top: 0; width: 100%; min-height: var(--mobile-header-height); height: var(--mobile-header-height); margin-top: 0; border-radius: 0 0 18px 18px; }
+  .execution-page .execution-header > a { flex: 1 1 auto; grid-column: auto; grid-row: auto; }
+  .execution-page .execution-header-actions { display: flex; flex: 0 0 auto; gap: 6px; }
+  .execution-page .ollie-energy-meter { display: flex; grid-column: auto; grid-row: auto; width: auto; min-width: 94px; min-height: 44px; padding: 5px 7px; }
+  .execution-page .ollie-energy-meter > div:first-of-type { min-width: 0; }
+  .execution-page .ollie-energy-meter strong { display: block; max-width: 76px; overflow: hidden; font-size: 9px; text-overflow: ellipsis; }
+  .execution-page .energy-charge-button { min-width: 44px; height: 44px; padding: 0; }
+  .execution-page .menu-toggle { grid-column: auto; grid-row: auto; min-width: 44px; min-height: 44px; }
+  .execution-page #view-today .today-goal-card,
+  .execution-page #view-today .today-ollie-stage { display: none; }
 }
