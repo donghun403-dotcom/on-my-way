@@ -115,9 +115,17 @@ async function waitForAppReady(page) {
 }
 
 async function waitForBootstrap(page) {
-  await expect(page.locator("body")).toHaveAttribute("data-auth-ready", "true", { timeout: 15_000 });
-  await expect(page.locator("body")).toHaveAttribute("data-auth-state", /^(anonymous|member|error)$/);
-  await expect(page.locator("body")).toHaveAttribute("data-pricing-ready", "true", { timeout: 15_000 });
+  await expect.poll(async () => {
+    try {
+      return await page.locator("body").evaluate((body) => [
+        body.dataset.authReady,
+        body.dataset.authState,
+        body.dataset.pricingReady,
+      ].join("|"));
+    } catch (error) {
+      return "navigation|pending|navigation";
+    }
+  }, { timeout: 15_000 }).toMatch(/^true\|(anonymous|member|error)\|true$/);
 }
 
 async function mockAccountExperience(page, {
