@@ -154,6 +154,7 @@ const planOverviewStatus = document.querySelector("#planOverviewStatus");
 const planOverviewPeriod = document.querySelector("#planOverviewPeriod");
 const planOverviewWeek = document.querySelector("#planOverviewWeek");
 const planOverviewRhythm = document.querySelector("#planOverviewRhythm");
+const planWeekStrip = document.querySelector("#planWeekStrip");
 const scheduleModeButtons = document.querySelectorAll("[data-schedule-mode]");
 const todayOrderHint = document.querySelector("#todayOrderHint");
 const recoveryCard = document.querySelector("#recoveryCard");
@@ -167,11 +168,13 @@ const previousCalendarMonth = document.querySelector("#previousCalendarMonth");
 const currentCalendarMonth = document.querySelector("#currentCalendarMonth");
 const nextCalendarMonth = document.querySelector("#nextCalendarMonth");
 const calendarDayDetail = document.querySelector("#calendarDayDetail");
+const calendarDayDetailBackdrop = document.querySelector("#calendarDayDetailBackdrop");
 const calendarDayDetailTitle = document.querySelector("#calendarDayDetailTitle");
 const calendarDayDetailMeta = document.querySelector("#calendarDayDetailMeta");
 const calendarDayDetailList = document.querySelector("#calendarDayDetailList");
 const calendarDayDetailClose = document.querySelector("#calendarDayDetailClose");
 const weeklyPlanList = document.querySelector("#weeklyPlanList");
+const planReviewStep = document.querySelector("#planReviewStep");
 const dailyCoachImage = document.querySelector("#dailyCoachImage");
 const dailyCoachKicker = document.querySelector("#dailyCoachKicker");
 const dailyCoachTitle = document.querySelector("#dailyCoachTitle");
@@ -511,6 +514,7 @@ function switchAccountStorageScope(targetScope, { allowAnonymousMerge = false } 
 
 function setPlanScreen(screen, { scroll = true, focus = true } = {}) {
   const nextScreen = ["home", "detail", "editor"].includes(screen) ? screen : "home";
+  if (nextScreen !== "detail" && calendarDetailOpen) closeCalendarDayDetail({ restoreFocus: false });
   activePlanScreen = nextScreen;
   planScreenElements.forEach((element) => {
     const isVisible = element.dataset.planScreen === nextScreen;
@@ -3529,6 +3533,15 @@ const legacyOllieStorageKeys = [companionStateKey, companionEventKey, "omwExecut
 let activeFocusTaskIndex = 0;
 let calendarViewDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let calendarDetailOpen = false;
+let calendarDetailTrigger = null;
+
+function closeCalendarDayDetail({ restoreFocus = true } = {}) {
+  calendarDetailOpen = false;
+  if (calendarDayDetail) calendarDayDetail.hidden = true;
+  if (calendarDayDetailBackdrop) calendarDayDetailBackdrop.hidden = true;
+  document.body.classList.remove("calendar-sheet-open");
+  if (restoreFocus) calendarDetailTrigger?.focus({ preventScroll: true });
+}
 let focusTimerInterval = null;
 let focusSession = {
   taskKey: "",
@@ -3936,11 +3949,6 @@ function applyRevisionGoalProfile(selection = "auto", goalText = "") {
   if (revisionKeepRules) revisionKeepRules.placeholder = profile.keepPlaceholder;
   if (revisionConstraints) revisionConstraints.placeholder = profile.constraintsPlaceholder;
   if (planRevisionRequest) planRevisionRequest.placeholder = profile.requestPlaceholder;
-  revisionChipButtons.forEach((button, index) => {
-    const chip = profile.chips[index] || REVISION_GOAL_PROFILES.general.chips[index];
-    button.textContent = chip[0];
-    button.dataset.revisionChip = chip[1];
-  });
 }
 
 function collectRevisionDetails() {
@@ -4589,6 +4597,8 @@ function renderCalendarDayDetail(schedule, state, plan) {
   const dayPlan = schedule[state.selectedDay - 1];
   if (!calendarDetailOpen || !dayPlan) {
     calendarDayDetail.hidden = true;
+    if (calendarDayDetailBackdrop) calendarDayDetailBackdrop.hidden = true;
+    document.body.classList.remove("calendar-sheet-open");
     return;
   }
 
@@ -4600,6 +4610,8 @@ function renderCalendarDayDetail(schedule, state, plan) {
   const dateLabel = actualDate.toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" });
 
   calendarDayDetail.hidden = false;
+  if (calendarDayDetailBackdrop) calendarDayDetailBackdrop.hidden = false;
+  document.body.classList.add("calendar-sheet-open");
   if (calendarDayDetailTitle) calendarDayDetailTitle.textContent = `${dateLabel} 스케줄`;
   if (calendarDayDetailMeta) {
     calendarDayDetailMeta.textContent = dayPlan.tasks.length
@@ -4638,6 +4650,28 @@ function renderPlanOverview(plan, schedule, state) {
   if (planOverviewPeriod) planOverviewPeriod.textContent = `${schedule.length}일`;
   if (planOverviewWeek) planOverviewWeek.textContent = `${activeDays}일 · ${taskCount}개`;
   if (planOverviewRhythm) planOverviewRhythm.textContent = plan.routineTime ? `${plan.routineTime} 중심` : "유연하게";
+  renderPlanWeekStrip(schedule, plan, state);
+}
+
+function renderPlanWeekStrip(schedule, plan, state) {
+  if (!planWeekStrip) return;
+  planWeekStrip.replaceChildren();
+  const startIndex = Math.max(0, Number(state.selectedDay || 1) - 1);
+  const planStartDate = getPlanStartDate(plan, state);
+  schedule.slice(startIndex, startIndex + 7).forEach((dayPlan) => {
+    const date = new Date(planStartDate.getFullYear(), planStartDate.getMonth(), planStartDate.getDate() + dayPlan.day - 1);
+    const completion = getDayCompletion(dayPlan, state.checkedByDay);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.day = String(dayPlan.day);
+    button.className = "plan-week-day";
+    button.classList.toggle("is-today", isSameCalendarDate(date, new Date()));
+    button.classList.toggle("is-complete", completion.percent === 100 && dayPlan.tasks.length > 0);
+    button.classList.toggle("is-rest", dayPlan.tasks.length === 0);
+    button.setAttribute("aria-label", `${date.toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "long" })}, ${dayPlan.tasks.length ? `일정 ${dayPlan.tasks.length}개, ${completion.percent}% 완료` : "휴식일"}`);
+    button.innerHTML = `<span>${date.toLocaleDateString("ko-KR", { weekday: "narrow" })}</span><strong>${date.getDate()}</strong><i aria-hidden="true">${completion.percent === 100 && dayPlan.tasks.length ? "✓" : dayPlan.tasks.length ? "•" : "−"}</i>`;
+    planWeekStrip.append(button);
+  });
 }
 
 function renderWeeklyPlan(schedule, plan, state) {
@@ -5423,6 +5457,7 @@ function renderExecutionPage(bundle) {
   if (acceptPlanButton) acceptPlanButton.disabled = !state.pendingPlanText;
   if (keepPlanButton) keepPlanButton.disabled = !state.pendingPlanText;
   if (reviseAgainButton) reviseAgainButton.disabled = false;
+  if (planReviewStep) planReviewStep.hidden = !state.pendingPlanText;
   const now = new Date();
   const hour = now.getHours();
   if (todayGreeting) todayGreeting.textContent = "오늘";
@@ -5562,11 +5597,32 @@ planOpenEditorButton?.addEventListener("click", () => {
   trackCompanionEvent("plan_editor_opened");
 });
 
+planWeekStrip?.addEventListener("click", (event) => {
+  const button = event.target.closest(".plan-week-day");
+  if (!button?.dataset.day) return;
+  const bundle = getPlanBundle();
+  bundle.state.selectedDay = Number(button.dataset.day);
+  savePlanBundleState(bundle.state);
+  calendarDetailOpen = true;
+  calendarDetailTrigger = button;
+  const selectedDate = new Date(getPlanStartDate(bundle.plan, bundle.state));
+  selectedDate.setDate(selectedDate.getDate() + bundle.state.selectedDay - 1);
+  calendarViewDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+  setPlanScreen("detail");
+  renderExecutionPage(bundle);
+  calendarDetailTrigger = scheduleCalendar?.querySelector(`[data-day="${bundle.state.selectedDay}"]`) || button;
+  window.setTimeout(() => calendarDayDetail?.focus({ preventScroll: true }), 80);
+});
+
 planBackButtons.forEach((button) => {
   button.addEventListener("click", () => setPlanScreen("home"));
 });
 
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && calendarDetailOpen && !document.querySelector("#view-plan")?.hidden) {
+    closeCalendarDayDetail();
+    return;
+  }
   if (event.key !== "Escape" || activePlanScreen === "home" || document.querySelector("#view-plan")?.hidden) return;
   setPlanScreen("home");
 });
@@ -5854,15 +5910,17 @@ scheduleCalendar?.addEventListener("click", (event) => {
   const bundle = getPlanBundle();
   bundle.state.selectedDay = Number(button.dataset.day);
   calendarDetailOpen = true;
+  calendarDetailTrigger = button;
   savePlanBundleState(bundle.state);
   renderExecutionPage(bundle);
-  calendarDayDetail?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  if (window.matchMedia("(max-width: 767px)").matches) window.setTimeout(() => calendarDayDetail?.focus({ preventScroll: true }), 60);
+  else calendarDayDetail?.scrollIntoView({ behavior: "smooth", block: "nearest" });
 });
 
 calendarDayDetailClose?.addEventListener("click", () => {
-  calendarDetailOpen = false;
-  if (calendarDayDetail) calendarDayDetail.hidden = true;
+  closeCalendarDayDetail();
 });
+calendarDayDetailBackdrop?.addEventListener("click", () => closeCalendarDayDetail());
 
 previousCalendarMonth?.addEventListener("click", () => {
   calendarViewDate = new Date(calendarViewDate.getFullYear(), calendarViewDate.getMonth() - 1, 1);
@@ -5891,8 +5949,13 @@ revisionChipButtons.forEach((button) => {
     if (!planRevisionRequest) return;
 
     const chipText = button.dataset.revisionChip || "";
-    const current = planRevisionRequest.value.trim();
-    planRevisionRequest.value = current ? `${current}\n${chipText}` : chipText;
+    const selected = button.getAttribute("aria-pressed") !== "true";
+    button.setAttribute("aria-pressed", String(selected));
+    const selectedTexts = [...revisionChipButtons]
+      .filter((item) => item.getAttribute("aria-pressed") === "true")
+      .map((item) => item.dataset.revisionChip || "");
+    const typedLines = planRevisionRequest.value.split("\n").filter((line) => ![...revisionChipButtons].some((item) => item.dataset.revisionChip === line.trim()));
+    planRevisionRequest.value = [...selectedTexts, ...typedLines].filter(Boolean).join("\n");
     planRevisionRequest.focus();
     updateRevisionButtonState();
   });

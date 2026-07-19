@@ -15404,3 +15404,119 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   .execution-page #view-today .today-goal-card,
   .execution-page #view-today .today-ollie-stage { display: none; }
 }
+/* Stage 3B: focused Plan overview, calendar sheet, and approval flow */
+.execution-page .plan-week-strip {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+  margin: 14px 0 18px;
+}
+
+.execution-page .plan-week-day {
+  min-width: 0;
+  min-height: 68px;
+  padding: 8px 2px;
+  border: 1px solid var(--line-soft, #e7e2da);
+  border-radius: 14px;
+  background: #fff;
+  color: inherit;
+  display: grid;
+  place-items: center;
+  gap: 1px;
+}
+
+.execution-page .plan-week-day span { font-size: 11px; color: var(--text-muted, #756f67); }
+.execution-page .plan-week-day strong { font-size: 15px; }
+.execution-page .plan-week-day i { min-height: 14px; font-style: normal; color: #ba5e39; }
+.execution-page .plan-week-day.is-today { border: 2px solid #222; }
+.execution-page .plan-week-day.is-complete i { color: #207553; }
+
+.execution-page .current-plan-disclosure > summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.execution-page .current-plan-disclosure > summary::-webkit-details-marker { display: none; }
+.execution-page .current-plan-disclosure > summary span { display: grid; grid-template-columns: auto 1fr; gap: 2px 9px; align-items: center; }
+.execution-page .current-plan-disclosure > summary i { grid-row: 1 / 3; }
+.execution-page .current-plan-disclosure > summary small { color: var(--text-muted, #756f67); }
+.execution-page .current-plan-disclosure[open] > summary b { transform: rotate(45deg); }
+
+.execution-page .revision-safety-note {
+  margin: 8px 2px 0;
+  color: var(--text-muted, #756f67);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.execution-page .revision-quick-actions button[aria-pressed="true"] {
+  border-color: #222;
+  background: #222;
+  color: #fff;
+}
+.execution-page .plan-review-step[hidden] { display: none !important; }
+.execution-page .calendar-day-detail-backdrop[hidden] { display: none; }
+
+@media (max-width: 767px) {
+  body.calendar-sheet-open { overflow: hidden; }
+  .execution-page #view-plan .plan-view-head { margin-bottom: 8px; }
+  .execution-page #view-plan .plan-view-head { min-height: 78px; padding-block: 10px; }
+  .execution-page #view-plan .plan-view-head p,
+  .execution-page #view-plan .plan-view-head img { display: none; }
+  .execution-page #view-plan .plan-overview-card { padding: 14px 16px; }
+  .execution-page #view-plan .plan-overview-head p { display: none; }
+  .execution-page #view-plan .plan-overview-head { margin-bottom: 10px; }
+  .execution-page #view-plan .plan-overview-metrics { grid-template-columns: repeat(2, 1fr); }
+  .execution-page #view-plan .plan-overview-metrics > div:nth-child(3) { display: none; }
+  .execution-page #view-plan .plan-week-strip { margin: 10px 0 12px; }
+  .execution-page #view-plan .plan-week-day { min-height: 56px; padding-block: 5px; border-radius: 12px; }
+  .execution-page #view-plan .plan-week-preview-head { margin-bottom: 7px; }
+  .execution-page #view-plan .plan-week-preview-head span { display: none; }
+  .execution-page #view-plan .weekly-plan { gap: 5px; }
+  .execution-page #view-plan .weekly-plan li { padding-block: 6px; min-height: 48px; }
+  .execution-page #view-plan .weekly-plan li p { font-size: 11px; }
+  .execution-page #view-plan .plan-home-actions { margin-top: 10px; gap: 5px; }
+  .execution-page #view-plan .plan-home-actions button { min-height: 50px; padding-block: 8px; }
+  .execution-page #view-plan .plan-home-actions small { display: none; }
+  .execution-page #view-plan .plan-home-actions button:first-child { background: #222; color: #fff; border-color: #222; }
+  .execution-page #view-plan .plan-home-actions button:last-child { background: transparent; box-shadow: none; }
+
+  .execution-page .calendar-day-detail-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    background: rgb(20 18 15 / 42%);
+  }
+  .execution-page #calendarDayDetail {
+    position: fixed;
+    z-index: 81;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-height: min(72vh, 620px);
+    overflow: auto;
+    margin: 0;
+    padding: 18px 18px calc(18px + env(safe-area-inset-bottom));
+    border-radius: 24px 24px 0 0;
+    background: #fff;
+    box-shadow: 0 -16px 44px rgb(24 20 15 / 22%);
+  }
+  .execution-page #view-plan[data-active-plan-screen="editor"] .plan-editor-card { padding: 16px; }
+  .execution-page #view-plan[data-active-plan-screen="editor"] .edit-step:nth-of-type(2) {
+    display: flex;
+    flex-direction: column;
+  }
+  .execution-page #view-plan[data-active-plan-screen="editor"] .revision-detail-intro { order: 1; }
+  .execution-page #view-plan[data-active-plan-screen="editor"] .revision-quick-actions { order: 2; }
+  .execution-page #view-plan[data-active-plan-screen="editor"] .revision-request-caption { order: 3; }
+  .execution-page #view-plan[data-active-plan-screen="editor"] #planRevisionRequest { order: 4; }
+  .execution-page #view-plan[data-active-plan-screen="editor"] #regeneratePlanButton { order: 5; position: sticky; bottom: calc(72px + env(safe-area-inset-bottom)); z-index: 5; }
+  .execution-page #view-plan[data-active-plan-screen="editor"] .revision-safety-note { order: 6; }
+  .execution-page #view-plan[data-active-plan-screen="editor"] .revision-advanced { order: 7; }
+}
+
+@media (min-width: 768px) {
+  .execution-page .calendar-day-detail-backdrop { display: none !important; }
+  .execution-page #calendarDayDetail { position: static; }
+}
