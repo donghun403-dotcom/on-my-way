@@ -125,6 +125,9 @@ function d1Adapter(db) {
     async getOrderByIdempotencyKey(idempotencyKey) {
       return first("SELECT * FROM billing_orders WHERE idempotency_key = ?1", idempotencyKey);
     },
+    async hasEvent(orderIdValue, eventType) {
+      return Boolean(await first("SELECT 1 AS present FROM billing_events WHERE order_id = ?1 AND event_type = ?2 LIMIT 1", orderIdValue, eventType));
+    },
     async insertOrder(values) {
       return run(
         "INSERT INTO billing_orders (order_id, user_id, customer_key, purpose, logical_request_fingerprint, amount, currency, idempotency_key, status, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'created', ?9, ?9)",
@@ -168,6 +171,7 @@ function memoryAdapter(db) {
     async getOrderById(orderIdValue) { return db.orders.get(orderIdValue) || null; },
     async getOrderByLogicalRequest(values) { return [...db.orders.values()].find((row) => row.user_id === values.userId && row.purpose === values.purpose && row.logical_request_fingerprint === values.logicalRequestFingerprint) || null; },
     async getOrderByIdempotencyKey(idempotencyKey) { return [...db.orders.values()].find((row) => row.idempotency_key === idempotencyKey) || null; },
+    async hasEvent(orderIdValue, eventType) { return db.events.some((event) => event.order_id === orderIdValue && event.event_type === eventType); },
     async insertOrder(values) {
       if (db.orders.has(values.orderId) || [...db.orders.values()].some((row) => row.idempotency_key === values.idempotencyKey || (row.user_id === values.userId && row.purpose === values.purpose && row.logical_request_fingerprint === values.logicalRequestFingerprint))) {
         const error = new Error("UNIQUE constraint failed: billing_orders");
@@ -243,6 +247,94 @@ export function createBillingLedger(db) {
       throw error;
     }
     return finalOrder;
+  }
+
+  async function reconcileExternallyApprovedOrder({ orderId: orderIdValue, paymentKey, approvedAt = null, now = Date.now() }) {
+    const normalizedOrderId = assertText(orderIdValue, "orderId");
+    const normalizedPaymentKey = assertText(paymentKey, "paymentKey");
+    const order = await getOrder(normalizedOrderId);
+    if (!order) throw new Error("billing order not found");
+    if (order.purpose !== "initial_subscription" || order.amount !== 4900 || order.currency !== "KRW") {
+      const error = new Error("billing order is not eligible for external approval reconciliation");
+      error.code = "BILLING_RECONCILIATION_POLICY_CONFLICT";
+      error.status = 409;
+      throw error;
+    }
+    if (order.status === "succeeded") {
+      if (order.paymentKey !== normalizedPaymentKey) {
+        const error = new Error("reconciled paymentKey does not match the succeeded order");
+        error.code = "BILLING_RECONCILIATION_PAYMENT_CONFLICT";
+        error.status = 409;
+        throw error;
+      }
+      return {
+        order,
+        reconciled: false,
+        alreadySucceeded: true,
+        reconciliationEventExists: await adapter.hasEvent(order.orderId, "order_reconciled_succeeded"),
+      };
+    }
+    if (!new Set(["failed", "unknown"]).has(order.status) || order.paymentKey) {
+      const error = new Error("billing order is not eligible for external approval reconciliation");
+      error.code = "BILLING_ORDER_STATE_CONFLICT";
+      error.status = 409;
+      throw error;
+    }
+    if (await adapter.hasEvent(order.orderId, "order_reconciled_succeeded")) {
+      const error = new Error("billing reconciliation event exists without a succeeded order");
+      error.code = "BILLING_RECONCILIATION_STATE_CONFLICT";
+      error.status = 409;
+      throw error;
+    }
+
+    const completedAtValue = Number(approvedAt);
+    const completedAt = Number.isFinite(completedAtValue) && completedAtValue > 0 ? completedAtValue : now;
+    const event = createEventValues({
+      order,
+      previousStatus: order.status,
+      newStatus: "succeeded",
+      eventType: "order_reconciled_succeeded",
+      metadata: {
+        source: "toss_order_lookup",
+        reason: "payment_total_amount_field_fix",
+        recovered: true,
+      },
+      now,
+    });
+
+    if (db.__billingMemory) {
+      await adapter.updateOrder({
+        orderId: order.orderId,
+        status: "succeeded",
+        paymentKey: normalizedPaymentKey,
+        failureCode: null,
+        failureMessage: null,
+        now,
+        completedAt,
+      });
+      await adapter.insertEvent(event);
+    } else {
+      await adapter.atomic([
+        {
+          sql: "UPDATE billing_orders SET status = 'succeeded', payment_key = ?1, failure_code = NULL, failure_message = NULL, updated_at = ?2, completed_at = ?3 WHERE order_id = ?4 AND status = ?5 AND payment_key IS NULL AND purpose = 'initial_subscription' AND amount = 4900 AND currency = 'KRW'",
+          values: [normalizedPaymentKey, now, completedAt, order.orderId, order.status],
+        },
+        {
+          sql: "INSERT INTO billing_events (event_id, order_id, user_id, previous_status, new_status, event_type, metadata_json, created_at) SELECT ?1, ?2, ?3, ?4, 'succeeded', 'order_reconciled_succeeded', ?5, ?6 WHERE EXISTS (SELECT 1 FROM billing_orders WHERE order_id = ?7 AND status = 'succeeded' AND payment_key = ?8) AND NOT EXISTS (SELECT 1 FROM billing_events WHERE order_id = ?9 AND event_type = 'order_reconciled_succeeded')",
+          values: [event.eventId, event.orderId, event.userId, event.previousStatus, event.metadataJson, event.now, order.orderId, normalizedPaymentKey, order.orderId],
+        },
+      ]);
+    }
+
+    const finalOrder = await getOrder(order.orderId);
+    const eventExists = await adapter.hasEvent(order.orderId, "order_reconciled_succeeded");
+    if (!finalOrder || finalOrder.status !== "succeeded" || finalOrder.paymentKey !== normalizedPaymentKey || !eventExists) {
+      const error = new Error("billing order changed during external approval reconciliation");
+      error.code = "BILLING_RECONCILIATION_STATE_CONFLICT";
+      error.status = 409;
+      throw error;
+    }
+    return { order: finalOrder, reconciled: true, alreadySucceeded: false, reconciliationEventExists: true };
   }
 
   return {
@@ -350,6 +442,7 @@ export function createBillingLedger(db) {
     markOrderSucceeded(args) { return transition({ ...args, nextStatus: "succeeded", eventType: "order_succeeded" }); },
     markOrderFailed(args) { return transition({ ...args, nextStatus: "failed", eventType: "order_failed", failureMessage: sanitizeFailureMessage(args.failureMessage) }); },
     markOrderUnknown(args) { return transition({ ...args, nextStatus: "unknown", eventType: "order_unknown", failureMessage: sanitizeFailureMessage(args.failureMessage) }); },
+    reconcileExternallyApprovedOrder,
     appendBillingEvent: appendEvent,
   };
 }

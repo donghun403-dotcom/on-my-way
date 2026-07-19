@@ -7,11 +7,13 @@ import {
   handleAccountApi,
   parseCookies,
   renewDueSubscriptions,
+  reconcileExternallyApprovedPayment,
+  validateInitialPayment,
   purgeDueAccountDeletions,
   upsertUserFromProfile,
 } from "./auth-service.mjs";
 import { commitAiCredits, getAiCreditUsage, reserveAiCredits, startAiTrial } from "./ai-credits-service.mjs";
-import { createMemoryBillingDb } from "./billing-ledger.mjs";
+import { createBillingLedger, createMemoryBillingDb } from "./billing-ledger.mjs";
 import worker, { createGoalPlanForUser } from "./worker.mjs";
 
 function memoryStore(seed = []) {
@@ -73,6 +75,63 @@ function context({ path, method = "GET", env = {}, store, legalStore, body = {},
     store,
     legalStore,
   };
+}
+
+function initialPaymentFixture(overrides = {}) {
+  return {
+    status: "DONE",
+    type: "BILLING",
+    totalAmount: 4900,
+    currency: "KRW",
+    orderId: "order-fixture",
+    customerKey: "customer-fixture",
+    paymentKey: "payment-fixture",
+    approvedAt: "2026-07-17T10:20:30.000Z",
+    ...overrides,
+  };
+}
+
+async function failedExternalApprovalFixture() {
+  const now = Date.parse("2026-07-19T03:04:04.000Z");
+  const user = {
+    id: "google:reconciliation-fixture",
+    customerKey: "customer-fixture",
+    billingKey: "billing-fixture",
+    plan: "trial",
+    subscriptionStatus: "payment_failed",
+    trialStartedAt: Date.parse("2026-07-18T03:04:04.000Z"),
+    trialExpiresAt: Date.parse("2026-07-19T03:04:04.000Z"),
+    trialUsedAt: null,
+    trialEndedAt: null,
+    pendingOrderId: null,
+    lastPaymentKey: null,
+    lastOrderId: null,
+    paymentFailure: { code: "PAYMENT_AMOUNT_MISMATCH", at: now - 1 },
+  };
+  const env = testEnv();
+  const store = memoryStore([user]);
+  const ledger = createBillingLedger(env.BILLING_DB);
+  await ledger.getOrCreateBillingAccount({ userId: user.id, customerKey: user.customerKey, now: now - 4 });
+  await ledger.recordBillingKeyFingerprint({ userId: user.id, billingKeyFingerprint: "a".repeat(64), now: now - 4 });
+  const order = await ledger.createOrReusePaymentOrder({
+    userId: user.id,
+    customerKey: user.customerKey,
+    purpose: "initial_subscription",
+    amount: 4900,
+    currency: "KRW",
+    logicalRequestKey: "approved-external-fixture",
+    now: now - 3,
+  });
+  await ledger.markOrderPending({ orderId: order.orderId, now: now - 2 });
+  await ledger.markOrderFailed({
+    orderId: order.orderId,
+    failureCode: "PAYMENT_AMOUNT_MISMATCH",
+    failureMessage: "결제 금액이 상품 정책과 일치하지 않습니다.",
+    now: now - 1,
+  });
+  user.pendingOrderId = order.orderId;
+  await store.putUser(user);
+  return { env, store, ledger, order, user, now };
 }
 
 test("서명 세션은 변조와 만료를 거부한다", async () => {
@@ -907,6 +966,112 @@ test("결제가 비활성화되면 빌링키·D1 주문·Pro 권한을 만들지
   assert.equal((await store.getUser(login.json.user.id)).plan, "free");
 });
 
+test("최초 자동결제 Payment는 totalAmount와 서버 주문 정책을 엄격히 검증한다", () => {
+  const expected = { orderId: "order-fixture", customerKey: "customer-fixture", amount: 4900 };
+  const valid = initialPaymentFixture();
+  assert.equal(validateInitialPayment(valid, expected), valid);
+
+  const amountOnly = initialPaymentFixture({ totalAmount: undefined, amount: 4900 });
+  const cases = [
+    ["totalAmount mismatch", initialPaymentFixture({ totalAmount: 1 }), "PAYMENT_AMOUNT_MISMATCH"],
+    ["legacy amount fallback", amountOnly, "PAYMENT_AMOUNT_MISMATCH"],
+    ["orderId mismatch", initialPaymentFixture({ orderId: "other-order" }), "PAYMENT_ORDER_MISMATCH"],
+    ["type mismatch", initialPaymentFixture({ type: "NORMAL" }), "PAYMENT_TYPE_MISMATCH"],
+    ["paymentKey missing", initialPaymentFixture({ paymentKey: "" }), "PAYMENT_KEY_MISSING"],
+    ["currency mismatch", initialPaymentFixture({ currency: "USD" }), "PAYMENT_CURRENCY_MISMATCH"],
+    ["customerKey mismatch", initialPaymentFixture({ customerKey: "other-customer" }), "PAYMENT_CUSTOMER_MISMATCH"],
+    ["not done", initialPaymentFixture({ status: "CANCELED" }), "PAYMENT_NOT_SUCCEEDED"],
+  ];
+  for (const [label, payment, code] of cases) {
+    assert.throws(
+      () => validateInitialPayment(payment, expected),
+      (error) => error.code === code,
+      label,
+    );
+  }
+
+  const withoutCustomerKey = initialPaymentFixture();
+  delete withoutCustomerKey.customerKey;
+  assert.equal(validateInitialPayment(withoutCustomerKey, expected), withoutCustomerKey);
+  const withoutCurrency = initialPaymentFixture();
+  delete withoutCurrency.currency;
+  assert.equal(validateInitialPayment(withoutCurrency, expected), withoutCurrency);
+});
+
+test("외부 승인된 failed 주문과 무료 체험 사용자를 추가 청구 없이 한 번만 복구한다", async () => {
+  const { store, ledger, order, user, now, env } = await failedExternalApprovalFixture();
+  const approvedAt = "2026-07-17T10:20:30.000Z";
+  const payment = initialPaymentFixture({ orderId: order.orderId, customerKey: user.customerKey, approvedAt });
+
+  const first = await reconcileExternallyApprovedPayment({ ledger, userStore: store, orderId: order.orderId, payment, now });
+  const repairedOrder = await ledger.getPaymentOrder(order.orderId);
+  const repairedUser = await store.getUser(user.id);
+  assert.equal(first.reconciled, true);
+  assert.equal(first.alreadySucceeded, false);
+  assert.equal(repairedOrder.status, "succeeded");
+  assert.equal(repairedOrder.paymentKey, payment.paymentKey);
+  assert.equal(repairedOrder.failureCode, null);
+  assert.equal(repairedOrder.failureMessage, null);
+  assert.equal(repairedOrder.completedAt, Date.parse(approvedAt));
+  assert.equal(env.BILLING_DB.events.length, 4);
+  const event = env.BILLING_DB.events.at(-1);
+  assert.equal(event.event_type, "order_reconciled_succeeded");
+  assert.equal(event.previous_status, "failed");
+  assert.equal(event.new_status, "succeeded");
+  assert.deepEqual(JSON.parse(event.metadata_json), {
+    source: "toss_order_lookup",
+    reason: "payment_total_amount_field_fix",
+    recovered: true,
+  });
+  assert.equal(repairedUser.plan, "pro");
+  assert.equal(repairedUser.subscriptionStatus, "active");
+  assert.equal(repairedUser.proSince, Date.parse(approvedAt));
+  assert.equal(repairedUser.currentPeriodEnd, Date.parse("2026-08-17T10:20:30.000Z"));
+  assert.equal(repairedUser.trialEndedAt, Date.parse(approvedAt));
+  assert.equal(repairedUser.trialUsedAt, Date.parse(approvedAt));
+  assert.equal(repairedUser.trialStartedAt, user.trialStartedAt);
+  assert.equal(repairedUser.trialExpiresAt, user.trialExpiresAt);
+  assert.equal(repairedUser.lastPaymentKey, payment.paymentKey);
+  assert.equal(repairedUser.lastOrderId, order.orderId);
+  assert.equal(repairedUser.lastPaymentAt, Date.parse(approvedAt));
+  assert.equal(repairedUser.paymentFailure, null);
+  assert.equal(repairedUser.pendingOrderId, null);
+  assert.equal(repairedUser.billingKey, "billing-fixture");
+  assert.equal(repairedUser.customerKey, "customer-fixture");
+
+  const snapshot = JSON.stringify({ order: repairedOrder, user: repairedUser });
+  const second = await reconcileExternallyApprovedPayment({ ledger, userStore: store, orderId: order.orderId, payment, now: now + 10_000 });
+  assert.equal(second.reconciled, false);
+  assert.equal(second.alreadySucceeded, true);
+  assert.equal(env.BILLING_DB.events.length, 4);
+  assert.equal(JSON.stringify({ order: await ledger.getPaymentOrder(order.orderId), user: await store.getUser(user.id) }), snapshot);
+});
+
+test("외부 Payment 검증 실패는 failed 원장과 무료 체험 사용자를 변경하지 않는다", async (t) => {
+  const cases = [
+    ["totalAmount mismatch", { totalAmount: 1, amount: 4900 }, "PAYMENT_AMOUNT_MISMATCH"],
+    ["not done", { status: "CANCELED" }, "PAYMENT_NOT_SUCCEEDED"],
+    ["paymentKey missing", { paymentKey: "" }, "PAYMENT_KEY_MISSING"],
+    ["orderId mismatch", { orderId: "other-order" }, "PAYMENT_ORDER_MISMATCH"],
+  ];
+  for (const [name, overrides, code] of cases) {
+    await t.test(name, async () => {
+      const { store, ledger, order, user, now, env } = await failedExternalApprovalFixture();
+      const payment = initialPaymentFixture({ orderId: order.orderId, customerKey: user.customerKey, ...overrides });
+      const beforeOrder = JSON.stringify(await ledger.getPaymentOrder(order.orderId));
+      const beforeUser = JSON.stringify(await store.getUser(user.id));
+      const beforeEvents = env.BILLING_DB.events.length;
+      await assert.rejects(
+        reconcileExternallyApprovedPayment({ ledger, userStore: store, orderId: order.orderId, payment, now }),
+        (error) => error.code === code,
+      );
+      assert.equal(JSON.stringify(await ledger.getPaymentOrder(order.orderId)), beforeOrder);
+      assert.equal(JSON.stringify(await store.getUser(user.id)), beforeUser);
+      assert.equal(env.BILLING_DB.events.length, beforeEvents);
+    });
+  }
+});
+
 test("무료 체험 중 최초 결제가 성공하면 승인 시각에 체험을 끝내고 Pro 결제 주기를 시작한다", async () => {
   const env = testEnv({
     ALLOW_DEV_LOGIN: "true",
@@ -932,7 +1097,7 @@ test("무료 체험 중 최초 결제가 성공하면 승인 시각에 체험을
     if (url.includes("/authorizations/issue")) return Response.json({ billingKey: "billing-key", customerKey: config.json.customerKey });
     if (url.includes("/v1/billing/")) {
       const orderId = JSON.parse(options.body || "{}").orderId;
-      return Response.json({ status: "DONE", type: "BILLING", amount: 4900, customerKey: config.json.customerKey, paymentKey: "payment-key", orderId, approvedAt });
+      return Response.json({ status: "DONE", type: "BILLING", totalAmount: 4900, currency: "KRW", customerKey: config.json.customerKey, paymentKey: "payment-key", orderId, approvedAt });
     }
     throw new Error("unexpected payment lookup");
   };
@@ -977,7 +1142,7 @@ test("무료 체험 중 최초 결제가 실패하면 체험 기간과 Free 기�
     if (url.includes("/authorizations/issue")) return Response.json({ billingKey: "billing-key", customerKey: config.json.customerKey });
     if (url.includes("/v1/billing/")) {
       const orderId = JSON.parse(options.body || "{}").orderId;
-      return Response.json({ status: "DONE", type: "BILLING", amount: 1, customerKey: config.json.customerKey, paymentKey: "payment-key", orderId });
+      return Response.json({ status: "DONE", type: "BILLING", totalAmount: 1, currency: "KRW", customerKey: config.json.customerKey, paymentKey: "payment-key", orderId });
     }
     return Response.json({ status: "FAILED" });
   };
@@ -1016,7 +1181,7 @@ test("첫 결제 응답이 유실돼도 주문 조회로 복구하고 다시 청
       return Response.json({ code: "TEMPORARY_ERROR", message: "timeout" }, { status: 500 });
     }
     const orderId = decodeURIComponent(url.split("/").at(-1));
-    return Response.json({ status: "DONE", type: "BILLING", amount: 4900, customerKey: config.json.customerKey, paymentKey: "payment-key", orderId });
+    return Response.json({ status: "DONE", type: "BILLING", totalAmount: 4900, currency: "KRW", customerKey: config.json.customerKey, paymentKey: "payment-key", orderId });
   };
   const activated = await handleAccountApi(context({
     path: "/api/billing/activate",
@@ -1047,7 +1212,7 @@ test("성공한 최초 주문을 같은 logical request로 다시 호출해도 T
     if (url.includes("/authorizations/issue")) return Response.json({ billingKey: "billing-key" });
     if (url.includes("/v1/billing/")) {
       chargeCalls += 1;
-      return Response.json({ status: "DONE", type: "BILLING", amount: 4900, customerKey: config.json.customerKey, paymentKey: "payment-key", orderId: JSON.parse(options.body || "{}").orderId });
+      return Response.json({ status: "DONE", type: "BILLING", totalAmount: 4900, currency: "KRW", customerKey: config.json.customerKey, paymentKey: "payment-key", orderId: JSON.parse(options.body || "{}").orderId });
     }
     throw new Error("unexpected payment lookup");
   };
@@ -1073,7 +1238,7 @@ test("최초 승인 금액이 서버 정책과 다르면 Pro를 부여하지 않
   const fetcher = async (url, options = {}) => {
     if (url.includes("/authorizations/issue")) return Response.json({ billingKey: "billing-key" });
     const orderId = url.includes("/v1/billing/") ? JSON.parse(options.body || "{}").orderId : decodeURIComponent(url.split("/").at(-1));
-    return Response.json({ status: "DONE", type: "BILLING", amount: 1, customerKey: config.json.customerKey, paymentKey: "payment-key", orderId });
+    return Response.json({ status: "DONE", type: "BILLING", totalAmount: 1, currency: "KRW", customerKey: config.json.customerKey, paymentKey: "payment-key", orderId });
   };
   await assert.rejects(
     handleAccountApi(context({ path: "/api/billing/activate", method: "POST", env, store, cookie, fetcher, body: { authKey: "bad-amount-auth", customerKey: config.json.customerKey, amount: 1, plan: "pro" } })),

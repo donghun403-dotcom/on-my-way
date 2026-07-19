@@ -527,13 +527,14 @@ function paymentValidationError(code, message) {
   return error;
 }
 
-function validateInitialPayment(payment, { orderId, customerKey, amount }) {
+export function validateInitialPayment(payment, { orderId, customerKey, amount }) {
   if (!payment || payment.status !== "DONE") throw paymentValidationError("PAYMENT_NOT_SUCCEEDED", "최초 결제가 완료 상태가 아닙니다.");
-  if (payment.type && payment.type !== "BILLING") throw paymentValidationError("PAYMENT_TYPE_MISMATCH", "자동결제 응답 유형이 올바르지 않습니다.");
-  if (Number(payment.amount) !== amount) throw paymentValidationError("PAYMENT_AMOUNT_MISMATCH", "결제 금액이 상품 정책과 일치하지 않습니다.");
+  if (payment.type !== "BILLING") throw paymentValidationError("PAYMENT_TYPE_MISMATCH", "자동결제 응답 유형이 올바르지 않습니다.");
+  if (Number(payment.totalAmount) !== amount) throw paymentValidationError("PAYMENT_AMOUNT_MISMATCH", "결제 금액이 상품 정책과 일치하지 않습니다.");
   if (String(payment.orderId || "") !== orderId) throw paymentValidationError("PAYMENT_ORDER_MISMATCH", "결제 주문이 현재 요청과 일치하지 않습니다.");
-  if (payment.customerKey && payment.customerKey !== customerKey) throw paymentValidationError("PAYMENT_CUSTOMER_MISMATCH", "결제 고객 식별자가 현재 사용자와 일치하지 않습니다.");
+  if (Object.hasOwn(payment, "customerKey") && payment.customerKey !== customerKey) throw paymentValidationError("PAYMENT_CUSTOMER_MISMATCH", "결제 고객 식별자가 현재 사용자와 일치하지 않습니다.");
   if (!String(payment.paymentKey || "")) throw paymentValidationError("PAYMENT_KEY_MISSING", "결제 식별자를 확인하지 못했습니다.");
+  if (Object.hasOwn(payment, "currency") && payment.currency !== "KRW") throw paymentValidationError("PAYMENT_CURRENCY_MISMATCH", "결제 통화가 상품 정책과 일치하지 않습니다.");
   return payment;
 }
 
@@ -548,12 +549,15 @@ async function recoverInitialPayment(env, order, fetcher = fetch) {
   return { status: "unknown" };
 }
 
-function applySuccessfulPayment(user, payment, now) {
+export function applySuccessfulPayment(user, payment, now) {
   const approvedAt = Date.parse(String(payment?.approvedAt || ""));
   const billingStartedAt = Number.isFinite(approvedAt) ? approvedAt : now;
   const wasTrial = user.plan === "trial";
   user.plan = "pro";
-  if (wasTrial) user.trialEndedAt = billingStartedAt;
+  if (wasTrial) {
+    user.trialEndedAt = billingStartedAt;
+    user.trialUsedAt = user.trialUsedAt || billingStartedAt;
+  }
   user.proSince = user.proSince || billingStartedAt;
   user.subscriptionStatus = "active";
   user.currentPeriodEnd = addBillingMonth(billingStartedAt);
@@ -565,6 +569,40 @@ function applySuccessfulPayment(user, payment, now) {
   user.nextPaymentRetryAt = null;
   user.pendingOrderId = null;
   user.pendingRenewalOrderId = null;
+}
+
+export async function reconcileExternallyApprovedPayment({ ledger, userStore, orderId, payment, now = Date.now() }) {
+  if (!ledger || !userStore) throw new TypeError("ledger and userStore are required");
+  const order = await ledger.getPaymentOrder(orderId);
+  if (!order) throw new Error("billing order not found");
+  const validated = validateInitialPayment(payment, {
+    orderId: order.orderId,
+    customerKey: order.customerKey,
+    amount: order.amount,
+  });
+  const user = await userStore.getUser(order.userId);
+  if (!user) throw new Error("billing user not found");
+  if (!String(user.billingKey || "")) {
+    const error = new Error("billing key is missing for external approval reconciliation");
+    error.code = "BILLING_KEY_MISSING";
+    throw error;
+  }
+  if (user.customerKey !== order.customerKey) {
+    const error = new Error("customerKey does not match the billing order");
+    error.code = "BILLING_CUSTOMER_MISMATCH";
+    throw error;
+  }
+  const approvedAt = Date.parse(String(validated.approvedAt || ""));
+  const completedAt = Number.isFinite(approvedAt) ? approvedAt : now;
+  const reconciled = await ledger.reconcileExternallyApprovedOrder({
+    orderId: order.orderId,
+    paymentKey: validated.paymentKey,
+    approvedAt: completedAt,
+    now,
+  });
+  applySuccessfulPayment(user, validated, now);
+  await userStore.putUser(user);
+  return { order: reconciled.order, user, reconciled: reconciled.reconciled, alreadySucceeded: reconciled.alreadySucceeded };
 }
 
 function devLoginPage(provider, redirect) {
@@ -1147,7 +1185,7 @@ export async function handleAccountApi(ctx) {
     };
 
     if (order.status === "succeeded") {
-      return applyLedgerSuccess({ status: "DONE", type: "BILLING", amount: order.amount, orderId: order.orderId, customerKey: order.customerKey, paymentKey: order.paymentKey }, true);
+      return applyLedgerSuccess({ status: "DONE", type: "BILLING", totalAmount: order.amount, currency: order.currency, orderId: order.orderId, customerKey: order.customerKey, paymentKey: order.paymentKey }, true);
     }
     if (order.status === "failed") {
       return { status: 409, json: { error: "이미 실패한 결제 주문입니다. 결제창을 다시 시작해 주세요.", code: "PAYMENT_ORDER_FAILED", orderId: order.orderId } };
