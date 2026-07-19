@@ -32,7 +32,7 @@ jobs:
           CONFIRMATION: ${{ inputs.confirmation }}
           WORKFLOW_REF: ${{ github.ref }}
         run: |
-          expected_ref="3ac485907d1aad04d3f37213d6a549c49ee6d0dd"
+          expected_ref="8327e17e0626b1a336bc222f4c3f104dbe68b128"
           expected_workflow_ref="refs/heads/ci/staging-toss-sandbox-once"
           expected_confirmation="ENABLE_TOSS_SANDBOX_ONCE"
 
