@@ -89,14 +89,20 @@ async function mockAccountApi(page, state = { user: null, configured: true }) {
   });
 }
 
-test("auth bootstrap retries one transient failure before settling the member state", async ({ page }) => {
+test("auth bootstrap retries the Firefox transient fetch error before settling the member state", async ({ page }) => {
   const state = { user: activeTrialUser({ id: "usr_bootstrap", provider: "google", name: "Bootstrap User", email: "bootstrap@example.com" }), configured: true };
   await mockAccountApi(page, state);
   await page.unroute("**/api/auth/me");
   let attempts = 0;
   await page.route("**/api/auth/me", (route) => {
     attempts += 1;
-    if (attempts === 1) return route.abort("failed");
+    if (attempts === 1) {
+      return route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "NetworkError when attempting to fetch resource" }),
+      });
+    }
     return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ user: state.user }) });
   });
 
@@ -106,6 +112,28 @@ test("auth bootstrap retries one transient failure before settling the member st
   await expect.poll(() => attempts).toBeGreaterThanOrEqual(2);
   await expect(page.locator("body")).toHaveAttribute("data-auth-state", "member");
 });
+
+for (const permanentError of ["Unauthorized", "Invalid JSON", "Billing disabled"]) {
+  test(`auth bootstrap does not retry the permanent error: ${permanentError}`, async ({ page }) => {
+    await mockAccountApi(page);
+    await page.unroute("**/api/auth/me");
+    let attempts = 0;
+    await page.route("**/api/auth/me", (route) => {
+      attempts += 1;
+      return route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({ error: permanentError }),
+      });
+    });
+
+    await page.goto("/app.html");
+    await waitForBootstrap(page);
+    await expect(page.locator("body")).toHaveAttribute("data-auth-state", "error");
+    await expect(page.locator("body")).toHaveAttribute("data-app-ready", "false");
+    expect(attempts).toBe(1);
+  });
+}
 
 test("pricing bootstrap retries a transient module load without masking a valid response", async ({ page }) => {
   await mockAccountApi(page);

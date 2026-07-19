@@ -1,5 +1,6 @@
 import { ensureAiTrialAbuseMarker, getAiCreditUsage, withAiCreditUserLock } from "./ai-credits-service.mjs";
 import { PLAN_CONFIG } from "./plan-policy.mjs";
+import { createBillingLedger, fingerprint } from "./billing-ledger.mjs";
 
 // On My Way 회원/인증 서비스 코어.
 // Cloudflare Worker(worker.mjs)와 로컬 서버(serve-local.cjs)가 같은 로직을 공유한다.
@@ -392,36 +393,90 @@ function demoBillingAllowed(env) {
   return String(env.ALLOW_DEMO_BILLING || "").toLowerCase() === "true";
 }
 
+function classifyTossKey(value, expectedPart) {
+  const normalized = String(value || "").trim();
+  if (!normalized) return null;
+  const match = normalized.match(/^(test|live)_(ck|sk)_[A-Za-z0-9_-]+$/);
+  return match?.[2] === expectedPart ? match[1] : "invalid";
+}
+
 function billingConfig(env) {
   const clientKey = String(env.TOSS_CLIENT_KEY || "");
   const secretKey = String(env.TOSS_SECRET_KEY || "");
-  const configured = Boolean(clientKey && secretKey);
+  const clientEnvironment = classifyTossKey(clientKey, "ck");
+  const secretEnvironment = classifyTossKey(secretKey, "sk");
+  let state = "unconfigured";
+  if (clientKey || secretKey) {
+    if (!clientKey || !secretKey) {
+      state = "partial";
+    } else if (
+      clientEnvironment === secretEnvironment
+      && ["test", "live"].includes(clientEnvironment)
+      && !(String(env.APP_ENV || "").toLowerCase() === "preview" && clientEnvironment !== "test")
+      && !(String(env.APP_ENV || "").toLowerCase() === "production" && clientEnvironment !== "live")
+    ) {
+      state = `${clientEnvironment}_configured`;
+    } else {
+      state = "mixed_invalid";
+    }
+  }
+  const configured = state === "test_configured" || state === "live_configured";
   const enabled = configured && String(env.PAYMENTS_ENABLED || "").toLowerCase() === "true";
-  return { clientKey, secretKey, configured, enabled };
+  return {
+    clientKey,
+    configured,
+    enabled,
+    environment: configured ? clientEnvironment : "disabled",
+    state,
+  };
+}
+
+export function billingStatus(env) {
+  const config = billingConfig(env);
+  return { configured: config.configured, enabled: config.enabled, environment: config.environment };
+}
+
+function billingLedger(env) {
+  return createBillingLedger(env.BILLING_DB);
 }
 
 function addBillingMonth(value) {
   const date = new Date(Number(value) || Date.now());
-  date.setMonth(date.getMonth() + 1);
+  const billingDay = date.getUTCDate();
+  date.setUTCDate(1);
+  date.setUTCMonth(date.getUTCMonth() + 1);
+  const lastDayOfBillingMonth = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate();
+  date.setUTCDate(Math.min(billingDay, lastDayOfBillingMonth));
   return date.getTime();
 }
 
-async function tossBillingRequest(env, path, { method = "POST", body, fetcher = fetch } = {}) {
+async function tossBillingRequest(env, path, { method = "POST", body, idempotencyKey = "", fetcher = fetch } = {}) {
   const config = billingConfig(env);
   if (!config.configured) throw new Error("자동결제 환경 변수가 설정되지 않았습니다.");
-  const response = await fetcher(`https://api.tosspayments.com${path}`, {
+  const secretKey = String(env.TOSS_SECRET_KEY || "");
+  let response;
+  try {
+    response = await fetcher(`https://api.tosspayments.com${path}`, {
     method,
     headers: {
-      Authorization: `Basic ${btoa(`${config.secretKey}:`)}`,
+      Authorization: `Basic ${btoa(`${secretKey}:`)}`,
       "Content-Type": "application/json",
+      ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
     },
     body: body ? JSON.stringify(body) : undefined,
-  });
+    });
+  } catch (error) {
+    error.status = error.status || 502;
+    error.code = error.code || "BILLING_NETWORK_ERROR";
+    error.ambiguous = true;
+    throw error;
+  }
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     const error = new Error(data.message || "결제사 요청을 처리하지 못했습니다.");
     error.status = response.status >= 500 ? 502 : 400;
     error.code = data.code || "BILLING_ERROR";
+    error.ambiguous = response.status >= 500 || response.status === 408 || response.status === 429;
     throw error;
   }
   return data;
@@ -439,9 +494,10 @@ function createPaymentOrderId() {
   return `omw_${Date.now()}_${randomId(10)}`;
 }
 
-async function chargeSubscription(env, user, { orderId = createPaymentOrderId(), fetcher = fetch } = {}) {
+async function chargeSubscription(env, user, { orderId = createPaymentOrderId(), idempotencyKey = "", fetcher = fetch } = {}) {
   return tossBillingRequest(env, `/v1/billing/${encodeURIComponent(user.billingKey)}`, {
     fetcher,
+    idempotencyKey,
     body: {
       customerKey: user.customerKey,
       amount: PLAN_CONFIG.pro.priceKRW,
@@ -463,19 +519,90 @@ async function recoverCompletedPayment(env, orderId, fetcher = fetch) {
   }
 }
 
-function applySuccessfulPayment(user, payment, now) {
+function paymentValidationError(code, message) {
+  const error = new Error(message);
+  error.code = code;
+  error.status = 502;
+  error.ambiguous = false;
+  return error;
+}
+
+export function validateInitialPayment(payment, { orderId, customerKey, amount }) {
+  if (!payment || payment.status !== "DONE") throw paymentValidationError("PAYMENT_NOT_SUCCEEDED", "최초 결제가 완료 상태가 아닙니다.");
+  if (payment.type !== "BILLING") throw paymentValidationError("PAYMENT_TYPE_MISMATCH", "자동결제 응답 유형이 올바르지 않습니다.");
+  if (Number(payment.totalAmount) !== amount) throw paymentValidationError("PAYMENT_AMOUNT_MISMATCH", "결제 금액이 상품 정책과 일치하지 않습니다.");
+  if (String(payment.orderId || "") !== orderId) throw paymentValidationError("PAYMENT_ORDER_MISMATCH", "결제 주문이 현재 요청과 일치하지 않습니다.");
+  if (Object.hasOwn(payment, "customerKey") && payment.customerKey !== customerKey) throw paymentValidationError("PAYMENT_CUSTOMER_MISMATCH", "결제 고객 식별자가 현재 사용자와 일치하지 않습니다.");
+  if (!String(payment.paymentKey || "")) throw paymentValidationError("PAYMENT_KEY_MISSING", "결제 식별자를 확인하지 못했습니다.");
+  if (Object.hasOwn(payment, "currency") && payment.currency !== "KRW") throw paymentValidationError("PAYMENT_CURRENCY_MISMATCH", "결제 통화가 상품 정책과 일치하지 않습니다.");
+  return payment;
+}
+
+async function recoverInitialPayment(env, order, fetcher = fetch) {
+  try {
+    const payment = await tossBillingRequest(env, `/v1/payments/orders/${encodeURIComponent(order.orderId)}`, { method: "GET", fetcher });
+    if (payment?.status === "DONE") return { status: "succeeded", payment: validateInitialPayment(payment, { orderId: order.orderId, customerKey: order.customerKey, amount: order.amount }) };
+    if (["CANCELED", "ABORTED", "EXPIRED", "FAILED"].includes(payment?.status)) return { status: "failed", code: "PAYMENT_NOT_SUCCEEDED" };
+  } catch (error) {
+    return { status: "unknown", error };
+  }
+  return { status: "unknown" };
+}
+
+export function applySuccessfulPayment(user, payment, now) {
+  const approvedAt = Date.parse(String(payment?.approvedAt || ""));
+  const billingStartedAt = Number.isFinite(approvedAt) ? approvedAt : now;
+  const wasTrial = user.plan === "trial";
   user.plan = "pro";
-  user.proSince = user.proSince || now;
+  if (wasTrial) {
+    user.trialEndedAt = billingStartedAt;
+    user.trialUsedAt = user.trialUsedAt || billingStartedAt;
+  }
+  user.proSince = user.proSince || billingStartedAt;
   user.subscriptionStatus = "active";
-  user.currentPeriodEnd = addBillingMonth(now);
+  user.currentPeriodEnd = addBillingMonth(billingStartedAt);
   user.lastPaymentKey = payment.paymentKey || null;
   user.lastOrderId = payment.orderId || null;
-  user.lastPaymentAt = now;
+  user.lastPaymentAt = billingStartedAt;
   user.paymentFailure = null;
   user.paymentRetryCount = 0;
   user.nextPaymentRetryAt = null;
   user.pendingOrderId = null;
   user.pendingRenewalOrderId = null;
+}
+
+export async function reconcileExternallyApprovedPayment({ ledger, userStore, orderId, payment, now = Date.now() }) {
+  if (!ledger || !userStore) throw new TypeError("ledger and userStore are required");
+  const order = await ledger.getPaymentOrder(orderId);
+  if (!order) throw new Error("billing order not found");
+  const validated = validateInitialPayment(payment, {
+    orderId: order.orderId,
+    customerKey: order.customerKey,
+    amount: order.amount,
+  });
+  const user = await userStore.getUser(order.userId);
+  if (!user) throw new Error("billing user not found");
+  if (!String(user.billingKey || "")) {
+    const error = new Error("billing key is missing for external approval reconciliation");
+    error.code = "BILLING_KEY_MISSING";
+    throw error;
+  }
+  if (user.customerKey !== order.customerKey) {
+    const error = new Error("customerKey does not match the billing order");
+    error.code = "BILLING_CUSTOMER_MISMATCH";
+    throw error;
+  }
+  const approvedAt = Date.parse(String(validated.approvedAt || ""));
+  const completedAt = Number.isFinite(approvedAt) ? approvedAt : now;
+  const reconciled = await ledger.reconcileExternallyApprovedOrder({
+    orderId: order.orderId,
+    paymentKey: validated.paymentKey,
+    approvedAt: completedAt,
+    now,
+  });
+  applySuccessfulPayment(user, validated, now);
+  await userStore.putUser(user);
+  return { order: reconciled.order, user, reconciled: reconciled.reconciled, alreadySucceeded: reconciled.alreadySucceeded };
 }
 
 function devLoginPage(provider, redirect) {
@@ -997,10 +1124,12 @@ export async function handleAccountApi(ctx) {
     const user = await currentSessionUser(ctx);
     if (!user) return { status: 401, json: { error: "로그인 후 이용할 수 있어요." } };
     if (!demoBillingAllowed(ctx.env)) return { status: 409, json: { error: "결제창에서 카드 등록을 먼저 완료해 주세요." } };
+    const now = Date.now();
+    if (user.plan === "trial") user.trialEndedAt = now;
     user.plan = "pro";
-    user.proSince = user.proSince || Date.now();
+    user.proSince = user.proSince || now;
     user.subscriptionStatus = "active";
-    user.currentPeriodEnd = addBillingMonth(Date.now());
+    user.currentPeriodEnd = addBillingMonth(now);
     await store(ctx).putUser(user);
     return { status: 200, json: { user: publicUser(user) } };
   }
@@ -1010,7 +1139,17 @@ export async function handleAccountApi(ctx) {
     if (!user) return { status: 401, json: { error: "로그인 후 이용할 수 있어요." } };
     const config = billingConfig(ctx.env);
     const customerKey = await ensureCustomerKey(ctx, user);
-    return { status: 200, json: { configured: config.enabled, clientKey: config.enabled ? config.clientKey : null, customerKey, demo: demoBillingAllowed(ctx.env) } };
+    return {
+      status: 200,
+      json: {
+        configured: config.configured,
+        enabled: config.enabled,
+        environment: config.environment,
+        clientKey: config.enabled ? config.clientKey : null,
+        customerKey,
+        demo: demoBillingAllowed(ctx.env),
+      },
+    };
   }
 
   if (path === "/api/billing/activate" && method === "POST") {
@@ -1019,38 +1158,83 @@ export async function handleAccountApi(ctx) {
     const body = await ctx.readJson();
     const authKey = String(body.authKey || "");
     const customerKey = String(body.customerKey || "");
+    const serverCustomerKey = user.customerKey;
     if (!authKey || !customerKey || customerKey !== user.customerKey) return { status: 400, json: { error: "자동결제 인증 정보가 올바르지 않습니다." } };
     if (!billingConfig(ctx.env).enabled) return { status: 503, json: { error: "결제 운영 승인이 완료되지 않았습니다." } };
     if (user.subscriptionStatus === "active" && user.billingKey) return { status: 200, json: { user: publicUser(user), alreadyActive: true } };
+    const ledger = billingLedger(ctx.env);
+    const amount = PLAN_CONFIG.pro.priceKRW;
+    const account = await ledger.getOrCreateBillingAccount({ userId: user.id, customerKey: serverCustomerKey, now: Date.now() });
+    const order = await ledger.createOrReusePaymentOrder({
+      userId: user.id,
+      customerKey: account.customerKey,
+      purpose: "initial_subscription",
+      amount,
+      currency: "KRW",
+      logicalRequestKey: authKey,
+      now: Date.now(),
+    });
+    const fetcher = ctx.fetcher || fetch;
 
-    if (!user.billingKey) {
-      const issued = await tossBillingRequest(ctx.env, "/v1/billing/authorizations/issue", {
-        body: { authKey, customerKey },
-        fetcher: ctx.fetcher || fetch,
-      });
-      user.billingKey = issued.billingKey;
+    const applyLedgerSuccess = async (payment, recovered = false) => {
+      const validated = validateInitialPayment(payment, { orderId: order.orderId, customerKey: account.customerKey, amount });
+      await ledger.markOrderSucceeded({ orderId: order.orderId, paymentKey: validated.paymentKey, now: Date.now(), metadata: { recovered } });
+      applySuccessfulPayment(user, validated, Date.now());
+      await store(ctx).putUser(user);
+      return { status: 200, json: { user: publicUser(user), ...(recovered ? { recovered: true } : {}) } };
+    };
+
+    if (order.status === "succeeded") {
+      return applyLedgerSuccess({ status: "DONE", type: "BILLING", totalAmount: order.amount, currency: order.currency, orderId: order.orderId, customerKey: order.customerKey, paymentKey: order.paymentKey }, true);
     }
-    user.pendingOrderId = user.pendingOrderId || createPaymentOrderId();
+    if (order.status === "failed") {
+      return { status: 409, json: { error: "이미 실패한 결제 주문입니다. 결제창을 다시 시작해 주세요.", code: "PAYMENT_ORDER_FAILED", orderId: order.orderId } };
+    }
+    if (order.status === "pending" || order.status === "unknown") {
+      const recovered = await recoverInitialPayment(ctx.env, order, fetcher);
+      if (recovered.status === "succeeded") return applyLedgerSuccess(recovered.payment, true);
+      if (recovered.status === "failed") {
+        await ledger.markOrderFailed({ orderId: order.orderId, failureCode: recovered.code, failureMessage: "Toss 결제 조회 결과가 완료 상태가 아닙니다.", now: Date.now() });
+        return { status: 402, json: { error: "최초 결제가 완료되지 않았습니다.", code: recovered.code, orderId: order.orderId } };
+      }
+      return { status: 409, json: { error: "결제 결과를 확인하는 중입니다. 잠시 후 같은 요청을 다시 시도해 주세요.", code: "PAYMENT_RESULT_UNKNOWN", orderId: order.orderId } };
+    }
+
+    await ledger.markOrderPending({ orderId: order.orderId, now: Date.now() });
+    user.pendingOrderId = order.orderId;
     user.subscriptionStatus = "pending";
     await store(ctx).putUser(user);
 
     try {
-      const payment = await chargeSubscription(ctx.env, user, { orderId: user.pendingOrderId, fetcher: ctx.fetcher || fetch });
-      const now = Date.now();
-      applySuccessfulPayment(user, payment, now);
-      await store(ctx).putUser(user);
-      return { status: 200, json: { user: publicUser(user) } };
-    } catch (error) {
-      const recovered = await recoverCompletedPayment(ctx.env, user.pendingOrderId, ctx.fetcher || fetch);
-      if (recovered) {
-        applySuccessfulPayment(user, recovered, Date.now());
+      if (!user.billingKey) {
+        const issued = await tossBillingRequest(ctx.env, "/v1/billing/authorizations/issue", {
+          body: { authKey, customerKey: account.customerKey },
+          fetcher,
+        });
+        if (!issued.billingKey) throw paymentValidationError("BILLING_KEY_MISSING", "빌링키를 발급받지 못했습니다.");
+        if (issued.customerKey && issued.customerKey !== account.customerKey) throw paymentValidationError("BILLING_CUSTOMER_MISMATCH", "빌링키의 customerKey가 현재 사용자와 일치하지 않습니다.");
+        user.billingKey = issued.billingKey;
+        await ledger.recordBillingKeyFingerprint({ userId: user.id, billingKeyFingerprint: await fingerprint(issued.billingKey), now: Date.now() });
         await store(ctx).putUser(user);
-        return { status: 200, json: { user: publicUser(user), recovered: true } };
       }
-      user.subscriptionStatus = "payment_failed";
-      user.paymentFailure = { code: error.code || "BILLING_ERROR", at: Date.now() };
+
+      const payment = await chargeSubscription(ctx.env, user, { orderId: order.orderId, idempotencyKey: order.idempotencyKey, fetcher });
+      return await applyLedgerSuccess(payment);
+    } catch (error) {
+      const recovered = await recoverInitialPayment(ctx.env, order, fetcher);
+      if (recovered.status === "succeeded") return applyLedgerSuccess(recovered.payment, true);
+      const now = Date.now();
+      if (recovered.status === "failed" || !error.ambiguous) {
+        await ledger.markOrderFailed({ orderId: order.orderId, failureCode: error.code || recovered.code || "BILLING_ERROR", failureMessage: error.message, now });
+        user.subscriptionStatus = "payment_failed";
+      } else {
+        await ledger.markOrderUnknown({ orderId: order.orderId, failureCode: error.code || "BILLING_RESULT_UNKNOWN", failureMessage: "결제 결과를 확인하지 못했습니다.", now });
+        user.subscriptionStatus = "payment_unknown";
+      }
+      user.paymentFailure = { code: error.code || "BILLING_ERROR", at: now };
       await store(ctx).putUser(user);
-      throw error;
+      if (recovered.status === "failed" || !error.ambiguous) throw error;
+      return { status: 409, json: { error: "결제 결과를 확인하는 중입니다. 잠시 후 같은 요청을 다시 시도해 주세요.", code: "PAYMENT_RESULT_UNKNOWN", orderId: order.orderId } };
     }
   }
 

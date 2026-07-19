@@ -39,15 +39,15 @@ function createUsageResponse({
 } = {}) {
   const dailyLimit = plan === "free" ? 2 : 30;
   const monthlyLimit = plan === "free" ? 5 : plan === "trial" ? 15 : 250;
-  const trialStartedAt = trialActive ? "2026-07-15T00:00:00.000Z" : null;
-  const trialEndsAt = trialActive ? "2026-07-16T00:00:00.000Z" : null;
+  const trialStartedAt = trialActive ? new Date(Date.now() - 60 * 1000).toISOString() : null;
+  const trialEndsAt = trialActive ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : null;
   return {
     ok: true,
     schemaVersion: 1,
     policyVersion: "2026-07-15.v1",
     timeZone: "Asia/Seoul",
     plan,
-    planLabel: plan === "trial" ? "Pro 체험" : plan === "pro" ? "Pro" : "Free",
+    planLabel: plan === "trial" ? "무료 체험 중" : plan === "pro" ? "Pro" : "Free",
     trial: {
       eligible: trialEligible,
       active: trialActive,
@@ -115,9 +115,17 @@ async function waitForAppReady(page) {
 }
 
 async function waitForBootstrap(page) {
-  await expect(page.locator("body")).toHaveAttribute("data-auth-ready", "true", { timeout: 15_000 });
-  await expect(page.locator("body")).toHaveAttribute("data-auth-state", /^(anonymous|member|error)$/);
-  await expect(page.locator("body")).toHaveAttribute("data-pricing-ready", "true", { timeout: 15_000 });
+  await expect.poll(async () => {
+    try {
+      return await page.locator("body").evaluate((body) => [
+        body.dataset.authReady,
+        body.dataset.authState,
+        body.dataset.pricingReady,
+      ].join("|"));
+    } catch (error) {
+      return "navigation|pending|navigation";
+    }
+  }, { timeout: 15_000 }).toMatch(/^true\|(anonymous|member|error)\|true$/);
 }
 
 async function mockAccountExperience(page, {
@@ -165,8 +173,8 @@ async function mockAccountExperience(page, {
         body: JSON.stringify({ ok: true, started: false, idempotent: true, user: state.user, usage: state.usage }),
       });
     }
-    const startedAt = Date.parse("2026-07-15T00:00:00.000Z");
-    const expiresAt = Date.parse("2026-07-16T00:00:00.000Z");
+    const startedAt = Date.now();
+    const expiresAt = startedAt + 24 * 60 * 60 * 1000;
     state.user = { ...state.user, plan: "trial", trialStartedAt: startedAt, trialExpiresAt: expiresAt };
     state.usage = createUsageResponse({ plan: "trial", trialEligible: false, trialActive: true });
     return route.fulfill({
@@ -199,8 +207,46 @@ async function mockAccountExperience(page, {
   return state;
 }
 
+function isExpectedFirefoxNavigationImageAbort({
+  browserName,
+  errorText,
+  method,
+  navigationLinked,
+  pagePathname,
+  pathname,
+  resourceType,
+  sameOrigin,
+}) {
+  return browserName === "firefox" &&
+    errorText === "NS_BINDING_ABORTED" &&
+    method === "GET" &&
+    navigationLinked === true &&
+    pagePathname === "/app.html" &&
+    pathname === "/assets/logo-ollie-symbol.png" &&
+    resourceType === "image" &&
+    sameOrigin === true;
+}
+
 function monitorPage(page, { allowedConsoleMessages = [], allowedResponseUrls = [] } = {}) {
   const issues = [];
+  const browserName = page.context().browser()?.browserType().name() || "";
+  const expectedNavigationLogoRequests = new WeakSet();
+  const seenNavigationLogoRequests = new Set();
+  let mainNavigationSequence = 0;
+  page.on("framenavigated", (frame) => {
+    if (frame === page.mainFrame()) mainNavigationSequence += 1;
+  });
+  page.on("request", (request) => {
+    if (mainNavigationSequence === 0 || request.method() !== "GET" || request.resourceType() !== "image") return;
+    try {
+      const requestUrl = new URL(request.url());
+      const pageUrl = new URL(page.url());
+      if (requestUrl.origin !== pageUrl.origin || pageUrl.pathname !== "/app.html" || requestUrl.pathname !== "/assets/logo-ollie-symbol.png") return;
+      if (seenNavigationLogoRequests.has(mainNavigationSequence)) return;
+      seenNavigationLogoRequests.add(mainNavigationSequence);
+      expectedNavigationLogoRequests.add(request);
+    } catch {}
+  });
   page.on("console", (message) => {
     if (message.type() !== "error") return;
     if (allowedConsoleMessages.some((pattern) => message.text().includes(pattern))) return;
@@ -214,10 +260,21 @@ function monitorPage(page, { allowedConsoleMessages = [], allowedResponseUrls = 
     let isCanceledStaticImage = false;
     let isCanceledFunnelEvent = false;
     let isCanceledStartupRequest = false;
+    let isExpectedFirefoxLogoAbort = false;
     try {
       const requestUrl = new URL(request.url());
       const pageUrl = new URL(page.url());
       const isSameOrigin = requestUrl.origin === pageUrl.origin;
+      isExpectedFirefoxLogoAbort = isExpectedFirefoxNavigationImageAbort({
+        browserName,
+        errorText,
+        method: request.method(),
+        navigationLinked: expectedNavigationLogoRequests.has(request),
+        pagePathname: pageUrl.pathname,
+        pathname: requestUrl.pathname,
+        resourceType: request.resourceType(),
+        sameOrigin: isSameOrigin,
+      });
       isCanceledStaticImage =
         isNavigationCancellation &&
         request.resourceType() === "image" &&
@@ -234,7 +291,7 @@ function monitorPage(page, { allowedConsoleMessages = [], allowedResponseUrls = 
         request.method() === "GET" &&
         ["/api/health", "/plan-policy.mjs"].includes(requestUrl.pathname);
     } catch {}
-    if (isCanceledStaticImage || isCanceledFunnelEvent || isCanceledStartupRequest) return;
+    if (isExpectedFirefoxLogoAbort || isCanceledStaticImage || isCanceledFunnelEvent || isCanceledStartupRequest) return;
     issues.push(`requestfailed: ${request.method()} ${request.url()} ${errorText}`);
   });
   page.on("response", (response) => {
@@ -280,6 +337,7 @@ module.exports = {
   createUsageResponse,
   expectNoDuplicateIds,
   expectNoHorizontalOverflow,
+  isExpectedFirefoxNavigationImageAbort,
   mockAccountExperience,
   mockExternalAssets,
   monitorPage,

@@ -7,10 +7,13 @@ import {
   handleAccountApi,
   parseCookies,
   renewDueSubscriptions,
+  reconcileExternallyApprovedPayment,
+  validateInitialPayment,
   purgeDueAccountDeletions,
   upsertUserFromProfile,
 } from "./auth-service.mjs";
 import { commitAiCredits, getAiCreditUsage, reserveAiCredits, startAiTrial } from "./ai-credits-service.mjs";
+import { createBillingLedger, createMemoryBillingDb } from "./billing-ledger.mjs";
 import worker, { createGoalPlanForUser } from "./worker.mjs";
 
 function memoryStore(seed = []) {
@@ -54,7 +57,9 @@ function memoryStore(seed = []) {
 }
 
 const TEST_SECRET = "test-session-secret-that-is-longer-than-32-characters";
-const testEnv = (overrides = {}) => ({ APP_ENV: "test", SESSION_SECRET: TEST_SECRET, ...overrides });
+const TEST_TOSS_CLIENT_KEY = "test_ck_TEST_FIXTURE";
+const TEST_TOSS_SECRET_KEY = "test_sk_TEST_FIXTURE";
+const testEnv = (overrides = {}) => ({ APP_ENV: "test", SESSION_SECRET: TEST_SECRET, BILLING_DB: createMemoryBillingDb(), ...overrides });
 
 function context({ path, method = "GET", env = {}, store, legalStore, body = {}, form = {}, cookie = "", fetcher, origin = "https://example.test" }) {
   const cookies = parseCookies(cookie);
@@ -70,6 +75,63 @@ function context({ path, method = "GET", env = {}, store, legalStore, body = {},
     store,
     legalStore,
   };
+}
+
+function initialPaymentFixture(overrides = {}) {
+  return {
+    status: "DONE",
+    type: "BILLING",
+    totalAmount: 4900,
+    currency: "KRW",
+    orderId: "order-fixture",
+    customerKey: "customer-fixture",
+    paymentKey: "payment-fixture",
+    approvedAt: "2026-07-17T10:20:30.000Z",
+    ...overrides,
+  };
+}
+
+async function failedExternalApprovalFixture() {
+  const now = Date.parse("2026-07-19T03:04:04.000Z");
+  const user = {
+    id: "google:reconciliation-fixture",
+    customerKey: "customer-fixture",
+    billingKey: "billing-fixture",
+    plan: "trial",
+    subscriptionStatus: "payment_failed",
+    trialStartedAt: Date.parse("2026-07-18T03:04:04.000Z"),
+    trialExpiresAt: Date.parse("2026-07-19T03:04:04.000Z"),
+    trialUsedAt: null,
+    trialEndedAt: null,
+    pendingOrderId: null,
+    lastPaymentKey: null,
+    lastOrderId: null,
+    paymentFailure: { code: "PAYMENT_AMOUNT_MISMATCH", at: now - 1 },
+  };
+  const env = testEnv();
+  const store = memoryStore([user]);
+  const ledger = createBillingLedger(env.BILLING_DB);
+  await ledger.getOrCreateBillingAccount({ userId: user.id, customerKey: user.customerKey, now: now - 4 });
+  await ledger.recordBillingKeyFingerprint({ userId: user.id, billingKeyFingerprint: "a".repeat(64), now: now - 4 });
+  const order = await ledger.createOrReusePaymentOrder({
+    userId: user.id,
+    customerKey: user.customerKey,
+    purpose: "initial_subscription",
+    amount: 4900,
+    currency: "KRW",
+    logicalRequestKey: "approved-external-fixture",
+    now: now - 3,
+  });
+  await ledger.markOrderPending({ orderId: order.orderId, now: now - 2 });
+  await ledger.markOrderFailed({
+    orderId: order.orderId,
+    failureCode: "PAYMENT_AMOUNT_MISMATCH",
+    failureMessage: "결제 금액이 상품 정책과 일치하지 않습니다.",
+    now: now - 1,
+  });
+  user.pendingOrderId = order.orderId;
+  await store.putUser(user);
+  return { env, store, ledger, order, user, now };
 }
 
 test("서명 세션은 변조와 만료를 거부한다", async () => {
@@ -134,7 +196,7 @@ test("KV 저장소는 삭제 tombstone과 체험 표식에 절대 만료 시각�
   assert.deepEqual(deletes, ["setting:ai-trial-used:pending-user"]);
 });
 
-test("Free 회원의 Pro 체험은 명시적으로 한 번만 시작되고 24시간 뒤 Free로 돌아간다", async () => {
+test("Free 회원의 무료 체험은 명시적으로 한 번만 시작되고 24시간 뒤 Free로 돌아간다", async () => {
   const now = Date.parse("2026-01-15T03:00:00.000Z");
   const user = { id: "google:explicit-trial", status: "active", role: "member", plan: "free", createdAt: now - 1 };
   const store = memoryStore([user]);
@@ -810,7 +872,7 @@ test("계획을 만든 Free 회원은 다른 브라우저에서도 추가 생성
   assert.equal(generated, false);
 });
 
-test("Pro와 Pro 체험 회원은 Free 전용 계획 1개 제한을 적용받지 않는다", async () => {
+test("Pro와 무료 체험 중인 회원은 Free 전용 계획 1개 제한을 적용받지 않는다", async () => {
   for (const plan of ["trial", "pro"]) {
     const user = { id: `google:unlimited-${plan}`, role: "member", plan, goalPlanGeneratedAt: 123456 };
     const store = memoryStore([user]);
@@ -844,19 +906,265 @@ test("해지된 구독은 결제 기간 종료 후 Free로 내려간다", async 
 });
 
 test("운영 승인 스위치가 꺼져 있으면 결제 키가 있어도 결제창을 열지 않는다", async () => {
-  const env = testEnv({ ALLOW_DEV_LOGIN: "true", TOSS_CLIENT_KEY: "test_ck", TOSS_SECRET_KEY: "test_sk" });
+  const env = testEnv({ ALLOW_DEV_LOGIN: "true", TOSS_CLIENT_KEY: TEST_TOSS_CLIENT_KEY, TOSS_SECRET_KEY: TEST_TOSS_SECRET_KEY });
   const store = memoryStore();
   const login = await handleAccountApi(context({ path: "/api/auth/dev-login", method: "POST", env, store, body: { provider: "google", name: "회원" } }));
   const result = await handleAccountApi(context({ path: "/api/billing/config", env, store, cookie: login.cookies[0] }));
-  assert.equal(result.json.configured, false);
+  assert.equal(result.json.configured, true);
+  assert.equal(result.json.enabled, false);
+  assert.equal(result.json.environment, "test");
   assert.equal(result.json.clientKey, null);
+  assert.equal(JSON.stringify(result.json).includes(TEST_TOSS_SECRET_KEY), false);
+});
+
+test("Toss 키 구성은 양쪽 키·동일 환경·Preview 테스트 키를 모두 요구한다", async () => {
+  const cases = [
+    [{}, false, "disabled"],
+    [{ TOSS_CLIENT_KEY: TEST_TOSS_CLIENT_KEY }, false, "disabled"],
+    [{ TOSS_SECRET_KEY: TEST_TOSS_SECRET_KEY }, false, "disabled"],
+    [{ TOSS_CLIENT_KEY: TEST_TOSS_CLIENT_KEY, TOSS_SECRET_KEY: TEST_TOSS_SECRET_KEY }, true, "test"],
+    [{ TOSS_CLIENT_KEY: "test_ck_TEST_FIXTURE", TOSS_SECRET_KEY: "live_sk_TEST_FIXTURE" }, false, "disabled"],
+    [{ APP_ENV: "preview", TOSS_CLIENT_KEY: "live_ck_TEST_FIXTURE", TOSS_SECRET_KEY: "live_sk_TEST_FIXTURE" }, false, "disabled"],
+  ];
+  for (const [overrides, configured, environment] of cases) {
+    const env = testEnv({ ALLOW_DEV_LOGIN: "true", ...overrides });
+    const store = memoryStore();
+    const login = await handleAccountApi(context({ path: "/api/auth/dev-login", method: "POST", env: { ...env, APP_ENV: "test" }, store, body: { provider: "google", name: "구성검사회원" } }));
+    const result = await handleAccountApi(context({ path: "/api/billing/config", env, store, cookie: login.cookies[0] }));
+    assert.equal(result.json.configured, configured, JSON.stringify(overrides));
+    assert.equal(result.json.enabled, false, JSON.stringify(overrides));
+    assert.equal(result.json.environment, environment, JSON.stringify(overrides));
+    assert.equal(JSON.stringify(result.json).includes("TEST_FIXTURE"), false);
+  }
+});
+
+test("결제가 비활성화되면 빌링키·D1 주문·Pro 권한을 만들지 않는다", async () => {
+  const env = testEnv({
+    ALLOW_DEV_LOGIN: "true",
+    TOSS_CLIENT_KEY: TEST_TOSS_CLIENT_KEY,
+    TOSS_SECRET_KEY: TEST_TOSS_SECRET_KEY,
+    PAYMENTS_ENABLED: "false",
+  });
+  const store = memoryStore();
+  const login = await handleAccountApi(context({ path: "/api/auth/dev-login", method: "POST", env, store, body: { provider: "google", name: "비활성결제회원" } }));
+  const cookie = login.cookies[0];
+  const config = await handleAccountApi(context({ path: "/api/billing/config", env, store, cookie }));
+  let tossCalls = 0;
+  const result = await handleAccountApi(context({
+    path: "/api/billing/activate",
+    method: "POST",
+    env,
+    store,
+    cookie,
+    fetcher: async () => { tossCalls += 1; throw new Error("Toss 호출 금지"); },
+    body: { authKey: "TEST_FIXTURE_AUTH", customerKey: config.json.customerKey },
+  }));
+  assert.equal(result.status, 503);
+  assert.equal(tossCalls, 0);
+  assert.equal(env.BILLING_DB.accounts.size, 0);
+  assert.equal(env.BILLING_DB.orders.size, 0);
+  assert.equal((await store.getUser(login.json.user.id)).plan, "free");
+});
+
+test("최초 자동결제 Payment는 totalAmount와 서버 주문 정책을 엄격히 검증한다", () => {
+  const expected = { orderId: "order-fixture", customerKey: "customer-fixture", amount: 4900 };
+  const valid = initialPaymentFixture();
+  assert.equal(validateInitialPayment(valid, expected), valid);
+
+  const amountOnly = initialPaymentFixture({ totalAmount: undefined, amount: 4900 });
+  const cases = [
+    ["totalAmount mismatch", initialPaymentFixture({ totalAmount: 1 }), "PAYMENT_AMOUNT_MISMATCH"],
+    ["legacy amount fallback", amountOnly, "PAYMENT_AMOUNT_MISMATCH"],
+    ["orderId mismatch", initialPaymentFixture({ orderId: "other-order" }), "PAYMENT_ORDER_MISMATCH"],
+    ["type mismatch", initialPaymentFixture({ type: "NORMAL" }), "PAYMENT_TYPE_MISMATCH"],
+    ["paymentKey missing", initialPaymentFixture({ paymentKey: "" }), "PAYMENT_KEY_MISSING"],
+    ["currency mismatch", initialPaymentFixture({ currency: "USD" }), "PAYMENT_CURRENCY_MISMATCH"],
+    ["customerKey mismatch", initialPaymentFixture({ customerKey: "other-customer" }), "PAYMENT_CUSTOMER_MISMATCH"],
+    ["not done", initialPaymentFixture({ status: "CANCELED" }), "PAYMENT_NOT_SUCCEEDED"],
+  ];
+  for (const [label, payment, code] of cases) {
+    assert.throws(
+      () => validateInitialPayment(payment, expected),
+      (error) => error.code === code,
+      label,
+    );
+  }
+
+  const withoutCustomerKey = initialPaymentFixture();
+  delete withoutCustomerKey.customerKey;
+  assert.equal(validateInitialPayment(withoutCustomerKey, expected), withoutCustomerKey);
+  const withoutCurrency = initialPaymentFixture();
+  delete withoutCurrency.currency;
+  assert.equal(validateInitialPayment(withoutCurrency, expected), withoutCurrency);
+});
+
+test("외부 승인된 failed 주문과 무료 체험 사용자를 추가 청구 없이 한 번만 복구한다", async () => {
+  const { store, ledger, order, user, now, env } = await failedExternalApprovalFixture();
+  const approvedAt = "2026-07-17T10:20:30.000Z";
+  const payment = initialPaymentFixture({ orderId: order.orderId, customerKey: user.customerKey, approvedAt });
+
+  const first = await reconcileExternallyApprovedPayment({ ledger, userStore: store, orderId: order.orderId, payment, now });
+  const repairedOrder = await ledger.getPaymentOrder(order.orderId);
+  const repairedUser = await store.getUser(user.id);
+  assert.equal(first.reconciled, true);
+  assert.equal(first.alreadySucceeded, false);
+  assert.equal(repairedOrder.status, "succeeded");
+  assert.equal(repairedOrder.paymentKey, payment.paymentKey);
+  assert.equal(repairedOrder.failureCode, null);
+  assert.equal(repairedOrder.failureMessage, null);
+  assert.equal(repairedOrder.completedAt, Date.parse(approvedAt));
+  assert.equal(env.BILLING_DB.events.length, 4);
+  const event = env.BILLING_DB.events.at(-1);
+  assert.equal(event.event_type, "order_reconciled_succeeded");
+  assert.equal(event.previous_status, "failed");
+  assert.equal(event.new_status, "succeeded");
+  assert.deepEqual(JSON.parse(event.metadata_json), {
+    source: "toss_order_lookup",
+    reason: "payment_total_amount_field_fix",
+    recovered: true,
+  });
+  assert.equal(repairedUser.plan, "pro");
+  assert.equal(repairedUser.subscriptionStatus, "active");
+  assert.equal(repairedUser.proSince, Date.parse(approvedAt));
+  assert.equal(repairedUser.currentPeriodEnd, Date.parse("2026-08-17T10:20:30.000Z"));
+  assert.equal(repairedUser.trialEndedAt, Date.parse(approvedAt));
+  assert.equal(repairedUser.trialUsedAt, Date.parse(approvedAt));
+  assert.equal(repairedUser.trialStartedAt, user.trialStartedAt);
+  assert.equal(repairedUser.trialExpiresAt, user.trialExpiresAt);
+  assert.equal(repairedUser.lastPaymentKey, payment.paymentKey);
+  assert.equal(repairedUser.lastOrderId, order.orderId);
+  assert.equal(repairedUser.lastPaymentAt, Date.parse(approvedAt));
+  assert.equal(repairedUser.paymentFailure, null);
+  assert.equal(repairedUser.pendingOrderId, null);
+  assert.equal(repairedUser.billingKey, "billing-fixture");
+  assert.equal(repairedUser.customerKey, "customer-fixture");
+
+  const snapshot = JSON.stringify({ order: repairedOrder, user: repairedUser });
+  const second = await reconcileExternallyApprovedPayment({ ledger, userStore: store, orderId: order.orderId, payment, now: now + 10_000 });
+  assert.equal(second.reconciled, false);
+  assert.equal(second.alreadySucceeded, true);
+  assert.equal(env.BILLING_DB.events.length, 4);
+  assert.equal(JSON.stringify({ order: await ledger.getPaymentOrder(order.orderId), user: await store.getUser(user.id) }), snapshot);
+});
+
+test("외부 Payment 검증 실패는 failed 원장과 무료 체험 사용자를 변경하지 않는다", async (t) => {
+  const cases = [
+    ["totalAmount mismatch", { totalAmount: 1, amount: 4900 }, "PAYMENT_AMOUNT_MISMATCH"],
+    ["not done", { status: "CANCELED" }, "PAYMENT_NOT_SUCCEEDED"],
+    ["paymentKey missing", { paymentKey: "" }, "PAYMENT_KEY_MISSING"],
+    ["orderId mismatch", { orderId: "other-order" }, "PAYMENT_ORDER_MISMATCH"],
+  ];
+  for (const [name, overrides, code] of cases) {
+    await t.test(name, async () => {
+      const { store, ledger, order, user, now, env } = await failedExternalApprovalFixture();
+      const payment = initialPaymentFixture({ orderId: order.orderId, customerKey: user.customerKey, ...overrides });
+      const beforeOrder = JSON.stringify(await ledger.getPaymentOrder(order.orderId));
+      const beforeUser = JSON.stringify(await store.getUser(user.id));
+      const beforeEvents = env.BILLING_DB.events.length;
+      await assert.rejects(
+        reconcileExternallyApprovedPayment({ ledger, userStore: store, orderId: order.orderId, payment, now }),
+        (error) => error.code === code,
+      );
+      assert.equal(JSON.stringify(await ledger.getPaymentOrder(order.orderId)), beforeOrder);
+      assert.equal(JSON.stringify(await store.getUser(user.id)), beforeUser);
+      assert.equal(env.BILLING_DB.events.length, beforeEvents);
+    });
+  }
+});
+
+test("무료 체험 중 최초 결제가 성공하면 승인 시각에 체험을 끝내고 Pro 결제 주기를 시작한다", async () => {
+  const env = testEnv({
+    ALLOW_DEV_LOGIN: "true",
+    TOSS_CLIENT_KEY: TEST_TOSS_CLIENT_KEY,
+    TOSS_SECRET_KEY: TEST_TOSS_SECRET_KEY,
+    PAYMENTS_ENABLED: "true",
+  });
+  const store = memoryStore();
+  const login = await handleAccountApi(context({ path: "/api/auth/dev-login", method: "POST", env, store, body: { provider: "google", name: "무료체험결제회원" } }));
+  const cookie = login.cookies[0];
+  const config = await handleAccountApi(context({ path: "/api/billing/config", env, store, cookie }));
+  const user = await store.getUser(login.json.user.id);
+  Object.assign(user, {
+    plan: "trial",
+    trialStartedAt: Date.parse("2026-07-17T10:20:30.000Z"),
+    trialExpiresAt: Date.parse("2026-07-18T10:20:30.000Z"),
+    trialUsedAt: Date.parse("2026-07-17T10:20:30.000Z"),
+    trialEndedAt: null,
+  });
+  await store.putUser(user);
+  const approvedAt = "2026-07-17T10:20:30.000Z";
+  const fetcher = async (url, options = {}) => {
+    if (url.includes("/authorizations/issue")) return Response.json({ billingKey: "billing-key", customerKey: config.json.customerKey });
+    if (url.includes("/v1/billing/")) {
+      const orderId = JSON.parse(options.body || "{}").orderId;
+      return Response.json({ status: "DONE", type: "BILLING", totalAmount: 4900, currency: "KRW", customerKey: config.json.customerKey, paymentKey: "payment-key", orderId, approvedAt });
+    }
+    throw new Error("unexpected payment lookup");
+  };
+
+  const activated = await handleAccountApi(context({
+    path: "/api/billing/activate",
+    method: "POST",
+    env,
+    store,
+    cookie,
+    fetcher,
+    body: { authKey: "trial-to-pro-auth", customerKey: config.json.customerKey },
+  }));
+
+  const stored = await store.getUser(login.json.user.id);
+  assert.equal(activated.status, 200);
+  assert.equal(stored.plan, "pro");
+  assert.equal(stored.subscriptionStatus, "active");
+  assert.equal(stored.trialEndedAt, Date.parse(approvedAt));
+  assert.equal(stored.proSince, Date.parse(approvedAt));
+  assert.equal(stored.lastPaymentAt, Date.parse(approvedAt));
+  assert.equal(stored.currentPeriodEnd, Date.parse("2026-08-17T10:20:30.000Z"));
+});
+
+test("무료 체험 중 최초 결제가 실패하면 체험 기간과 Free 기반 권한을 그대로 유지한다", async () => {
+  const env = testEnv({
+    ALLOW_DEV_LOGIN: "true",
+    TOSS_CLIENT_KEY: TEST_TOSS_CLIENT_KEY,
+    TOSS_SECRET_KEY: TEST_TOSS_SECRET_KEY,
+    PAYMENTS_ENABLED: "true",
+  });
+  const store = memoryStore();
+  const login = await handleAccountApi(context({ path: "/api/auth/dev-login", method: "POST", env, store, body: { provider: "google", name: "무료체험결제실패회원" } }));
+  const cookie = login.cookies[0];
+  const config = await handleAccountApi(context({ path: "/api/billing/config", env, store, cookie }));
+  const user = await store.getUser(login.json.user.id);
+  const trialStartedAt = Date.now() - 60 * 60 * 1000;
+  const trialExpiresAt = trialStartedAt + 24 * 60 * 60 * 1000;
+  Object.assign(user, { plan: "trial", trialStartedAt, trialExpiresAt, trialUsedAt: trialStartedAt, trialEndedAt: null });
+  await store.putUser(user);
+  const fetcher = async (url, options = {}) => {
+    if (url.includes("/authorizations/issue")) return Response.json({ billingKey: "billing-key", customerKey: config.json.customerKey });
+    if (url.includes("/v1/billing/")) {
+      const orderId = JSON.parse(options.body || "{}").orderId;
+      return Response.json({ status: "DONE", type: "BILLING", totalAmount: 1, currency: "KRW", customerKey: config.json.customerKey, paymentKey: "payment-key", orderId });
+    }
+    return Response.json({ status: "FAILED" });
+  };
+
+  await assert.rejects(
+    handleAccountApi(context({ path: "/api/billing/activate", method: "POST", env, store, cookie, fetcher, body: { authKey: "trial-payment-failure", customerKey: config.json.customerKey } })),
+    (error) => error.code === "PAYMENT_AMOUNT_MISMATCH",
+  );
+
+  const stored = await store.getUser(login.json.user.id);
+  assert.equal(stored.plan, "trial");
+  assert.equal(stored.subscriptionStatus, "payment_failed");
+  assert.equal(stored.trialExpiresAt, trialExpiresAt);
+  assert.equal(stored.trialEndedAt, null);
+  assert.equal(stored.proSince || null, null);
 });
 
 test("첫 결제 응답이 유실돼도 주문 조회로 복구하고 다시 청구하지 않는다", async () => {
   const env = testEnv({
     ALLOW_DEV_LOGIN: "true",
-    TOSS_CLIENT_KEY: "test_ck",
-    TOSS_SECRET_KEY: "test_sk",
+    TOSS_CLIENT_KEY: TEST_TOSS_CLIENT_KEY,
+    TOSS_SECRET_KEY: TEST_TOSS_SECRET_KEY,
     PAYMENTS_ENABLED: "true",
   });
   const store = memoryStore();
@@ -864,14 +1172,16 @@ test("첫 결제 응답이 유실돼도 주문 조회로 복구하고 다시 청
   const cookie = login.cookies[0];
   const config = await handleAccountApi(context({ path: "/api/billing/config", env, store, cookie }));
   let charges = 0;
+  const idempotencyKeys = [];
   const fetcher = async (url, options) => {
     if (url.includes("/authorizations/issue")) return Response.json({ billingKey: "billing-key" });
     if (url.includes("/v1/billing/")) {
       charges += 1;
+      idempotencyKeys.push(options.headers["Idempotency-Key"]);
       return Response.json({ code: "TEMPORARY_ERROR", message: "timeout" }, { status: 500 });
     }
     const orderId = decodeURIComponent(url.split("/").at(-1));
-    return Response.json({ status: "DONE", paymentKey: "payment-key", orderId });
+    return Response.json({ status: "DONE", type: "BILLING", totalAmount: 4900, currency: "KRW", customerKey: config.json.customerKey, paymentKey: "payment-key", orderId });
   };
   const activated = await handleAccountApi(context({
     path: "/api/billing/activate",
@@ -886,7 +1196,98 @@ test("첫 결제 응답이 유실돼도 주문 조회로 복구하고 다시 청
   assert.equal(activated.json.recovered, true);
   assert.equal(activated.json.user.plan, "pro");
   assert.equal(charges, 1);
+  assert.equal(idempotencyKeys.length, 1);
+  assert.match(idempotencyKeys[0], /^idem_[a-f0-9]{36}$/);
   assert.equal((await store.getUser(login.json.user.id)).pendingOrderId, null);
+});
+
+test("성공한 최초 주문을 같은 logical request로 다시 호출해도 Toss를 재호출하지 않는다", async () => {
+  const env = testEnv({ ALLOW_DEV_LOGIN: "true", TOSS_CLIENT_KEY: TEST_TOSS_CLIENT_KEY, TOSS_SECRET_KEY: TEST_TOSS_SECRET_KEY, PAYMENTS_ENABLED: "true" });
+  const store = memoryStore();
+  const login = await handleAccountApi(context({ path: "/api/auth/dev-login", method: "POST", env, store, body: { provider: "google", name: "중복회원" } }));
+  const cookie = login.cookies[0];
+  const config = await handleAccountApi(context({ path: "/api/billing/config", env, store, cookie }));
+  let chargeCalls = 0;
+  const fetcher = async (url, options = {}) => {
+    if (url.includes("/authorizations/issue")) return Response.json({ billingKey: "billing-key" });
+    if (url.includes("/v1/billing/")) {
+      chargeCalls += 1;
+      return Response.json({ status: "DONE", type: "BILLING", totalAmount: 4900, currency: "KRW", customerKey: config.json.customerKey, paymentKey: "payment-key", orderId: JSON.parse(options.body || "{}").orderId });
+    }
+    throw new Error("unexpected payment lookup");
+  };
+  const body = { authKey: "same-auth-key", customerKey: config.json.customerKey };
+  const first = await handleAccountApi(context({ path: "/api/billing/activate", method: "POST", env, store, cookie, fetcher, body }));
+  assert.equal(first.status, 200);
+  const user = await store.getUser(login.json.user.id);
+  user.plan = "free";
+  user.subscriptionStatus = "canceled";
+  await store.putUser(user);
+  const second = await handleAccountApi(context({ path: "/api/billing/activate", method: "POST", env, store, cookie, fetcher, body }));
+  assert.equal(second.status, 200);
+  assert.equal(second.json.recovered, true);
+  assert.equal(chargeCalls, 1);
+});
+
+test("최초 승인 금액이 서버 정책과 다르면 Pro를 부여하지 않고 주문을 실패 처리한다", async () => {
+  const env = testEnv({ ALLOW_DEV_LOGIN: "true", TOSS_CLIENT_KEY: TEST_TOSS_CLIENT_KEY, TOSS_SECRET_KEY: TEST_TOSS_SECRET_KEY, PAYMENTS_ENABLED: "true" });
+  const store = memoryStore();
+  const login = await handleAccountApi(context({ path: "/api/auth/dev-login", method: "POST", env, store, body: { provider: "google", name: "금액검증회원" } }));
+  const cookie = login.cookies[0];
+  const config = await handleAccountApi(context({ path: "/api/billing/config", env, store, cookie }));
+  const fetcher = async (url, options = {}) => {
+    if (url.includes("/authorizations/issue")) return Response.json({ billingKey: "billing-key" });
+    const orderId = url.includes("/v1/billing/") ? JSON.parse(options.body || "{}").orderId : decodeURIComponent(url.split("/").at(-1));
+    return Response.json({ status: "DONE", type: "BILLING", totalAmount: 1, currency: "KRW", customerKey: config.json.customerKey, paymentKey: "payment-key", orderId });
+  };
+  await assert.rejects(
+    handleAccountApi(context({ path: "/api/billing/activate", method: "POST", env, store, cookie, fetcher, body: { authKey: "bad-amount-auth", customerKey: config.json.customerKey, amount: 1, plan: "pro" } })),
+    (error) => error.code === "PAYMENT_AMOUNT_MISMATCH",
+  );
+  assert.equal((await store.getUser(login.json.user.id)).plan, "free");
+  assert.equal(JSON.stringify(env.BILLING_DB).includes("billing-key"), false);
+});
+
+test("billing key customerKey 불일치는 Pro를 부여하지 않는다", async () => {
+  const env = testEnv({ ALLOW_DEV_LOGIN: "true", TOSS_CLIENT_KEY: TEST_TOSS_CLIENT_KEY, TOSS_SECRET_KEY: TEST_TOSS_SECRET_KEY, PAYMENTS_ENABLED: "true" });
+  const store = memoryStore();
+  const login = await handleAccountApi(context({ path: "/api/auth/dev-login", method: "POST", env, store, body: { provider: "google", name: "customerKey검증회원" } }));
+  const cookie = login.cookies[0];
+  const config = await handleAccountApi(context({ path: "/api/billing/config", env, store, cookie }));
+  const fetcher = async (url) => {
+    if (url.includes("/authorizations/issue")) return Response.json({ billingKey: "billing-key", customerKey: "other-customer" });
+    throw new Error("order lookup unavailable");
+  };
+  await assert.rejects(
+    handleAccountApi(context({ path: "/api/billing/activate", method: "POST", env, store, cookie, fetcher, body: { authKey: "mismatched-customer-auth", customerKey: config.json.customerKey } })),
+    (error) => error.code === "BILLING_CUSTOMER_MISMATCH" && error.message === "빌링키의 customerKey가 현재 사용자와 일치하지 않습니다.",
+  );
+  assert.equal((await store.getUser(login.json.user.id)).plan, "free");
+});
+
+test("결과가 불명확한 최초 승인은 같은 원장 주문을 유지하고 새 청구를 만들지 않는다", async () => {
+  const env = testEnv({ ALLOW_DEV_LOGIN: "true", TOSS_CLIENT_KEY: TEST_TOSS_CLIENT_KEY, TOSS_SECRET_KEY: TEST_TOSS_SECRET_KEY, PAYMENTS_ENABLED: "true" });
+  const store = memoryStore();
+  const login = await handleAccountApi(context({ path: "/api/auth/dev-login", method: "POST", env, store, body: { provider: "google", name: "불명확회원" } }));
+  const cookie = login.cookies[0];
+  const config = await handleAccountApi(context({ path: "/api/billing/config", env, store, cookie }));
+  let chargeCalls = 0;
+  const fetcher = async (url) => {
+    if (url.includes("/authorizations/issue")) return Response.json({ billingKey: "billing-key" });
+    if (url.includes("/v1/billing/")) {
+      chargeCalls += 1;
+      throw new Error("timeout");
+    }
+    throw new Error("order lookup unavailable");
+  };
+  const body = { authKey: "unknown-auth", customerKey: config.json.customerKey };
+  const first = await handleAccountApi(context({ path: "/api/billing/activate", method: "POST", env, store, cookie, fetcher, body }));
+  const second = await handleAccountApi(context({ path: "/api/billing/activate", method: "POST", env, store, cookie, fetcher, body }));
+  assert.equal(first.status, 409);
+  assert.equal(second.status, 409);
+  assert.equal(first.json.code, "PAYMENT_RESULT_UNKNOWN");
+  assert.equal(second.json.code, "PAYMENT_RESULT_UNKNOWN");
+  assert.equal(chargeCalls, 1);
 });
 
 test("갱신 실패는 같은 주문으로 하루 간격 재시도하고 세 번째 실패 후 중단한다", async () => {
@@ -900,7 +1301,7 @@ test("갱신 실패는 같은 주문으로 하루 간격 재시도하고 세 번
     customerKey: "customer-key",
   };
   const store = memoryStore([user]);
-  const env = testEnv({ TOSS_CLIENT_KEY: "test_ck", TOSS_SECRET_KEY: "test_sk", PAYMENTS_ENABLED: "true" });
+  const env = testEnv({ TOSS_CLIENT_KEY: TEST_TOSS_CLIENT_KEY, TOSS_SECRET_KEY: TEST_TOSS_SECRET_KEY, PAYMENTS_ENABLED: "true" });
   const orderIds = [];
   const fetcher = async (url, options) => {
     if (url.includes("/v1/billing/")) orderIds.push(JSON.parse(options.body).orderId);
@@ -920,7 +1321,7 @@ test("갱신 실패는 같은 주문으로 하루 간격 재시도하고 세 번
 });
 
 test("결제사 해지를 확인하지 못하면 빌링키와 구독 상태를 보존한다", async () => {
-  const env = testEnv({ ALLOW_DEV_LOGIN: "true", TOSS_CLIENT_KEY: "test_ck", TOSS_SECRET_KEY: "test_sk" });
+  const env = testEnv({ ALLOW_DEV_LOGIN: "true", TOSS_CLIENT_KEY: TEST_TOSS_CLIENT_KEY, TOSS_SECRET_KEY: TEST_TOSS_SECRET_KEY });
   const store = memoryStore();
   const login = await handleAccountApi(context({ path: "/api/auth/dev-login", method: "POST", env, store, body: { provider: "google", name: "해지회원" } }));
   const user = await store.getUser(login.json.user.id);
@@ -1042,7 +1443,7 @@ test("무료 회원 탈퇴는 모든 인증 연결과 세션을 제거하고 최
 });
 
 test("결제 회원 탈퇴는 결제를 먼저 해지하고 법정 기록에서 billingKey를 제외한다", async () => {
-  const env = testEnv({ ALLOW_DEV_LOGIN: "true", TOSS_CLIENT_KEY: "test_ck", TOSS_SECRET_KEY: "test_sk" });
+  const env = testEnv({ ALLOW_DEV_LOGIN: "true", TOSS_CLIENT_KEY: TEST_TOSS_CLIENT_KEY, TOSS_SECRET_KEY: TEST_TOSS_SECRET_KEY });
   const store = memoryStore();
   const retained = [];
   const legalStore = { async put(record, retainedUntil) { retained.push({ record, retainedUntil }); } };
@@ -1063,7 +1464,7 @@ test("결제 회원 탈퇴는 결제를 먼저 해지하고 법정 기록에서 
 });
 
 test("결제 해지 실패 시 회원 정보와 로그인은 유지된다", async () => {
-  const env = testEnv({ ALLOW_DEV_LOGIN: "true", TOSS_CLIENT_KEY: "test_ck", TOSS_SECRET_KEY: "test_sk" });
+  const env = testEnv({ ALLOW_DEV_LOGIN: "true", TOSS_CLIENT_KEY: TEST_TOSS_CLIENT_KEY, TOSS_SECRET_KEY: TEST_TOSS_SECRET_KEY });
   const store = memoryStore();
   const login = await handleAccountApi(context({ path: "/api/auth/dev-login", method: "POST", env, store, body: { provider: "google", name: "결제회원" } }));
   const user = await store.getUser(login.json.user.id);

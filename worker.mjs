@@ -15,6 +15,7 @@ import {
   createKvStore,
   createLegalRetentionStore,
   currentSessionUser,
+  billingStatus,
   renewDueSubscriptions,
   purgeDueAccountDeletions,
 } from "./auth-service.mjs";
@@ -349,14 +350,14 @@ async function handleFetch(request, env) {
     };
 
     if (url.pathname === "/api/health" && request.method === "GET") {
-      const billingConfigured = Boolean(env.TOSS_CLIENT_KEY && env.TOSS_SECRET_KEY);
+      const billing = billingStatus(env);
       return json({
         ok: Boolean(env.USERS_KV),
         environment: String(env.APP_ENV || "unknown"),
         services: {
           accountStorage: Boolean(env.USERS_KV),
           ai: Boolean(env.OPENAI_API_KEY),
-          payments: billingConfigured && String(env.PAYMENTS_ENABLED || "").toLowerCase() === "true",
+          payments: billing.enabled,
         },
       }, env.USERS_KV ? 200 : 503);
     }

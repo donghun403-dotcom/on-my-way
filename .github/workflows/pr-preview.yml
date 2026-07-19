@@ -48,6 +48,37 @@ jobs:
       - name: Run Playwright against the CI server
         run: npm run test:e2e -- --reporter=line
 
+      - name: Generate Preview Wrangler config
+        shell: bash
+        env:
+          CLOUDFLARE_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_DATABASE_ID }}
+        run: |
+          test -n "${CLOUDFLARE_D1_DATABASE_ID:-}"
+          test "$CLOUDFLARE_D1_DATABASE_ID" != "null"
+          echo "::add-mask::$CLOUDFLARE_D1_DATABASE_ID"
+
+          generated_config="$GITHUB_WORKSPACE/wrangler.preview.generated.jsonc"
+
+          jq --arg database_id "$CLOUDFLARE_D1_DATABASE_ID" '
+            .d1_databases = [{
+              "binding": "BILLING_DB",
+              "database_name": "on-my-way-billing-preview",
+              "database_id": $database_id,
+              "migrations_dir": "migrations"
+            }] |
+            .assets.exclude = ((.assets.exclude // []) + ["wrangler.preview.generated.jsonc"])
+          ' wrangler.preview.jsonc > "$generated_config"
+
+          test -s "$generated_config"
+
+          jq -e '
+            (.d1_databases | length == 1) and
+            (.d1_databases[0].binding == "BILLING_DB") and
+            (.d1_databases[0].database_name == "on-my-way-billing-preview") and
+            (.d1_databases[0].database_id | type == "string") and
+            (.d1_databases[0].database_id | length > 0)
+          ' "$generated_config" > /dev/null
+
       - name: Deploy the Cloudflare PR preview
         id: deploy
         uses: cloudflare/wrangler-action@v3
@@ -55,7 +86,7 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           wranglerVersion: "4.81.0"
-          command: deploy --config wrangler.preview.jsonc --name on-my-way-pr-${{ github.event.pull_request.number || 'manual' }}
+          command: deploy --config wrangler.preview.generated.jsonc --name on-my-way-pr-${{ github.event.pull_request.number || 'manual' }}
 
       - name: Require a preview deployment URL
         env:
@@ -140,3 +171,8 @@ jobs:
             playwright-report/
           if-no-files-found: ignore
           retention-days: 7
+
+      - name: Remove generated Preview config
+        if: always()
+        shell: bash
+        run: rm -f "$GITHUB_WORKSPACE/wrangler.preview.generated.jsonc"

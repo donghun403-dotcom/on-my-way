@@ -1,0 +1,23 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "on-my-way-staging",
+  "main": "./worker.mjs",
+  "compatibility_date": "2026-07-11",
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {
+    "directory": ".",
+    "binding": "ASSETS",
+    "run_worker_first": true,
+    "html_handling": "none",
+    "not_found_handling": "single-page-application"
+  },
+  "vars": {
+    "OPENAI_MODEL": "gpt-5.4-mini",
+    "APP_ENV": "staging",
+    "APPLE_LOGIN_VISIBLE": "false",
+    "ALLOW_DEV_LOGIN": "false",
+    "ALLOW_DEMO_BILLING": "false",
+    "PAYMENTS_ENABLED": "false"
+  }
+}

@@ -16,15 +16,6 @@
   --small-shadow: 0 14px 34px rgba(91, 106, 151, 0.12);
 }
 
-/* 여기어때 잘난체 — 단일 굵기 폰트라 모든 weight(100–900)에 매핑 */
-@font-face {
-  font-family: "Jalnan";
-  src: url("https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_four@1.2/JalnanOTF00.woff") format("woff");
-  font-display: swap;
-  font-style: normal;
-  font-weight: 100 900;
-}
-
 * {
   box-sizing: border-box;
 }
@@ -9830,6 +9821,65 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   color: #8a91a0;
   font-size: 10px;
   line-height: 1.5;
+}
+
+.billing-confirm-dialog {
+  width: min(calc(100% - 32px), 430px);
+  padding: 0;
+  color: #374159;
+  background: transparent;
+  border: 0;
+}
+
+.billing-confirm-dialog::backdrop {
+  background: rgba(42, 49, 69, 0.58);
+  backdrop-filter: blur(10px);
+}
+
+.billing-confirm-card {
+  display: grid;
+  gap: 13px;
+  padding: 26px;
+  background: #ffffff;
+  border: 1px solid rgba(91, 106, 151, 0.16);
+  border-radius: 24px;
+  box-shadow: 0 34px 80px rgba(34, 42, 62, 0.3);
+  text-align: center;
+}
+
+.billing-confirm-card > span {
+  color: #7d9d9b;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.billing-confirm-card h2,
+.billing-confirm-card p {
+  margin: 0;
+}
+
+.billing-confirm-card h2 {
+  font-size: 23px;
+  line-height: 1.35;
+}
+
+.billing-confirm-card p {
+  color: #737b8b;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.billing-confirm-actions {
+  display: grid;
+  gap: 9px;
+  margin-top: 5px;
+}
+
+.billing-confirm-actions button {
+  min-height: 48px;
+  border-radius: 14px;
+  font-weight: 900;
 }
 
 .trial-locked {

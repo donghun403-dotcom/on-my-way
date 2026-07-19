@@ -75,7 +75,7 @@
       </div>
       <nav class="drawer-nav" aria-label="계정 이동">
         <button type="button" id="drawerMyPage" data-requires-auth hidden>👤 마이페이지</button>
-        <button type="button" id="drawerUpgrade" hidden>⭐ Pro 출시 준비 중</button>
+        <button type="button" id="drawerUpgrade" hidden>⭐ Pro 결제 준비 중</button>
         <button type="button" id="drawerPersonality">🧭 성향 설정</button>
         <a href="index.html">🏠 홈으로</a>
         <a href="index.html#designFlow">🛠 목표 설계 수정</a>
@@ -124,8 +124,8 @@
         <div class="admin-password-control"><input id="adminAccessPassword" type="password" autocomplete="current-password" required /><button type="submit">관리자 페이지 열기</button></div>
         <p id="adminPasswordError" role="alert"></p>
       </form>
-      <div class="auth-trust-list" aria-label="로그인 안내"><span>Free 계속 무료</span><span>24시간 Pro 체험</span><span>자동 결제 없음</span></div>
-      <p class="auth-sheet-terms">계속하면 <a href="/terms" target="_blank" rel="noopener">서비스 이용약관</a>과 <a href="/privacy" target="_blank" rel="noopener">개인정보 처리방침</a>에 동의하게 됩니다.<br />로그인하면 Free 플랜으로 시작하고, 원할 때 한 번만 Pro 체험을 시작할 수 있어요.</p>
+      <div class="auth-trust-list" aria-label="로그인 안내"><span>Free 계속 무료</span><span>24시간 무료 체험</span><span>자동 결제 없음</span></div>
+      <p class="auth-sheet-terms">계속하면 <a href="/terms" target="_blank" rel="noopener">서비스 이용약관</a>과 <a href="/privacy" target="_blank" rel="noopener">개인정보 처리방침</a>에 동의하게 됩니다.<br />로그인하면 Free 플랜으로 시작하고, 원할 때 한 번만 무료 체험을 시작할 수 있어요.</p>
     </aside>
 
     <aside class="companion-chat-sheet account-sheet" id="myPageSheet" role="dialog" aria-modal="true" aria-labelledby="myPageTitle" tabindex="-1" hidden>
@@ -147,7 +147,7 @@
           <strong id="myPagePlanTitle">플랜 확인 중</strong>
           <p id="myPagePlanMeta">서버에서 이용권 정보를 불러오고 있어요.</p>
         </div>
-        <button type="button" id="myPageSubscribe">Pro 출시 준비 중<em>월 요금 확인 중</em></button>
+        <button type="button" id="myPageSubscribe">Pro 결제 준비 중<em>월 요금 확인 중</em></button>
       </div>
       <section class="mypage-usage-card" id="myPageUsageCard" aria-labelledby="myPageUsageTitle" aria-busy="true">
         <div class="mypage-usage-heading">
@@ -200,7 +200,7 @@
         </label>
       </div>
       <button class="focus-start-button" id="savePersonalityButton" type="button">저장하기</button>
-      <p class="auth-sheet-terms">저장하면 다음 계획 조정과 올리의 코칭부터 반영돼요. Free는 목표와 활성 계획을 1개까지, Pro와 Pro 체험은 개수 제한 없이 이용할 수 있어요.</p>
+      <p class="auth-sheet-terms">저장하면 다음 계획 조정과 올리의 코칭부터 반영돼요. Free는 목표와 활성 계획을 1개까지 이용하고, Pro 기능은 유료 Pro 또는 무료 체험 중에 제한 없이 이용할 수 있어요.</p>
     </aside>
 
     <div class="ollie-energy-warning" id="ollieEnergyWarning" role="status" aria-live="polite" hidden>
@@ -210,7 +210,7 @@
     </div>
 
     <div class="trial-status-banner" id="trialStatusBanner" role="status" hidden>
-      <span>24시간 Pro 체험 중</span>
+      <span>무료 체험 중</span>
       <strong id="trialTimeRemaining">종료 시각 확인 중</strong>
       <a href="index.html#pricing">플랜 비교</a>
     </div>
@@ -736,7 +736,7 @@
               <div class="memory-list" id="memoryList"></div>
               <div class="memory-pattern-panel" id="memoryPatternPanel" data-plan-feature="detailedInsights">
                 <div class="memory-pattern-head"><span>OLLIE'S INSIGHT</span><h3>올리가 발견한 성공 단서</h3><p>기록이 쌓일수록 계획을 더 정확하게 조정할 수 있어요.</p></div>
-                <p class="plan-feature-lock" id="memoryPatternLock" role="status" hidden>상세 기록·통계는 Pro 또는 Pro 체험에서 확인할 수 있어요. 기본 기록은 계속 저장됩니다.</p>
+                <p class="plan-feature-lock" id="memoryPatternLock" role="status" hidden>상세 기록·통계는 Pro 또는 무료 체험 중에 확인할 수 있어요. 기본 기록은 계속 저장됩니다.</p>
                 <div class="pattern-list" id="patternList" aria-label="올리가 발견한 패턴"></div>
               </div>
             </div>
@@ -881,15 +881,27 @@
     <section class="trial-paywall" id="trialPaywall" role="dialog" aria-modal="true" aria-labelledby="trialPaywallTitle" tabindex="-1" hidden>
       <div class="trial-paywall-card">
         <img src="assets/ollie-comfort.png" alt="" aria-hidden="true" />
-        <span id="trialPaywallKicker">Pro 체험 안내</span>
+        <span id="trialPaywallKicker">무료 체험 안내</span>
         <h2 id="trialPaywallTitle">Free 플랜으로 계속 이용할 수 있어요</h2>
-        <p id="trialPaywallCopy">로그인하면 Free 플랜이 유지되고, 원할 때 사용자당 한 번 24시간 Pro 체험을 시작할 수 있어요.</p>
+        <p id="trialPaywallCopy">로그인하면 Free 플랜이 유지되고, 원할 때 사용자당 한 번 24시간 무료 체험을 시작할 수 있어요.</p>
         <div class="trial-paywall-price"><small>Pro 정식 가격</small><strong id="trialPaywallPrice">월 요금 확인 중</strong></div>
         <ul><li>체험용 AI 크레딧 제공</li><li>전체 일정 재조정과 회복 계획</li><li>종료 후 Free로 자동 전환</li></ul>
         <a id="trialPaywallAction" href="index.html#pricing">플랜 비교 보기</a>
         <small>결제수단 등록과 자동 결제 없이 체험할 수 있어요.</small>
       </div>
     </section>
+
+    <dialog class="billing-confirm-dialog" id="billingConfirmDialog" aria-labelledby="billingConfirmTitle">
+      <form method="dialog" class="billing-confirm-card">
+        <span>Pro 정기결제</span>
+        <h2 id="billingConfirmTitle">월 4,900원으로 Pro를 시작할까요?</h2>
+        <p>결제가 승인되면 남은 무료 체험은 종료되고 유료 Pro가 바로 시작돼요.</p>
+        <div class="billing-confirm-actions">
+          <button class="primary" id="billingConfirmButton" type="submit" value="confirm">4,900원 결제하고 Pro 시작</button>
+          <button id="billingContinueTrialButton" type="submit" value="cancel">체험 계속하기</button>
+        </div>
+      </form>
+    </dialog>
 
     <script src="script.js"></script>
     <script>

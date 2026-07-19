@@ -1,5 +1,5 @@
 const { test, expect } = require("@playwright/test");
-const { createUsageResponse, mockAccountExperience, monitorPage } = require("./helpers");
+const { createUsageResponse, mockAccountExperience, monitorPage, waitForAppReady, waitForBootstrap } = require("./helpers");
 
 test.setTimeout(90_000);
 
@@ -48,9 +48,10 @@ test("첫 진입부터 목표 생성과 새로고침까지 이어진다", async 
     });
   });
   await page.goto("/index.html");
+  await waitForBootstrap(page);
 
-  await expect(page.getByRole("link", { name: "내 목표로 24시간 Pro 체험 시작하기" })).toBeVisible();
-  await page.getByRole("link", { name: "내 목표로 24시간 Pro 체험 시작하기" }).click();
+  await expect(page.getByRole("link", { name: "내 목표로 24시간 무료 체험 시작하기" })).toBeVisible();
+  await page.getByRole("link", { name: "내 목표로 24시간 무료 체험 시작하기" }).click();
   await expect(page.locator("#designFlow")).toBeVisible();
 
   await page.locator("#designGoal").fill("   ");
@@ -66,8 +67,18 @@ test("첫 진입부터 목표 생성과 새로고침까지 이어진다", async 
   await page.locator("#diagnosisBackButton").click();
   await expect(page.locator("#diagnosisStepCount")).toHaveText("1 / 3");
   await page.locator("#diagnosisNextButton").click();
+  await expect(page.locator("#diagnosisStepCount")).toHaveText("2 / 3");
   await page.locator("#diagnosisNextButton").click();
-  await page.locator("#aiPreviewButton").click();
+  await expect(page.locator("#diagnosisStepCount")).toHaveText("3 / 3");
+  const aiPreviewButton = page.locator("#aiPreviewButton");
+  await expect(aiPreviewButton).toBeVisible();
+  const goalPlanLoaded = page.waitForResponse((response) =>
+    response.request().method() === "POST" && new URL(response.url()).pathname === "/api/ai/goal-plan" && response.status() === 200,
+  );
+  await Promise.all([
+    goalPlanLoaded.then((response) => response.finished()),
+    aiPreviewButton.press("Enter"),
+  ]);
 
   await expect(page.locator("#firstStep")).toHaveClass(/is-ready/, { timeout: 10_000 });
   await expect(page.locator("#aiPreviewStatus")).toHaveText("올리가 AI로 만든 맞춤 계획");
@@ -80,8 +91,15 @@ test("첫 진입부터 목표 생성과 새로고침까지 이어진다", async 
   await expect(planDetails).toHaveAttribute("open", "");
   await expect(planDetails.locator(".result-details-content")).toBeVisible();
   await expect(planDetails.locator("summary > b")).toHaveText("접기");
-  await page.locator("#trialStartInlineLink").click();
-  await expect(page).toHaveURL(/app\.html/);
+  const trialStarted = page.waitForResponse((response) =>
+    response.request().method() === "POST" && new URL(response.url()).pathname === "/api/ai/trial/start" && response.status() === 200,
+  );
+  await Promise.all([
+    page.waitForURL(/app\.html/, { waitUntil: "commit" }),
+    trialStarted.then((response) => response.finished()),
+    page.locator("#trialStartInlineLink").press("Enter"),
+  ]);
+  await waitForAppReady(page);
   await expect(page.locator("#view-today")).toBeVisible();
   await expect(page.locator("#ollieEnergyBalance")).toHaveText("11 / 15");
   await page.reload();
