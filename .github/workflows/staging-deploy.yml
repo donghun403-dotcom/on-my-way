@@ -1,14 +1,14 @@
-name: Staging Toss Reconcile Once
+name: Staging Toss Repair Once
 
 on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "Reviewed PR #10 commit to inspect"
+        description: "Reviewed PR #10 commit containing the repair logic"
         required: true
         type: string
       confirmation:
-        description: "Exact confirmation for one read-only reconciliation"
+        description: "Exact confirmation for one externally approved payment repair"
         required: true
         type: string
 
@@ -20,33 +20,33 @@ permissions:
   contents: read
 
 jobs:
-  reconcile:
+  repair:
     runs-on: ubuntu-latest
     timeout-minutes: 12
     environment: staging
     steps:
-      - name: Refuse unsafe reconciliation request
+      - name: Refuse unsafe repair request
         shell: bash
         env:
-          INSPECT_REF: ${{ inputs.ref }}
+          REPAIR_REF: ${{ inputs.ref }}
           CONFIRMATION: ${{ inputs.confirmation }}
           WORKFLOW_REF: ${{ github.ref }}
         run: |
           set -euo pipefail
-          expected_ref="8327e17e0626b1a336bc222f4c3f104dbe68b128"
-          expected_workflow_ref="refs/heads/ci/staging-toss-reconcile-once"
-          expected_confirmation="READ_ONLY_RECONCILE_FAILED_ORDER_ONCE"
+          expected_ref="6c3e38788edc58771dfa52b13e425de122c8ff46"
+          expected_workflow_ref="refs/heads/ci/staging-toss-repair-once"
+          expected_confirmation="REPAIR_EXTERNALLY_APPROVED_ORDER_ONCE"
 
-          [[ "$INSPECT_REF" == "$expected_ref" ]] || {
-            echo "Reconciliation requires the reviewed PR #10 commit"
+          [[ "$REPAIR_REF" == "$expected_ref" ]] || {
+            echo "Repair requires the reviewed PR #10 commit"
             exit 1
           }
           [[ "$WORKFLOW_REF" == "$expected_workflow_ref" ]] || {
-            echo "Reconciliation must run from its isolated temporary branch"
+            echo "Repair must run from its isolated temporary branch"
             exit 1
           }
           [[ "$CONFIRMATION" == "$expected_confirmation" ]] || {
-            echo "Read-only reconciliation confirmation did not match"
+            echo "Externally approved payment repair confirmation did not match"
             exit 1
           }
 
@@ -55,17 +55,18 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
 
-      - name: Validate read-only Staging credentials
+      - name: Validate isolated Staging repair credentials
         shell: bash
         env:
           TOSS_SECRET_KEY: ${{ secrets.TOSS_SECRET_KEY }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           STAGING_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_STAGING_D1_DATABASE_ID }}
+          STAGING_USERS_KV_ID: ${{ secrets.CLOUDFLARE_STAGING_USERS_KV_ID }}
         run: |
           set -euo pipefail
           missing=()
-          for secret_name in TOSS_SECRET_KEY CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID STAGING_D1_DATABASE_ID; do
+          for secret_name in TOSS_SECRET_KEY CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID STAGING_D1_DATABASE_ID STAGING_USERS_KV_ID; do
             value="${!secret_name:-}"
             if [[ -z "$value" ]]; then
               missing+=("$secret_name")
@@ -83,325 +84,433 @@ jobs:
           }
           echo "tossTestSecret=true"
 
-      - name: Generate read-only Staging Wrangler config
+      - name: Verify disabled Staging boundary before repair
         shell: bash
         env:
-          STAGING_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_STAGING_D1_DATABASE_ID }}
-          GENERATED_CONFIG: ${{ runner.temp }}/wrangler.staging.reconcile.jsonc
-        run: |
-          set -euo pipefail
-          echo "::add-mask::$STAGING_D1_DATABASE_ID"
-          jq -e '
-            (.name == "on-my-way-staging") and
-            (.workers_dev == true) and
-            ((.routes // []) | length == 0) and
-            (.vars.APP_ENV == "staging") and
-            (.vars.PAYMENTS_ENABLED == "false")
-          ' wrangler.staging.jsonc > /dev/null
-
-          jq --arg d1_id "$STAGING_D1_DATABASE_ID" '
-            .d1_databases = [{
-              "binding":"BILLING_DB",
-              "database_name":"on-my-way-billing-staging",
-              "database_id":$d1_id,
-              "migrations_dir":"migrations"
-            }] |
-            .vars.PAYMENTS_ENABLED = "false"
-          ' wrangler.staging.jsonc > "$GENERATED_CONFIG"
-
-          jq -e '
-            (.name == "on-my-way-staging") and
-            ((.routes // []) | length == 0) and
-            (.vars.APP_ENV == "staging") and
-            (.vars.PAYMENTS_ENABLED == "false") and
-            (.d1_databases | length == 1) and
-            (.d1_databases[0].binding == "BILLING_DB") and
-            (.d1_databases[0].database_name == "on-my-way-billing-staging")
-          ' "$GENERATED_CONFIG" > /dev/null
-
-      - name: Verify disabled environment boundaries before reconciliation
-        shell: bash
-        env:
-          STAGING_HEALTH_FILE: ${{ runner.temp }}/staging-health-before.json
-          PRODUCTION_HEALTH_FILE: ${{ runner.temp }}/production-health-before.json
+          STAGING_HEALTH_FILE: ${{ runner.temp }}/staging-repair-health-before.json
         run: |
           set -euo pipefail
           curl --fail --silent --show-error --max-time 30 \
             --output "$STAGING_HEALTH_FILE" \
             "https://on-my-way-staging.jungslawyer.workers.dev/api/health"
-          curl --fail --silent --show-error --max-time 30 \
-            --output "$PRODUCTION_HEALTH_FILE" \
-            "https://onmyway.olivenrich.com/api/health"
           node <<'NODE'
           const fs = require("node:fs");
-          const staging = JSON.parse(fs.readFileSync(process.env.STAGING_HEALTH_FILE, "utf8"));
-          const production = JSON.parse(fs.readFileSync(process.env.PRODUCTION_HEALTH_FILE, "utf8"));
-          if (staging.environment !== "staging") throw new Error("Staging environment boundary is invalid");
-          if (staging.services?.accountStorage !== true) throw new Error("Staging account storage is unavailable");
-          if (staging.services?.payments !== false) throw new Error("Staging payments must remain disabled");
-          if (production.services?.payments !== false) throw new Error("Production payments must remain disabled");
+          const health = JSON.parse(fs.readFileSync(process.env.STAGING_HEALTH_FILE, "utf8"));
+          if (health.environment !== "staging") throw new Error("Staging environment boundary is invalid");
+          if (health.services?.accountStorage !== true) throw new Error("Staging account storage is unavailable");
+          if (health.services?.payments !== false) throw new Error("Staging payments must remain disabled");
           console.log("environment=staging");
           console.log("accountStorage=true");
-          console.log("stagingPayments=false");
-          console.log("productionPayments=false");
+          console.log("payments=false");
           NODE
 
-      - name: Select the single failed Staging order without mutation
-        shell: bash
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          STAGING_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_STAGING_D1_DATABASE_ID }}
-          GENERATED_CONFIG: ${{ runner.temp }}/wrangler.staging.reconcile.jsonc
-          D1_QUERY_FILE: ${{ runner.temp }}/staging-order-selection.raw.json
-          SELECTION_FILE: ${{ runner.temp }}/staging-order-selection.internal.json
-          BASELINE_FILE: ${{ runner.temp }}/staging-ledger-baseline.safe.json
-        run: |
-          set -euo pipefail
-          echo "::add-mask::$CLOUDFLARE_API_TOKEN"
-          echo "::add-mask::$CLOUDFLARE_ACCOUNT_ID"
-          echo "::add-mask::$STAGING_D1_DATABASE_ID"
-
-          npx --yes wrangler@4.81.0 d1 execute on-my-way-billing-staging \
-            --remote \
-            --config "$GENERATED_CONFIG" \
-            --command "SELECT o.order_id, o.customer_key, o.user_id, (SELECT COUNT(*) FROM billing_orders WHERE status = 'failed' AND purpose = 'initial_subscription' AND amount = 4900 AND currency = 'KRW' AND payment_key IS NULL AND failure_code = 'PAYMENT_AMOUNT_MISMATCH') AS matching_orders, (SELECT COUNT(*) FROM billing_orders WHERE status = 'succeeded') AS succeeded_orders, (SELECT COUNT(*) FROM billing_orders WHERE status IN ('created', 'pending', 'unknown')) AS active_orders, (SELECT COUNT(*) FROM billing_accounts a WHERE a.user_id = o.user_id AND a.billing_key_fingerprint IS NOT NULL) AS linked_fingerprinted_accounts, (SELECT COUNT(*) FROM billing_accounts) AS accounts, (SELECT COUNT(*) FROM billing_orders) AS orders, (SELECT COUNT(*) FROM billing_orders WHERE status = 'failed') AS failed_orders, (SELECT COUNT(*) FROM billing_orders WHERE payment_key IS NOT NULL) AS payment_key_orders, (SELECT COUNT(*) FROM billing_events) AS events FROM billing_orders o WHERE o.status = 'failed' AND o.purpose = 'initial_subscription' AND o.amount = 4900 AND o.currency = 'KRW' AND o.payment_key IS NULL AND o.failure_code = 'PAYMENT_AMOUNT_MISMATCH'" \
-            --json > "$D1_QUERY_FILE"
-
-          node <<'NODE'
-          const fs = require("node:fs");
-          const payload = JSON.parse(fs.readFileSync(process.env.D1_QUERY_FILE, "utf8"));
-          const rows = (Array.isArray(payload) ? payload : [payload])
-            .flatMap((item) => Array.isArray(item.results) ? item.results : []);
-          if (rows.length !== 1) throw new Error("Expected exactly one matching failed Staging order");
-          const row = rows[0];
-          const counts = Object.fromEntries([
-            "matching_orders",
-            "succeeded_orders",
-            "active_orders",
-            "linked_fingerprinted_accounts",
-            "accounts",
-            "orders",
-            "failed_orders",
-            "payment_key_orders",
-            "events",
-          ].map((key) => [key, Number(row[key])]));
-          for (const [key, value] of Object.entries(counts)) {
-            if (!Number.isInteger(value) || value < 0) throw new Error(`Invalid read-only count: ${key}`);
-          }
-          if (counts.matching_orders !== 1) throw new Error("Matching failed order count is not one");
-          if (counts.succeeded_orders !== 0) throw new Error("A succeeded Staging order exists; refusing Toss lookup");
-          if (counts.active_orders !== 0) throw new Error("A non-terminal Staging order exists; refusing Toss lookup");
-          if (counts.linked_fingerprinted_accounts !== 1) throw new Error("Linked billing account fingerprint is missing");
-          if (
-            counts.accounts !== 1 ||
-            counts.orders !== 1 ||
-            counts.failed_orders !== 1 ||
-            counts.payment_key_orders !== 0 ||
-            counts.events !== 3
-          ) throw new Error("Staging billing ledger baseline differs from the reviewed state");
-          for (const key of ["order_id", "customer_key", "user_id"]) {
-            if (typeof row[key] !== "string" || row[key].length === 0) throw new Error(`Missing internal field: ${key}`);
-          }
-          fs.writeFileSync(process.env.SELECTION_FILE, JSON.stringify({
-            orderId: row.order_id,
-            customerKey: row.customer_key,
-            userId: row.user_id,
-          }), { mode: 0o600 });
-          fs.writeFileSync(process.env.BASELINE_FILE, JSON.stringify({
-            accounts: counts.accounts,
-            orders: counts.orders,
-            failed: counts.failed_orders,
-            succeeded: counts.succeeded_orders,
-            paymentKeys: counts.payment_key_orders,
-            events: counts.events,
-          }), { mode: 0o600 });
-          console.log("matchingFailedOrders=1");
-          console.log("succeededOrders=0");
-          console.log("activeOrders=0");
-          console.log("linkedFingerprint=true");
-          NODE
-
-      - name: Reconcile the failed order with one Toss GET
+      - name: Repair the externally approved Staging payment
         shell: bash
         env:
           TOSS_SECRET_KEY: ${{ secrets.TOSS_SECRET_KEY }}
-          SELECTION_FILE: ${{ runner.temp }}/staging-order-selection.internal.json
-          TOSS_RESPONSE_FILE: ${{ runner.temp }}/toss-order-response.internal.json
-        run: |
-          set -euo pipefail
-          echo "::add-mask::$TOSS_SECRET_KEY"
-          order_id="$(node -e 'const fs=require("node:fs");process.stdout.write(JSON.parse(fs.readFileSync(process.env.SELECTION_FILE,"utf8")).orderId)')"
-          encoded_order_id="$(ORDER_ID="$order_id" node -e 'process.stdout.write(encodeURIComponent(process.env.ORDER_ID))')"
-          authorization="$(printf '%s:' "$TOSS_SECRET_KEY" | base64 | tr -d '\n')"
-          echo "::add-mask::$order_id"
-          echo "::add-mask::$authorization"
-          api_url="https://api.tosspayments.com/v1/payments/orders/$encoded_order_id"
-
-          curl_exit=0
-          http_status="$(curl --silent --show-error \
-            --request GET \
-            --max-time 60 \
-            --retry 0 \
-            --header "Authorization: Basic $authorization" \
-            --header "Accept: application/json" \
-            --output "$TOSS_RESPONSE_FILE" \
-            --write-out '%{http_code}' \
-            "$api_url")" || curl_exit=$?
-
-          unset authorization api_url encoded_order_id order_id
-          if (( curl_exit != 0 )); then
-            http_status="000"
-            : > "$TOSS_RESPONSE_FILE"
-          fi
-
-          HTTP_STATUS="$http_status" node <<'NODE'
-          const fs = require("node:fs");
-          const httpStatus = Number(process.env.HTTP_STATUS) || 0;
-          const selection = JSON.parse(fs.readFileSync(process.env.SELECTION_FILE, "utf8"));
-          let body = null;
-          try {
-            body = JSON.parse(fs.readFileSync(process.env.TOSS_RESPONSE_FILE, "utf8"));
-          } catch {
-            body = null;
-          }
-
-          const safeToken = (value, fallback = "unknown") => {
-            const text = String(value ?? "");
-            return /^[A-Za-z0-9_.-]{1,64}$/.test(text) ? text : fallback;
-          };
-
-          console.log(`httpStatus=${httpStatus || "transport_error"}`);
-          if (httpStatus === 200 && body && typeof body === "object") {
-            const status = safeToken(body.status);
-            const type = safeToken(body.type);
-            const currency = safeToken(body.currency);
-            const totalAmount = Number(body.totalAmount);
-            const paymentKeyPresent = typeof body.paymentKey === "string" && body.paymentKey.length > 0;
-            const orderIdMatches = body.orderId === selection.orderId;
-            const customerKeyState = body.customerKey === undefined
-              ? "field_missing"
-              : String(body.customerKey === selection.customerKey);
-            const approvedAtPresent = typeof body.approvedAt === "string" && body.approvedAt.length > 0;
-            const cardPresent = Boolean(body.card && typeof body.card === "object");
-            const cancelCount = Array.isArray(body.cancels) ? body.cancels.length : 0;
-            const failurePresent = Boolean(body.failure);
-            console.log("paymentExists=true");
-            console.log(`status=${status}`);
-            console.log(`type=${type}`);
-            console.log(`totalAmount=${Number.isFinite(totalAmount) ? totalAmount : "invalid"}`);
-            console.log(`currency=${currency}`);
-            console.log(`paymentKeyPresent=${paymentKeyPresent}`);
-            console.log(`orderIdMatches=${orderIdMatches}`);
-            console.log(`customerKeyMatches=${customerKeyState}`);
-            console.log(`approvedAtPresent=${approvedAtPresent}`);
-            console.log(`cardPresent=${cardPresent}`);
-            console.log(`cancelCount=${cancelCount}`);
-            console.log(`failurePresent=${failurePresent}`);
-            const approved =
-              status === "DONE" &&
-              type === "BILLING" &&
-              totalAmount === 4900 &&
-              currency === "KRW" &&
-              paymentKeyPresent &&
-              orderIdMatches;
-            const result = approved
-              ? "APPROVED_EXTERNALLY"
-              : status !== "DONE"
-                ? "NOT_APPROVED"
-                : "INCONCLUSIVE";
-            console.log(`RECONCILIATION_RESULT=${result}`);
-          } else {
-            const errorCode = safeToken(body?.code, httpStatus === 0 ? "TRANSPORT_ERROR" : "UNKNOWN_ERROR");
-            const missing = httpStatus === 404;
-            console.log(`paymentExists=${missing ? "false" : "unknown"}`);
-            console.log(`tossErrorCode=${errorCode}`);
-            console.log("maskedErrorSummary=Toss read-only lookup returned an error");
-            console.log(`RECONCILIATION_RESULT=${missing ? "NOT_APPROVED" : "INCONCLUSIVE"}`);
-          }
-          NODE
-
-      - name: Verify Staging D1 is unchanged
-        shell: bash
-        env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           STAGING_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_STAGING_D1_DATABASE_ID }}
-          GENERATED_CONFIG: ${{ runner.temp }}/wrangler.staging.reconcile.jsonc
-          BASELINE_FILE: ${{ runner.temp }}/staging-ledger-baseline.safe.json
-          AFTER_FILE: ${{ runner.temp }}/staging-ledger-after.safe.json
+          STAGING_USERS_KV_ID: ${{ secrets.CLOUDFLARE_STAGING_USERS_KV_ID }}
         run: |
           set -euo pipefail
-          echo "::add-mask::$CLOUDFLARE_API_TOKEN"
-          echo "::add-mask::$CLOUDFLARE_ACCOUNT_ID"
-          echo "::add-mask::$STAGING_D1_DATABASE_ID"
-          npx --yes wrangler@4.81.0 d1 execute on-my-way-billing-staging \
-            --remote \
-            --config "$GENERATED_CONFIG" \
-            --command "SELECT (SELECT COUNT(*) FROM billing_accounts) AS accounts, (SELECT COUNT(*) FROM billing_orders) AS orders, (SELECT COUNT(*) FROM billing_orders WHERE status = 'failed') AS failed, (SELECT COUNT(*) FROM billing_orders WHERE status = 'succeeded') AS succeeded, (SELECT COUNT(*) FROM billing_orders WHERE payment_key IS NOT NULL) AS paymentKeys, (SELECT COUNT(*) FROM billing_events) AS events" \
-            --json > "$AFTER_FILE"
-          node <<'NODE'
-          const fs = require("node:fs");
-          const before = JSON.parse(fs.readFileSync(process.env.BASELINE_FILE, "utf8"));
-          const payload = JSON.parse(fs.readFileSync(process.env.AFTER_FILE, "utf8"));
-          const rows = (Array.isArray(payload) ? payload : [payload])
-            .flatMap((item) => Array.isArray(item.results) ? item.results : []);
-          if (rows.length !== 1) throw new Error("Unable to verify Staging ledger after Toss lookup");
-          const after = Object.fromEntries(Object.entries(rows[0]).map(([key, value]) => [key, Number(value)]));
-          for (const key of ["accounts", "orders", "failed", "succeeded", "paymentKeys", "events"]) {
-            if (after[key] !== before[key]) throw new Error(`Staging ledger changed during read-only reconciliation: ${key}`);
+          for secret_name in TOSS_SECRET_KEY CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID STAGING_D1_DATABASE_ID STAGING_USERS_KV_ID; do
+            echo "::add-mask::${!secret_name}"
+          done
+
+          node --input-type=module <<'NODE'
+          import { setTimeout as delay } from "node:timers/promises";
+          import { createBillingLedger } from "./billing-ledger.mjs";
+          import {
+            reconcileExternallyApprovedPayment,
+            validateInitialPayment,
+          } from "./auth-service.mjs";
+
+          const requiredEnvironment = [
+            "TOSS_SECRET_KEY",
+            "CLOUDFLARE_API_TOKEN",
+            "CLOUDFLARE_ACCOUNT_ID",
+            "STAGING_D1_DATABASE_ID",
+            "STAGING_USERS_KV_ID",
+          ];
+          for (const name of requiredEnvironment) {
+            if (!String(process.env[name] || "")) throw new Error(`Missing required environment name: ${name}`);
           }
+          if (!process.env.TOSS_SECRET_KEY.startsWith("test_sk_")) throw new Error("Staging Toss secret is not a test key");
+
+          const cloudflareHeaders = {
+            Authorization: `Bearer ${process.env.CLOUDFLARE_API_TOKEN}`,
+            "Content-Type": "application/json",
+          };
+          const d1Url = `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(process.env.CLOUDFLARE_ACCOUNT_ID)}/d1/database/${encodeURIComponent(process.env.STAGING_D1_DATABASE_ID)}/query`;
+          const kvKeyUrl = (userId) => `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(process.env.CLOUDFLARE_ACCOUNT_ID)}/storage/kv/namespaces/${encodeURIComponent(process.env.STAGING_USERS_KV_ID)}/values/${encodeURIComponent(`user:${userId}`)}`;
+
+          const fetchWithTimeout = async (url, options = {}, timeoutMs = 60_000) => {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), timeoutMs);
+            try {
+              return await fetch(url, { ...options, signal: controller.signal });
+            } finally {
+              clearTimeout(timer);
+            }
+          };
+
+          const d1Request = async (body) => {
+            const response = await fetchWithTimeout(d1Url, {
+              method: "POST",
+              headers: cloudflareHeaders,
+              body: JSON.stringify(body),
+            });
+            if (!response.ok) throw new Error(`Staging D1 request failed with HTTP ${response.status}`);
+            const payload = await response.json().catch(() => null);
+            if (!payload?.success || !Array.isArray(payload.result) || payload.result.some((item) => item?.success === false)) {
+              throw new Error("Staging D1 request was not successful");
+            }
+            return payload.result;
+          };
+
+          const d1Rows = async (sql, params = []) => {
+            const result = await d1Request({ sql, params });
+            if (result.length !== 1) throw new Error("Staging D1 query returned an unexpected result count");
+            return Array.isArray(result[0]?.results) ? result[0].results : [];
+          };
+
+          const createPreparedStatement = (sql, params = []) => ({
+            sql,
+            params,
+            bind(...values) {
+              return createPreparedStatement(sql, values);
+            },
+            async first() {
+              const rows = await d1Rows(sql, params);
+              return rows[0] || null;
+            },
+            async run() {
+              return d1Request({ sql, params });
+            },
+          });
+
+          const remoteD1 = {
+            prepare(sql) {
+              return createPreparedStatement(sql);
+            },
+            async batch(statements) {
+              if (!Array.isArray(statements) || statements.length !== 2) {
+                throw new Error("Repair must use the two-statement atomic ledger batch");
+              }
+              return d1Request({
+                batch: statements.map((statement) => ({ sql: statement.sql, params: statement.params })),
+              });
+            },
+          };
+
+          const aggregateRows = await d1Rows(`
+            SELECT
+              (SELECT COUNT(*) FROM billing_accounts) AS accounts,
+              (SELECT COUNT(*) FROM billing_accounts WHERE billing_key_fingerprint IS NOT NULL) AS fingerprint_accounts,
+              (SELECT COUNT(*) FROM billing_orders) AS orders,
+              (SELECT COUNT(*) FROM billing_orders WHERE status = 'failed') AS failed,
+              (SELECT COUNT(*) FROM billing_orders WHERE status = 'succeeded') AS succeeded,
+              (SELECT COUNT(*) FROM billing_orders WHERE payment_key IS NOT NULL) AS payment_keys,
+              (SELECT COUNT(*) FROM billing_orders WHERE status IN ('created', 'pending', 'unknown')) AS active_orders,
+              (SELECT COUNT(*) FROM billing_events) AS events,
+              (SELECT COUNT(*) FROM billing_events WHERE event_type = 'order_reconciled_succeeded') AS reconciliation_events
+          `);
+          if (aggregateRows.length !== 1) throw new Error("Unable to read the Staging ledger aggregate");
+          const aggregate = Object.fromEntries(Object.entries(aggregateRows[0]).map(([key, value]) => [key, Number(value)]));
+          const failedBaseline =
+            aggregate.accounts === 1 &&
+            aggregate.fingerprint_accounts === 1 &&
+            aggregate.orders === 1 &&
+            aggregate.failed === 1 &&
+            aggregate.succeeded === 0 &&
+            aggregate.payment_keys === 0 &&
+            aggregate.active_orders === 0 &&
+            aggregate.events === 3 &&
+            aggregate.reconciliation_events === 0;
+          const repairedD1Baseline =
+            aggregate.accounts === 1 &&
+            aggregate.fingerprint_accounts === 1 &&
+            aggregate.orders === 1 &&
+            aggregate.failed === 0 &&
+            aggregate.succeeded === 1 &&
+            aggregate.payment_keys === 1 &&
+            aggregate.active_orders === 0 &&
+            aggregate.events === 4 &&
+            aggregate.reconciliation_events === 1;
+          if (!failedBaseline && !repairedD1Baseline) throw new Error("Staging ledger does not match an allowed repair baseline");
+
+          const candidates = await d1Rows(`
+            SELECT o.*
+            FROM billing_orders o
+            WHERE o.purpose = 'initial_subscription'
+              AND o.amount = 4900
+              AND o.currency = 'KRW'
+              AND (
+                (o.status = 'failed' AND o.payment_key IS NULL AND o.failure_code = 'PAYMENT_AMOUNT_MISMATCH')
+                OR
+                (o.status = 'succeeded' AND o.payment_key IS NOT NULL AND EXISTS (
+                  SELECT 1 FROM billing_events e
+                  WHERE e.order_id = o.order_id
+                    AND e.event_type = 'order_reconciled_succeeded'
+                ))
+              )
+          `);
+          if (candidates.length !== 1) throw new Error("Expected exactly one repair-eligible Staging order");
+          const candidate = candidates[0];
+          if (!candidate.order_id || !candidate.user_id || !candidate.customer_key) throw new Error("Repair candidate is missing an internal identifier");
+
+          const accounts = await d1Rows(
+            "SELECT customer_key, billing_key_fingerprint FROM billing_accounts WHERE user_id = ?1",
+            [candidate.user_id],
+          );
+          if (accounts.length !== 1 || accounts[0].customer_key !== candidate.customer_key || !accounts[0].billing_key_fingerprint) {
+            throw new Error("Linked Staging billing account is inconsistent");
+          }
+
+          const readUser = async () => {
+            const response = await fetchWithTimeout(kvKeyUrl(candidate.user_id), {
+              method: "GET",
+              headers: { Authorization: cloudflareHeaders.Authorization },
+            });
+            if (!response.ok) throw new Error(`Staging user read failed with HTTP ${response.status}`);
+            const text = await response.text();
+            const user = JSON.parse(text);
+            if (!user || typeof user !== "object") throw new Error("Staging user record is invalid");
+            return user;
+          };
+
+          const originalUser = await readUser();
+          if (originalUser.id !== candidate.user_id) throw new Error("Staging user does not match the billing order");
+          if (!String(originalUser.billingKey || "")) throw new Error("Staging billing key is missing");
+          if (originalUser.customerKey !== candidate.customer_key) throw new Error("Staging customer key does not match the billing order");
+          const originalBillingKey = originalUser.billingKey;
+          const originalCustomerKey = originalUser.customerKey;
+
+          const failedUserState =
+            originalUser.plan === "trial" &&
+            originalUser.subscriptionStatus === "payment_failed" &&
+            originalUser.paymentFailure?.code === "PAYMENT_AMOUNT_MISMATCH" &&
+            originalUser.pendingOrderId === candidate.order_id &&
+            !originalUser.lastPaymentKey &&
+            !originalUser.lastOrderId;
+          const repairedUserState =
+            originalUser.plan === "pro" &&
+            originalUser.subscriptionStatus === "active" &&
+            originalUser.paymentFailure == null &&
+            originalUser.pendingOrderId == null &&
+            Boolean(originalUser.lastPaymentKey) &&
+            originalUser.lastOrderId === candidate.order_id &&
+            Boolean(originalUser.trialEndedAt) &&
+            Boolean(originalUser.currentPeriodEnd);
+          if (!failedUserState && !repairedUserState) throw new Error("Staging user does not match an allowed repair state");
+          if (failedBaseline && !failedUserState) throw new Error("Failed ledger baseline has an inconsistent Staging user state");
+
+          const authorization = Buffer.from(`${process.env.TOSS_SECRET_KEY}:`, "utf8").toString("base64");
+          const tossUrl = `https://api.tosspayments.com/v1/payments/orders/${encodeURIComponent(candidate.order_id)}`;
+          const tossResponse = await fetchWithTimeout(tossUrl, {
+            method: "GET",
+            headers: {
+              Authorization: `Basic ${authorization}`,
+              Accept: "application/json",
+            },
+          });
+          const tossHttpStatus = tossResponse.status;
+          const payment = await tossResponse.json().catch(() => null);
+          if (tossHttpStatus !== 200 || !payment || typeof payment !== "object") {
+            throw new Error(`Toss read-only lookup failed with HTTP ${tossHttpStatus}`);
+          }
+
+          validateInitialPayment(payment, {
+            orderId: candidate.order_id,
+            customerKey: candidate.customer_key,
+            amount: 4900,
+          });
+          if (payment.currency !== "KRW") throw new Error("Toss payment currency is not KRW");
+          const approvedAt = Date.parse(String(payment.approvedAt || ""));
+          if (!Number.isFinite(approvedAt) || approvedAt <= 0) throw new Error("Toss payment approvedAt is invalid");
+          if (Array.isArray(payment.cancels) && payment.cancels.length > 0) throw new Error("Toss payment has cancellation records");
+          if (payment.failure) throw new Error("Toss payment contains a failure record");
+
+          let kvWritePerformed = false;
+          const userStore = {
+            async getUser(userId) {
+              if (userId !== candidate.user_id) throw new Error("Repair attempted to read another Staging user");
+              return structuredClone(originalUser);
+            },
+            async putUser(user) {
+              if (user.id !== candidate.user_id) throw new Error("Repair attempted to write another Staging user");
+              if (user.billingKey !== originalBillingKey || user.customerKey !== originalCustomerKey) {
+                throw new Error("Repair attempted to alter the billing or customer key");
+              }
+              if (
+                user.plan !== "pro" ||
+                user.subscriptionStatus !== "active" ||
+                user.paymentFailure != null ||
+                user.pendingOrderId != null ||
+                user.lastPaymentKey !== payment.paymentKey ||
+                user.lastOrderId !== candidate.order_id ||
+                Number(user.trialEndedAt) !== approvedAt ||
+                !Number.isFinite(Number(user.currentPeriodEnd)) ||
+                Number(user.currentPeriodEnd) <= approvedAt
+              ) throw new Error("Repair generated an invalid paid Pro user state");
+
+              const response = await fetchWithTimeout(kvKeyUrl(candidate.user_id), {
+                method: "PUT",
+                headers: cloudflareHeaders,
+                body: JSON.stringify(user),
+              });
+              if (!response.ok) throw new Error(`Staging user write failed with HTTP ${response.status}`);
+              const payload = await response.json().catch(() => null);
+              if (!payload?.success) throw new Error("Staging user write was not successful");
+              kvWritePerformed = true;
+            },
+          };
+
+          const ledger = createBillingLedger(remoteD1);
+          const repair = await reconcileExternallyApprovedPayment({
+            ledger,
+            userStore,
+            orderId: candidate.order_id,
+            payment,
+            now: Date.now(),
+          });
+
+          const afterRows = await d1Rows(`
+            SELECT
+              (SELECT COUNT(*) FROM billing_accounts) AS accounts,
+              (SELECT COUNT(*) FROM billing_accounts WHERE billing_key_fingerprint IS NOT NULL) AS fingerprint_accounts,
+              (SELECT COUNT(*) FROM billing_orders) AS orders,
+              (SELECT COUNT(*) FROM billing_orders WHERE status = 'failed') AS failed,
+              (SELECT COUNT(*) FROM billing_orders WHERE status = 'succeeded') AS succeeded,
+              (SELECT COUNT(*) FROM billing_orders WHERE payment_key IS NOT NULL) AS payment_keys,
+              (SELECT COUNT(*) FROM billing_events) AS events,
+              (SELECT COUNT(*) FROM billing_events WHERE event_type = 'order_reconciled_succeeded') AS reconciliation_events
+          `);
+          if (afterRows.length !== 1) throw new Error("Unable to verify the repaired Staging ledger aggregate");
+          const after = Object.fromEntries(Object.entries(afterRows[0]).map(([key, value]) => [key, Number(value)]));
           if (
             after.accounts !== 1 ||
+            after.fingerprint_accounts !== 1 ||
             after.orders !== 1 ||
-            after.failed !== 1 ||
-            after.succeeded !== 0 ||
-            after.paymentKeys !== 0 ||
-            after.events !== 3
-          ) throw new Error("Staging ledger no longer matches the reviewed aggregate");
-          console.log("d1Unchanged=true");
-          console.log("accounts=1 orders=1 failed=1 succeeded=0 paymentKeys=0 events=3");
+            after.failed !== 0 ||
+            after.succeeded !== 1 ||
+            after.payment_keys !== 1 ||
+            after.events !== 4 ||
+            after.reconciliation_events !== 1
+          ) throw new Error("Repaired Staging ledger aggregate is invalid");
+
+          const repairedOrders = await d1Rows(
+            "SELECT status, payment_key, failure_code, failure_message, completed_at FROM billing_orders WHERE order_id = ?1",
+            [candidate.order_id],
+          );
+          if (
+            repairedOrders.length !== 1 ||
+            repairedOrders[0].status !== "succeeded" ||
+            repairedOrders[0].payment_key !== payment.paymentKey ||
+            repairedOrders[0].failure_code != null ||
+            repairedOrders[0].failure_message != null ||
+            Number(repairedOrders[0].completed_at) !== approvedAt
+          ) throw new Error("Repaired Staging order is invalid");
+
+          const reconciliationEvents = await d1Rows(
+            "SELECT previous_status, new_status, metadata_json FROM billing_events WHERE order_id = ?1 AND event_type = 'order_reconciled_succeeded'",
+            [candidate.order_id],
+          );
+          if (reconciliationEvents.length !== 1) throw new Error("Staging reconciliation event count is invalid");
+          const event = reconciliationEvents[0];
+          const metadata = JSON.parse(String(event.metadata_json || "{}"));
+          if (
+            !["failed", "unknown"].includes(event.previous_status) ||
+            event.new_status !== "succeeded" ||
+            metadata.source !== "toss_order_lookup" ||
+            metadata.reason !== "payment_total_amount_field_fix" ||
+            metadata.recovered !== true
+          ) throw new Error("Staging reconciliation event is invalid");
+
+          let repairedUser = null;
+          for (let attempt = 1; attempt <= 12; attempt += 1) {
+            const observed = await readUser();
+            const valid =
+              observed.id === candidate.user_id &&
+              observed.billingKey === originalBillingKey &&
+              observed.customerKey === originalCustomerKey &&
+              observed.plan === "pro" &&
+              observed.subscriptionStatus === "active" &&
+              observed.paymentFailure == null &&
+              observed.pendingOrderId == null &&
+              observed.lastPaymentKey === payment.paymentKey &&
+              observed.lastOrderId === candidate.order_id &&
+              Number(observed.trialEndedAt) === approvedAt &&
+              Number(observed.currentPeriodEnd) > approvedAt;
+            if (valid) {
+              repairedUser = observed;
+              break;
+            }
+            if (attempt < 12) await delay(5_000);
+          }
+          if (!repairedUser) throw new Error("Repaired Staging user state did not become observable");
+
+          console.log(`tossHttpStatus=${tossHttpStatus}`);
+          console.log("paymentExists=true");
+          console.log(`paymentStatus=${payment.status}`);
+          console.log(`paymentType=${payment.type}`);
+          console.log(`totalAmount=${Number(payment.totalAmount)}`);
+          console.log(`currency=${payment.currency}`);
+          console.log(`paymentKeyPresent=${Boolean(payment.paymentKey)}`);
+          console.log(`orderIdMatches=${payment.orderId === candidate.order_id}`);
+          console.log(`customerKeyMatches=${payment.customerKey === undefined ? "field_missing" : payment.customerKey === candidate.customer_key}`);
+          console.log(`d1Reconciled=${repair.reconciled}`);
+          console.log(`d1AlreadySucceeded=${repair.alreadySucceeded}`);
+          console.log(`kvWritePerformed=${kvWritePerformed}`);
+          console.log("accounts=1 orders=1 failed=0 succeeded=1 paymentKeys=1 events=4 reconciliationEvents=1");
+          console.log("userPlan=pro subscriptionStatus=active");
+          console.log("billingKeyRetained=true customerKeyRetained=true");
+          console.log("lastPaymentKeyPresent=true lastOrderIdPresent=true");
+          console.log("trialEndedAtPresent=true currentPeriodEndPresent=true");
+          console.log("pendingOrderCleared=true paymentFailureCleared=true");
+          console.log("REPAIR_RESULT=RECOVERED");
           NODE
 
-      - name: Verify environment boundaries after reconciliation
+      - name: Verify disabled Staging boundary after repair
         shell: bash
         env:
-          STAGING_HEALTH_FILE: ${{ runner.temp }}/staging-health-after.json
-          PRODUCTION_HEALTH_FILE: ${{ runner.temp }}/production-health-after.json
+          STAGING_HEALTH_FILE: ${{ runner.temp }}/staging-repair-health-after.json
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --max-time 30 \
-            --output "$STAGING_HEALTH_FILE" \
-            "https://on-my-way-staging.jungslawyer.workers.dev/api/health"
-          curl --fail --silent --show-error --max-time 30 \
-            --output "$PRODUCTION_HEALTH_FILE" \
-            "https://onmyway.olivenrich.com/api/health"
-          node <<'NODE'
+          consecutive=0
+          for attempt in {1..12}; do
+            if curl --fail --silent --show-error --max-time 30 \
+              --output "$STAGING_HEALTH_FILE" \
+              "https://on-my-way-staging.jungslawyer.workers.dev/api/health" && \
+              node <<'NODE'
           const fs = require("node:fs");
-          const staging = JSON.parse(fs.readFileSync(process.env.STAGING_HEALTH_FILE, "utf8"));
-          const production = JSON.parse(fs.readFileSync(process.env.PRODUCTION_HEALTH_FILE, "utf8"));
-          if (staging.environment !== "staging") throw new Error("Staging environment changed during reconciliation");
-          if (staging.services?.accountStorage !== true) throw new Error("Staging account storage changed during reconciliation");
-          if (staging.services?.payments !== false) throw new Error("Staging payments changed during reconciliation");
-          if (production.services?.payments !== false) throw new Error("Production payments changed during reconciliation");
-          console.log("stagingEnvironment=staging");
-          console.log("stagingAccountStorage=true");
-          console.log("stagingPayments=false");
-          console.log("productionPayments=false");
+          const health = JSON.parse(fs.readFileSync(process.env.STAGING_HEALTH_FILE, "utf8"));
+          if (health.environment !== "staging") process.exit(1);
+          if (health.services?.accountStorage !== true) process.exit(1);
+          if (health.services?.payments !== false) process.exit(1);
           NODE
+            then
+              consecutive=$((consecutive + 1))
+              if (( consecutive >= 2 )); then
+                echo "environment=staging"
+                echo "accountStorage=true"
+                echo "payments=false"
+                echo "paymentsFalseConsecutive=2"
+                exit 0
+              fi
+            else
+              consecutive=0
+            fi
+            if (( attempt < 12 )); then sleep 5; fi
+          done
+          echo "Staging disabled boundary did not remain stable"
+          exit 1
 
-      - name: Remove reconciliation temporary files
+      - name: Remove repair temporary files
         if: always()
         shell: bash
         run: |
           rm -f \
-            "$RUNNER_TEMP/wrangler.staging.reconcile.jsonc" \
-            "$RUNNER_TEMP/staging-health-before.json" \
-            "$RUNNER_TEMP/production-health-before.json" \
-            "$RUNNER_TEMP/staging-order-selection.raw.json" \
-            "$RUNNER_TEMP/staging-order-selection.internal.json" \
-            "$RUNNER_TEMP/staging-ledger-baseline.safe.json" \
-            "$RUNNER_TEMP/toss-order-response.internal.json" \
-            "$RUNNER_TEMP/staging-ledger-after.safe.json" \
-            "$RUNNER_TEMP/staging-health-after.json" \
-            "$RUNNER_TEMP/production-health-after.json"
+            "$RUNNER_TEMP/staging-repair-health-before.json" \
+            "$RUNNER_TEMP/staging-repair-health-after.json"
