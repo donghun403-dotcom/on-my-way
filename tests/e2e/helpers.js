@@ -199,8 +199,46 @@ async function mockAccountExperience(page, {
   return state;
 }
 
+function isExpectedFirefoxNavigationImageAbort({
+  browserName,
+  errorText,
+  method,
+  navigationLinked,
+  pagePathname,
+  pathname,
+  resourceType,
+  sameOrigin,
+}) {
+  return browserName === "firefox" &&
+    errorText === "NS_BINDING_ABORTED" &&
+    method === "GET" &&
+    navigationLinked === true &&
+    pagePathname === "/app.html" &&
+    pathname === "/assets/logo-ollie-symbol.png" &&
+    resourceType === "image" &&
+    sameOrigin === true;
+}
+
 function monitorPage(page, { allowedConsoleMessages = [], allowedResponseUrls = [] } = {}) {
   const issues = [];
+  const browserName = page.context().browser()?.browserType().name() || "";
+  const expectedNavigationLogoRequests = new WeakSet();
+  const seenNavigationLogoRequests = new Set();
+  let mainNavigationSequence = 0;
+  page.on("framenavigated", (frame) => {
+    if (frame === page.mainFrame()) mainNavigationSequence += 1;
+  });
+  page.on("request", (request) => {
+    if (mainNavigationSequence === 0 || request.method() !== "GET" || request.resourceType() !== "image") return;
+    try {
+      const requestUrl = new URL(request.url());
+      const pageUrl = new URL(page.url());
+      if (requestUrl.origin !== pageUrl.origin || pageUrl.pathname !== "/app.html" || requestUrl.pathname !== "/assets/logo-ollie-symbol.png") return;
+      if (seenNavigationLogoRequests.has(mainNavigationSequence)) return;
+      seenNavigationLogoRequests.add(mainNavigationSequence);
+      expectedNavigationLogoRequests.add(request);
+    } catch {}
+  });
   page.on("console", (message) => {
     if (message.type() !== "error") return;
     if (allowedConsoleMessages.some((pattern) => message.text().includes(pattern))) return;
@@ -214,10 +252,21 @@ function monitorPage(page, { allowedConsoleMessages = [], allowedResponseUrls = 
     let isCanceledStaticImage = false;
     let isCanceledFunnelEvent = false;
     let isCanceledStartupRequest = false;
+    let isExpectedFirefoxLogoAbort = false;
     try {
       const requestUrl = new URL(request.url());
       const pageUrl = new URL(page.url());
       const isSameOrigin = requestUrl.origin === pageUrl.origin;
+      isExpectedFirefoxLogoAbort = isExpectedFirefoxNavigationImageAbort({
+        browserName,
+        errorText,
+        method: request.method(),
+        navigationLinked: expectedNavigationLogoRequests.has(request),
+        pagePathname: pageUrl.pathname,
+        pathname: requestUrl.pathname,
+        resourceType: request.resourceType(),
+        sameOrigin: isSameOrigin,
+      });
       isCanceledStaticImage =
         isNavigationCancellation &&
         request.resourceType() === "image" &&
@@ -234,7 +283,7 @@ function monitorPage(page, { allowedConsoleMessages = [], allowedResponseUrls = 
         request.method() === "GET" &&
         ["/api/health", "/plan-policy.mjs"].includes(requestUrl.pathname);
     } catch {}
-    if (isCanceledStaticImage || isCanceledFunnelEvent || isCanceledStartupRequest) return;
+    if (isExpectedFirefoxLogoAbort || isCanceledStaticImage || isCanceledFunnelEvent || isCanceledStartupRequest) return;
     issues.push(`requestfailed: ${request.method()} ${request.url()} ${errorText}`);
   });
   page.on("response", (response) => {
@@ -280,6 +329,7 @@ module.exports = {
   createUsageResponse,
   expectNoDuplicateIds,
   expectNoHorizontalOverflow,
+  isExpectedFirefoxNavigationImageAbort,
   mockAccountExperience,
   mockExternalAssets,
   monitorPage,

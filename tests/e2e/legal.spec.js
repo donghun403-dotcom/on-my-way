@@ -3,6 +3,10 @@ const { expectNoHorizontalOverflow, monitorPage } = require("./helpers");
 
 test("법적 페이지 네 곳이 공개 경로에서 열리고 서로 연결된다", async ({ page }) => {
   const monitor = monitorPage(page);
+  const logoResponse = await page.request.get("/assets/logo-ollie-symbol.png");
+  expect(logoResponse.status()).toBe(200);
+  expect(logoResponse.headers()["content-type"]).toContain("image/png");
+  expect((await logoResponse.body()).byteLength).toBeGreaterThan(0);
   for (const [pathname, heading] of [
     ["/privacy", "개인정보 처리방침"],
     ["/terms", "서비스 이용약관"],
@@ -15,6 +19,16 @@ test("법적 페이지 네 곳이 공개 경로에서 열리고 서로 연결된
     await page.goto(pathname);
     await page.waitForLoadState("networkidle");
     await expect(page.getByRole("heading", { level: 1, name: heading })).toBeVisible();
+    if (pathname === "/privacy") {
+      const renderedLogo = await page.locator(".legal-brand img").evaluate((image) => ({
+        complete: image.complete,
+        naturalWidth: image.naturalWidth,
+        naturalHeight: image.naturalHeight,
+      }));
+      expect(renderedLogo.complete).toBe(true);
+      expect(renderedLogo.naturalWidth).toBeGreaterThan(0);
+      expect(renderedLogo.naturalHeight).toBeGreaterThan(0);
+    }
     await expectNoHorizontalOverflow(page);
   }
   monitor.expectClean();
