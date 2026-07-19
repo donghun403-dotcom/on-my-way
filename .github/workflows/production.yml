@@ -253,7 +253,19 @@ jobs:
                 return 1
               fi
               last_environment="$(jq -r '.environment // "unknown"' "$body")"
-              last_payments="$(jq -r '.services.payments // "unknown"' "$body")"
+              last_payments="$(
+                jq -r '
+                  if
+                    ((.services | type) == "object") and
+                    (.services | has("payments")) and
+                    ((.services.payments | type) == "boolean")
+                  then
+                    (.services.payments | tostring)
+                  else
+                    "unknown"
+                  end
+                ' "$body"
+              )"
               if [[ "$last_environment" != "production" ]] ||
                  [[ "$(jq -r '.services.accountStorage // false' "$body")" != "true" ]] ||
                  [[ "$(jq -r '.services.ai // false' "$body")" != "true" ]] ||
