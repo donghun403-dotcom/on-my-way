@@ -1,14 +1,14 @@
-name: Staging Deploy
+name: Staging Toss Reconcile Once
 
 on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "Staging에 배포할 검증된 branch 또는 commit SHA"
+        description: "Reviewed PR #10 commit to inspect"
         required: true
         type: string
       confirmation:
-        description: "일회성 Toss Sandbox 활성화 확인 문구"
+        description: "Exact confirmation for one read-only reconciliation"
         required: true
         type: string
 
@@ -20,673 +20,388 @@ permissions:
   contents: read
 
 jobs:
-  validate-and-deploy:
+  reconcile:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 12
     environment: staging
     steps:
-      - name: Refuse unsafe Staging ref
+      - name: Refuse unsafe reconciliation request
         shell: bash
         env:
-          DEPLOY_REF: ${{ inputs.ref }}
+          INSPECT_REF: ${{ inputs.ref }}
           CONFIRMATION: ${{ inputs.confirmation }}
           WORKFLOW_REF: ${{ github.ref }}
         run: |
+          set -euo pipefail
           expected_ref="8327e17e0626b1a336bc222f4c3f104dbe68b128"
-          expected_workflow_ref="refs/heads/ci/staging-toss-sandbox-once"
-          expected_confirmation="ENABLE_TOSS_SANDBOX_ONCE"
+          expected_workflow_ref="refs/heads/ci/staging-toss-reconcile-once"
+          expected_confirmation="READ_ONLY_RECONCILE_FAILED_ORDER_ONCE"
 
-          if [[ "$DEPLOY_REF" != "$expected_ref" ]]; then
-            echo "Sandbox deployment requires the reviewed PR #10 commit"
+          [[ "$INSPECT_REF" == "$expected_ref" ]] || {
+            echo "Reconciliation requires the reviewed PR #10 commit"
             exit 1
-          fi
-          if [[ "$WORKFLOW_REF" != "$expected_workflow_ref" ]]; then
-            echo "Sandbox workflow must run from its isolated temporary branch"
+          }
+          [[ "$WORKFLOW_REF" == "$expected_workflow_ref" ]] || {
+            echo "Reconciliation must run from its isolated temporary branch"
             exit 1
-          fi
-          if [[ "$CONFIRMATION" != "$expected_confirmation" ]]; then
-            echo "Sandbox confirmation did not match"
+          }
+          [[ "$CONFIRMATION" == "$expected_confirmation" ]] || {
+            echo "Read-only reconciliation confirmation did not match"
             exit 1
-          fi
+          }
 
       - name: Check out selected ref
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref }}
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run unit tests
-        run: npm test
-
-      - name: Check JavaScript syntax
-        shell: bash
-        run: |
-          while IFS= read -r -d '' file; do
-            node --check "$file"
-          done < <(find . -type f \( -name '*.js' -o -name '*.mjs' -o -name '*.cjs' \) -not -path './node_modules/*' -print0)
-
-      - name: Validate required Staging Worker secrets
+      - name: Validate read-only Staging credentials
         shell: bash
         env:
-          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
-          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
-          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
-          TOSS_CLIENT_KEY: ${{ secrets.TOSS_CLIENT_KEY }}
           TOSS_SECRET_KEY: ${{ secrets.TOSS_SECRET_KEY }}
-        run: |
-          missing=()
-          for secret_name in SESSION_SECRET GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET TOSS_CLIENT_KEY TOSS_SECRET_KEY; do
-            if [[ -z "${!secret_name:-}" ]]; then
-              missing+=("$secret_name")
-            else
-              echo "::add-mask::${!secret_name}"
-            fi
-          done
-
-          if (( ${#missing[@]} > 0 )); then
-            printf 'Missing Staging Worker secret: %s\n' "${missing[@]}"
-            exit 1
-          fi
-
-          if [[ "$TOSS_CLIENT_KEY" != test_ck_* || "$TOSS_SECRET_KEY" != test_sk_* ]]; then
-            echo "Invalid Staging Toss key type: expected test key"
-            exit 1
-          fi
-
-      - name: Generate isolated Staging Wrangler config
-        shell: bash
-        env:
-          STAGING_USERS_KV_ID: ${{ secrets.CLOUDFLARE_STAGING_USERS_KV_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           STAGING_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_STAGING_D1_DATABASE_ID }}
         run: |
-          test -n "${STAGING_USERS_KV_ID:-}"
-          test "$STAGING_USERS_KV_ID" != "null"
-          test -n "${STAGING_D1_DATABASE_ID:-}"
-          test "$STAGING_D1_DATABASE_ID" != "null"
-          echo "::add-mask::$STAGING_USERS_KV_ID"
-          echo "::add-mask::$STAGING_D1_DATABASE_ID"
+          set -euo pipefail
+          missing=()
+          for secret_name in TOSS_SECRET_KEY CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID STAGING_D1_DATABASE_ID; do
+            value="${!secret_name:-}"
+            if [[ -z "$value" ]]; then
+              missing+=("$secret_name")
+            else
+              echo "::add-mask::$value"
+            fi
+          done
+          if (( ${#missing[@]} > 0 )); then
+            printf 'Missing required Staging secret name: %s\n' "${missing[@]}"
+            exit 1
+          fi
+          [[ "$TOSS_SECRET_KEY" == test_sk_* ]] || {
+            echo "tossTestSecret=false"
+            exit 1
+          }
+          echo "tossTestSecret=true"
 
+      - name: Generate read-only Staging Wrangler config
+        shell: bash
+        env:
+          STAGING_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_STAGING_D1_DATABASE_ID }}
+          GENERATED_CONFIG: ${{ runner.temp }}/wrangler.staging.reconcile.jsonc
+        run: |
+          set -euo pipefail
+          echo "::add-mask::$STAGING_D1_DATABASE_ID"
           jq -e '
             (.name == "on-my-way-staging") and
             (.workers_dev == true) and
             ((.routes // []) | length == 0) and
             (.vars.APP_ENV == "staging") and
-            (.vars.PAYMENTS_ENABLED == "false") and
-            (.vars.ALLOW_DEV_LOGIN == "false") and
-            (.vars.ALLOW_DEMO_BILLING == "false") and
-            (.vars.APPLE_LOGIN_VISIBLE == "false")
+            (.vars.PAYMENTS_ENABLED == "false")
           ' wrangler.staging.jsonc > /dev/null
 
-          generated_config="$GITHUB_WORKSPACE/wrangler.staging.generated.jsonc"
-          jq --arg kv_id "$STAGING_USERS_KV_ID" --arg d1_id "$STAGING_D1_DATABASE_ID" '
-            .kv_namespaces = [{"binding":"USERS_KV","id":$kv_id}] |
+          jq --arg d1_id "$STAGING_D1_DATABASE_ID" '
             .d1_databases = [{
               "binding":"BILLING_DB",
               "database_name":"on-my-way-billing-staging",
               "database_id":$d1_id,
               "migrations_dir":"migrations"
             }] |
-            .vars.PAYMENTS_ENABLED = "true" |
-            .assets.exclude = ((.assets.exclude // []) + ["wrangler.staging.generated.jsonc"])
-          ' wrangler.staging.jsonc > "$generated_config"
+            .vars.PAYMENTS_ENABLED = "false"
+          ' wrangler.staging.jsonc > "$GENERATED_CONFIG"
 
           jq -e '
             (.name == "on-my-way-staging") and
-            (.workers_dev == true) and
-            ((.routes // []) | length == 0) and
-            (.vars.APP_ENV == "staging") and
-            (.vars.PAYMENTS_ENABLED == "true") and
-            (.vars.ALLOW_DEV_LOGIN == "false") and
-            (.vars.ALLOW_DEMO_BILLING == "false") and
-            (.vars.APPLE_LOGIN_VISIBLE == "false") and
-            (.kv_namespaces | length == 1) and
-            (.kv_namespaces[0].binding == "USERS_KV") and
-            (.d1_databases | length == 1) and
-            (.d1_databases[0].binding == "BILLING_DB") and
-            (.d1_databases[0].database_name == "on-my-way-billing-staging")
-          ' "$generated_config" > /dev/null
-
-      - name: Apply Staging D1 migrations before deploy
-        shell: bash
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          STAGING_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_STAGING_D1_DATABASE_ID }}
-        run: |
-          test -n "${STAGING_D1_DATABASE_ID:-}"
-          test "$STAGING_D1_DATABASE_ID" != "null"
-          echo "::add-mask::$STAGING_D1_DATABASE_ID"
-          npx --yes wrangler@4.81.0 d1 migrations apply on-my-way-billing-staging \
-            --remote \
-            --config wrangler.staging.generated.jsonc
-
-      - name: Verify Staging D1 billing schema
-        shell: bash
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          STAGING_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_STAGING_D1_DATABASE_ID }}
-        run: |
-          test -n "${STAGING_D1_DATABASE_ID:-}"
-          test "$STAGING_D1_DATABASE_ID" != "null"
-          echo "::add-mask::$STAGING_D1_DATABASE_ID"
-          schema_file="$RUNNER_TEMP/staging-billing-schema.json"
-          npx --yes wrangler@4.81.0 d1 execute on-my-way-billing-staging \
-            --remote \
-            --config wrangler.staging.generated.jsonc \
-            --command "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('billing_accounts', 'billing_orders', 'billing_events') ORDER BY name" \
-            --json > "$schema_file"
-          SCHEMA_FILE="$schema_file" node <<'NODE'
-          const fs = require("node:fs");
-          const payload = JSON.parse(fs.readFileSync(process.env.SCHEMA_FILE, "utf8"));
-          const rows = (Array.isArray(payload) ? payload : [payload]).flatMap((item) => Array.isArray(item.results) ? item.results : []);
-          const names = new Set(rows.map((row) => row.name));
-          for (const required of ["billing_accounts", "billing_orders", "billing_events"]) {
-            if (!names.has(required)) throw new Error(`Missing Staging billing table: ${required}`);
-          }
-          NODE
-
-      - name: Refuse existing Staging billing orders
-        id: billing_baseline
-        shell: bash
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          STAGING_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_STAGING_D1_DATABASE_ID }}
-          BASELINE_FILE: ${{ runner.temp }}/staging-billing-baseline.json
-        run: |
-          test -n "${STAGING_D1_DATABASE_ID:-}"
-          test "$STAGING_D1_DATABASE_ID" != "null"
-          echo "::add-mask::$STAGING_D1_DATABASE_ID"
-          npx --yes wrangler@4.81.0 d1 execute on-my-way-billing-staging \
-            --remote \
-            --config wrangler.staging.generated.jsonc \
-            --command "SELECT (SELECT COUNT(*) FROM billing_accounts) AS accounts, (SELECT COUNT(*) FROM billing_orders) AS orders, (SELECT COUNT(*) FROM billing_orders WHERE status = 'succeeded') AS succeeded_orders, (SELECT COUNT(*) FROM billing_orders WHERE payment_key IS NOT NULL) AS orders_with_payment_key, (SELECT COUNT(*) FROM billing_events) AS events" \
-            --json > "$BASELINE_FILE"
-          node <<'NODE'
-          const fs = require("node:fs");
-          const payload = JSON.parse(fs.readFileSync(process.env.BASELINE_FILE, "utf8"));
-          const rows = (Array.isArray(payload) ? payload : [payload]).flatMap((item) => Array.isArray(item.results) ? item.results : []);
-          if (rows.length !== 1) throw new Error("Unable to read Staging billing baseline");
-          const counts = Object.fromEntries(Object.entries(rows[0]).map(([key, value]) => [key, Number(value)]));
-          for (const [key, value] of Object.entries(counts)) {
-            if (!Number.isInteger(value) || value < 0) throw new Error(`Invalid Staging billing count: ${key}`);
-          }
-          if (counts.orders !== 0) throw new Error("Existing Staging billing orders found; refusing Sandbox activation");
-          fs.appendFileSync(process.env.GITHUB_OUTPUT, [
-            `accounts=${counts.accounts}`,
-            `orders=${counts.orders}`,
-            `succeeded_orders=${counts.succeeded_orders}`,
-            `orders_with_payment_key=${counts.orders_with_payment_key}`,
-            `events=${counts.events}`,
-            "",
-          ].join("\n"));
-          console.log(`Staging billing baseline: accounts=${counts.accounts} orders=${counts.orders} succeeded=${counts.succeeded_orders} payment_keys=${counts.orders_with_payment_key} events=${counts.events}`);
-          NODE
-
-      - name: Create temporary Staging Worker secrets file
-        shell: bash
-        env:
-          SECRETS_FILE: ${{ runner.temp }}/staging-worker-secrets.json
-          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
-          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
-          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
-          TOSS_CLIENT_KEY: ${{ secrets.TOSS_CLIENT_KEY }}
-          TOSS_SECRET_KEY: ${{ secrets.TOSS_SECRET_KEY }}
-        run: |
-          for secret_name in SESSION_SECRET GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET TOSS_CLIENT_KEY TOSS_SECRET_KEY; do
-            echo "::add-mask::${!secret_name}"
-          done
-          node <<'NODE'
-          const fs = require("node:fs");
-          const names = [
-            "SESSION_SECRET",
-            "GOOGLE_CLIENT_ID",
-            "GOOGLE_CLIENT_SECRET",
-            "TOSS_CLIENT_KEY",
-            "TOSS_SECRET_KEY",
-          ];
-          const secrets = Object.fromEntries(names.map((name) => [name, process.env[name]]));
-          const missing = names.filter((name) => !secrets[name]);
-          if (missing.length > 0) throw new Error(`Missing Staging Worker secret names: ${missing.join(", ")}`);
-          fs.writeFileSync(process.env.SECRETS_FILE, JSON.stringify(secrets), { encoding: "utf8", mode: 0o600 });
-          NODE
-
-      - name: Deploy isolated Staging Worker with Sandbox billing
-        id: deploy_sandbox
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          wranglerVersion: "4.81.0"
-          command: deploy --config wrangler.staging.generated.jsonc --secrets-file ${{ runner.temp }}/staging-worker-secrets.json
-
-      - name: Verify Staging Worker secret names
-        shell: bash
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          SECRET_LIST_RAW: ${{ runner.temp }}/staging-worker-secret-list.raw
-        run: |
-          npx --yes wrangler@4.81.0 secret list \
-            --config wrangler.staging.generated.jsonc \
-            --format json > "$SECRET_LIST_RAW"
-          node <<'NODE'
-          const fs = require("node:fs");
-
-          function extractFirstJsonPayload(output) {
-            const source = output
-              .replace(/\uFEFF/g, "")
-              .replace(/\u001B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, "");
-
-            for (let start = 0; start < source.length; start += 1) {
-              const opener = source[start];
-              if (opener !== "[" && opener !== "{") continue;
-
-              const stack = [];
-              let inString = false;
-              let escaped = false;
-              let end = -1;
-              let invalid = false;
-
-              for (let index = start; index < source.length; index += 1) {
-                const character = source[index];
-
-                if (inString) {
-                  if (escaped) {
-                    escaped = false;
-                  } else if (character === "\\") {
-                    escaped = true;
-                  } else if (character === '"') {
-                    inString = false;
-                  }
-                  continue;
-                }
-
-                if (character === '"') {
-                  inString = true;
-                  continue;
-                }
-
-                if (character === "[" || character === "{") {
-                  stack.push(character);
-                  continue;
-                }
-
-                if (character !== "]" && character !== "}") continue;
-                const expected = character === "]" ? "[" : "{";
-                if (stack.pop() !== expected) {
-                  invalid = true;
-                  break;
-                }
-                if (stack.length > 0) continue;
-                end = index;
-                break;
-              }
-
-              if (invalid || end < 0) throw new Error("Unable to parse Wrangler secret list JSON output");
-              try {
-                const payload = JSON.parse(source.slice(start, end + 1));
-                if (Array.isArray(payload) || (payload && typeof payload === "object")) return payload;
-              } catch {
-                // Continue looking after this complete non-JSON candidate.
-              }
-              start = end;
-            }
-
-            throw new Error("Unable to parse Wrangler secret list JSON output");
-          }
-
-          let payload;
-          try {
-            payload = extractFirstJsonPayload(fs.readFileSync(process.env.SECRET_LIST_RAW, "utf8"));
-          } catch {
-            console.error("Unable to parse Wrangler secret list JSON output");
-            process.exit(1);
-          }
-          const rows = Array.isArray(payload) ? payload : (Array.isArray(payload.secrets) ? payload.secrets : []);
-          const names = new Set(rows.map((item) => item.name));
-          const required = [
-            "SESSION_SECRET",
-            "GOOGLE_CLIENT_ID",
-            "GOOGLE_CLIENT_SECRET",
-            "TOSS_CLIENT_KEY",
-            "TOSS_SECRET_KEY",
-          ];
-          const missing = required.filter((name) => !names.has(name));
-          if (missing.length > 0) throw new Error(`Missing Staging Worker secret names: ${missing.join(", ")}`);
-          console.log("Required Staging Worker secret names are present");
-          NODE
-
-      - name: Wait for stable Sandbox endpoints
-        env:
-          STAGING_URL: ${{ steps.deploy_sandbox.outputs.deployment-url }}
-        shell: bash
-        run: |
-          test -n "$STAGING_URL"
-          consecutive=0
-          last_endpoint=""
-          last_status=""
-          last_content_type=""
-
-          probe_endpoint() {
-            local endpoint="$1"
-            local result status content_type
-            result="$(curl --silent --output /dev/null --write-out '%{http_code}\t%{content_type}' --max-time 15 "$STAGING_URL$endpoint" 2>/dev/null || true)"
-            status="${result%%$'\t'*}"
-            content_type="${result#*$'\t'}"
-
-            if [[ "$status" == "200" ]]; then
-              case "$endpoint" in
-                /plan-policy.mjs)
-                  [[ "${content_type,,}" == *javascript* ]] && return 0
-                  ;;
-                /api/auth/providers|/api/health)
-                  [[ "${content_type,,}" == application/json* ]] && return 0
-                  ;;
-              esac
-            fi
-
-            last_endpoint="$endpoint"
-            last_status="$status"
-            last_content_type="$content_type"
-            return 1
-          }
-
-          for attempt in $(seq 1 24); do
-            all_ready=true
-            for endpoint in /plan-policy.mjs /api/auth/providers /api/health; do
-              if ! probe_endpoint "$endpoint"; then
-                all_ready=false
-              fi
-            done
-
-            if [[ "$all_ready" == true ]]; then
-              consecutive=$((consecutive + 1))
-              if (( consecutive >= 2 )); then
-                break
-              fi
-            else
-              consecutive=0
-            fi
-
-            if (( attempt < 24 )); then
-              sleep 5
-            fi
-          done
-
-          if (( consecutive < 2 )); then
-            echo "Staging readiness failed: endpoint=$last_endpoint status=$last_status content-type=$last_content_type"
-            exit 1
-          fi
-
-      - name: Wait for stable enabled Sandbox policy
-        env:
-          STAGING_URL: https://on-my-way-staging.jungslawyer.workers.dev
-        shell: bash
-        run: |
-          consecutive=0
-          observed=()
-          health_file="$RUNNER_TEMP/staging-sandbox-enabled-health.json"
-
-          for attempt in $(seq 1 24); do
-            probe="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${attempt}-$(date +%s%N)"
-            result="$(curl --silent --show-error \
-              --header 'Cache-Control: no-cache' \
-              --output "$health_file" \
-              --write-out '%{http_code}|%{content_type}' \
-              --max-time 15 \
-              "$STAGING_URL/api/health?probe=$probe" 2>/dev/null || true)"
-            status="${result%%|*}"
-            content_type="${result#*|}"
-            policy_state="invalid"
-
-            if [[ "$status" == "200" && "${content_type,,}" == application/json* ]]; then
-              policy_state="$(
-                HEALTH_FILE="$health_file" node <<'NODE'
-          const fs = require("node:fs");
-          try {
-            const health = JSON.parse(fs.readFileSync(process.env.HEALTH_FILE, "utf8"));
-            if (
-              health.environment === "staging" &&
-              health.services?.accountStorage === true &&
-              health.services?.payments === true
-            ) {
-              process.stdout.write("true");
-            } else if (health.services?.payments === false) {
-              process.stdout.write("false");
-            } else {
-              process.stdout.write("invalid");
-            }
-          } catch {
-            process.stdout.write("invalid");
-          }
-          NODE
-              )"
-            fi
-
-            observed+=("$policy_state")
-            if [[ "$policy_state" == "true" ]]; then
-              consecutive=$((consecutive + 1))
-              if (( consecutive >= 2 )); then
-                echo "Enabled Sandbox revision became stable"
-                break
-              fi
-            else
-              consecutive=0
-            fi
-
-            if (( attempt < 24 )); then
-              sleep 5
-            fi
-          done
-
-          if (( consecutive < 2 )); then
-            echo "Enabled Sandbox revision did not become stable"
-            (IFS=,; echo "Observed payments sequence: ${observed[*]}")
-            exit 1
-          fi
-
-      - name: Verify Staging authentication boundary
-        env:
-          STAGING_URL: ${{ steps.deploy_sandbox.outputs.deployment-url }}
-        shell: bash
-        run: |
-          test -n "$STAGING_URL"
-          probe="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-providers-$(date +%s%N)"
-          curl --fail --silent --show-error \
-            --header 'Cache-Control: no-cache' \
-            "$STAGING_URL/api/auth/providers?probe=$probe" \
-            -o providers.json
-          node <<'NODE'
-          const fs = require("node:fs");
-          const providers = JSON.parse(fs.readFileSync("providers.json", "utf8"));
-          if (!Array.isArray(providers.providers)) throw new Error("Staging provider response is invalid");
-          const google = providers.providers.find((provider) => provider.id === "google" || provider.name === "google");
-          const apple = providers.providers.find((provider) => provider.id === "apple" || provider.name === "apple");
-          if (!google?.configured || apple?.visible || providers.devLoginEnabled) {
-            throw new Error("Staging authentication boundary is invalid");
-          }
-          NODE
-
-      - name: Start bounded Sandbox window
-        id: sandbox_window
-        shell: bash
-        run: |
-          started_at="$(date +%s)"
-          deadline="$((started_at + 600))"
-          echo "deadline=$deadline" >> "$GITHUB_OUTPUT"
-          echo "Staging Sandbox window opened with a 10-minute hard limit"
-
-      - name: Signal Staging Toss readiness
-        shell: bash
-        run: |
-          message="STAGING_TOSS_READY: 같은 로그인된 Chrome 탭을 새로고침하고 PRO 버튼을 눌러 테스트 카드 인증을 완료하세요."
-          echo "::notice::$message"
-          echo "$message"
-
-      - name: Wait for initial Sandbox payment and replay window
-        id: sandbox_payment
-        shell: bash
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          STAGING_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_STAGING_D1_DATABASE_ID }}
-          DEADLINE: ${{ steps.sandbox_window.outputs.deadline }}
-          BASELINE_ACCOUNTS: ${{ steps.billing_baseline.outputs.accounts }}
-          BASELINE_ORDERS: ${{ steps.billing_baseline.outputs.orders }}
-          BASELINE_SUCCEEDED: ${{ steps.billing_baseline.outputs.succeeded_orders }}
-          BASELINE_PAYMENT_KEYS: ${{ steps.billing_baseline.outputs.orders_with_payment_key }}
-          BASELINE_EVENTS: ${{ steps.billing_baseline.outputs.events }}
-          COUNTS_FILE: ${{ runner.temp }}/staging-billing-counts.json
-        run: |
-          test -n "${STAGING_D1_DATABASE_ID:-}"
-          test "$STAGING_D1_DATABASE_ID" != "null"
-          echo "::add-mask::$STAGING_D1_DATABASE_ID"
-
-          query_counts() {
-            npx --yes wrangler@4.81.0 d1 execute on-my-way-billing-staging \
-              --remote \
-              --config wrangler.staging.generated.jsonc \
-              --command "SELECT (SELECT COUNT(*) FROM billing_accounts) AS accounts, (SELECT COUNT(*) FROM billing_accounts WHERE billing_key_fingerprint IS NOT NULL) AS fingerprinted_accounts, (SELECT COUNT(*) FROM billing_orders) AS orders, (SELECT COUNT(*) FROM billing_orders WHERE status = 'succeeded') AS succeeded_orders, (SELECT COUNT(*) FROM billing_orders WHERE status = 'succeeded' AND purpose = 'initial_subscription' AND amount = 4900 AND currency = 'KRW') AS valid_initial_orders, (SELECT COUNT(*) FROM billing_orders WHERE payment_key IS NOT NULL) AS orders_with_payment_key, (SELECT COUNT(*) FROM billing_events) AS events" \
-              --json > "$COUNTS_FILE"
-          }
-
-          initial_verified=false
-          while (( $(date +%s) < DEADLINE - 150 )); do
-            query_counts
-            if node <<'NODE'
-          const fs = require("node:fs");
-          const payload = JSON.parse(fs.readFileSync(process.env.COUNTS_FILE, "utf8"));
-          const rows = (Array.isArray(payload) ? payload : [payload]).flatMap((item) => Array.isArray(item.results) ? item.results : []);
-          if (rows.length !== 1) process.exit(1);
-          const row = Object.fromEntries(Object.entries(rows[0]).map(([key, value]) => [key, Number(value)]));
-          const baseline = {
-            accounts: Number(process.env.BASELINE_ACCOUNTS),
-            orders: Number(process.env.BASELINE_ORDERS),
-            succeeded: Number(process.env.BASELINE_SUCCEEDED),
-            paymentKeys: Number(process.env.BASELINE_PAYMENT_KEYS),
-            events: Number(process.env.BASELINE_EVENTS),
-          };
-          const ready =
-            row.accounts === baseline.accounts + 1 &&
-            row.fingerprinted_accounts >= 1 &&
-            row.orders === baseline.orders + 1 &&
-            row.succeeded_orders === baseline.succeeded + 1 &&
-            row.valid_initial_orders === 1 &&
-            row.orders_with_payment_key === baseline.paymentKeys + 1 &&
-            row.events >= baseline.events + 3;
-          process.exit(ready ? 0 : 1);
-          NODE
-            then
-              initial_verified=true
-              break
-            fi
-            sleep 10
-          done
-
-          if [[ "$initial_verified" != true ]]; then
-            echo "Initial Sandbox payment was not verified before the bounded deadline"
-            exit 1
-          fi
-
-          echo "Initial Sandbox payment verified; preserving a two-minute idempotency replay window"
-          sleep 120
-          query_counts
-          node <<'NODE'
-          const fs = require("node:fs");
-          const payload = JSON.parse(fs.readFileSync(process.env.COUNTS_FILE, "utf8"));
-          const rows = (Array.isArray(payload) ? payload : [payload]).flatMap((item) => Array.isArray(item.results) ? item.results : []);
-          if (rows.length !== 1) throw new Error("Unable to read final Staging billing counts");
-          const row = Object.fromEntries(Object.entries(rows[0]).map(([key, value]) => [key, Number(value)]));
-          const baseline = {
-            accounts: Number(process.env.BASELINE_ACCOUNTS),
-            orders: Number(process.env.BASELINE_ORDERS),
-            succeeded: Number(process.env.BASELINE_SUCCEEDED),
-            paymentKeys: Number(process.env.BASELINE_PAYMENT_KEYS),
-            events: Number(process.env.BASELINE_EVENTS),
-          };
-          if (
-            row.accounts !== baseline.accounts + 1 ||
-            row.fingerprinted_accounts < 1 ||
-            row.orders !== baseline.orders + 1 ||
-            row.succeeded_orders !== baseline.succeeded + 1 ||
-            row.valid_initial_orders !== 1 ||
-            row.orders_with_payment_key !== baseline.paymentKeys + 1 ||
-            row.events < baseline.events + 3
-          ) {
-            throw new Error("Staging billing ledger changed unexpectedly during idempotency replay");
-          }
-          console.log(`Final Staging billing counts: accounts=${row.accounts} orders=${row.orders} succeeded=${row.succeeded_orders} payment_keys=${row.orders_with_payment_key} events=${row.events}`);
-          NODE
-
-      - name: Restore disabled Staging Worker
-        id: restore_disabled
-        if: always() && steps.deploy_sandbox.outcome != 'skipped'
-        shell: bash
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          SECRETS_FILE: ${{ runner.temp }}/staging-worker-secrets.json
-        run: |
-          test -f wrangler.staging.generated.jsonc
-          test -s "$SECRETS_FILE"
-          rollback_config="$GITHUB_WORKSPACE/wrangler.staging.rollback.jsonc"
-          jq '.vars.PAYMENTS_ENABLED = "false"' wrangler.staging.generated.jsonc > "$rollback_config"
-          jq -e '
-            (.name == "on-my-way-staging") and
-            (.workers_dev == true) and
             ((.routes // []) | length == 0) and
             (.vars.APP_ENV == "staging") and
             (.vars.PAYMENTS_ENABLED == "false") and
-            (.vars.ALLOW_DEV_LOGIN == "false") and
-            (.vars.ALLOW_DEMO_BILLING == "false") and
-            (.vars.APPLE_LOGIN_VISIBLE == "false")
-          ' "$rollback_config" > /dev/null
-          npx --yes wrangler@4.81.0 deploy \
-            --config "$rollback_config" \
-            --secrets-file "$SECRETS_FILE"
+            (.d1_databases | length == 1) and
+            (.d1_databases[0].binding == "BILLING_DB") and
+            (.d1_databases[0].database_name == "on-my-way-billing-staging")
+          ' "$GENERATED_CONFIG" > /dev/null
 
-      - name: Verify Staging billing is disabled after Sandbox
-        if: always() && steps.deploy_sandbox.outcome != 'skipped'
+      - name: Verify disabled environment boundaries before reconciliation
         shell: bash
+        env:
+          STAGING_HEALTH_FILE: ${{ runner.temp }}/staging-health-before.json
+          PRODUCTION_HEALTH_FILE: ${{ runner.temp }}/production-health-before.json
         run: |
-          staging_url="https://on-my-way-staging.jungslawyer.workers.dev"
-          consecutive=0
-          for attempt in $(seq 1 24); do
-            health_file="$RUNNER_TEMP/staging-disabled-health.json"
-            status="$(curl --silent --output "$health_file" --write-out '%{http_code}' --max-time 15 "$staging_url/api/health" 2>/dev/null || true)"
-            if [[ "$status" == "200" ]] && HEALTH_FILE="$health_file" node <<'NODE'
+          set -euo pipefail
+          curl --fail --silent --show-error --max-time 30 \
+            --output "$STAGING_HEALTH_FILE" \
+            "https://on-my-way-staging.jungslawyer.workers.dev/api/health"
+          curl --fail --silent --show-error --max-time 30 \
+            --output "$PRODUCTION_HEALTH_FILE" \
+            "https://onmyway.olivenrich.com/api/health"
+          node <<'NODE'
           const fs = require("node:fs");
+          const staging = JSON.parse(fs.readFileSync(process.env.STAGING_HEALTH_FILE, "utf8"));
+          const production = JSON.parse(fs.readFileSync(process.env.PRODUCTION_HEALTH_FILE, "utf8"));
+          if (staging.environment !== "staging") throw new Error("Staging environment boundary is invalid");
+          if (staging.services?.accountStorage !== true) throw new Error("Staging account storage is unavailable");
+          if (staging.services?.payments !== false) throw new Error("Staging payments must remain disabled");
+          if (production.services?.payments !== false) throw new Error("Production payments must remain disabled");
+          console.log("environment=staging");
+          console.log("accountStorage=true");
+          console.log("stagingPayments=false");
+          console.log("productionPayments=false");
+          NODE
+
+      - name: Select the single failed Staging order without mutation
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          STAGING_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_STAGING_D1_DATABASE_ID }}
+          GENERATED_CONFIG: ${{ runner.temp }}/wrangler.staging.reconcile.jsonc
+          D1_QUERY_FILE: ${{ runner.temp }}/staging-order-selection.raw.json
+          SELECTION_FILE: ${{ runner.temp }}/staging-order-selection.internal.json
+          BASELINE_FILE: ${{ runner.temp }}/staging-ledger-baseline.safe.json
+        run: |
+          set -euo pipefail
+          echo "::add-mask::$CLOUDFLARE_API_TOKEN"
+          echo "::add-mask::$CLOUDFLARE_ACCOUNT_ID"
+          echo "::add-mask::$STAGING_D1_DATABASE_ID"
+
+          npx --yes wrangler@4.81.0 d1 execute on-my-way-billing-staging \
+            --remote \
+            --config "$GENERATED_CONFIG" \
+            --command "SELECT o.order_id, o.customer_key, o.user_id, (SELECT COUNT(*) FROM billing_orders WHERE status = 'failed' AND purpose = 'initial_subscription' AND amount = 4900 AND currency = 'KRW' AND payment_key IS NULL AND failure_code = 'PAYMENT_AMOUNT_MISMATCH') AS matching_orders, (SELECT COUNT(*) FROM billing_orders WHERE status = 'succeeded') AS succeeded_orders, (SELECT COUNT(*) FROM billing_orders WHERE status IN ('created', 'pending', 'unknown')) AS active_orders, (SELECT COUNT(*) FROM billing_accounts a WHERE a.user_id = o.user_id AND a.billing_key_fingerprint IS NOT NULL) AS linked_fingerprinted_accounts, (SELECT COUNT(*) FROM billing_accounts) AS accounts, (SELECT COUNT(*) FROM billing_orders) AS orders, (SELECT COUNT(*) FROM billing_orders WHERE status = 'failed') AS failed_orders, (SELECT COUNT(*) FROM billing_orders WHERE payment_key IS NOT NULL) AS payment_key_orders, (SELECT COUNT(*) FROM billing_events) AS events FROM billing_orders o WHERE o.status = 'failed' AND o.purpose = 'initial_subscription' AND o.amount = 4900 AND o.currency = 'KRW' AND o.payment_key IS NULL AND o.failure_code = 'PAYMENT_AMOUNT_MISMATCH'" \
+            --json > "$D1_QUERY_FILE"
+
+          node <<'NODE'
+          const fs = require("node:fs");
+          const payload = JSON.parse(fs.readFileSync(process.env.D1_QUERY_FILE, "utf8"));
+          const rows = (Array.isArray(payload) ? payload : [payload])
+            .flatMap((item) => Array.isArray(item.results) ? item.results : []);
+          if (rows.length !== 1) throw new Error("Expected exactly one matching failed Staging order");
+          const row = rows[0];
+          const counts = Object.fromEntries([
+            "matching_orders",
+            "succeeded_orders",
+            "active_orders",
+            "linked_fingerprinted_accounts",
+            "accounts",
+            "orders",
+            "failed_orders",
+            "payment_key_orders",
+            "events",
+          ].map((key) => [key, Number(row[key])]));
+          for (const [key, value] of Object.entries(counts)) {
+            if (!Number.isInteger(value) || value < 0) throw new Error(`Invalid read-only count: ${key}`);
+          }
+          if (counts.matching_orders !== 1) throw new Error("Matching failed order count is not one");
+          if (counts.succeeded_orders !== 0) throw new Error("A succeeded Staging order exists; refusing Toss lookup");
+          if (counts.active_orders !== 0) throw new Error("A non-terminal Staging order exists; refusing Toss lookup");
+          if (counts.linked_fingerprinted_accounts !== 1) throw new Error("Linked billing account fingerprint is missing");
+          if (
+            counts.accounts !== 1 ||
+            counts.orders !== 1 ||
+            counts.failed_orders !== 1 ||
+            counts.payment_key_orders !== 0 ||
+            counts.events !== 3
+          ) throw new Error("Staging billing ledger baseline differs from the reviewed state");
+          for (const key of ["order_id", "customer_key", "user_id"]) {
+            if (typeof row[key] !== "string" || row[key].length === 0) throw new Error(`Missing internal field: ${key}`);
+          }
+          fs.writeFileSync(process.env.SELECTION_FILE, JSON.stringify({
+            orderId: row.order_id,
+            customerKey: row.customer_key,
+            userId: row.user_id,
+          }), { mode: 0o600 });
+          fs.writeFileSync(process.env.BASELINE_FILE, JSON.stringify({
+            accounts: counts.accounts,
+            orders: counts.orders,
+            failed: counts.failed_orders,
+            succeeded: counts.succeeded_orders,
+            paymentKeys: counts.payment_key_orders,
+            events: counts.events,
+          }), { mode: 0o600 });
+          console.log("matchingFailedOrders=1");
+          console.log("succeededOrders=0");
+          console.log("activeOrders=0");
+          console.log("linkedFingerprint=true");
+          NODE
+
+      - name: Reconcile the failed order with one Toss GET
+        shell: bash
+        env:
+          TOSS_SECRET_KEY: ${{ secrets.TOSS_SECRET_KEY }}
+          SELECTION_FILE: ${{ runner.temp }}/staging-order-selection.internal.json
+          TOSS_RESPONSE_FILE: ${{ runner.temp }}/toss-order-response.internal.json
+        run: |
+          set -euo pipefail
+          echo "::add-mask::$TOSS_SECRET_KEY"
+          order_id="$(node -e 'const fs=require("node:fs");process.stdout.write(JSON.parse(fs.readFileSync(process.env.SELECTION_FILE,"utf8")).orderId)')"
+          encoded_order_id="$(ORDER_ID="$order_id" node -e 'process.stdout.write(encodeURIComponent(process.env.ORDER_ID))')"
+          authorization="$(printf '%s:' "$TOSS_SECRET_KEY" | base64 | tr -d '\n')"
+          echo "::add-mask::$order_id"
+          echo "::add-mask::$authorization"
+          api_url="https://api.tosspayments.com/v1/payments/orders/$encoded_order_id"
+
+          curl_exit=0
+          http_status="$(curl --silent --show-error \
+            --request GET \
+            --max-time 60 \
+            --retry 0 \
+            --header "Authorization: Basic $authorization" \
+            --header "Accept: application/json" \
+            --output "$TOSS_RESPONSE_FILE" \
+            --write-out '%{http_code}' \
+            "$api_url")" || curl_exit=$?
+
+          unset authorization api_url encoded_order_id order_id
+          if (( curl_exit != 0 )); then
+            http_status="000"
+            : > "$TOSS_RESPONSE_FILE"
+          fi
+
+          HTTP_STATUS="$http_status" node <<'NODE'
+          const fs = require("node:fs");
+          const httpStatus = Number(process.env.HTTP_STATUS) || 0;
+          const selection = JSON.parse(fs.readFileSync(process.env.SELECTION_FILE, "utf8"));
+          let body = null;
           try {
-            const health = JSON.parse(fs.readFileSync(process.env.HEALTH_FILE, "utf8"));
-            process.exit(health.environment === "staging" && health.services?.accountStorage === true && health.services?.payments === false ? 0 : 1);
+            body = JSON.parse(fs.readFileSync(process.env.TOSS_RESPONSE_FILE, "utf8"));
           } catch {
-            process.exit(1);
+            body = null;
+          }
+
+          const safeToken = (value, fallback = "unknown") => {
+            const text = String(value ?? "");
+            return /^[A-Za-z0-9_.-]{1,64}$/.test(text) ? text : fallback;
+          };
+
+          console.log(`httpStatus=${httpStatus || "transport_error"}`);
+          if (httpStatus === 200 && body && typeof body === "object") {
+            const status = safeToken(body.status);
+            const type = safeToken(body.type);
+            const currency = safeToken(body.currency);
+            const totalAmount = Number(body.totalAmount);
+            const paymentKeyPresent = typeof body.paymentKey === "string" && body.paymentKey.length > 0;
+            const orderIdMatches = body.orderId === selection.orderId;
+            const customerKeyState = body.customerKey === undefined
+              ? "field_missing"
+              : String(body.customerKey === selection.customerKey);
+            const approvedAtPresent = typeof body.approvedAt === "string" && body.approvedAt.length > 0;
+            const cardPresent = Boolean(body.card && typeof body.card === "object");
+            const cancelCount = Array.isArray(body.cancels) ? body.cancels.length : 0;
+            const failurePresent = Boolean(body.failure);
+            console.log("paymentExists=true");
+            console.log(`status=${status}`);
+            console.log(`type=${type}`);
+            console.log(`totalAmount=${Number.isFinite(totalAmount) ? totalAmount : "invalid"}`);
+            console.log(`currency=${currency}`);
+            console.log(`paymentKeyPresent=${paymentKeyPresent}`);
+            console.log(`orderIdMatches=${orderIdMatches}`);
+            console.log(`customerKeyMatches=${customerKeyState}`);
+            console.log(`approvedAtPresent=${approvedAtPresent}`);
+            console.log(`cardPresent=${cardPresent}`);
+            console.log(`cancelCount=${cancelCount}`);
+            console.log(`failurePresent=${failurePresent}`);
+            const approved =
+              status === "DONE" &&
+              type === "BILLING" &&
+              totalAmount === 4900 &&
+              currency === "KRW" &&
+              paymentKeyPresent &&
+              orderIdMatches;
+            const result = approved
+              ? "APPROVED_EXTERNALLY"
+              : status !== "DONE"
+                ? "NOT_APPROVED"
+                : "INCONCLUSIVE";
+            console.log(`RECONCILIATION_RESULT=${result}`);
+          } else {
+            const errorCode = safeToken(body?.code, httpStatus === 0 ? "TRANSPORT_ERROR" : "UNKNOWN_ERROR");
+            const missing = httpStatus === 404;
+            console.log(`paymentExists=${missing ? "false" : "unknown"}`);
+            console.log(`tossErrorCode=${errorCode}`);
+            console.log("maskedErrorSummary=Toss read-only lookup returned an error");
+            console.log(`RECONCILIATION_RESULT=${missing ? "NOT_APPROVED" : "INCONCLUSIVE"}`);
           }
           NODE
-            then
-              consecutive=$((consecutive + 1))
-              if (( consecutive >= 2 )); then
-                exit 0
-              fi
-            else
-              consecutive=0
-            fi
-            if (( attempt < 24 )); then sleep 5; fi
-          done
-          echo "Staging billing did not return to the disabled state"
-          exit 1
 
-      - name: Remove generated Staging config
+      - name: Verify Staging D1 is unchanged
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          STAGING_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_STAGING_D1_DATABASE_ID }}
+          GENERATED_CONFIG: ${{ runner.temp }}/wrangler.staging.reconcile.jsonc
+          BASELINE_FILE: ${{ runner.temp }}/staging-ledger-baseline.safe.json
+          AFTER_FILE: ${{ runner.temp }}/staging-ledger-after.safe.json
+        run: |
+          set -euo pipefail
+          echo "::add-mask::$CLOUDFLARE_API_TOKEN"
+          echo "::add-mask::$CLOUDFLARE_ACCOUNT_ID"
+          echo "::add-mask::$STAGING_D1_DATABASE_ID"
+          npx --yes wrangler@4.81.0 d1 execute on-my-way-billing-staging \
+            --remote \
+            --config "$GENERATED_CONFIG" \
+            --command "SELECT (SELECT COUNT(*) FROM billing_accounts) AS accounts, (SELECT COUNT(*) FROM billing_orders) AS orders, (SELECT COUNT(*) FROM billing_orders WHERE status = 'failed') AS failed, (SELECT COUNT(*) FROM billing_orders WHERE status = 'succeeded') AS succeeded, (SELECT COUNT(*) FROM billing_orders WHERE payment_key IS NOT NULL) AS paymentKeys, (SELECT COUNT(*) FROM billing_events) AS events" \
+            --json > "$AFTER_FILE"
+          node <<'NODE'
+          const fs = require("node:fs");
+          const before = JSON.parse(fs.readFileSync(process.env.BASELINE_FILE, "utf8"));
+          const payload = JSON.parse(fs.readFileSync(process.env.AFTER_FILE, "utf8"));
+          const rows = (Array.isArray(payload) ? payload : [payload])
+            .flatMap((item) => Array.isArray(item.results) ? item.results : []);
+          if (rows.length !== 1) throw new Error("Unable to verify Staging ledger after Toss lookup");
+          const after = Object.fromEntries(Object.entries(rows[0]).map(([key, value]) => [key, Number(value)]));
+          for (const key of ["accounts", "orders", "failed", "succeeded", "paymentKeys", "events"]) {
+            if (after[key] !== before[key]) throw new Error(`Staging ledger changed during read-only reconciliation: ${key}`);
+          }
+          if (
+            after.accounts !== 1 ||
+            after.orders !== 1 ||
+            after.failed !== 1 ||
+            after.succeeded !== 0 ||
+            after.paymentKeys !== 0 ||
+            after.events !== 3
+          ) throw new Error("Staging ledger no longer matches the reviewed aggregate");
+          console.log("d1Unchanged=true");
+          console.log("accounts=1 orders=1 failed=1 succeeded=0 paymentKeys=0 events=3");
+          NODE
+
+      - name: Verify environment boundaries after reconciliation
+        shell: bash
+        env:
+          STAGING_HEALTH_FILE: ${{ runner.temp }}/staging-health-after.json
+          PRODUCTION_HEALTH_FILE: ${{ runner.temp }}/production-health-after.json
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --max-time 30 \
+            --output "$STAGING_HEALTH_FILE" \
+            "https://on-my-way-staging.jungslawyer.workers.dev/api/health"
+          curl --fail --silent --show-error --max-time 30 \
+            --output "$PRODUCTION_HEALTH_FILE" \
+            "https://onmyway.olivenrich.com/api/health"
+          node <<'NODE'
+          const fs = require("node:fs");
+          const staging = JSON.parse(fs.readFileSync(process.env.STAGING_HEALTH_FILE, "utf8"));
+          const production = JSON.parse(fs.readFileSync(process.env.PRODUCTION_HEALTH_FILE, "utf8"));
+          if (staging.environment !== "staging") throw new Error("Staging environment changed during reconciliation");
+          if (staging.services?.accountStorage !== true) throw new Error("Staging account storage changed during reconciliation");
+          if (staging.services?.payments !== false) throw new Error("Staging payments changed during reconciliation");
+          if (production.services?.payments !== false) throw new Error("Production payments changed during reconciliation");
+          console.log("stagingEnvironment=staging");
+          console.log("stagingAccountStorage=true");
+          console.log("stagingPayments=false");
+          console.log("productionPayments=false");
+          NODE
+
+      - name: Remove reconciliation temporary files
         if: always()
         shell: bash
-        run: rm -f "$GITHUB_WORKSPACE/wrangler.staging.generated.jsonc" "$GITHUB_WORKSPACE/wrangler.staging.rollback.jsonc" health.json providers.json "$RUNNER_TEMP/staging-billing-schema.json" "$RUNNER_TEMP/staging-billing-baseline.json" "$RUNNER_TEMP/staging-billing-counts.json" "$RUNNER_TEMP/staging-worker-secrets.json" "$RUNNER_TEMP/staging-worker-secret-list.raw" "$RUNNER_TEMP/staging-sandbox-enabled-health.json" "$RUNNER_TEMP/staging-disabled-health.json"
+        run: |
+          rm -f \
+            "$RUNNER_TEMP/wrangler.staging.reconcile.jsonc" \
+            "$RUNNER_TEMP/staging-health-before.json" \
+            "$RUNNER_TEMP/production-health-before.json" \
+            "$RUNNER_TEMP/staging-order-selection.raw.json" \
+            "$RUNNER_TEMP/staging-order-selection.internal.json" \
+            "$RUNNER_TEMP/staging-ledger-baseline.safe.json" \
+            "$RUNNER_TEMP/toss-order-response.internal.json" \
+            "$RUNNER_TEMP/staging-ledger-after.safe.json" \
+            "$RUNNER_TEMP/staging-health-after.json" \
+            "$RUNNER_TEMP/production-health-after.json"
