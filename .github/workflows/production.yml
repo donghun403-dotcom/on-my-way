@@ -17,6 +17,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     environment: production
+    env:
+      PRODUCTION_ORIGIN: https://onmyway.olivenrich.com
+      WORKERS_DEV_ORIGIN: https://on-my-way.jungslawyer.workers.dev
     steps:
       - name: Check out main
         uses: actions/checkout@v4
@@ -43,13 +46,146 @@ jobs:
             node --check "$file"
           done < <(find . -type f \( -name '*.js' -o -name '*.mjs' -o -name '*.cjs' \) -not -path './node_modules/*' -print0)
 
+      - name: Validate canonical Production config
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          config="wrangler.production.jsonc"
+          jq -e '
+            .name == "on-my-way" and
+            .main == "./worker.mjs" and
+            .workers_dev == true and
+            .preview_urls == false and
+            (.routes | type == "array" and length == 1) and
+            .routes[0].pattern == "onmyway.olivenrich.com" and
+            .routes[0].custom_domain == true and
+            .vars.APP_ENV == "production" and
+            .vars.PAYMENTS_ENABLED == "false" and
+            .vars.ALLOW_DEV_LOGIN == "false" and
+            .vars.ALLOW_DEMO_BILLING == "false" and
+            .vars.APPLE_LOGIN_VISIBLE == "false" and
+            ([.kv_namespaces[]? | select(.binding == "USERS_KV" and (.id | type == "string" and length > 0))] | length == 1) and
+            ([.ratelimits[]? | select(.name == "AI_RATE_LIMITER")] | length == 1)
+          ' "$config" >/dev/null
+
+          if grep -Eq 'test_(ck|sk)_' "$config"; then
+            echo "Production config contains a Toss test-key marker"
+            exit 1
+          fi
+
+          echo "Canonical Production config validated without exposing binding identifiers"
+
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium webkit
 
       - name: Run release Playwright suite
         run: npm run test:e2e -- --reporter=line
 
+      - name: Capture safe Production rollback target
+        id: rollback-snapshot
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+
+          snapshot_dir="$RUNNER_TEMP/production-deploy-snapshot"
+          mkdir -p "$snapshot_dir"
+          rollback_file="$snapshot_dir/rollback-version"
+          deployments_file="$snapshot_dir/deployments.json"
+
+          api_get() {
+            local path="$1"
+            local output="$2"
+            local status
+
+            status="$(curl --silent --output "$output" --write-out '%{http_code}' \
+              --connect-timeout 15 --max-time 60 \
+              --header 'Accept: application/json' \
+              --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/on-my-way/$path" || true)"
+
+            if [[ "$status" != "200" ]] || ! jq -e '.success == true' "$output" >/dev/null 2>&1; then
+              echo "Cloudflare Production metadata query failed (HTTP ${status:-000})"
+              return 1
+            fi
+          }
+
+          canonical_version() {
+            local detail_file="$1"
+            jq -e '
+              (.result.resources.bindings // []) as $bindings |
+              ([ $bindings[] | select(.type == "plain_text" and .name == "APP_ENV" and .text == "production") ] | length == 1) and
+              ([ $bindings[] | select(.type == "plain_text" and .name == "PAYMENTS_ENABLED" and .text == "false") ] | length == 1) and
+              ([ $bindings[] | select(.type == "plain_text" and .name == "ALLOW_DEV_LOGIN" and .text == "false") ] | length == 1) and
+              ([ $bindings[] | select(.type == "plain_text" and .name == "ALLOW_DEMO_BILLING" and .text == "false") ] | length == 1) and
+              ([ $bindings[] | select(.type == "plain_text" and .name == "APPLE_LOGIN_VISIBLE" and .text == "false") ] | length == 1) and
+              ([ $bindings[] | select(.type == "kv_namespace" and .name == "USERS_KV" and (.namespace_id | type == "string" and length > 0)) ] | length == 1) and
+              ([ $bindings[] | select(.type == "ratelimit" and .name == "AI_RATE_LIMITER") ] | length == 1)
+            ' "$detail_file" >/dev/null
+          }
+
+          api_get deployments "$deployments_file"
+          mapfile -t deployments < <(jq -c '
+            (if (.result | type) == "array" then .result
+             elif (.result.deployments | type) == "array" then .result.deployments
+             else [] end)
+            | sort_by(.created_on // "") | reverse | .[]
+          ' "$deployments_file")
+
+          if (( ${#deployments[@]} == 0 )); then
+            echo "No Production deployment metadata was returned"
+            exit 1
+          fi
+
+          current="${deployments[0]}"
+          current_version="$(jq -r '
+            [.versions[]? | select(.percentage == 100)] as $versions |
+            if ($versions | length) == 1 then $versions[0].version_id else empty end
+          ' <<<"$current")"
+          if [[ ! "$current_version" =~ ^[0-9A-Fa-f-]{36}$ ]]; then
+            echo "The active Production deployment is not a single safely identifiable version"
+            exit 1
+          fi
+
+          current_created="$(jq -r '.created_on // "unknown"' <<<"$current")"
+          current_source="$(jq -r '.source // "unknown"' <<<"$current")"
+          echo "Active Production deployment metadata recorded: created=$current_created source=$current_source"
+
+          canonical_created=""
+          canonical_source=""
+          for index in "${!deployments[@]}"; do
+            deployment="${deployments[$index]}"
+            version="$(jq -r '
+              [.versions[]? | select(.percentage == 100)] as $versions |
+              if ($versions | length) == 1 then $versions[0].version_id else empty end
+            ' <<<"$deployment")"
+            [[ "$version" =~ ^[0-9A-Fa-f-]{36}$ ]] || continue
+
+            detail_file="$snapshot_dir/version-detail-$index.json"
+            if ! api_get "versions/$version" "$detail_file"; then
+              continue
+            fi
+            if canonical_version "$detail_file"; then
+              printf '%s' "$version" > "$rollback_file"
+              canonical_created="$(jq -r '.created_on // "unknown"' <<<"$deployment")"
+              canonical_source="$(jq -r '.source // "unknown"' <<<"$deployment")"
+              break
+            fi
+          done
+
+          if [[ ! -s "$rollback_file" ]]; then
+            echo "No exact canonical Production rollback version could be established; deployment refused"
+            exit 1
+          fi
+
+          echo "Canonical rollback deployment metadata recorded: created=$canonical_created source=$canonical_source"
+
       - name: Deploy production from main only
+        id: deploy
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -57,10 +193,280 @@ jobs:
           wranglerVersion: "4.81.0"
           command: deploy --config wrangler.production.jsonc
 
-      - name: Verify production routes
+      - name: Verify canonical Production deployment and overwrite guard
+        id: production-verification
         shell: bash
         run: |
-          curl --fail --silent --show-error https://onmyway.olivenrich.com/ >/dev/null
-          curl --fail --silent --show-error https://onmyway.olivenrich.com/api/auth/providers >/dev/null
-          curl --fail --silent --show-error https://onmyway.olivenrich.com/api/health > health.json
-          node -e "const h=require('./health.json'); if (!h.ok || !h.services.accountStorage || !h.services.ai) process.exit(1)"
+          set -euo pipefail
+          umask 077
+
+          probe_dir="$RUNNER_TEMP/production-route-probes"
+          mkdir -p "$probe_dir"
+          last_endpoint="unknown"
+          last_status="000"
+          last_content_type="unknown"
+          last_environment="unknown"
+          last_payments="unknown"
+
+          probe_endpoint() {
+            local origin="$1"
+            local endpoint="$2"
+            local expected_type="$3"
+            local label="$4"
+            local sequence="$5"
+            local body="$probe_dir/${label}-${sequence}-body"
+            local result status content_type type_matches
+
+            result="$(curl --silent --output "$body" --write-out '%{http_code}|%{content_type}' \
+              --connect-timeout 10 --max-time 30 \
+              --header 'Cache-Control: no-cache' \
+              --header 'Pragma: no-cache' \
+              "$origin$endpoint?__omw_probe=$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$label-$sequence-$RANDOM" || true)"
+            status="${result%%|*}"
+            content_type="${result#*|}"
+            [[ "$result" == *'|'* ]] || content_type=""
+
+            if [[ "$status" != "200" ]]; then
+              last_endpoint="$endpoint"
+              last_status="${status:-000}"
+              last_content_type="${content_type:-unknown}"
+              return 1
+            fi
+            case "$expected_type" in
+              html) type_matches=$([[ "${content_type,,}" == text/html* ]] && echo true || echo false) ;;
+              javascript) type_matches=$([[ "${content_type,,}" == *javascript* ]] && echo true || echo false) ;;
+              json) type_matches=$([[ "${content_type,,}" == application/json* ]] && echo true || echo false) ;;
+              *) echo "Invalid Production probe type"; return 1 ;;
+            esac
+            if [[ "$type_matches" != "true" ]]; then
+              last_endpoint="$endpoint"
+              last_status="$status"
+              last_content_type="${content_type:-unknown}"
+              return 1
+            fi
+
+            if [[ "$endpoint" == "/api/health" ]]; then
+              if ! jq -e . "$body" >/dev/null 2>&1; then
+                last_endpoint="$endpoint"
+                last_status="$status"
+                last_content_type="${content_type:-unknown}"
+                return 1
+              fi
+              last_environment="$(jq -r '.environment // "unknown"' "$body")"
+              last_payments="$(
+                jq -r '
+                  if
+                    ((.services | type) == "object") and
+                    (.services | has("payments")) and
+                    ((.services.payments | type) == "boolean")
+                  then
+                    (.services.payments | tostring)
+                  else
+                    "unknown"
+                  end
+                ' "$body"
+              )"
+              if [[ "$last_environment" != "production" ]] ||
+                 [[ "$(jq -r '.services.accountStorage // false' "$body")" != "true" ]] ||
+                 [[ "$(jq -r '.services.ai // false' "$body")" != "true" ]] ||
+                 [[ "$last_payments" != "false" ]]; then
+                last_endpoint="$endpoint"
+                last_status="$status"
+                last_content_type="${content_type:-unknown}"
+                return 1
+              fi
+            elif [[ "$endpoint" == "/api/auth/providers" ]]; then
+              if ! jq -e '
+                (.providers | type == "array") and
+                ([.providers[] | select(.id == "google" and .configured == true)] | length == 1) and
+                ([.providers[] | select(.id == "apple" and .visible == false)] | length == 1) and
+                .devLoginEnabled == false
+              ' "$body" >/dev/null 2>&1; then
+                last_endpoint="$endpoint"
+                last_status="$status"
+                last_content_type="${content_type:-unknown}"
+                return 1
+              fi
+            fi
+          }
+
+          verify_origin_once() {
+            local origin="$1"
+            local label="$2"
+            local sequence="$3"
+            local all_ready=true
+
+            while IFS='|' read -r endpoint expected_type; do
+              if ! probe_endpoint "$origin" "$endpoint" "$expected_type" "$label" "$sequence-${endpoint//\//_}"; then
+                all_ready=false
+              fi
+            done <<'ENDPOINTS'
+          /|html
+          /api/health|json
+          /api/auth/providers|json
+          /script.js|javascript
+          /plan-policy.mjs|javascript
+          ENDPOINTS
+
+            [[ "$all_ready" == true ]]
+          }
+
+          consecutive=0
+          for attempt in $(seq 1 24); do
+            if verify_origin_once "$PRODUCTION_ORIGIN" "initial" "$attempt"; then
+              consecutive=$((consecutive + 1))
+              echo "Canonical Production check $consecutive/3: environment=$last_environment payments=$last_payments"
+              if (( consecutive >= 3 )); then
+                break
+              fi
+            else
+              consecutive=0
+              echo "Production endpoint not ready: path=$last_endpoint status=$last_status content-type=$last_content_type environment=$last_environment payments=$last_payments"
+            fi
+
+            if (( attempt < 24 )); then
+              sleep 5
+            fi
+          done
+
+          if (( consecutive < 3 )); then
+            echo "Canonical Production endpoints did not become stable"
+            exit 1
+          fi
+
+          echo "Waiting exactly 120 seconds to detect an external deployment overwrite"
+          sleep 120
+
+          for check in 1 2 3; do
+            if ! verify_origin_once "$PRODUCTION_ORIGIN" "surveillance-custom" "$check"; then
+              if [[ "$last_environment" == "preview" ]]; then
+                echo "Production reverted to preview after deployment; an external Workers build may still be active"
+              else
+                echo "Production custom-domain surveillance failed: path=$last_endpoint status=$last_status content-type=$last_content_type environment=$last_environment payments=$last_payments"
+              fi
+              exit 1
+            fi
+            echo "Custom-domain overwrite check $check/3: environment=$last_environment payments=$last_payments"
+
+            if ! verify_origin_once "$WORKERS_DEV_ORIGIN" "surveillance-workers-dev" "$check"; then
+              echo "Production workers.dev surveillance failed: path=$last_endpoint status=$last_status content-type=$last_content_type environment=$last_environment payments=$last_payments"
+              exit 1
+            fi
+            echo "workers.dev overwrite check $check/3: environment=$last_environment payments=$last_payments"
+
+            if (( check < 3 )); then
+              sleep 5
+            fi
+          done
+
+      - name: Roll back failed Production verification
+        id: rollback
+        if: ${{ failure() && steps.deploy.outcome == 'success' }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+
+          snapshot_dir="$RUNNER_TEMP/production-deploy-snapshot"
+          rollback_file="$snapshot_dir/rollback-version"
+          detail_file="$snapshot_dir/rollback-version-detail.json"
+
+          if [[ ! -s "$rollback_file" ]]; then
+            echo "No exact rollback target is available; refusing to guess"
+            exit 1
+          fi
+
+          rollback_version="$(cat "$rollback_file")"
+          if [[ ! "$rollback_version" =~ ^[0-9A-Fa-f-]{36}$ ]]; then
+            echo "Stored rollback target is invalid; refusing to guess"
+            exit 1
+          fi
+
+          status="$(curl --silent --output "$detail_file" --write-out '%{http_code}' \
+            --connect-timeout 15 --max-time 60 \
+            --header 'Accept: application/json' \
+            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/on-my-way/versions/$rollback_version" || true)"
+          if [[ "$status" != "200" ]] || ! jq -e '
+            .success == true and
+            ((.result.resources.bindings // []) as $bindings |
+              ([ $bindings[] | select(.type == "plain_text" and .name == "APP_ENV" and .text == "production") ] | length == 1) and
+              ([ $bindings[] | select(.type == "plain_text" and .name == "PAYMENTS_ENABLED" and .text == "false") ] | length == 1) and
+              ([ $bindings[] | select(.type == "plain_text" and .name == "ALLOW_DEV_LOGIN" and .text == "false") ] | length == 1) and
+              ([ $bindings[] | select(.type == "plain_text" and .name == "ALLOW_DEMO_BILLING" and .text == "false") ] | length == 1) and
+              ([ $bindings[] | select(.type == "plain_text" and .name == "APPLE_LOGIN_VISIBLE" and .text == "false") ] | length == 1) and
+              ([ $bindings[] | select(.type == "kv_namespace" and .name == "USERS_KV" and (.namespace_id | type == "string" and length > 0)) ] | length == 1) and
+              ([ $bindings[] | select(.type == "ratelimit" and .name == "AI_RATE_LIMITER") ] | length == 1))
+          ' "$detail_file" >/dev/null 2>&1; then
+            echo "Exact rollback target could not be revalidated; refusing to guess"
+            exit 1
+          fi
+
+          echo "Exact canonical rollback target revalidated"
+          if ! npx --yes wrangler@4.81.0 rollback "$rollback_version" \
+            --name on-my-way \
+            --config wrangler.production.jsonc \
+            --message "Automated rollback after failed canonical Production verification" \
+            >"$snapshot_dir/rollback-command.log" 2>&1; then
+            echo "Canonical Production rollback command failed"
+            exit 1
+          fi
+          echo "Canonical Production rollback completed"
+
+      - name: Verify Production after rollback
+        if: ${{ failure() && steps.deploy.outcome == 'success' && steps.rollback.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+
+          verify_dir="$RUNNER_TEMP/production-rollback-probes"
+          mkdir -p "$verify_dir"
+
+          for check in 1 2 3; do
+            probe="rollback-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$check-$RANDOM"
+            health_file="$verify_dir/health-$check.json"
+            providers_file="$verify_dir/providers-$check.json"
+
+            health_result="$(curl --silent --output "$health_file" --write-out '%{http_code}|%{content_type}' \
+              --connect-timeout 10 --max-time 30 \
+              --header 'Cache-Control: no-cache' --header 'Pragma: no-cache' \
+              "$PRODUCTION_ORIGIN/api/health?__omw_probe=$probe" || true)"
+            providers_result="$(curl --silent --output "$providers_file" --write-out '%{http_code}|%{content_type}' \
+              --connect-timeout 10 --max-time 30 \
+              --header 'Cache-Control: no-cache' --header 'Pragma: no-cache' \
+              "$PRODUCTION_ORIGIN/api/auth/providers?__omw_probe=$probe" || true)"
+
+            [[ "$health_result" == 200\|application/json* ]]
+            [[ "$providers_result" == 200\|application/json* ]]
+            jq -e '
+              .environment == "production" and
+              .services.accountStorage == true and
+              .services.ai == true and
+              .services.payments == false
+            ' "$health_file" >/dev/null
+            jq -e '
+              ([.providers[] | select(.id == "google" and .configured == true)] | length == 1) and
+              ([.providers[] | select(.id == "apple" and .visible == false)] | length == 1) and
+              .devLoginEnabled == false
+            ' "$providers_file" >/dev/null
+
+            environment="$(jq -r '.environment' "$health_file")"
+            payments="$(jq -r '.services.payments' "$health_file")"
+            echo "Rollback verification $check/3: environment=$environment payments=$payments"
+            if (( check < 3 )); then
+              sleep 5
+            fi
+          done
+
+      - name: Remove Production probe files
+        if: always()
+        shell: bash
+        run: |
+          rm -rf \
+            "$RUNNER_TEMP/production-deploy-snapshot" \
+            "$RUNNER_TEMP/production-route-probes" \
+            "$RUNNER_TEMP/production-rollback-probes"
