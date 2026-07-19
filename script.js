@@ -250,7 +250,8 @@ function setBootstrapMarker(name, value) {
 
 function isTransientBootstrapError(error) {
   const message = String(error?.message || "").toLowerCase();
-  return error?.name === "AbortError" || /abort|cancel|failed to fetch|load failed|load request|access control checks|importing a module script failed|net::err_aborted/.test(message);
+  const firefoxFetchInterrupted = message.includes("networkerror when attempting to fetch resource");
+  return error?.name === "AbortError" || firefoxFetchInterrupted || /abort|cancel|failed to fetch|load failed|load request|access control checks|importing a module script failed|net::err_aborted/.test(message);
 }
 
 function waitForBootstrapRetry(attempt) {
