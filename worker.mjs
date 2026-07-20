@@ -48,7 +48,7 @@ const CONTENT_SECURITY_POLICY = [
   "object-src 'none'",
   "frame-ancestors 'none'",
   "form-action 'self'",
-  "script-src 'self' 'unsafe-inline' https://js.tosspayments.com",
+  "script-src 'self' 'unsafe-inline' https://js.tosspayments.com https://static.cloudflareinsights.com/beacon.min.js https://static.cloudflareinsights.com/beacon.min.js/",
   "style-src 'self' 'unsafe-inline' https://fastly.jsdelivr.net",
   "font-src 'self' data: https://fastly.jsdelivr.net",
   "img-src 'self' data: https:",

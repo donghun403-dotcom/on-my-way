@@ -1556,7 +1556,51 @@ test("Worker responses include release security headers", async () => {
     ASSETS: { async fetch() { return new Response("<!doctype html>", { headers: { "Content-Type": "text/html" } }); } },
   });
   assert.equal(response.status, 200);
-  assert.match(response.headers.get("content-security-policy"), /frame-ancestors 'none'/);
+  const cspHeader = response.headers.get("content-security-policy");
+  assert.ok(cspHeader);
+  const csp = new Map(cspHeader.split(";").map((part) => {
+    const [directive, ...sources] = part.trim().split(/\s+/);
+    return [directive, sources];
+  }));
+  const scriptSources = csp.get("script-src");
+  assert.ok(scriptSources.includes("'self'"));
+  assert.ok(scriptSources.includes("'unsafe-inline'"));
+  assert.ok(scriptSources.includes("https://js.tosspayments.com"));
+  assert.ok(scriptSources.includes("https://static.cloudflareinsights.com/beacon.min.js"));
+  assert.ok(scriptSources.includes("https://static.cloudflareinsights.com/beacon.min.js/"));
+  assert.equal(scriptSources.includes("'unsafe-eval'"), false);
+  assert.equal(scriptSources.includes("https:"), false);
+  assert.equal(scriptSources.includes("*"), false);
+  assert.equal(scriptSources.includes("https://static.cloudflareinsights.com"), false);
+  assert.equal(scriptSources.includes("https://*.cloudflareinsights.com"), false);
+  assert.equal(scriptSources.includes("https://cloudflareinsights.com"), false);
+  assert.deepEqual(csp.get("default-src"), ["'self'"]);
+  assert.deepEqual(csp.get("frame-ancestors"), ["'none'"]);
+  assert.ok(csp.get("connect-src").includes("'self'"));
+  assert.ok(csp.get("connect-src").includes("https://*.tosspayments.com"));
+  assert.deepEqual(csp.get("frame-src"), ["https://*.tosspayments.com"]);
+
+  const matchesCloudflareBeaconFixture = (candidate) => {
+    const url = new URL(candidate);
+    if (url.protocol !== "https:" || url.hostname !== "static.cloudflareinsights.com" || url.port) return false;
+    return url.pathname === "/beacon.min.js" || url.pathname.startsWith("/beacon.min.js/");
+  };
+  for (const allowed of [
+    "https://static.cloudflareinsights.com/beacon.min.js",
+    "https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496",
+    "https://static.cloudflareinsights.com/beacon.min.js/future-version",
+  ]) {
+    assert.equal(matchesCloudflareBeaconFixture(allowed), true, allowed);
+  }
+  for (const blocked of [
+    "https://static.cloudflareinsights.com/other.js",
+    "https://static.cloudflareinsights.com/beacon.js",
+    "https://evil.cloudflareinsights.com/beacon.min.js/version",
+    "https://example.com/beacon.min.js/version",
+  ]) {
+    assert.equal(matchesCloudflareBeaconFixture(blocked), false, blocked);
+  }
+
   assert.equal(response.headers.get("x-content-type-options"), "nosniff");
   assert.equal(response.headers.get("x-frame-options"), "DENY");
   assert.match(response.headers.get("cache-control"), /no-store/);
