@@ -1,0 +1,932 @@
+[
+  {
+    "viewport": "320x568",
+    "view": "mate",
+    "horizontalOverflowPx": 0,
+    "documentHeight": 1380,
+    "activeViewTop": 83,
+    "activeViewHeight": 922,
+    "viewportLengths": 2.43,
+    "topLevelCardCount": 3,
+    "firstFoldCardCount": 1,
+    "firstFoldButtons": [],
+    "primary": [
+      {
+        "id": "touchCompanion",
+        "top": 698,
+        "bottom": 744,
+        "inFirstFold": false
+      }
+    ],
+    "detailsCount": 2,
+    "openDetailsCount": 0,
+    "nestedCardCount": 0,
+    "tabbar": {
+      "top": 500,
+      "bottom": 568,
+      "height": 68
+    }
+  },
+  {
+    "viewport": "320x568",
+    "view": "memory",
+    "horizontalOverflowPx": 0,
+    "documentHeight": 1733,
+    "activeViewTop": 82,
+    "activeViewHeight": 1276,
+    "viewportLengths": 3.05,
+    "topLevelCardCount": 2,
+    "firstFoldCardCount": 2,
+    "firstFoldButtons": [
+      {
+        "id": "openCompanionChat",
+        "text": "올리와 이야기하기",
+        "top": 377,
+        "bottom": 427,
+        "fullyInFirstFold": true
+      }
+    ],
+    "primary": [
+      {
+        "id": "openCompanionChat",
+        "top": 377,
+        "bottom": 427,
+        "inFirstFold": true
+      },
+      {
+        "id": "memorySaveButton",
+        "top": 1173,
+        "bottom": 1221,
+        "inFirstFold": false
+      }
+    ],
+    "detailsCount": 2,
+    "openDetailsCount": 0,
+    "nestedCardCount": 2,
+    "tabbar": {
+      "top": 500,
+      "bottom": 568,
+      "height": 68
+    }
+  },
+  {
+    "viewport": "320x568",
+    "view": "chat",
+    "sheet": {
+      "top": 16,
+      "bottom": 556,
+      "height": 540,
+      "scrollHeight": 781,
+      "clientHeight": 538
+    },
+    "input": {
+      "top": 520,
+      "bottom": 630,
+      "height": 110
+    },
+    "send": {
+      "top": 644,
+      "bottom": 698,
+      "height": 54
+    },
+    "focusedAfterOpen": "closeCompanionChat",
+    "focusedAfterClose": "openCompanionChat"
+  },
+  {
+    "viewport": "360x800",
+    "view": "mate",
+    "horizontalOverflowPx": 0,
+    "documentHeight": 1305,
+    "activeViewTop": 78,
+    "activeViewHeight": 870,
+    "viewportLengths": 1.63,
+    "topLevelCardCount": 3,
+    "firstFoldCardCount": 2,
+    "firstFoldButtons": [
+      {
+        "id": "touchCompanion",
+        "text": "오늘 쓰다듬기 · XP +5",
+        "top": 655,
+        "bottom": 701,
+        "fullyInFirstFold": true
+      }
+    ],
+    "primary": [
+      {
+        "id": "touchCompanion",
+        "top": 655,
+        "bottom": 701,
+        "inFirstFold": true
+      }
+    ],
+    "detailsCount": 2,
+    "openDetailsCount": 0,
+    "nestedCardCount": 0,
+    "tabbar": {
+      "top": 732,
+      "bottom": 800,
+      "height": 68
+    }
+  },
+  {
+    "viewport": "360x800",
+    "view": "memory",
+    "horizontalOverflowPx": 0,
+    "documentHeight": 1690,
+    "activeViewTop": 76,
+    "activeViewHeight": 1255,
+    "viewportLengths": 2.11,
+    "topLevelCardCount": 2,
+    "firstFoldCardCount": 2,
+    "firstFoldButtons": [
+      {
+        "id": "openCompanionChat",
+        "text": "올리와 이야기하기",
+        "top": 371,
+        "bottom": 421,
+        "fullyInFirstFold": true
+      },
+      {
+        "id": null,
+        "text": "😊 기쁨",
+        "top": 754,
+        "bottom": 800,
+        "fullyInFirstFold": true
+      },
+      {
+        "id": null,
+        "text": "✨ 뿌듯함",
+        "top": 754,
+        "bottom": 800,
+        "fullyInFirstFold": true
+      },
+      {
+        "id": null,
+        "text": "🌿 평온함",
+        "top": 754,
+        "bottom": 800,
+        "fullyInFirstFold": true
+      }
+    ],
+    "primary": [
+      {
+        "id": "openCompanionChat",
+        "top": 371,
+        "bottom": 421,
+        "inFirstFold": true
+      },
+      {
+        "id": "memorySaveButton",
+        "top": 1146,
+        "bottom": 1194,
+        "inFirstFold": false
+      }
+    ],
+    "detailsCount": 2,
+    "openDetailsCount": 0,
+    "nestedCardCount": 2,
+    "tabbar": {
+      "top": 732,
+      "bottom": 800,
+      "height": 68
+    }
+  },
+  {
+    "viewport": "360x800",
+    "view": "chat",
+    "sheet": {
+      "top": 27,
+      "bottom": 788,
+      "height": 761,
+      "scrollHeight": 759,
+      "clientHeight": 759
+    },
+    "input": {
+      "top": 519,
+      "bottom": 629,
+      "height": 110
+    },
+    "send": {
+      "top": 643,
+      "bottom": 697,
+      "height": 54
+    },
+    "focusedAfterOpen": "closeCompanionChat",
+    "focusedAfterClose": "openCompanionChat"
+  },
+  {
+    "viewport": "375x812",
+    "view": "mate",
+    "horizontalOverflowPx": 0,
+    "documentHeight": 1305,
+    "activeViewTop": 77,
+    "activeViewHeight": 870,
+    "viewportLengths": 1.61,
+    "topLevelCardCount": 3,
+    "firstFoldCardCount": 2,
+    "firstFoldButtons": [
+      {
+        "id": "touchCompanion",
+        "text": "오늘 쓰다듬기 · XP +5",
+        "top": 654,
+        "bottom": 700,
+        "fullyInFirstFold": true
+      }
+    ],
+    "primary": [
+      {
+        "id": "touchCompanion",
+        "top": 654,
+        "bottom": 700,
+        "inFirstFold": true
+      }
+    ],
+    "detailsCount": 2,
+    "openDetailsCount": 0,
+    "nestedCardCount": 0,
+    "tabbar": {
+      "top": 744,
+      "bottom": 812,
+      "height": 68
+    }
+  },
+  {
+    "viewport": "375x812",
+    "view": "memory",
+    "horizontalOverflowPx": 0,
+    "documentHeight": 1690,
+    "activeViewTop": 76,
+    "activeViewHeight": 1255,
+    "viewportLengths": 2.08,
+    "topLevelCardCount": 2,
+    "firstFoldCardCount": 2,
+    "firstFoldButtons": [
+      {
+        "id": "openCompanionChat",
+        "text": "올리와 이야기하기",
+        "top": 371,
+        "bottom": 421,
+        "fullyInFirstFold": true
+      },
+      {
+        "id": null,
+        "text": "😊 기쁨",
+        "top": 754,
+        "bottom": 800,
+        "fullyInFirstFold": true
+      },
+      {
+        "id": null,
+        "text": "✨ 뿌듯함",
+        "top": 754,
+        "bottom": 800,
+        "fullyInFirstFold": true
+      },
+      {
+        "id": null,
+        "text": "🌿 평온함",
+        "top": 754,
+        "bottom": 800,
+        "fullyInFirstFold": true
+      },
+      {
+        "id": null,
+        "text": "🌙 지침",
+        "top": 806,
+        "bottom": 852,
+        "fullyInFirstFold": false
+      },
+      {
+        "id": null,
+        "text": "🌫️ 불안함",
+        "top": 806,
+        "bottom": 852,
+        "fullyInFirstFold": false
+      },
+      {
+        "id": null,
+        "text": "🌧️ 슬픔",
+        "top": 806,
+        "bottom": 852,
+        "fullyInFirstFold": false
+      }
+    ],
+    "primary": [
+      {
+        "id": "openCompanionChat",
+        "top": 371,
+        "bottom": 421,
+        "inFirstFold": true
+      },
+      {
+        "id": "memorySaveButton",
+        "top": 1146,
+        "bottom": 1194,
+        "inFirstFold": false
+      }
+    ],
+    "detailsCount": 2,
+    "openDetailsCount": 0,
+    "nestedCardCount": 2,
+    "tabbar": {
+      "top": 744,
+      "bottom": 812,
+      "height": 68
+    }
+  },
+  {
+    "viewport": "375x812",
+    "view": "chat",
+    "sheet": {
+      "top": 39,
+      "bottom": 800,
+      "height": 761,
+      "scrollHeight": 759,
+      "clientHeight": 759
+    },
+    "input": {
+      "top": 531,
+      "bottom": 641,
+      "height": 110
+    },
+    "send": {
+      "top": 655,
+      "bottom": 709,
+      "height": 54
+    },
+    "focusedAfterOpen": "closeCompanionChat",
+    "focusedAfterClose": "openCompanionChat"
+  },
+  {
+    "viewport": "390x844",
+    "view": "mate",
+    "horizontalOverflowPx": 0,
+    "documentHeight": 1305,
+    "activeViewTop": 76,
+    "activeViewHeight": 870,
+    "viewportLengths": 1.55,
+    "topLevelCardCount": 3,
+    "firstFoldCardCount": 2,
+    "firstFoldButtons": [
+      {
+        "id": "touchCompanion",
+        "text": "오늘 쓰다듬기 · XP +5",
+        "top": 652,
+        "bottom": 698,
+        "fullyInFirstFold": true
+      }
+    ],
+    "primary": [
+      {
+        "id": "touchCompanion",
+        "top": 652,
+        "bottom": 698,
+        "inFirstFold": true
+      }
+    ],
+    "detailsCount": 2,
+    "openDetailsCount": 0,
+    "nestedCardCount": 0,
+    "tabbar": {
+      "top": 776,
+      "bottom": 844,
+      "height": 68
+    }
+  },
+  {
+    "viewport": "390x844",
+    "view": "memory",
+    "horizontalOverflowPx": 0,
+    "documentHeight": 1690,
+    "activeViewTop": 77,
+    "activeViewHeight": 1255,
+    "viewportLengths": 2,
+    "topLevelCardCount": 2,
+    "firstFoldCardCount": 2,
+    "firstFoldButtons": [
+      {
+        "id": "openCompanionChat",
+        "text": "올리와 이야기하기",
+        "top": 373,
+        "bottom": 423,
+        "fullyInFirstFold": true
+      },
+      {
+        "id": null,
+        "text": "😊 기쁨",
+        "top": 755,
+        "bottom": 801,
+        "fullyInFirstFold": true
+      },
+      {
+        "id": null,
+        "text": "✨ 뿌듯함",
+        "top": 755,
+        "bottom": 801,
+        "fullyInFirstFold": true
+      },
+      {
+        "id": null,
+        "text": "🌿 평온함",
+        "top": 755,
+        "bottom": 801,
+        "fullyInFirstFold": true
+      },
+      {
+        "id": null,
+        "text": "🌙 지침",
+        "top": 807,
+        "bottom": 853,
+        "fullyInFirstFold": false
+      },
+      {
+        "id": null,
+        "text": "🌫️ 불안함",
+        "top": 807,
+        "bottom": 853,
+        "fullyInFirstFold": false
+      },
+      {
+        "id": null,
+        "text": "🌧️ 슬픔",
+        "top": 807,
+        "bottom": 853,
+        "fullyInFirstFold": false
+      }
+    ],
+    "primary": [
+      {
+        "id": "openCompanionChat",
+        "top": 373,
+        "bottom": 423,
+        "inFirstFold": true
+      },
+      {
+        "id": "memorySaveButton",
+        "top": 1147,
+        "bottom": 1195,
+        "inFirstFold": false
+      }
+    ],
+    "detailsCount": 2,
+    "openDetailsCount": 0,
+    "nestedCardCount": 2,
+    "tabbar": {
+      "top": 776,
+      "bottom": 844,
+      "height": 68
+    }
+  },
+  {
+    "viewport": "390x844",
+    "view": "chat",
+    "sheet": {
+      "top": 71,
+      "bottom": 832,
+      "height": 761,
+      "scrollHeight": 759,
+      "clientHeight": 759
+    },
+    "input": {
+      "top": 563,
+      "bottom": 673,
+      "height": 110
+    },
+    "send": {
+      "top": 687,
+      "bottom": 741,
+      "height": 54
+    },
+    "focusedAfterOpen": "closeCompanionChat",
+    "focusedAfterClose": "openCompanionChat"
+  },
+  {
+    "viewport": "430x932",
+    "view": "mate",
+    "horizontalOverflowPx": 0,
+    "documentHeight": 1305,
+    "activeViewTop": 78,
+    "activeViewHeight": 870,
+    "viewportLengths": 1.4,
+    "topLevelCardCount": 3,
+    "firstFoldCardCount": 3,
+    "firstFoldButtons": [
+      {
+        "id": "touchCompanion",
+        "text": "오늘 쓰다듬기 · XP +5",
+        "top": 654,
+        "bottom": 700,
+        "fullyInFirstFold": true
+      }
+    ],
+    "primary": [
+      {
+        "id": "touchCompanion",
+        "top": 654,
+        "bottom": 700,
+        "inFirstFold": true
+      }
+    ],
+    "detailsCount": 2,
+    "openDetailsCount": 0,
+    "nestedCardCount": 0,
+    "tabbar": {
+      "top": 864,
+      "bottom": 932,
+      "height": 68
+    }
+  },
+  {
+    "viewport": "430x932",
+    "view": "memory",
+    "horizontalOverflowPx": 0,
+    "documentHeight": 1654,
+    "activeViewTop": 83,
+    "activeViewHeight": 1219,
+    "viewportLengths": 1.77,
+    "topLevelCardCount": 2,
+    "firstFoldCardCount": 2,
+    "firstFoldButtons": [
+      {
+        "id": "openCompanionChat",
+        "text": "올리와 이야기하기",
+        "top": 342,
+        "bottom": 392,
+        "fullyInFirstFold": true
+      },
+      {
+        "id": null,
+        "text": "😊 기쁨",
+        "top": 724,
+        "bottom": 770,
+        "fullyInFirstFold": true
+      },
+      {
+        "id": null,
+        "text": "✨ 뿌듯함",
+        "top": 724,
+        "bottom": 770,
+        "fullyInFirstFold": true
+      },
+      {
+        "id": null,
+        "text": "🌿 평온함",
+        "top": 724,
+        "bottom": 770,
+        "fullyInFirstFold": true
+      },
+      {
+        "id": null,
+        "text": "🌙 지침",
+        "top": 776,
+        "bottom": 822,
+        "fullyInFirstFold": true
+      },
+      {
+        "id": null,
+        "text": "🌫️ 불안함",
+        "top": 776,
+        "bottom": 822,
+        "fullyInFirstFold": true
+      },
+      {
+        "id": null,
+        "text": "🌧️ 슬픔",
+        "top": 776,
+        "bottom": 822,
+        "fullyInFirstFold": true
+      }
+    ],
+    "primary": [
+      {
+        "id": "openCompanionChat",
+        "top": 342,
+        "bottom": 392,
+        "inFirstFold": true
+      },
+      {
+        "id": "memorySaveButton",
+        "top": 1116,
+        "bottom": 1164,
+        "inFirstFold": false
+      }
+    ],
+    "detailsCount": 2,
+    "openDetailsCount": 0,
+    "nestedCardCount": 2,
+    "tabbar": {
+      "top": 864,
+      "bottom": 932,
+      "height": 68
+    }
+  },
+  {
+    "viewport": "430x932",
+    "view": "chat",
+    "sheet": {
+      "top": 159,
+      "bottom": 920,
+      "height": 761,
+      "scrollHeight": 759,
+      "clientHeight": 759
+    },
+    "input": {
+      "top": 651,
+      "bottom": 761,
+      "height": 110
+    },
+    "send": {
+      "top": 775,
+      "bottom": 829,
+      "height": 54
+    },
+    "focusedAfterOpen": "closeCompanionChat",
+    "focusedAfterClose": "openCompanionChat"
+  },
+  {
+    "viewport": "768x1024",
+    "view": "mate",
+    "horizontalOverflowPx": 0,
+    "documentHeight": 1448,
+    "activeViewTop": 109,
+    "activeViewHeight": 1048,
+    "viewportLengths": 1.41,
+    "topLevelCardCount": 3,
+    "firstFoldCardCount": 2,
+    "firstFoldButtons": [
+      {
+        "id": "touchCompanion",
+        "text": "오늘 쓰다듬기 · XP +5",
+        "top": 843,
+        "bottom": 889,
+        "fullyInFirstFold": true
+      }
+    ],
+    "primary": [
+      {
+        "id": "touchCompanion",
+        "top": 843,
+        "bottom": 889,
+        "inFirstFold": true
+      }
+    ],
+    "detailsCount": 2,
+    "openDetailsCount": 0,
+    "nestedCardCount": 0,
+    "tabbar": {
+      "top": 946,
+      "bottom": 1012,
+      "height": 66
+    }
+  },
+  {
+    "viewport": "768x1024",
+    "view": "memory",
+    "horizontalOverflowPx": 0,
+    "documentHeight": 1558,
+    "activeViewTop": 102,
+    "activeViewHeight": 1158,
+    "viewportLengths": 1.52,
+    "topLevelCardCount": 2,
+    "firstFoldCardCount": 2,
+    "firstFoldButtons": [
+      {
+        "id": "openCompanionChat",
+        "text": "올리와 이야기하기",
+        "top": 332,
+        "bottom": 378,
+        "fullyInFirstFold": true
+      },
+      {
+        "id": null,
+        "text": "😊 기쁨",
+        "top": 675,
+        "bottom": 717,
+        "fullyInFirstFold": true
+      },
+      {
+        "id": null,
+        "text": "✨ 뿌듯함",
+        "top": 675,
+        "bottom": 717,
+        "fullyInFirstFold": true
+      },
+      {
+        "id": null,
+        "text": "🌿 평온함",
+        "top": 675,
+        "bottom": 717,
+        "fullyInFirstFold": true
+      },
+      {
+        "id": null,
+        "text": "🌙 지침",
+        "top": 675,
+        "bottom": 717,
+        "fullyInFirstFold": true
+      },
+      {
+        "id": null,
+        "text": "🌫️ 불안함",
+        "top": 675,
+        "bottom": 717,
+        "fullyInFirstFold": true
+      },
+      {
+        "id": null,
+        "text": "🌧️ 슬픔",
+        "top": 725,
+        "bottom": 767,
+        "fullyInFirstFold": true
+      }
+    ],
+    "primary": [
+      {
+        "id": "openCompanionChat",
+        "top": 332,
+        "bottom": 378,
+        "inFirstFold": true
+      },
+      {
+        "id": "memorySaveButton",
+        "top": 1067,
+        "bottom": 1115,
+        "inFirstFold": false
+      }
+    ],
+    "detailsCount": 2,
+    "openDetailsCount": 0,
+    "nestedCardCount": 2,
+    "tabbar": {
+      "top": 946,
+      "bottom": 1012,
+      "height": 66
+    }
+  },
+  {
+    "viewport": "768x1024",
+    "view": "chat",
+    "sheet": {
+      "top": 459,
+      "bottom": 1012,
+      "height": 553,
+      "scrollHeight": 551,
+      "clientHeight": 551
+    },
+    "input": {
+      "top": 743,
+      "bottom": 853,
+      "height": 110
+    },
+    "send": {
+      "top": 867,
+      "bottom": 921,
+      "height": 54
+    },
+    "focusedAfterOpen": "closeCompanionChat",
+    "focusedAfterClose": "openCompanionChat"
+  },
+  {
+    "viewport": "1440x900",
+    "view": "mate",
+    "horizontalOverflowPx": 0,
+    "documentHeight": 1354,
+    "activeViewTop": 110,
+    "activeViewHeight": 946,
+    "viewportLengths": 1.5,
+    "topLevelCardCount": 3,
+    "firstFoldCardCount": 2,
+    "firstFoldButtons": [
+      {
+        "id": "touchCompanion",
+        "text": "오늘 쓰다듬기 · XP +5",
+        "top": 844,
+        "bottom": 890,
+        "fullyInFirstFold": true
+      }
+    ],
+    "primary": [
+      {
+        "id": "touchCompanion",
+        "top": 844,
+        "bottom": 890,
+        "inFirstFold": true
+      }
+    ],
+    "detailsCount": 2,
+    "openDetailsCount": 0,
+    "nestedCardCount": 0,
+    "tabbar": {
+      "top": 822,
+      "bottom": 888,
+      "height": 66
+    }
+  },
+  {
+    "viewport": "1440x900",
+    "view": "memory",
+    "horizontalOverflowPx": 0,
+    "documentHeight": 1572,
+    "activeViewTop": 118,
+    "activeViewHeight": 1164,
+    "viewportLengths": 1.75,
+    "topLevelCardCount": 2,
+    "firstFoldCardCount": 2,
+    "firstFoldButtons": [
+      {
+        "id": "openCompanionChat",
+        "text": "올리와 이야기하기",
+        "top": 348,
+        "bottom": 394,
+        "fullyInFirstFold": true
+      },
+      {
+        "id": null,
+        "text": "😊 기쁨",
+        "top": 698,
+        "bottom": 740,
+        "fullyInFirstFold": true
+      },
+      {
+        "id": null,
+        "text": "✨ 뿌듯함",
+        "top": 698,
+        "bottom": 740,
+        "fullyInFirstFold": true
+      },
+      {
+        "id": null,
+        "text": "🌿 평온함",
+        "top": 698,
+        "bottom": 740,
+        "fullyInFirstFold": true
+      },
+      {
+        "id": null,
+        "text": "🌙 지침",
+        "top": 698,
+        "bottom": 740,
+        "fullyInFirstFold": true
+      },
+      {
+        "id": null,
+        "text": "🌫️ 불안함",
+        "top": 698,
+        "bottom": 740,
+        "fullyInFirstFold": true
+      },
+      {
+        "id": null,
+        "text": "🌧️ 슬픔",
+        "top": 748,
+        "bottom": 790,
+        "fullyInFirstFold": true
+      }
+    ],
+    "primary": [
+      {
+        "id": "openCompanionChat",
+        "top": 348,
+        "bottom": 394,
+        "inFirstFold": true
+      },
+      {
+        "id": "memorySaveButton",
+        "top": 1090,
+        "bottom": 1138,
+        "inFirstFold": false
+      }
+    ],
+    "detailsCount": 2,
+    "openDetailsCount": 0,
+    "nestedCardCount": 2,
+    "tabbar": {
+      "top": 822,
+      "bottom": 888,
+      "height": 66
+    }
+  },
+  {
+    "viewport": "1440x900",
+    "view": "chat",
+    "sheet": {
+      "top": 335,
+      "bottom": 888,
+      "height": 553,
+      "scrollHeight": 551,
+      "clientHeight": 551
+    },
+    "input": {
+      "top": 619,
+      "bottom": 729,
+      "height": 110
+    },
+    "send": {
+      "top": 743,
+      "bottom": 797,
+      "height": 54
+    },
+    "focusedAfterOpen": "closeCompanionChat",
+    "focusedAfterClose": "openCompanionChat"
+  }
+]
