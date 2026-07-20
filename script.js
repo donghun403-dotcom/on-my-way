@@ -1798,6 +1798,7 @@ const companionStage = document.querySelector("#companionStage");
 const companionLevel = document.querySelector("#companionLevel");
 const companionXpBar = document.querySelector("#companionXpBar");
 const openCompanionChatButton = document.querySelector("#openCompanionChat");
+const openCompanionChatPrimaryButton = document.querySelector("#openCompanionChatPrimary");
 const openCompanionChatTriggers = document.querySelectorAll("[data-open-companion-chat]");
 const touchCompanionButton = document.querySelector("#touchCompanion");
 const companionActionButtons = document.querySelectorAll("[data-companion-action]");
@@ -1827,8 +1828,10 @@ const journeyNextBar = document.querySelector("#journeyNextBar");
 const memoryList = document.querySelector("#memoryList");
 const patternList = document.querySelector("#patternList");
 const memoryForm = document.querySelector("#memoryForm");
+const memoryComposeHeading = document.querySelector("#memoryComposeHeading");
 const memoryCompletion = document.querySelector("#memoryCompletion");
 const memoryConversation = document.querySelector("#memoryConversation");
+const memoryConversationSummary = document.querySelector("#memoryConversationSummary");
 const memoryMoodButtons = document.querySelectorAll("[data-memory-mood]");
 const memoryMoodEcho = document.querySelector("#memoryMoodEcho");
 const memoryCustomMood = document.querySelector("#memoryCustomMood");
@@ -4046,14 +4049,17 @@ function setSheetOpen(sheet, overlay, open) {
   } else if (activeSheet === sheet) {
     activeSheet = null;
     activeSheetOverlay = null;
-    previousFocusElement?.focus?.();
+    const focusRestoreTarget = previousFocusElement;
     previousFocusElement = null;
+    window.setTimeout(() => {
+      if (focusRestoreTarget?.isConnected) focusRestoreTarget.focus({ preventScroll: true });
+    }, 0);
   }
 }
 
-function openCompanionChat() {
+function openCompanionChat(event) {
+  if (event?.currentTarget instanceof HTMLElement) previousFocusElement = event.currentTarget;
   setSheetOpen(companionChatSheet, chatOverlay, true);
-  if (companionChatInput) companionChatInput.focus();
   trackCompanionEvent("companion_chat_opened");
 }
 
@@ -4907,7 +4913,11 @@ function getMemoryMoodDisplay(memory) {
 function applyMoodSelectionToForm(memory) {
   const isCustom = memory?.mood === "custom" && memory?.customMood;
   const selectedMood = isCustom ? "" : normalizeMemoryMood(memory?.mood);
-  memoryMoodButtons.forEach((button) => button.classList.toggle("selected", button.dataset.memoryMood === selectedMood));
+  memoryMoodButtons.forEach((button) => {
+    const selected = button.dataset.memoryMood === selectedMood;
+    button.classList.toggle("selected", selected);
+    button.setAttribute("aria-pressed", selected ? "true" : "false");
+  });
   if (memoryCustomMood) memoryCustomMood.value = isCustom ? memory.customMood : "";
   updateMemoryMoodEcho(selectedMood, isCustom ? memory.customMood : "");
 }
@@ -4951,10 +4961,11 @@ function renderMemoryCards({ selectedCompletion }) {
   const todayKey = getTodayKey();
   const todayMemory = memories.find((item) => item.diaryDate === todayKey || String(item.id || "").startsWith(todayKey));
   const latestDialogue = getLatestCompanionDialogue();
-  const conversation = latestDialogue?.detail?.reply || companionMessage?.textContent || "아직 오늘 나눈 대화가 없어요.";
+  const conversation = String(latestDialogue?.detail?.reply || "").trim();
 
   if (memoryCompletion) memoryCompletion.textContent = `${selectedCompletion.percent}% 완료`;
   if (memoryConversation) memoryConversation.textContent = conversation;
+  if (memoryConversationSummary) memoryConversationSummary.hidden = !conversation;
   if (memoryCount) memoryCount.textContent = `${memories.length}장`;
 
   const isEditingMemory = memoryForm?.contains(document.activeElement);
@@ -4964,6 +4975,13 @@ function renderMemoryCards({ selectedCompletion }) {
     if (memoryNote) memoryNote.value = todayMemory?.note || "";
     if (memoryObstacle) memoryObstacle.value = todayMemory?.obstacle || "none";
     if (memoryNextStep) memoryNextStep.value = todayMemory?.nextStep || "";
+    if (memoryOptionalDetails) {
+      memoryOptionalDetails.open = Boolean(
+        (todayMemory?.title && todayMemory.title !== "오늘의 한 장") ||
+        (todayMemory?.obstacle && todayMemory.obstacle !== "none") ||
+        todayMemory?.nextStep,
+      );
+    }
     const saveLabel = memorySaveButton?.querySelector("span");
     if (saveLabel) saveLabel.textContent = todayMemory ? "오늘의 다이어리 업데이트하기" : "오늘의 다이어리 저장하기";
   }
@@ -5063,7 +5081,9 @@ function renderMemoryCards({ selectedCompletion }) {
       deleteButton.textContent = "기록 지우기";
       diaryActions.append(editButton, deleteButton);
 
-      item.append(head, diaryTitle, metrics, note, nextStep, dialogue, action, diaryActions);
+      item.append(head, diaryTitle, metrics, note, nextStep);
+      if (memory.hasDialogue && memory.conversation) item.append(dialogue);
+      item.append(action, diaryActions);
       memoryList.append(item);
     });
   }
@@ -5110,7 +5130,11 @@ function renderPatternCards(state) {
 
 memoryMoodButtons.forEach((button) => {
   button.addEventListener("click", () => {
-    memoryMoodButtons.forEach((item) => item.classList.toggle("selected", item === button));
+    memoryMoodButtons.forEach((item) => {
+      const selected = item === button;
+      item.classList.toggle("selected", selected);
+      item.setAttribute("aria-pressed", selected ? "true" : "false");
+    });
     if (memoryCustomMood) memoryCustomMood.value = "";
     updateMemoryMoodEcho(button.dataset.memoryMood);
   });
@@ -5119,10 +5143,17 @@ memoryMoodButtons.forEach((button) => {
 memoryCustomMood?.addEventListener("input", () => {
   const text = memoryCustomMood.value.trim();
   if (text) {
-    memoryMoodButtons.forEach((item) => item.classList.remove("selected"));
+    memoryMoodButtons.forEach((item) => {
+      item.classList.remove("selected");
+      item.setAttribute("aria-pressed", "false");
+    });
     updateMemoryMoodEcho("", text);
   } else {
-    memoryMoodButtons.forEach((item) => item.classList.toggle("selected", item.dataset.memoryMood === "calm"));
+    memoryMoodButtons.forEach((item) => {
+      const selected = item.dataset.memoryMood === "calm";
+      item.classList.toggle("selected", selected);
+      item.setAttribute("aria-pressed", selected ? "true" : "false");
+    });
     updateMemoryMoodEcho("calm");
   }
 });
@@ -5139,12 +5170,17 @@ memoryForm?.addEventListener("submit", (event) => {
   const note = memoryNote?.value.trim() || "";
   const nextStep = memoryNextStep?.value.trim() || "";
   const latestDialogue = getLatestCompanionDialogue();
-  const conversation = latestDialogue?.detail?.reply || companionMessage?.textContent || "오늘 올리와 함께 계획을 확인했어요.";
   const editingId = memoryForm.dataset.editingMemoryId || "";
   const todayKey = getTodayKey();
   const existingToday = (bundle.state.dailyMemories || []).find((item) => item.diaryDate === todayKey || String(item.id || "").startsWith(todayKey));
   const id = editingId || existingToday?.id || todayKey;
   const existing = (bundle.state.dailyMemories || []).find((item) => item.id === id);
+  const conversation = editingId && existing
+    ? existing.conversation || ""
+    : latestDialogue?.detail?.reply || existingToday?.conversation || "";
+  const hasDialogue = editingId && existing
+    ? Boolean(existing.hasDialogue)
+    : Boolean(latestDialogue || existingToday?.hasDialogue);
   const recordedCompletion = editingId && existing ? Number(existing.completion || 0) : completion.percent;
   const memory = {
     id,
@@ -5157,8 +5193,8 @@ memoryForm?.addEventListener("submit", (event) => {
     obstacle,
     note,
     nextStep,
-    conversation: editingId && existing ? existing.conversation : conversation,
-    hasDialogue: editingId && existing ? existing.hasDialogue : Boolean(latestDialogue),
+    conversation,
+    hasDialogue,
     suggestion: buildMemorySuggestion({ mood, obstacle, completion: recordedCompletion, nextStep }),
     createdAt: existing?.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -5168,10 +5204,15 @@ memoryForm?.addEventListener("submit", (event) => {
   savePlanBundleState(bundle.state);
   delete memoryForm.dataset.editingMemoryId;
   trackCompanionEvent("daily_memory_saved", { day: memory.day, mood, completion: memory.completion, obstacle });
-  if (memorySaveHint) memorySaveHint.textContent = "다이어리에 저장했어요. 오늘의 마음과 순간을 올리가 오래 기억할게요.";
   showToast("오늘의 다이어리를 저장했어요 · 차곡차곡 쌓인 기록에서 확인해 보세요");
-  memorySaveButton?.blur();
   renderExecutionPage(getPlanBundle());
+  if (memorySaveHint) {
+    memorySaveHint.textContent = "저장 완료. 오늘의 마음과 순간을 올리가 오래 기억할게요.";
+    memorySaveHint.classList.add("is-saved");
+    memorySaveHint.focus({ preventScroll: true });
+  } else {
+    memoryComposeHeading?.focus({ preventScroll: true });
+  }
 });
 
 memoryList?.addEventListener("click", (event) => {
@@ -5998,6 +6039,7 @@ companionActionButtons.forEach((button) => {
 });
 
 openCompanionChatButton?.addEventListener("click", openCompanionChat);
+openCompanionChatPrimaryButton?.addEventListener("click", openCompanionChat);
 openCompanionChatTriggers.forEach((button) => {
   button.addEventListener("click", openCompanionChat);
 });
@@ -6134,6 +6176,7 @@ sendCompanionMessage?.addEventListener("click", async () => {
     const { reply, headline } = await requestCompanionReply(message);
     if (companionChatResponse) companionChatResponse.textContent = reply;
     if (memoryConversation) memoryConversation.textContent = reply;
+    if (memoryConversationSummary) memoryConversationSummary.hidden = false;
     showOllieReaction(reply, headline || "올리의 대답이에요.");
     trackCompanionEvent("companion_dialogue", {
       user: message.slice(0, 160),
