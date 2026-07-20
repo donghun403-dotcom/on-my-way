@@ -66,9 +66,10 @@ jobs:
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           TOSS_CLIENT_KEY: ${{ secrets.TOSS_CLIENT_KEY }}
           TOSS_SECRET_KEY: ${{ secrets.TOSS_SECRET_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           missing=()
-          for secret_name in SESSION_SECRET GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET TOSS_CLIENT_KEY TOSS_SECRET_KEY; do
+          for secret_name in SESSION_SECRET GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET TOSS_CLIENT_KEY TOSS_SECRET_KEY OPENAI_API_KEY; do
             if [[ -z "${!secret_name:-}" ]]; then
               missing+=("$secret_name")
             else
@@ -171,8 +172,10 @@ jobs:
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           TOSS_CLIENT_KEY: ${{ secrets.TOSS_CLIENT_KEY }}
           TOSS_SECRET_KEY: ${{ secrets.TOSS_SECRET_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          for secret_name in SESSION_SECRET GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET TOSS_CLIENT_KEY TOSS_SECRET_KEY; do
+          umask 077
+          for secret_name in SESSION_SECRET GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET TOSS_CLIENT_KEY TOSS_SECRET_KEY OPENAI_API_KEY; do
             echo "::add-mask::${!secret_name}"
           done
           node <<'NODE'
@@ -183,6 +186,7 @@ jobs:
             "GOOGLE_CLIENT_SECRET",
             "TOSS_CLIENT_KEY",
             "TOSS_SECRET_KEY",
+            "OPENAI_API_KEY",
           ];
           const secrets = Object.fromEntries(names.map((name) => [name, process.env[name]]));
           const missing = names.filter((name) => !secrets[name]);
@@ -290,6 +294,7 @@ jobs:
             "GOOGLE_CLIENT_SECRET",
             "TOSS_CLIENT_KEY",
             "TOSS_SECRET_KEY",
+            "OPENAI_API_KEY",
           ];
           const missing = required.filter((name) => !names.has(name));
           if (missing.length > 0) throw new Error(`Missing Staging Worker secret names: ${missing.join(", ")}`);
@@ -358,7 +363,7 @@ jobs:
             exit 1
           fi
 
-      - name: Verify Staging routes and disabled billing
+      - name: Verify Staging routes, AI, and disabled billing
         env:
           STAGING_URL: ${{ steps.deploy.outputs.deployment-url }}
         shell: bash
@@ -369,8 +374,13 @@ jobs:
           node <<'NODE'
           const fs = require("node:fs");
           const health = JSON.parse(fs.readFileSync("health.json", "utf8"));
-          if (health.environment !== "staging" || !health.services.accountStorage || health.services.payments !== false) {
-            throw new Error("Staging environment or disabled billing policy is invalid");
+          if (
+            health.environment !== "staging" ||
+            !health.services.accountStorage ||
+            health.services.ai !== true ||
+            health.services.payments !== false
+          ) {
+            throw new Error("Staging environment, AI readiness, or disabled billing policy is invalid");
           }
           const providers = JSON.parse(fs.readFileSync("providers.json", "utf8"));
           if (!Array.isArray(providers.providers)) throw new Error("Staging provider response is invalid");
