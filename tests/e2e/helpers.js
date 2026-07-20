@@ -227,16 +227,74 @@ function isExpectedFirefoxNavigationImageAbort({
     sameOrigin === true;
 }
 
+function isCompletedRumNavigationLifecycle({
+  errorText,
+  method,
+  navigationCommitted,
+  pathname,
+  priorSuccessfulStatus,
+  resourceType,
+  sameOrigin,
+}) {
+  return sameOrigin === true &&
+    method === "POST" &&
+    pathname === "/cdn-cgi/rum" &&
+    resourceType === "ping" &&
+    errorText === "net::ERR_ABORTED" &&
+    Number.isInteger(priorSuccessfulStatus) &&
+    priorSuccessfulStatus >= 200 &&
+    priorSuccessfulStatus < 300 &&
+    navigationCommitted === true;
+}
+
 function monitorPage(page, { allowedConsoleMessages = [], allowedResponseUrls = [] } = {}) {
   const issues = [];
   const browserName = page.context().browser()?.browserType().name() || "";
+  const monitorStartedAt = Date.now();
+  const analyticsRequests = new Map();
+  const analyticsTimeline = [];
+  const analyticsNavigationAborts = [];
   const expectedNavigationLogoRequests = new WeakSet();
   const seenNavigationLogoRequests = new Set();
   let mainNavigationSequence = 0;
+  let lastCommittedPathname = "";
+  const recordAnalyticsEvent = (event, details = {}) => {
+    analyticsTimeline.push({
+      elapsedMs: Date.now() - monitorStartedAt,
+      event,
+      ...details,
+    });
+  };
+  const isSameOriginRumRequest = (request) => {
+    try {
+      const requestUrl = new URL(request.url());
+      const pageUrl = new URL(page.url());
+      return request.method() === "POST" &&
+        requestUrl.origin === pageUrl.origin &&
+        requestUrl.pathname === "/cdn-cgi/rum";
+    } catch {
+      return false;
+    }
+  };
   page.on("framenavigated", (frame) => {
-    if (frame === page.mainFrame()) mainNavigationSequence += 1;
+    if (frame === page.mainFrame()) {
+      mainNavigationSequence += 1;
+      lastCommittedPathname = new URL(frame.url()).pathname;
+      recordAnalyticsEvent("main-frame-navigated", { pathname: lastCommittedPathname });
+    }
   });
   page.on("request", (request) => {
+    if (isSameOriginRumRequest(request)) {
+      analyticsRequests.set(request, {
+        state: "started",
+        pathname: lastCommittedPathname,
+      });
+      recordAnalyticsEvent("rum-request-started", {
+        method: request.method(),
+        pathname: "/cdn-cgi/rum",
+        resourceType: request.resourceType(),
+      });
+    }
     if (mainNavigationSequence === 0 || request.method() !== "GET" || request.resourceType() !== "image") return;
     try {
       const requestUrl = new URL(request.url());
@@ -255,6 +313,36 @@ function monitorPage(page, { allowedConsoleMessages = [], allowedResponseUrls = 
   page.on("pageerror", (error) => issues.push(`pageerror: ${error.message}`));
   page.on("requestfailed", (request) => {
     const errorText = request.failure()?.errorText || "";
+    let pendingRumNavigationAbort = null;
+    if (analyticsRequests.has(request)) {
+      const requestState = analyticsRequests.get(request);
+      const priorSuccessfulRequest = [...analyticsRequests.values()].find((entry) =>
+        entry.pathname === requestState.pathname &&
+        entry.state === "finished" &&
+        Number.isInteger(entry.status) &&
+        entry.status >= 200 &&
+        entry.status < 300
+      );
+      pendingRumNavigationAbort = {
+        elapsedMs: Date.now() - monitorStartedAt,
+        errorText,
+        method: request.method(),
+        pathname: "/cdn-cgi/rum",
+        priorSuccessfulStatus: priorSuccessfulRequest?.status,
+        resourceType: request.resourceType(),
+        sameOrigin: true,
+        sourcePathname: requestState.pathname,
+      };
+      analyticsRequests.set(request, { ...requestState, state: "failed", errorText });
+      analyticsNavigationAborts.push(pendingRumNavigationAbort);
+      recordAnalyticsEvent("rum-request-failed", {
+        method: request.method(),
+        pathname: "/cdn-cgi/rum",
+        errorText,
+        priorSuccessfulStatus: pendingRumNavigationAbort.priorSuccessfulStatus,
+        sourcePathname: pendingRumNavigationAbort.sourcePathname,
+      });
+    }
     const isNavigationCancellation =
       errorText.includes("net::ERR_ABORTED") || /Load request cancel(?:l)?ed/i.test(errorText);
     let isCanceledStaticImage = false;
@@ -291,18 +379,78 @@ function monitorPage(page, { allowedConsoleMessages = [], allowedResponseUrls = 
         request.method() === "GET" &&
         ["/api/health", "/plan-policy.mjs"].includes(requestUrl.pathname);
     } catch {}
+    if (pendingRumNavigationAbort &&
+      pendingRumNavigationAbort.method === "POST" &&
+      pendingRumNavigationAbort.pathname === "/cdn-cgi/rum" &&
+      pendingRumNavigationAbort.resourceType === "ping" &&
+      pendingRumNavigationAbort.errorText === "net::ERR_ABORTED") return;
     if (isExpectedFirefoxLogoAbort || isCanceledStaticImage || isCanceledFunnelEvent || isCanceledStartupRequest) return;
     issues.push(`requestfailed: ${request.method()} ${request.url()} ${errorText}`);
   });
   page.on("response", (response) => {
+    const analyticsRequest = response.request();
+    if (analyticsRequests.has(analyticsRequest)) {
+      const prior = analyticsRequests.get(analyticsRequest);
+      analyticsRequests.set(analyticsRequest, { ...prior, state: "responded", status: response.status() });
+      recordAnalyticsEvent("rum-response", {
+        method: analyticsRequest.method(),
+        pathname: "/cdn-cgi/rum",
+        status: response.status(),
+      });
+    }
     if (response.status() < 400) return;
     if (allowedResponseUrls.some((pattern) => response.url().includes(pattern))) return;
     issues.push(`response ${response.status()}: ${response.url()}`);
   });
+  page.on("requestfinished", (request) => {
+    if (!analyticsRequests.has(request)) return;
+    const prior = analyticsRequests.get(request);
+    analyticsRequests.set(request, { ...prior, state: "finished" });
+    recordAnalyticsEvent("rum-request-finished", {
+      method: request.method(),
+      pathname: "/cdn-cgi/rum",
+      status: prior.status,
+    });
+  });
+  page.on("close", () => recordAnalyticsEvent("page-closed"));
+  page.context().on("close", () => recordAnalyticsEvent("context-closed"));
   return {
     issues,
+    analyticsTimeline,
+    mark(label) {
+      recordAnalyticsEvent("test-checkpoint", { label });
+    },
     expectClean() {
-      expect(issues, issues.join("\n")).toEqual([]);
+      for (const abort of analyticsNavigationAborts) {
+        const navigationCommitted = analyticsTimeline.some((entry) =>
+          entry.event === "main-frame-navigated" &&
+          entry.elapsedMs >= abort.elapsedMs &&
+          entry.pathname !== abort.sourcePathname
+        );
+        const completedLifecycle = isCompletedRumNavigationLifecycle({
+          ...abort,
+          navigationCommitted,
+        });
+        recordAnalyticsEvent("rum-navigation-lifecycle-checked", {
+          completed: completedLifecycle,
+          pathname: abort.pathname,
+          priorSuccessfulStatus: abort.priorSuccessfulStatus,
+        });
+        if (!completedLifecycle) {
+          issues.push(`requestfailed: ${abort.method} ${abort.pathname} ${abort.errorText}`);
+        }
+      }
+      const timeline = analyticsTimeline.map((entry) => JSON.stringify(entry)).join("\n");
+      expect(issues, [issues.join("\n"), "Analytics lifecycle:", timeline].filter(Boolean).join("\n")).toEqual([]);
+    },
+    getAnalyticsSummary() {
+      return {
+        completedStatuses: [...analyticsRequests.values()]
+          .filter((entry) => entry.state === "finished" && Number.isInteger(entry.status))
+          .map((entry) => entry.status),
+        lifecycleAbortCount: analyticsNavigationAborts.length,
+        cspFailureCount: analyticsNavigationAborts.filter((entry) => /csp/i.test(entry.errorText)).length,
+      };
     },
   };
 }
@@ -337,6 +485,7 @@ module.exports = {
   createUsageResponse,
   expectNoDuplicateIds,
   expectNoHorizontalOverflow,
+  isCompletedRumNavigationLifecycle,
   isExpectedFirefoxNavigationImageAbort,
   mockAccountExperience,
   mockExternalAssets,

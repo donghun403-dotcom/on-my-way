@@ -5,6 +5,15 @@ on:
     branches: [main]
     types: [opened, synchronize, reopened]
   workflow_dispatch:
+    inputs:
+      verification_target:
+        description: Verification target
+        required: true
+        default: preview
+        type: choice
+        options:
+          - preview
+          - production-plan
 
 concurrency:
   group: pr-preview-${{ github.event.pull_request.number || github.ref }}
@@ -46,9 +55,17 @@ jobs:
         run: npx playwright install --with-deps chromium webkit
 
       - name: Run Playwright against the CI server
+        if: github.event_name != 'workflow_dispatch' || inputs.verification_target != 'production-plan'
         run: npm run test:e2e -- --reporter=line
 
+      - name: Run Production Plan Playwright without deployment
+        if: github.event_name == 'workflow_dispatch' && inputs.verification_target == 'production-plan'
+        env:
+          E2E_BASE_URL: https://onmyway.olivenrich.com
+        run: npx playwright test tests/e2e/plan.spec.js tests/e2e/responsive.spec.js --reporter=line
+
       - name: Generate Preview Wrangler config
+        if: github.event_name != 'workflow_dispatch' || inputs.verification_target != 'production-plan'
         shell: bash
         env:
           CLOUDFLARE_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_DATABASE_ID }}
@@ -80,20 +97,23 @@ jobs:
           ' "$generated_config" > /dev/null
 
       - name: Deploy the Cloudflare PR preview
+        if: github.event_name != 'workflow_dispatch' || inputs.verification_target != 'production-plan'
         id: deploy
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          wranglerVersion: "4.81.0"
+          wranglerVersion: "4.112.0"
           command: deploy --config wrangler.preview.generated.jsonc --name on-my-way-pr-${{ github.event.pull_request.number || 'manual' }}
 
       - name: Require a preview deployment URL
+        if: github.event_name != 'workflow_dispatch' || inputs.verification_target != 'production-plan'
         env:
           PREVIEW_URL: ${{ steps.deploy.outputs.deployment-url }}
         run: test -n "$PREVIEW_URL"
 
       - name: Wait for preview static assets
+        if: github.event_name != 'workflow_dispatch' || inputs.verification_target != 'production-plan'
         env:
           PREVIEW_URL: ${{ steps.deploy.outputs.deployment-url }}
         shell: bash
@@ -157,6 +177,7 @@ jobs:
           exit 1
 
       - name: Run Playwright against the Cloudflare preview
+        if: github.event_name != 'workflow_dispatch' || inputs.verification_target != 'production-plan'
         env:
           E2E_BASE_URL: ${{ steps.deploy.outputs.deployment-url }}
         run: npm run test:e2e -- --reporter=line
