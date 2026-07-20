@@ -219,3 +219,46 @@ Free도 기본 기록을 저장한다. `detailedInsights=false`일 때 인사이
 7. PNG 최적화를 3C와 함께 할지 별도 성능 PR로 분리할지 결정
 
 위 1–5의 제품·접근성 결정과 6의 실기기 검증 계획이 승인되면, 서버 변경 없는 3C 구현을 시작할 수 있다. 이번 감사에서는 구현을 시작하지 않았다.
+
+## 21. 3C 구현 결과 (2026-07-20)
+
+### 최종 정보 구조
+
+- 4탭을 유지했다. 올리는 대화·관계·성장의 주 진입점, 기록은 오늘 회고·저장·과거 확인의 주 진입점이다.
+- 올리 첫 화면은 상태/인사 → `#openCompanionChatPrimary` 대화 primary → `#touchCompanion` secondary → 함께한 날·관계 단계·XP 요약 순서다. 성장 단계·다음 변화·장소 여정·Pro 안내는 기존 `#matePanel` 하나에서 점진 공개한다.
+- 기록 첫 화면은 감정 → 오늘의 한 장면 → 선택 입력 → `#memorySaveButton` 순서다. 실제 오늘 대화 이벤트가 있을 때만 `#memoryConversationSummary`를 저장 영역 아래에 표시하고, 과거 기록·인사이트는 기존 공개 구조를 유지한다.
+
+### 호환성과 접근성
+
+- 기존 ID와 `[data-open-companion-chat]`의 유일성을 유지했다. 새 올리 primary에는 별도 ID를 부여하고 기존 `openCompanionChat` 핸들러를 재사용해 Today selector 회귀를 막았다.
+- `omwCompanionState`, `omwCompanionEvents`, `omwExecutionState.dailyMemories`, account scope, 서버 동기화 payload와 API는 변경하지 않았다. 쓰다듬기 XP +5와 일일 중복 방지, 관계/여정 렌더링도 그대로다.
+- 감정 버튼은 `aria-pressed`와 비색상 선택 표시를 함께 갱신한다. 저장 완료는 `role=status`, `aria-live=polite`로 알리고 status로 초점을 이동한다.
+- 대화 sheet는 textarea를 자동 초점하지 않고 닫기 버튼에 초기 초점을 둔다. 닫을 때 실제 실행 CTA를 복원 대상으로 보존해 Chromium과 iPhone WebKit 모두에서 초점을 복원한다. focus trap, Escape, 배경 닫기는 유지했다.
+- 대화가 없을 때 가짜 요약을 만들지 않는다. 실제 당일 `companion_dialogue`가 있을 때만 기록 아래에 요약을 연결한다.
+
+### 자동 검증
+
+- unit: 130 passed, 0 failed.
+- JavaScript syntax: 39개 파일 통과.
+- 기존 올리·기록·responsive targeted 13개 중 최초 12개 통과 후 selector 중복 원인을 수정했고 실패 spec을 재검증했다.
+- 새 3C spec은 데스크톱·모바일 Chromium·iPhone WebKit·태블릿에서 각 6개, 총 24개를 검증했다. WebKit 초점 복원과 기존 저장 대화 보존 경계 조건을 포함한다.
+- 최종 전체 Playwright: 223 passed, 0 failed, 0 did not run, 기존 `plan.spec.js`의 데스크톱 전용 모바일 sheet 조건 1 skipped. 새 skip과 assertion 약화는 없다.
+- 새 3C 진단의 console 오류, CSP 오류, 미분류 request failure는 0건이다. responsive 8개 viewport의 가로 overflow 검증도 통과했다.
+
+### Before / After 증적
+
+- before: PNG 14개, 4,876,497 bytes, 최대 `ollie-1440x900.png` 639,117 bytes.
+- after: PNG 14개, 4,547,170 bytes, 최대 `memory-1440x900.png` 694,930 bytes.
+- after 총량은 before보다 329,327 bytes(약 6.8%) 작다. 합성 데이터만 사용했고 실제 이메일·사용자 ID·token·Secret·결제 정보는 포함하지 않았다.
+- 대표 320×568 및 1440×900 화면을 직접 검수했다. primary CTA 우선순위, 기록 계층, 텍스트 잘림, 하단 탭바 여유와 접힌 성장 패널 높이를 확인했고 마지막 데스크톱 패널 늘어남을 범위 제한 CSS로 수정했다.
+
+### 이미지 최적화와 남은 확인
+
+- 원본 올리 PNG 4개는 총 3,492,093 bytes, 최대 `ollie-thinking.png` 887,303 bytes다.
+- 이번 변경에서는 WebP 파생 자산과 `picture` fallback의 모든 상태·캐시·시각 회귀를 충분히 검증하기 어려워 원본 PNG를 유지했다. 새 이미지 라이브러리나 CDN은 추가하지 않았고 최적화는 별도 성능 작업으로 보류한다.
+- 실제 iPhone Safari, Galaxy Chrome, 주소창 축소, 소프트 키보드와 safe-area 동작은 `Unknown`이다. 브라우저 viewport와 iPhone WebKit 에뮬레이션 통과를 실기기 완료로 표현하지 않는다.
+- 3D에서 실기기로 320–430px 키보드/textarea/CTA, sheet 100dvh, safe-area, 실제 이미지 전송량을 확인해야 한다.
+
+### 제외 범위 확인
+
+서버 API, 인증·OAuth, 결제·무료 체험 정책, Worker/CSP, Production workflow/config, Secret, KV/D1, route, custom domain, Today·Plan 정보 구조는 변경하지 않았다. Production 배포와 3D 실기기 QA도 수행하지 않았다.
