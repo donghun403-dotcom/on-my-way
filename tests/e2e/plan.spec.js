@@ -1,5 +1,5 @@
 const { test, expect } = require("@playwright/test");
-const { monitorPage, prepareApp } = require("./helpers");
+const { monitorPage, prepareApp, waitForAppReady } = require("./helpers");
 
 test.beforeEach(async ({ page }) => prepareApp(page));
 
@@ -23,4 +23,48 @@ test("모든 탭을 클릭과 키보드로 이동한다", async ({ page }) => {
   await page.locator("#tab-today").click({ clickCount: 3 });
   await expect(page.locator("#view-today")).toBeVisible();
   diagnostics.expectClean();
+});
+
+test("계획 홈은 7일 요약과 단일 주요 CTA를 제공한다", async ({ page }) => {
+  await page.goto("/app.html");
+  await waitForAppReady(page);
+  await page.locator("#tab-plan").click();
+  await expect(page.locator("#planWeekStrip .plan-week-day")).toHaveCount(7);
+  await expect(page.locator("#weeklyPlanList > li")).toHaveCount(3);
+  await expect(page.locator("#planOpenDetailButton")).toContainText("전체 계획 보기");
+  await expect(page.locator("#planOpenEditorButton")).toContainText("계획 수정하기");
+  await expect(page.locator("#view-plan")).not.toHaveCSS("overflow-x", "scroll");
+});
+
+test("주간 날짜에서 상세 시트로 이동하고 Escape로 닫으면 초점이 복원된다", async ({ page, isMobile }) => {
+  test.skip(!isMobile, "모바일 시트 동작");
+  await page.goto("/app.html");
+  await waitForAppReady(page);
+  await page.locator("#tab-plan").click();
+  const firstDay = page.locator("#planWeekStrip .plan-week-day").first();
+  await firstDay.click();
+  await expect(page.locator("#view-plan")).toHaveAttribute("data-active-plan-screen", "detail");
+  await expect(page.locator("#calendarDayDetail")).toBeVisible();
+  await expect(page.locator("#calendarDayDetail")).toHaveAttribute("aria-modal", "true");
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#calendarDayDetail")).toBeHidden();
+  await expect(page.locator("#scheduleCalendar .calendar-day.selected")).toBeFocused();
+});
+
+test("계획 수정은 다중 빠른 선택을 자유 입력에 안전하게 반영하고 승인 전 액션을 숨긴다", async ({ page }) => {
+  await page.goto("/app.html");
+  await waitForAppReady(page);
+  await page.locator("#tab-plan").click();
+  await page.locator("#planOpenEditorButton").click();
+  const timeChip = page.getByRole("button", { name: "시간 바꾸기" });
+  const restChip = page.getByRole("button", { name: "휴식일 넣기" });
+  await timeChip.click();
+  await restChip.click();
+  await expect(timeChip).toHaveAttribute("aria-pressed", "true");
+  await expect(restChip).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("#planRevisionRequest")).toHaveValue(/집중 시간대.*\n.*휴식일/s);
+  await expect(page.locator("#regeneratePlanButton")).toBeEnabled();
+  await expect(page.locator("#planReviewStep")).toBeHidden();
+  await timeChip.click();
+  await expect(page.locator("#planRevisionRequest")).not.toHaveValue(/집중 시간대/);
 });

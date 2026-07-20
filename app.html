@@ -369,6 +369,8 @@
             <div><span>집중 시간</span><strong id="planOverviewRhythm">아침</strong></div>
           </div>
 
+          <div class="plan-week-strip" id="planWeekStrip" aria-label="이번 주 계획"></div>
+
           <div class="plan-week-preview-head">
             <strong>다가오는 일정</strong>
             <span>먼저 할 핵심 3개만 보여드려요</span>
@@ -419,7 +421,8 @@
             <span><img src="assets/ollie-celebrate.png" alt="" /><em>일</em></span>
           </div>
           <div class="schedule-calendar" id="scheduleCalendar" aria-label="일별 플랜 완성률 달력"></div>
-          <div class="calendar-day-detail" id="calendarDayDetail" hidden>
+          <div class="calendar-day-detail-backdrop" id="calendarDayDetailBackdrop" hidden></div>
+          <div class="calendar-day-detail" id="calendarDayDetail" role="dialog" aria-modal="true" aria-labelledby="calendarDayDetailTitle" tabindex="-1" hidden>
             <div class="calendar-day-detail-head">
               <div>
                 <strong id="calendarDayDetailTitle">선택한 날의 스케줄</strong>
@@ -444,13 +447,14 @@
             </div>
             <div class="plan-editor-head-actions">
               <span class="soft-badge" id="planStatusBadge">AI 제안</span>
-              <button class="energy-action-button" id="weeklyOptimizeButton" type="button">전체 일정 재조정 <span data-ai-credit-cost="reschedule_plan">—</span><small>크레딧</small></button>
             </div>
           </div>
 
-          <div class="edit-step">
-            <span class="edit-step-label"><i>1</i>지금 적용 중인 계획</span>
-            <div class="plan-preview-list" id="planPreviewList" aria-label="현재 계획 요약"></div>
+          <div class="edit-step current-plan-step">
+            <details class="current-plan-disclosure">
+              <summary><span><i>1</i><strong>지금 적용 중인 계획</strong><small>목표와 핵심 일정 요약</small></span><b aria-hidden="true">＋</b></summary>
+              <div class="plan-preview-list" id="planPreviewList" aria-label="현재 계획 요약"></div>
+            </details>
           </div>
 
           <div class="edit-step">
@@ -463,6 +467,7 @@
             <details class="revision-advanced">
               <summary><span><strong>세부 조건 설정</strong><small>시간·요일·우선순위를 직접 정하고 싶을 때</small></span><b aria-hidden="true">＋</b></summary>
               <div class="revision-advanced-body">
+            <button class="energy-action-button" id="weeklyOptimizeButton" type="button">전체 일정 재조정 <span data-ai-credit-cost="reschedule_plan">—</span><small>크레딧</small></button>
             <div class="revision-goal-type-row">
               <label class="revision-field" for="revisionGoalType">
                 <span>어떤 종류의 목표인가요?</span>
@@ -542,28 +547,31 @@
             </details>
 
             <div class="revision-quick-actions" id="revisionQuickActions" aria-label="목표에 맞는 빠른 수정 요청">
-              <button type="button" data-revision-chip="가장 중요한 결과에 직접 연결되는 행동부터 배치해줘.">핵심 결과에 집중</button>
-              <button type="button" data-revision-chip="하루 실행 시간을 줄이고도 이어갈 수 있게 다시 나눠줘.">부담 줄이기</button>
-              <button type="button" data-revision-chip="지금 막혀 있는 단계부터 해결하도록 순서를 바꿔줘.">막힌 단계 먼저</button>
-              <button type="button" data-revision-chip="이번 주에는 가장 중요한 한 가지 결과에 집중하게 해줘.">이번 주 한 가지</button>
+              <button type="button" aria-pressed="false" data-revision-chip="집중 시간대를 바꿔줘.">시간 바꾸기</button>
+              <button type="button" aria-pressed="false" data-revision-chip="실행 요일을 바꿔줘.">요일 바꾸기</button>
+              <button type="button" aria-pressed="false" data-revision-chip="하루 실행 분량을 줄여줘.">분량 줄이기</button>
+              <button type="button" aria-pressed="false" data-revision-chip="가장 중요한 일정부터 배치해줘.">우선순위 바꾸기</button>
+              <button type="button" aria-pressed="false" data-revision-chip="이번 주 일정이 너무 많으니 현실적으로 줄여줘.">일정이 너무 많아요</button>
+              <button type="button" aria-pressed="false" data-revision-chip="회복할 수 있는 휴식일을 넣어줘.">휴식일 넣기</button>
             </div>
             <span class="revision-request-caption">추가로 설명할 내용</span>
             <textarea
               id="planRevisionRequest"
               class="plan-editor plan-revision-request"
               rows="4"
-              placeholder="예: 지금 가장 중요한 결과, 바꾸고 싶은 순서나 비중, 꼭 지켜야 할 조건을 자유롭게 적어주세요."
+              placeholder="예: 화·목 저녁으로 옮기고, 하루 30분 안에 끝나도록 줄여주세요."
             ></textarea>
-            <button class="plan-cta" id="regeneratePlanButton" type="button">계획 수정 제안받기 <span class="button-energy-cost"><b data-ai-credit-cost="revise_plan">—</b>크레딧</span></button>
+            <button class="plan-cta" id="regeneratePlanButton" type="button">변경안 만들기 <span class="button-energy-cost"><b data-ai-credit-cost="revise_plan">—</b>크레딧</span></button>
+            <p class="revision-safety-note">AI 크레딧은 변경안을 만들 때 사용돼요. 승인 전까지 현재 계획은 바뀌지 않아요.</p>
           </div>
 
-          <div class="edit-step">
+          <div class="edit-step plan-review-step" id="planReviewStep" hidden>
             <span class="edit-step-label"><i>3</i>변경안 확인 후 적용</span>
             <div class="plan-apply-actions">
-              <button class="plan-cta" id="acceptPlanButton" type="button">적용하기</button>
-              <button class="plan-cta ghost" id="keepPlanButton" type="button">취소하고 기존 유지</button>
+              <button class="plan-cta" id="acceptPlanButton" type="button">이 계획 적용하기</button>
+              <button class="plan-cta ghost" id="keepPlanButton" type="button">기존 계획 유지하기</button>
             </div>
-            <button class="plan-text-link" id="reviseAgainButton" type="button">다시 수정 요청하기</button>
+            <button class="plan-text-link" id="reviseAgainButton" type="button">변경 내용 다시 수정하기</button>
           </div>
 
           <textarea id="planEditor" class="plan-editor" rows="7" hidden></textarea>
