@@ -34,7 +34,7 @@
   </head>
   <body class="execution-page" data-app-ready="false" data-auth-ready="false" data-auth-state="pending" data-pricing-ready="false" data-pricing-state="pending">
     <header class="execution-header">
-      <a href="index.html" aria-label="홈으로 돌아가기">
+      <a href="app.html" aria-label="내 계획으로 돌아가기">
         <img class="brand-logo" src="assets/logo-horizontal-ollie.png" alt="On My Way" />
       </a>
       <div class="execution-header-actions">
@@ -74,7 +74,8 @@
         <button type="button" id="drawerMyPage" data-requires-auth hidden>👤 마이페이지</button>
         <button type="button" id="drawerUpgrade" hidden>⭐ Pro 결제 준비 중</button>
         <button type="button" id="drawerPersonality">🧭 성향 설정</button>
-        <a href="index.html">🏠 홈으로</a>
+        <a href="app.html?tab=today">🏠 내 계획으로 돌아가기</a>
+        <a href="index.html">ℹ️ 서비스 소개 보기</a>
         <a href="index.html#designFlow">🛠 목표 설계 수정</a>
         <a href="admin.html" id="drawerAdminLink" hidden>🔐 관리자 대시보드</a>
         <button type="button" id="drawerLogout" data-requires-auth hidden>👋 로그아웃</button>
@@ -665,7 +666,7 @@
                 </div>
               </div>
               <div class="journey-map" id="journeyMap" aria-label="목표 여정 지도"></div>
-              <a class="journey-pro-link" href="index.html#pricing">PRO · 전체 성장 여정 보기</a>
+              <a class="journey-pro-link" href="index.html?from=ollie#pricing">PRO · 전체 성장 여정 보기</a>
             </section>
           </div>
         </details>
@@ -965,13 +966,21 @@
           trigger.addEventListener("click", () => setView(trigger.dataset.gotoView));
         });
 
-        // Restore last view (default: today). Never restore into a hidden/empty state.
+        // Restore an explicit return tab first, then the last view (default: today).
         let initial = "today";
+        const params = new URLSearchParams(location.search);
+        const requested = params.get("tab");
         try {
           const saved = localStorage.getItem(STORAGE_KEY);
-          if (saved && views.some((view) => view.dataset.view === saved)) initial = saved;
+          if (requested && views.some((view) => view.dataset.view === requested)) initial = requested;
+          else if (saved && views.some((view) => view.dataset.view === saved)) initial = saved;
         } catch (error) {
           /* ignore */
+        }
+        if (requested) {
+          params.delete("tab");
+          const query = params.toString();
+          history.replaceState(null, "", `${location.pathname}${query ? `?${query}` : ""}${location.hash}`);
         }
         setView(initial, { save: false, scroll: false });
       })();

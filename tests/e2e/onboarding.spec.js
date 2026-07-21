@@ -23,7 +23,7 @@ test("첫 진입부터 목표 생성과 새로고침까지 이어진다", async 
         ok: true,
         plan: {
           personalitySummary: "작은 실행을 반복할 때 강점이 살아나요.",
-          planningStyle: "루틴 점검형 계획",
+          planningStyle: "유연 조정형: 하루 컨디션에 따라 3단계로 조절하는 긴 계획 설명",
           firstAction: "오늘 10분 동안 E2E 첫 행동 실행",
           weekTitle: "이번 주에는 시작 가능한 크기로 반복해요",
           weekPlan: ["10분 시작", "완료 체크", "한 줄 기록", "막힌 점 정리", "다음 행동 준비"],
@@ -61,8 +61,8 @@ test("첫 진입부터 목표 생성과 새로고침까지 이어진다", async 
   const longGoal = "아주 긴 목표 ".repeat(20);
   await page.locator("#designGoal").fill(longGoal);
   await expect(page.locator("#designGoal")).toHaveValue(longGoal);
-  await page.locator("#designGoal").fill("E2E 목표 완주하기");
-  await page.locator("#diagnosisNextButton").click();
+  await page.getByRole("button", { name: "창업", exact: true }).click();
+  await expect(page.locator("#designGoal")).toHaveValue("90일 안에 첫 유료 고객 10명 만들기");
   await expect(page.locator("#diagnosisStepCount")).toHaveText("2 / 3");
   await page.locator("#diagnosisBackButton").click();
   await expect(page.locator("#diagnosisStepCount")).toHaveText("1 / 3");
@@ -86,6 +86,17 @@ test("첫 진입부터 목표 생성과 새로고침까지 이어진다", async 
   expect(goalPlanRequests[0].requestId).toMatch(/^create_plan:/);
   expect(goalPlanRequests[0].body).not.toHaveProperty("plan");
   expect(goalPlanRequests[0].body).not.toHaveProperty("creditCost");
+  expect(goalPlanRequests[0].body).toMatchObject({
+    goal: "90일 안에 첫 유료 고객 10명 만들기",
+    currentState: "아이디어만 있고 평일 1시간, 주말 3시간 가능",
+    routine: {
+      readiness: "바로 실행하는 편이에요",
+      preferredTime: "저녁",
+      existingRoutine: "저녁 식사 후 노트북 열기",
+    },
+  });
+  await expect(page.locator("#planningStyle")).toHaveText("유연 조정형");
+  expect(await page.locator("#firstStep").evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBeTruthy();
   const planDetails = page.locator(".result-details-disclosure");
   await planDetails.locator("summary").click();
   await expect(planDetails).toHaveAttribute("open", "");
@@ -106,4 +117,111 @@ test("첫 진입부터 목표 생성과 새로고침까지 이어진다", async 
   await expect(page.locator("#trialPaywall")).toBeHidden();
   await expect(page.locator("body")).not.toHaveClass(/trial-locked/);
   diagnostics.expectClean();
+});
+
+test("익명 사용자는 실제 AI 계획 일부를 본 뒤 로그인·회원가입으로 전체 계획을 이어간다", async ({ page }) => {
+  const account = await mockAccountExperience(page);
+  let previewRequestBody = null;
+  await page.route("**/api/ai/goal-preview", (route) => {
+    previewRequestBody = route.request().postDataJSON();
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        cached: false,
+        preview: {
+          personalitySummary: "고객 대화부터 작게 시작하면 실행 리듬을 만들 수 있어요.",
+          planningStyle: "고객 검증 실행형 계획",
+          firstAction: "잠재 고객 한 명에게 문제 인터뷰를 요청하기",
+          weekTitle: "첫 주에는 고객 문제를 직접 확인해요.",
+          weekPlan: ["고객 후보 5명 적기", "인터뷰 1명 요청하기", "질문 5개 정리하기"],
+          coachMessage: "완벽한 제품보다 실제 고객의 말을 먼저 모아 봐요.",
+          todaySchedule: [{
+            time: "저녁",
+            durationMinutes: 15,
+            task: "잠재 고객 한 명에게 문제 인터뷰를 요청하기",
+            completionRule: "메시지 한 건을 보내면 완료",
+          }],
+        },
+      }),
+    });
+  });
+  await page.route("**/api/ai/goal-plan", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      ok: true,
+      plan: {
+        personalitySummary: "고객 대화부터 작게 시작하면 실행 리듬을 만들 수 있어요.",
+        planningStyle: "고객 검증 실행형 계획",
+        firstAction: "잠재 고객 한 명에게 문제 인터뷰를 요청하기",
+        weekTitle: "첫 주에는 고객 문제를 직접 확인해요.",
+        weekPlan: ["고객 후보 5명 적기", "인터뷰 1명 요청하기", "질문 5개 정리하기", "응답 기록하기", "가설 한 줄 수정하기"],
+        coachMessage: "완벽한 제품보다 실제 고객의 말을 먼저 모아 봐요.",
+        dashboard: { goal: "첫 유료 고객 만들기", progress: 0, pace: "첫 주 고객 검증" },
+        fullSchedule: [
+          { phase: "탐색", days: "1~7일", focus: "고객 문제 확인", successMetric: "인터뷰 3명" },
+          { phase: "제안", days: "8~30일", focus: "작은 해결안 제안", successMetric: "제안 5회" },
+          { phase: "판매", days: "31~90일", focus: "유료 전환", successMetric: "고객 10명" },
+        ],
+        todaySchedule: [
+          { time: "저녁", durationMinutes: 15, task: "잠재 고객 한 명에게 문제 인터뷰를 요청하기", completionRule: "메시지 한 건을 보내면 완료" },
+          { time: "요청 직후", durationMinutes: 5, task: "보낸 문구와 반응 기록하기", completionRule: "기록 한 줄을 남기면 완료" },
+        ],
+        checkInRules: ["요청 수를 기록해요.", "답이 없으면 대상만 바꿔요.", "주말에 질문을 조정해요."],
+        fallbackPlan: "어려운 날에는 고객 후보 이름 한 명만 적어요.",
+      },
+      requestId: "create_plan:guest-conversion",
+      chargedCredits: 4,
+      usage: createUsageResponse({ plan: "trial", dailyUsed: 4, monthlyUsed: 4, trialEligible: false, trialActive: true }),
+    }),
+  }));
+  await page.goto("/index.html#designFlow");
+  await waitForBootstrap(page);
+  await page.getByRole("button", { name: "창업", exact: true }).click();
+  await expect(page.locator("#diagnosisStepCount")).toHaveText("2 / 3");
+  await page.locator("#diagnosisNextButton").click();
+  await expect(page.locator("#diagnosisStepCount")).toHaveText("3 / 3");
+
+  await Promise.all([
+    page.waitForResponse((response) => new URL(response.url()).pathname === "/api/ai/goal-preview" && response.status() === 200),
+    page.locator("#aiPreviewButton").click(),
+  ]);
+  await expect(page).toHaveURL(/#firstStep$/);
+  await expect(page.locator("#aiPreviewStatus")).toHaveText("올리가 AI로 만든 계획 미리보기");
+  await expect(page.locator("#previewAction")).toHaveText("잠재 고객 한 명에게 문제 인터뷰를 요청하기");
+  await expect(page.locator(".result-details-disclosure")).toBeHidden();
+  await expect(page.locator("#previewConversionAction")).toHaveText("로그인·회원가입하고 전체 계획 보기");
+  expect(previewRequestBody).toMatchObject({
+    goal: "90일 안에 첫 유료 고객 10명 만들기",
+    currentState: "아이디어만 있고 평일 1시간, 주말 3시간 가능",
+    routine: { preferredTime: "저녁", existingRoutine: "저녁 식사 후 노트북 열기" },
+  });
+  expect(await page.evaluate(() => localStorage.getItem("omwExecutionPlan"))).toBeNull();
+
+  await Promise.all([
+    page.waitForURL(/app\.html\?auth=login&return=/),
+    page.locator("#trialStartInlineLink").click(),
+  ]);
+  await expect(page.locator("#authSheet")).toBeVisible();
+  expect(decodeURIComponent(new URL(page.url()).searchParams.get("return"))).toBe("/?resumeGoal=1");
+
+  account.user = { id: "usr_guest_preview", provider: "google", name: "미리보기 사용자", email: "preview@example.com", plan: "free", role: "member" };
+  account.usage = createUsageResponse({ plan: "free", trialEligible: true });
+  await page.goto("/?resumeGoal=1&auth=success");
+  await waitForBootstrap(page);
+  await expect(page.locator("#firstStep")).toBeVisible();
+  await expect(page.locator("#designGoal")).toHaveValue("90일 안에 첫 유료 고객 10명 만들기");
+  await expect(page.locator("#previewAction")).toHaveText("잠재 고객 한 명에게 문제 인터뷰를 요청하기");
+  await expect(page.locator("#previewConversionAction")).toHaveText("무료 체험으로 전체 계획 만들기");
+
+  await Promise.all([
+    page.waitForResponse((response) => new URL(response.url()).pathname === "/api/ai/goal-plan" && response.status() === 200),
+    page.locator("#trialStartInlineLink").click(),
+  ]);
+  await expect(page.locator("#firstStep")).toHaveAttribute("data-preview-mode", "full");
+  await expect(page.locator(".result-details-disclosure")).toBeVisible();
+  await expect(page.locator("#previewConversionAction")).toHaveText("오늘 계획 바로 시작");
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("omwExecutionPlan") || "null")?.planSource)).toBe("ai");
 });

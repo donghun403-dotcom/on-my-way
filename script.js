@@ -24,6 +24,8 @@ const resultDetailsSummary = resultDetailsDisclosure?.querySelector(":scope > su
 const resultDetailsContent = document.querySelector("#resultDetailsContent");
 const goalSuggestionButtons = document.querySelectorAll("[data-goal-suggestion], [data-goal-category]");
 const customGoalButton = document.querySelector("#customGoalButton");
+const heroPrimaryCta = document.querySelector("#heroPrimaryCta");
+const pricingAppReturn = document.querySelector("#pricingAppReturn");
 const birthDateInput = document.querySelector("#birthDate");
 const birthTimeInput = document.querySelector("#birthTime");
 const birthPlaceInput = document.querySelector("#birthPlace");
@@ -59,6 +61,9 @@ const appFeatureNext = document.querySelector("#appFeatureNext");
 const appFeatureTitle = document.querySelector("#appFeatureTitle");
 const appFeatureCounter = document.querySelector("#appFeatureCounter");
 const trialStartInlineLink = document.querySelector("#trialStartInlineLink");
+const previewConversionKicker = document.querySelector("#previewConversionKicker");
+const previewConversionCopy = document.querySelector("#previewConversionCopy");
+const previewConversionAction = document.querySelector("#previewConversionAction");
 const trialStatusBanner = document.querySelector("#trialStatusBanner");
 const trialTimeRemaining = document.querySelector("#trialTimeRemaining");
 const trialPaywall = document.querySelector("#trialPaywall");
@@ -173,6 +178,7 @@ const calendarDayDetailTitle = document.querySelector("#calendarDayDetailTitle")
 const calendarDayDetailMeta = document.querySelector("#calendarDayDetailMeta");
 const calendarDayDetailList = document.querySelector("#calendarDayDetailList");
 const calendarDayDetailClose = document.querySelector("#calendarDayDetailClose");
+const calendarDayDetailHome = calendarDayDetail?.parentElement || null;
 const weeklyPlanList = document.querySelector("#weeklyPlanList");
 const planReviewStep = document.querySelector("#planReviewStep");
 const dailyCoachImage = document.querySelector("#dailyCoachImage");
@@ -204,6 +210,8 @@ const DEFAULT_ROUTINE_READINESS = "계획이 있으면 실행해요";
 const TRIAL_ACCESS_KEY = "omwTrialAccess";
 const LEGACY_OLLIE_ENERGY_KEY = "omwOllieEnergy";
 const FREE_PLAN_GENERATED_KEY = "omwFreePlanGenerated";
+const PENDING_GOAL_DRAFT_KEY = "onmyway:pending-goal-draft";
+const PENDING_GOAL_PREVIEW_KEY = "onmyway:pending-goal-preview";
 const ACCOUNT_STORAGE_SCOPE_KEY = "onmyway:active-scope";
 const ANONYMOUS_DEVICE_KEY = "onmyway:anonymous-device";
 const LEGACY_ACCOUNT_STORAGE_SCOPE_KEY = "omwAccountStorageScope";
@@ -624,6 +632,15 @@ function initializeTrialAccess() {
 
 trialStartInlineLink?.addEventListener("click", async (event) => {
   event.preventDefault();
+  if (planPreviewPanel?.dataset.previewMode === "guest") {
+    savePendingGoalDraft();
+    if (!authUiState.user) {
+      location.assign(`app.html?auth=login&return=${encodeURIComponent("/?resumeGoal=1")}`);
+      return;
+    }
+    await runPersonalityAnalysis({ showLoading: true });
+    return;
+  }
   const started = await startTrialAccess();
   if (started) location.assign(trialStartInlineLink.href);
 });
@@ -1011,11 +1028,18 @@ function renderAccountUi() {
       navLoginLink.textContent = `${user.name}님`;
       navLoginLink.href = "app.html?auth=my";
     } else {
-      navLoginLink.textContent = "로그인";
+      navLoginLink.textContent = "로그인/회원가입";
       navLoginLink.href = "app.html?auth=login&return=%2F";
     }
   }
+  if (heroPrimaryCta) {
+    const hasSavedPlan = Boolean(user && readExecutionPlan().goal);
+    heroPrimaryCta.textContent = hasSavedPlan ? "내 계획으로 돌아가기" : "내 목표로 24시간 무료 체험 시작하기";
+    heroPrimaryCta.href = hasSavedPlan ? "app.html" : "#designFlow";
+  }
 
+  syncGoalBuilderCta();
+  if (planPreviewPanel?.dataset.previewMode === "guest") setResultPreviewMode("guest");
   renderMyPageSheet();
 }
 
@@ -1106,6 +1130,7 @@ function authRedirectTarget() {
   const params = new URLSearchParams(location.search);
   if (params.get("redirect") === "admin") return "/admin.html";
   if (params.get("return") === "/delete-account") return "/delete-account";
+  if (params.get("return") === "/?resumeGoal=1") return "/?resumeGoal=1";
   return location.pathname || "/app.html";
 }
 
@@ -1119,16 +1144,26 @@ function confirmTrialPaidUpgrade() {
   }
   if (billingConfirmationPromise) return billingConfirmationPromise;
 
-  billingConfirmationPromise = new Promise((resolve) => {
-    billingConfirmDialog.returnValue = "";
-    billingConfirmDialog.addEventListener("close", () => {
-      resolve(billingConfirmDialog.returnValue === "confirm");
-    }, { once: true });
-    billingConfirmDialog.showModal();
-  }).finally(() => {
-    billingConfirmationPromise = null;
+  let resolveConfirmation;
+  const confirmation = new Promise((resolve) => {
+    resolveConfirmation = resolve;
   });
-  return billingConfirmationPromise;
+  const handleClose = () => {
+    const confirmed = billingConfirmDialog.returnValue === "confirm";
+    billingConfirmationPromise = null;
+    resolveConfirmation(confirmed);
+  };
+  billingConfirmationPromise = confirmation;
+  billingConfirmDialog.returnValue = "";
+  billingConfirmDialog.addEventListener("close", handleClose, { once: true });
+  try {
+    billingConfirmDialog.showModal();
+  } catch (error) {
+    billingConfirmDialog.removeEventListener("close", handleClose);
+    billingConfirmationPromise = null;
+    throw error;
+  }
+  return confirmation;
 }
 
 function setBillingStartPending(pending) {
@@ -1239,7 +1274,7 @@ async function logoutAccount() {
     } catch {}
   }
   switchAccountStorageScope(getAccountStorageScope(null));
-  location.href = location.pathname;
+  location.href = "/";
 }
 
 function handleAuthQueryParams() {
@@ -1278,6 +1313,7 @@ function handleAuthQueryParams() {
   }
 
   if (authParam) params.delete("auth");
+  params.delete("resumeGoal");
   params.delete("provider");
   if (adminDenied) params.delete("admin");
   const query = params.toString();
@@ -1937,6 +1973,77 @@ const goalTemplates = {
   },
 };
 
+function selectedGoalTemplate() {
+  const selected = [...goalSuggestionButtons].find((button) => button.classList.contains("selected") && button.dataset.goalCategory);
+  const template = selected ? goalTemplates[selected.dataset.goalCategory] : null;
+  return template && template.goal === designGoal?.value.trim() ? template : null;
+}
+
+function savePendingGoalDraft() {
+  try {
+    sessionStorage.setItem(PENDING_GOAL_DRAFT_KEY, JSON.stringify({
+      goal: designGoal?.value || "",
+      period: goalPeriodInput?.value || "",
+      routineReadiness: routineReadinessInput?.value || "",
+      routineTime: routineTimeInput?.value || "",
+      birthDate: birthDateInput?.value || "",
+      birthTime: birthTimeInput?.value || "",
+      birthPlace: birthPlaceInput?.value || "",
+      mbti: mbtiInput?.value || "",
+      category: [...goalSuggestionButtons].find((button) => button.classList.contains("selected"))?.dataset.goalCategory || "",
+    }));
+  } catch {
+    /* session storage unavailable — continue to login */
+  }
+}
+
+function savePendingGoalPreview(preview) {
+  try {
+    sessionStorage.setItem(PENDING_GOAL_PREVIEW_KEY, JSON.stringify({ preview, createdAt: Date.now() }));
+  } catch {
+    /* session storage unavailable — the preview remains visible for this page */
+  }
+}
+
+function restorePendingGoalPreview() {
+  try {
+    const record = safeJsonParse(sessionStorage.getItem(PENDING_GOAL_PREVIEW_KEY), null);
+    if (!record?.preview || Date.now() - Number(record.createdAt || 0) > 24 * 60 * 60 * 1000) {
+      sessionStorage.removeItem(PENDING_GOAL_PREVIEW_KEY);
+      return false;
+    }
+    renderAiPreview(record.preview);
+    if (aiPreviewStatus) aiPreviewStatus.textContent = "올리가 AI로 만든 계획 미리보기";
+    setResultPreviewMode("guest");
+    openFirstStepResult();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function restorePendingGoalDraft() {
+  if (!personalityForm || new URLSearchParams(location.search).get("resumeGoal") !== "1") return false;
+  try {
+    const draft = safeJsonParse(sessionStorage.getItem(PENDING_GOAL_DRAFT_KEY), null);
+    if (!draft || typeof draft !== "object") return false;
+    if (designGoal) designGoal.value = String(draft.goal || "");
+    if (goalPeriodInput && draft.period) goalPeriodInput.value = String(draft.period);
+    if (routineReadinessInput && draft.routineReadiness) routineReadinessInput.value = String(draft.routineReadiness);
+    if (routineTimeInput && draft.routineTime) routineTimeInput.value = String(draft.routineTime);
+    if (birthDateInput) birthDateInput.value = String(draft.birthDate || "");
+    if (birthTimeInput) birthTimeInput.value = String(draft.birthTime || "");
+    if (birthPlaceInput) birthPlaceInput.value = String(draft.birthPlace || "");
+    if (mbtiInput) mbtiInput.value = String(draft.mbti || "");
+    goalSuggestionButtons.forEach((button) => button.classList.toggle("selected", Boolean(draft.category) && button.dataset.goalCategory === draft.category));
+    diagnosisStepIndex = diagnosisSteps.length ? diagnosisSteps.length - 1 : 0;
+    renderDiagnosisStep();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function updateWizardSummary() {
   const goal = designGoal?.value.trim() || "목표를 입력해 주세요";
   const selectedPeriod = goalPeriodInput?.selectedOptions?.[0]?.textContent.split(" · ")[0] || "기간 미정";
@@ -2227,7 +2334,9 @@ window.addEventListener("hashchange", () => showPageView(window.location.hash, t
 window.addEventListener("load", () => {
   if (window.location.hash) window.requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0 }));
 });
-showPageView(window.location.hash || "#top", Boolean(window.location.hash));
+const resumedPendingGoal = restorePendingGoalDraft();
+if (pricingAppReturn) pricingAppReturn.hidden = new URLSearchParams(location.search).get("from") !== "ollie";
+showPageView(resumedPendingGoal ? "#designFlow" : window.location.hash || "#top", resumedPendingGoal || Boolean(window.location.hash));
 
 const stems = [
   { ko: "갑", element: "목", trait: "시작과 성장 욕구가 강한 확장형" },
@@ -2506,6 +2615,34 @@ async function requestAiPlan(payload) {
   }
 }
 
+async function requestGuestAiPreview(payload) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 60000);
+  try {
+    const response = await fetch("/api/ai/goal-preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify(payload.input),
+      signal: controller.signal,
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const error = new Error(result.error || "AI 계획 미리보기를 만들지 못했어요.");
+      error.status = response.status;
+      error.code = result.code || "";
+      throw error;
+    }
+    if (!result.preview) throw new Error("AI 계획 미리보기를 확인하지 못했어요.");
+    return result.preview;
+  } catch (error) {
+    if (error.name === "AbortError") throw new Error("AI 미리보기 응답이 늦어지고 있어요. 잠시 후 다시 시도해 주세요.");
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
 async function requestCompanionReply(message) {
   if (!(await ensureAiActionAvailable("companion_chat"))) {
     const error = new Error("올리와 대화할 수 있는 AI 크레딧을 확인해 주세요.");
@@ -2577,7 +2714,13 @@ async function playAnalysisLoading() {
 }
 
 function renderAiPreview(preview) {
-  if (planningStyle) planningStyle.textContent = preview.planningStyle.replace(" 계획", "");
+  if (planningStyle) {
+    const compactStyle = String(preview.planningStyle || "맞춤 실행형")
+      .split(/[:：·\n]/, 1)[0]
+      .replace(/\s*계획\s*$/, "")
+      .trim();
+    planningStyle.textContent = compactStyle.slice(0, 18) || "맞춤 실행형";
+  }
   if (manseProfile) manseProfile.textContent = preview.personalitySummary;
   if (mbtiProfile) mbtiProfile.textContent = `${preview.planningStyle}으로 시작하고, 첫 행동은 "${preview.firstAction}"으로 잡습니다.`;
   if (aiPreviewTitle) aiPreviewTitle.textContent = preview.weekTitle;
@@ -2637,10 +2780,12 @@ function renderAiPreview(preview) {
     });
     aiGoalRoadmap.replaceChildren(...items);
   }
-  if (dashboardGoalPreview) dashboardGoalPreview.textContent = preview.dashboard.goal;
-  if (dashboardProgressValue) dashboardProgressValue.textContent = `${preview.dashboard.progress}%`;
-  if (dashboardProgressBar) dashboardProgressBar.style.width = `${preview.dashboard.progress}%`;
-  if (dashboardPaceText) dashboardPaceText.textContent = preview.dashboard.pace;
+  if (preview.dashboard) {
+    if (dashboardGoalPreview) dashboardGoalPreview.textContent = preview.dashboard.goal;
+    if (dashboardProgressValue) dashboardProgressValue.textContent = `${preview.dashboard.progress}%`;
+    if (dashboardProgressBar) dashboardProgressBar.style.width = `${preview.dashboard.progress}%`;
+    if (dashboardPaceText) dashboardPaceText.textContent = preview.dashboard.pace;
+  }
 }
 
 function setAiPreviewButtonLabel(label, { showCost = true } = {}) {
@@ -2653,24 +2798,61 @@ function setAiPreviewButtonLabel(label, { showCost = true } = {}) {
   aiPreviewButton.append(cost);
 }
 
+function syncGoalBuilderCta() {
+  if (!aiPreviewButton) return;
+  if (!authUiState.user) {
+    setAiPreviewButtonLabel("AI 계획 미리보기 만들기", { showCost: false });
+    return;
+  }
+  const plan = aiUsageState?.plan || authUiState.user.plan || "free";
+  setAiPreviewButtonLabel(plan === "pro" ? "AI 전체 계획 만들기" : "24시간 무료 체험으로 전체 계획 만들기");
+}
+
+function setResultPreviewMode(mode) {
+  if (!planPreviewPanel) return;
+  planPreviewPanel.dataset.previewMode = mode;
+  const isGuest = mode === "guest";
+  if (resultDetailsDisclosure) resultDetailsDisclosure.hidden = isGuest;
+  if (isGuest) {
+    if (previewConversionKicker) previewConversionKicker.textContent = "전체 계획이 궁금하다면";
+    if (previewConversionCopy) {
+      previewConversionCopy.textContent = authUiState.user
+        ? "24시간 무료 체험으로 전체 일정과 실행 순서를 이어서 만들어요."
+        : "로그인·회원가입 후 24시간 무료 체험으로 전체 계획을 이어서 만들어요.";
+    }
+    if (previewConversionAction) {
+      previewConversionAction.textContent = authUiState.user
+        ? "무료 체험으로 전체 계획 만들기"
+        : "로그인·회원가입하고 전체 계획 보기";
+    }
+    trialStartInlineLink?.setAttribute("aria-label", previewConversionAction?.textContent || "전체 계획 이어서 만들기");
+    return;
+  }
+  if (previewConversionKicker) previewConversionKicker.textContent = "READY TO GO";
+  if (previewConversionCopy) previewConversionCopy.textContent = "설명은 나중에 봐도 괜찮아요. 올리와 첫 일정부터 시작해요.";
+  if (previewConversionAction) previewConversionAction.textContent = "오늘 계획 바로 시작";
+  trialStartInlineLink?.setAttribute("aria-label", "방금 만든 오늘의 맞춤 계획 바로 시작하기");
+}
+
 async function runPersonalityAnalysis({ showLoading = false } = {}) {
   if (!personalityForm) return;
 
+  let guestPreviewRequest = false;
   if (showLoading) {
     await accountExperienceReady;
     if (!authUiState.user) {
-      showToast("로그인 후 24시간 무료 체험과 AI 계획 생성을 시작할 수 있어요.");
-      openAuthSheet();
-      return;
-    }
-    const usage = await loadAiUsage().catch(() => null);
-    if (usage?.plan === "free" && usage.trial?.eligible) {
-      const trial = await startTrialAccess();
-      if (!trial) return;
+      savePendingGoalDraft();
+      guestPreviewRequest = true;
+    } else {
+      const usage = await loadAiUsage().catch(() => null);
+      if (usage?.plan === "free" && usage.trial?.eligible) {
+        const trial = await startTrialAccess();
+        if (!trial) return;
+      }
     }
   }
 
-  if (showLoading && (aiUsageState?.plan || authUiState.user?.plan) === "free") {
+  if (showLoading && !guestPreviewRequest && (aiUsageState?.plan || authUiState.user?.plan) === "free") {
     try {
       const serverSaysGenerated = Boolean(authUiState.user?.goalPlanGeneratedAt);
       if (serverSaysGenerated) {
@@ -2687,10 +2869,11 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
 
   const goal = designGoal.value.trim() || goalInput?.value.trim() || "목표 미입력";
   const period = goalPeriodInput.value;
-  const currentState = "";
+  const template = selectedGoalTemplate();
+  const currentState = template?.state || "";
   const routineReadiness = routineReadinessInput?.value || DEFAULT_ROUTINE_READINESS;
   const routineTime = routineTimeInput?.value || "아침";
-  const currentRoutine = "";
+  const currentRoutine = template?.routine || "";
   const birthDate = birthDateInput?.value || "";
   const birthTime = birthTimeInput?.value || "";
   const birthPlace = birthPlaceInput?.value.trim() || "";
@@ -2719,22 +2902,26 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
   });
 
   if (showLoading) {
-    aiPreviewStatus.textContent = "AI가 목표 설계 중";
+    aiPreviewStatus.textContent = guestPreviewRequest ? "AI가 첫 계획 미리보기를 만드는 중" : "AI가 목표 설계 중";
     aiPreviewButton.disabled = true;
-    setAiPreviewButtonLabel("올리가 오늘 계획을 만드는 중...", { showCost: false });
+    setAiPreviewButtonLabel(guestPreviewRequest ? "올리가 AI 미리보기를 만드는 중..." : "올리가 오늘 계획을 만드는 중...", { showCost: false });
     await playAnalysisLoading();
   }
 
   let preview;
   let usedFallback = false;
   try {
-    preview = showLoading ? await requestAiPlan(payload) : buildLocalAiPreview(payload);
+    preview = showLoading
+      ? guestPreviewRequest
+        ? await requestGuestAiPreview(payload)
+        : await requestAiPlan(payload)
+      : buildLocalAiPreview(payload);
   } catch (error) {
     if (error.code === "GOAL_PLAN_LIMIT_REACHED") {
       if (aiPreviewStatus) aiPreviewStatus.textContent = "무료 목표 계획 1개를 이미 만들었어요";
       if (aiPreviewButton) {
         aiPreviewButton.disabled = false;
-        setAiPreviewButtonLabel("24시간 무료 체험으로 계획 만들기");
+        syncGoalBuilderCta();
       }
       planPreviewPanel?.classList.add("is-ready");
       showToast(error.message);
@@ -2745,7 +2932,7 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
       if (aiPreviewStatus) aiPreviewStatus.textContent = error.message || "AI 계획을 만들지 못했어요.";
       if (aiPreviewButton) {
         aiPreviewButton.disabled = false;
-        setAiPreviewButtonLabel("AI 계획 다시 만들기");
+        setAiPreviewButtonLabel(guestPreviewRequest ? "AI 계획 미리보기 다시 시도" : "AI 계획 다시 만들기", { showCost: !guestPreviewRequest });
       }
       showToast(`${error.message || "AI 계획을 만들지 못했어요."} 실패한 요청은 AI 크레딧으로 확정 차감되지 않아요.`);
       return;
@@ -2756,36 +2943,55 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
   renderAiPreview(preview);
   if (showLoading) planPreviewPanel?.classList.add("is-ready");
 
-  if (aiPreviewStatus) aiPreviewStatus.textContent = usedFallback ? "AI 연결 없이 제공하는 기본 계획 템플릿" : "올리가 AI로 만든 맞춤 계획";
+  if (aiPreviewStatus) {
+    aiPreviewStatus.textContent = guestPreviewRequest
+      ? "올리가 AI로 만든 계획 미리보기"
+      : usedFallback
+        ? "AI 연결 없이 제공하는 기본 계획 템플릿"
+        : "올리가 AI로 만든 맞춤 계획";
+  }
   if (aiPreviewButton) {
     aiPreviewButton.disabled = false;
-    setAiPreviewButtonLabel("24시간 무료 체험으로 계획 만들기");
+    syncGoalBuilderCta();
   }
 
-  try {
-    localStorage.setItem(
-      "omwExecutionPlan",
-      JSON.stringify({
-        goal,
-        period: Number(period),
-        currentState,
-        routineReadiness,
-        routineTime,
-        currentRoutine,
-        mbti,
-        style,
-        firstAction: preview.firstAction,
-        coachMessage: preview.coachMessage,
-        manseSummary: manse.summary,
-        mbtiSummary,
-        aiPreview: preview,
-        planSource: usedFallback ? "local-template" : "ai",
-        createdAt: new Date().toISOString(),
-      }),
-    );
-  } catch (error) {
-    console.warn("Unable to save execution plan", error);
+  if (showLoading && guestPreviewRequest) {
+    savePendingGoalPreview(preview);
+    setResultPreviewMode("guest");
+    openFirstStepResult();
+    return;
   }
+
+  if (showLoading) {
+    try {
+      localStorage.setItem(
+        "omwExecutionPlan",
+        JSON.stringify({
+          goal,
+          period: Number(period),
+          currentState,
+          routineReadiness,
+          routineTime,
+          currentRoutine,
+          mbti,
+          style,
+          firstAction: preview.firstAction,
+          coachMessage: preview.coachMessage,
+          manseSummary: manse.summary,
+          mbtiSummary,
+          aiPreview: preview,
+          planSource: usedFallback ? "local-template" : "ai",
+          createdAt: new Date().toISOString(),
+        }),
+      );
+      sessionStorage.removeItem(PENDING_GOAL_DRAFT_KEY);
+      sessionStorage.removeItem(PENDING_GOAL_PREVIEW_KEY);
+    } catch (error) {
+      console.warn("Unable to save execution plan", error);
+    }
+  }
+  if (showLoading) setResultPreviewMode("full");
+  if (showLoading && authUiState.user) await saveAccountStateToServer();
 
   if (showLoading) {
     if (birthDate || birthPlace || mbti) {
@@ -3208,9 +3414,10 @@ function hashText(text) {
 function getDefaultPlanText(plan) {
   const preview = plan.aiPreview || {};
   const weekPlan = Array.isArray(preview.weekPlan) ? preview.weekPlan : [];
+  const goalTemplate = getGoalPlanTemplates(plan.goal || "");
   const lines = [
     `기존 루틴(${plan.currentRoutine || "일상 루틴"})을 마친 뒤 목표 행동 시작하기`,
-    plan.firstAction || preview.firstAction || "단어 40개 + LC 1세트",
+    plan.firstAction || preview.firstAction || goalTemplate.firstAction,
     ...weekPlan,
     "하루 끝에는 완료 여부를 체크하고, 놓친 항목은 다음 날 작은 단위로 다시 배치합니다.",
   ];
@@ -3232,18 +3439,18 @@ function cleanScheduleTaskText(value) {
   return text;
 }
 
-function parsePlanText(planText, fallbackAction) {
-  const parsed = planText
+function parsePlanText(planText, fallbackAction, goal = "") {
+  const parsed = String(planText || "")
     .split(/\r?\n/)
     .map(cleanScheduleTaskText)
     .filter(Boolean);
 
   const unique = [...new Set(parsed)];
   if (unique.length >= 3) return unique;
+  const template = getGoalPlanTemplates(goal);
   return [
-    fallbackAction || "단어 40개 + LC 1세트",
-    "오답 정리 20분",
-    "오늘 진행 상황 체크인",
+    fallbackAction || template.firstAction,
+    ...template.weekPlan.slice(0, 2),
   ];
 }
 
@@ -3276,7 +3483,7 @@ function getRoutineTimes(plan, revisionRequest = "") {
 
 function buildSchedule(plan, planText, revisionRequest = "", weeklySchedule = []) {
   const period = Math.max(7, Math.min(Number(plan.period) || 30, 100));
-  const baseTasks = parsePlanText(planText, plan.firstAction);
+  const baseTasks = parsePlanText(planText, plan.firstAction, plan.goal);
   const times = getRoutineTimes(plan, revisionRequest);
   const hints = getScheduleHints(revisionRequest);
   const weeklyFocus = ["루틴 고정", "기초 반복", "중간 점검", "약점 보완", "실전 적용", "가벼운 복습", "주간 리포트"];
@@ -3451,27 +3658,39 @@ function applySchedulePreferences(schedule, state, { resetChecks = false } = {})
 function getPlanBundle({ reset = false, customText, revisionRequest, revisionDetails, weeklySchedule } = {}) {
   const plan = readExecutionPlan();
   const previous = getExecutionState();
-  const planText = customText ?? previous.planText ?? getDefaultPlanText(plan);
-  const requestText = revisionRequest ?? previous.revisionRequest ?? "";
-  const detailConfig = revisionDetails ?? previous.revisionDetails ?? {};
-  const weekConfig = weeklySchedule ?? previous.weeklySchedule ?? [];
+  const previousPlanText = String(previous.planText || "").trim();
+  const previousPlanKeyForCurrentGoal = previous.scheduleKey
+    ? hashText(`${plan.goal || ""}|${plan.period || ""}|${previousPlanText}|${previous.revisionRequest || ""}|${JSON.stringify(previous.revisionDetails || {})}|${JSON.stringify(previous.weeklySchedule || [])}`)
+    : "";
+  const previousMatchesCurrentGoal = Boolean(previous.scheduleKey) && previous.scheduleKey === previousPlanKeyForCurrentGoal;
+  const stateSource = previousMatchesCurrentGoal
+    ? previous
+    : migrateExecutionState({
+        completedLog: previous.completedLog,
+        dailyMemories: previous.dailyMemories,
+        lastSeenDate: previous.lastSeenDate,
+      });
+  const planText = customText ?? (String(stateSource.planText || "").trim() || getDefaultPlanText(plan));
+  const requestText = revisionRequest ?? stateSource.revisionRequest ?? "";
+  const detailConfig = revisionDetails ?? stateSource.revisionDetails ?? {};
+  const weekConfig = weeklySchedule ?? stateSource.weeklySchedule ?? [];
   const schedule = buildSchedule(plan, planText, requestText, weekConfig);
-  const customTasksByDay = previous.customTasksByDay || {};
+  const customTasksByDay = stateSource.customTasksByDay || {};
   prepareScheduleTasks(schedule, customTasksByDay);
   const previousSchedule = reset
-    ? buildSchedule(plan, previous.planText || getDefaultPlanText(plan), previous.revisionRequest || "", previous.weeklySchedule || [])
+    ? buildSchedule(plan, stateSource.planText || getDefaultPlanText(plan), stateSource.revisionRequest || "", stateSource.weeklySchedule || [])
     : schedule;
   if (reset) {
     prepareScheduleTasks(previousSchedule, customTasksByDay);
-    applySchedulePreferences(previousSchedule, previous);
+    applySchedulePreferences(previousSchedule, stateSource);
   }
   const checkedForSchedule = reset
-    ? remapCompletedChecks(previousSchedule, schedule, previous.checkedByDay || {})
-    : previous.checkedByDay || {};
+    ? remapCompletedChecks(previousSchedule, schedule, stateSource.checkedByDay || {})
+    : stateSource.checkedByDay || {};
   const scheduleKey = hashText(`${plan.goal || ""}|${plan.period || ""}|${planText}|${requestText}|${JSON.stringify(detailConfig)}|${JSON.stringify(weekConfig)}`);
-  const canReuse = !reset && previous.scheduleKey === scheduleKey;
+  const canReuse = !reset && stateSource.scheduleKey === scheduleKey;
   const state = canReuse
-    ? previous
+    ? stateSource
     : {
         version: appStateVersion,
         scheduleKey,
@@ -3479,27 +3698,27 @@ function getPlanBundle({ reset = false, customText, revisionRequest, revisionDet
         revisionRequest: requestText,
         revisionDetails: detailConfig,
         weeklySchedule: weekConfig,
-        pendingPlanText: previous.pendingPlanText || "",
-        pendingRevisionRequest: previous.pendingRevisionRequest || "",
-        pendingRevisionDetails: previous.pendingRevisionDetails || {},
-        pendingRevisionSummary: previous.pendingRevisionSummary || {},
-        pendingWeeklySchedule: previous.pendingWeeklySchedule || [],
-        status: previous.scheduleKey ? previous.status || "AI 제안" : plan.planSource === "local-template" ? "기본 템플릿" : "AI 제안",
-        selectedDay: previous.selectedDay || 1,
+        pendingPlanText: stateSource.pendingPlanText || "",
+        pendingRevisionRequest: stateSource.pendingRevisionRequest || "",
+        pendingRevisionDetails: stateSource.pendingRevisionDetails || {},
+        pendingRevisionSummary: stateSource.pendingRevisionSummary || {},
+        pendingWeeklySchedule: stateSource.pendingWeeklySchedule || [],
+        status: stateSource.scheduleKey ? stateSource.status || "AI 제안" : plan.planSource === "local-template" ? "기본 템플릿" : "AI 제안",
+        selectedDay: stateSource.selectedDay || 1,
         checkedByDay: checkedForSchedule,
         customTasksByDay,
-        scheduleModeByDay: previous.scheduleModeByDay || {},
-        taskOrderByDay: previous.taskOrderByDay || {},
-        taskTimeByDay: previous.taskTimeByDay || {},
-        checkedTaskKeysByDay: reset ? {} : previous.checkedTaskKeysByDay || {},
-        dailyCompletionRewardedByDay: previous.dailyCompletionRewardedByDay || {},
-        recoveryActions: previous.recoveryActions || [],
-        completedLog: previous.completedLog || [],
-        dailyMemories: previous.dailyMemories || [],
-        lastCompletion: previous.lastCompletion || null,
-        planStartDate: previous.planStartDate || getLocalDateKey(plan.createdAt),
-        lastSeenDate: previous.lastSeenDate || getTodayKey(),
-        rolloverNotice: previous.rolloverNotice || null,
+        scheduleModeByDay: stateSource.scheduleModeByDay || {},
+        taskOrderByDay: stateSource.taskOrderByDay || {},
+        taskTimeByDay: stateSource.taskTimeByDay || {},
+        checkedTaskKeysByDay: reset ? {} : stateSource.checkedTaskKeysByDay || {},
+        dailyCompletionRewardedByDay: stateSource.dailyCompletionRewardedByDay || {},
+        recoveryActions: stateSource.recoveryActions || [],
+        completedLog: stateSource.completedLog || [],
+        dailyMemories: stateSource.dailyMemories || [],
+        lastCompletion: stateSource.lastCompletion || null,
+        planStartDate: stateSource.planStartDate || getLocalDateKey(plan.createdAt),
+        lastSeenDate: stateSource.lastSeenDate || getTodayKey(),
+        rolloverNotice: stateSource.rolloverNotice || null,
         updatedAt: new Date().toISOString(),
       };
 
@@ -4599,6 +4818,12 @@ function renderCalendar(schedule, state, plan) {
 
 function renderCalendarDayDetail(schedule, state, plan) {
   if (!calendarDayDetail) return;
+
+  const mobileSheet = window.matchMedia("(max-width: 768px)").matches;
+  const targetParent = mobileSheet ? document.body : calendarDayDetailHome;
+  if (targetParent && calendarDayDetail.parentElement !== targetParent) {
+    targetParent.append(calendarDayDetailBackdrop, calendarDayDetail);
+  }
 
   const dayPlan = schedule[state.selectedDay - 1];
   if (!calendarDetailOpen || !dayPlan) {
@@ -5954,7 +6179,8 @@ scheduleCalendar?.addEventListener("click", (event) => {
   calendarDetailTrigger = button;
   savePlanBundleState(bundle.state);
   renderExecutionPage(bundle);
-  if (window.matchMedia("(max-width: 767px)").matches) window.setTimeout(() => calendarDayDetail?.focus({ preventScroll: true }), 60);
+  if (calendarDayDetail) calendarDayDetail.scrollTop = 0;
+  if (window.matchMedia("(max-width: 768px)").matches) window.setTimeout(() => calendarDayDetail?.focus({ preventScroll: true }), 60);
   else calendarDayDetail?.scrollIntoView({ behavior: "smooth", block: "nearest" });
 });
 
@@ -6400,6 +6626,9 @@ function markAppReady() {
 accountExperienceReady
   .then((ready) => {
     if (ready) {
+      if (!document.body?.classList.contains("execution-page") && resumedPendingGoal && authUiState.user) {
+        restorePendingGoalPreview();
+      }
       initializeExecutionPage();
       markAppReady();
     }

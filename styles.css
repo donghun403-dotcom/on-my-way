@@ -7081,11 +7081,15 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 }
 
 .result-analysis-header {
+  display: flex;
+  gap: 12px;
   align-items: flex-start;
+  justify-content: space-between;
 }
 
 .result-analysis-header > div {
   display: grid;
+  min-width: 0;
   gap: 4px;
 }
 
@@ -7104,12 +7108,25 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 }
 
 .result-analysis-header > strong {
+  max-width: 48%;
   padding: 7px 9px;
   color: #658377 !important;
   background: rgba(229, 244, 238, 0.92);
   border-radius: 999px;
   font-size: 9px;
   white-space: nowrap;
+}
+
+@media (max-width: 767px) {
+  .result-analysis-header {
+    flex-direction: column;
+  }
+
+  .result-analysis-header > strong {
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
 }
 
 .home-page .story-flow .result-ollie-card {
@@ -15458,7 +15475,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .execution-page .plan-review-step[hidden] { display: none !important; }
 .execution-page .calendar-day-detail-backdrop[hidden] { display: none; }
 
-@media (max-width: 767px) {
+@media (max-width: 768px) {
   body.calendar-sheet-open { overflow: hidden; }
   .execution-page #view-plan .plan-view-head { margin-bottom: 8px; }
   .execution-page #view-plan .plan-view-head { min-height: 78px; padding-block: 10px; }
@@ -15479,7 +15496,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   .execution-page #view-plan .plan-home-actions { margin-top: 10px; gap: 5px; }
   .execution-page #view-plan .plan-home-actions button { min-height: 50px; padding-block: 8px; }
   .execution-page #view-plan .plan-home-actions small { display: none; }
-  .execution-page #view-plan .plan-home-actions button:first-child { background: #222; color: #fff; border-color: #222; }
+  .execution-page #view-plan .plan-home-actions button:first-child { color: #46536b; background: rgba(120, 159, 155, 0.12); border-color: transparent; }
   .execution-page #view-plan .plan-home-actions button:last-child { background: transparent; box-shadow: none; }
 
   .execution-page .calendar-day-detail-backdrop {
@@ -15493,12 +15510,12 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
     z-index: 81;
     left: 0;
     right: 0;
-    bottom: 0;
-    max-height: min(72vh, 620px);
+    bottom: calc(var(--mobile-tabbar-height) + env(safe-area-inset-bottom));
+    max-height: min(68dvh, 620px);
     overflow: auto;
     margin: 0;
-    padding: 18px 18px calc(18px + env(safe-area-inset-bottom));
-    border-radius: 24px 24px 0 0;
+    padding: 18px;
+    border-radius: 24px;
     background: #fff;
     box-shadow: 0 -16px 44px rgb(24 20 15 / 22%);
   }
@@ -15516,9 +15533,15 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   .execution-page #view-plan[data-active-plan-screen="editor"] .revision-advanced { order: 7; }
 }
 
-@media (min-width: 768px) {
+@media (min-width: 769px) {
   .execution-page .calendar-day-detail-backdrop { display: none !important; }
   .execution-page #calendarDayDetail { position: static; }
+}
+
+@media (min-width: 760px) and (max-width: 768px) {
+  .execution-page #calendarDayDetail {
+    bottom: calc(78px + env(safe-area-inset-bottom));
+  }
 }
 
 /* Stage 3C: Ollie is the conversation home; Memory starts with reflection. */
@@ -15674,6 +15697,21 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   background: #edf6f2;
   border-radius: 13px;
   font-size: 10px;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.pricing-app-return {
+  display: inline-flex;
+  width: fit-content;
+  min-height: 44px;
+  align-items: center;
+  margin-bottom: 10px;
+  padding: 8px 14px;
+  color: #536b62;
+  background: rgba(229, 244, 238, 0.92);
+  border-radius: 999px;
+  font-size: 13px;
   font-weight: 900;
   text-decoration: none;
 }
