@@ -1144,16 +1144,26 @@ function confirmTrialPaidUpgrade() {
   }
   if (billingConfirmationPromise) return billingConfirmationPromise;
 
-  billingConfirmationPromise = new Promise((resolve) => {
-    billingConfirmDialog.returnValue = "";
-    billingConfirmDialog.addEventListener("close", () => {
-      resolve(billingConfirmDialog.returnValue === "confirm");
-    }, { once: true });
-    billingConfirmDialog.showModal();
-  }).finally(() => {
-    billingConfirmationPromise = null;
+  let resolveConfirmation;
+  const confirmation = new Promise((resolve) => {
+    resolveConfirmation = resolve;
   });
-  return billingConfirmationPromise;
+  const handleClose = () => {
+    const confirmed = billingConfirmDialog.returnValue === "confirm";
+    billingConfirmationPromise = null;
+    resolveConfirmation(confirmed);
+  };
+  billingConfirmationPromise = confirmation;
+  billingConfirmDialog.returnValue = "";
+  billingConfirmDialog.addEventListener("close", handleClose, { once: true });
+  try {
+    billingConfirmDialog.showModal();
+  } catch (error) {
+    billingConfirmDialog.removeEventListener("close", handleClose);
+    billingConfirmationPromise = null;
+    throw error;
+  }
+  return confirmation;
 }
 
 function setBillingStartPending(pending) {
