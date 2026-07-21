@@ -4684,7 +4684,7 @@ function renderCalendar(schedule, state, plan) {
 function renderCalendarDayDetail(schedule, state, plan) {
   if (!calendarDayDetail) return;
 
-  const mobileSheet = window.matchMedia("(max-width: 767px)").matches;
+  const mobileSheet = window.matchMedia("(max-width: 768px)").matches;
   const targetParent = mobileSheet ? document.body : calendarDayDetailHome;
   if (targetParent && calendarDayDetail.parentElement !== targetParent) {
     targetParent.append(calendarDayDetailBackdrop, calendarDayDetail);
@@ -6045,7 +6045,7 @@ scheduleCalendar?.addEventListener("click", (event) => {
   savePlanBundleState(bundle.state);
   renderExecutionPage(bundle);
   if (calendarDayDetail) calendarDayDetail.scrollTop = 0;
-  if (window.matchMedia("(max-width: 767px)").matches) window.setTimeout(() => calendarDayDetail?.focus({ preventScroll: true }), 60);
+  if (window.matchMedia("(max-width: 768px)").matches) window.setTimeout(() => calendarDayDetail?.focus({ preventScroll: true }), 60);
   else calendarDayDetail?.scrollIntoView({ behavior: "smooth", block: "nearest" });
 });
 

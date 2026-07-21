@@ -15475,7 +15475,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .execution-page .plan-review-step[hidden] { display: none !important; }
 .execution-page .calendar-day-detail-backdrop[hidden] { display: none; }
 
-@media (max-width: 767px) {
+@media (max-width: 768px) {
   body.calendar-sheet-open { overflow: hidden; }
   .execution-page #view-plan .plan-view-head { margin-bottom: 8px; }
   .execution-page #view-plan .plan-view-head { min-height: 78px; padding-block: 10px; }
@@ -15533,9 +15533,15 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   .execution-page #view-plan[data-active-plan-screen="editor"] .revision-advanced { order: 7; }
 }
 
-@media (min-width: 768px) {
+@media (min-width: 769px) {
   .execution-page .calendar-day-detail-backdrop { display: none !important; }
   .execution-page #calendarDayDetail { position: static; }
+}
+
+@media (min-width: 760px) and (max-width: 768px) {
+  .execution-page #calendarDayDetail {
+    bottom: calc(78px + env(safe-area-inset-bottom));
+  }
 }
 
 /* Stage 3C: Ollie is the conversation home; Memory starts with reflection. */
