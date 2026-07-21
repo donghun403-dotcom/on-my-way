@@ -247,15 +247,389 @@ function isCompletedRumNavigationLifecycle({
     navigationCommitted === true;
 }
 
-function monitorPage(page, { allowedConsoleMessages = [], allowedResponseUrls = [] } = {}) {
+const PRODUCTION_CUSTOM_ORIGIN = "https://onmyway.olivenrich.com";
+const CLOUDFLARE_BEACON_ORIGIN = "https://static.cloudflareinsights.com";
+const RUM_XHR_NAVIGATION_WINDOW_MS = 100;
+
+function isCloudflareBeaconScriptUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.origin === CLOUDFLARE_BEACON_ORIGIN &&
+      (url.pathname === "/beacon.min.js" || url.pathname.startsWith("/beacon.min.js/"));
+  } catch {
+    return false;
+  }
+}
+
+function classifyRumXhrNavigationLifecycle({
+  canceled,
+  consoleCspErrorCount,
+  contextClosedEpochMs,
+  destinationCommittedEpochMs,
+  destinationDocumentUrl,
+  destinationFrameId,
+  destinationLoaderId,
+  errorText,
+  failedEpochMs,
+  hiddenEpochMs,
+  initiatorScriptUrls,
+  initiatorType,
+  loadingFailed,
+  loadingFinished,
+  mainFrameId,
+  method,
+  pageClosedEpochMs,
+  pagehideEpochMs,
+  pathname,
+  requestCspFailureCount,
+  requestOrigin,
+  requestStartedEpochMs,
+  resourceType,
+  responseStatus,
+  sourceDocumentUrl,
+  sourceFrameId,
+  sourceLoaderId,
+} = {}) {
+  const elapsed = (later, earlier) => Number(later) - Number(earlier);
+  const pagehideToRequestMs = elapsed(requestStartedEpochMs, pagehideEpochMs);
+  const hiddenToRequestMs = elapsed(requestStartedEpochMs, hiddenEpochMs);
+  const requestToAbortMs = elapsed(failedEpochMs, requestStartedEpochMs);
+  const requestToCommitMs = elapsed(destinationCommittedEpochMs, requestStartedEpochMs);
+  const hasLifecycleTiming = [pagehideToRequestMs, hiddenToRequestMs, requestToAbortMs, requestToCommitMs]
+    .every((value) => Number.isFinite(value) && value >= 0 && value <= RUM_XHR_NAVIGATION_WINDOW_MS) &&
+    Number(destinationCommittedEpochMs) >= Number(failedEpochMs);
+  const closeDidNotCauseAbort = [pageClosedEpochMs, contextClosedEpochMs]
+    .every((value) => value == null || Number(value) > Number(destinationCommittedEpochMs));
+  const isCloudflareInitiated = initiatorType === "script" &&
+    Array.isArray(initiatorScriptUrls) &&
+    initiatorScriptUrls.some(isCloudflareBeaconScriptUrl);
+  const navigationLifecycleCompleted = requestOrigin === PRODUCTION_CUSTOM_ORIGIN &&
+    method === "POST" &&
+    pathname === "/cdn-cgi/rum" &&
+    resourceType === "xhr" &&
+    errorText === "net::ERR_ABORTED" &&
+    canceled === true &&
+    loadingFailed === true &&
+    loadingFinished === false &&
+    responseStatus == null &&
+    isCloudflareInitiated &&
+    Boolean(sourceDocumentUrl) &&
+    Boolean(destinationDocumentUrl) &&
+    Boolean(sourceFrameId) &&
+    sourceFrameId === mainFrameId &&
+    destinationFrameId === mainFrameId &&
+    Boolean(sourceLoaderId) &&
+    Boolean(destinationLoaderId) &&
+    sourceLoaderId !== destinationLoaderId &&
+    hasLifecycleTiming &&
+    closeDidNotCauseAbort &&
+    consoleCspErrorCount === 0 &&
+    requestCspFailureCount === 0;
+  return {
+    httpCompleted: false,
+    navigationLifecycleCompleted,
+    classification: navigationLifecycleCompleted
+      ? "xhr-navigation-abort-classified"
+      : "unclassified-failure",
+  };
+}
+
+async function createChromiumRumLifecycleDiagnostics(page) {
+  const browserName = page.context().browser()?.browserType().name() || "";
+  const externalOrigin = (() => {
+    try {
+      return new URL(process.env.E2E_BASE_URL || "").origin;
+    } catch {
+      return "";
+    }
+  })();
+  const startedAt = Date.now();
+  const timeline = [];
+  const rumRequests = new Map();
+  const executionContexts = new Map();
+  let session = null;
+
+  const cleanUrl = (value) => {
+    try {
+      const url = new URL(value);
+      return `${url.origin}${url.pathname}`;
+    } catch {
+      return String(value || "").split(/[?#]/, 1)[0];
+    }
+  };
+  const isRumUrl = (value) => {
+    try {
+      const url = new URL(value);
+      return Boolean(externalOrigin) &&
+        url.origin === externalOrigin &&
+        url.pathname === "/cdn-cgi/rum";
+    } catch {
+      return false;
+    }
+  };
+  const record = (event, details = {}) => {
+    timeline.push({
+      elapsedMs: Date.now() - startedAt,
+      epochMs: Date.now(),
+      event,
+      ...details,
+    });
+  };
+  const initiatorScriptUrls = (initiator) => {
+    const urls = [];
+    const visit = (stack) => {
+      for (const frame of stack?.callFrames || []) {
+        if (frame?.url) urls.push(cleanUrl(frame.url));
+      }
+      if (stack?.parent) visit(stack.parent);
+    };
+    visit(initiator?.stack);
+    return [...new Set(urls)];
+  };
+  const unsupported = {
+    supported: false,
+    timeline,
+    markTestEnd() { record("test-ended"); },
+    getSanitizedTimeline() { return [...timeline]; },
+    getRumRequests() { return []; },
+    classifyRumXhrNavigationAbort() {
+      return {
+        httpCompleted: false,
+        navigationLifecycleCompleted: false,
+        classification: "unclassified-failure",
+      };
+    },
+    async dispose() {},
+  };
+  if (browserName !== "chromium" || !externalOrigin) return unsupported;
+
+  await page.exposeBinding("__omwRumLifecycleEvent", ({ frame }, payload = {}) => {
+    const allowedEvent = ["document-initialized", "pagehide", "visibilitychange-hidden"].includes(payload.event);
+    if (!allowedEvent) return;
+    record("dom-lifecycle", {
+      lifecycleEvent: payload.event,
+      documentUrl: cleanUrl(frame?.url() || payload.documentUrl),
+      emittedAtEpochMs: Number(payload.emittedAtEpochMs || 0),
+      visibilityState: payload.visibilityState === "hidden" ? "hidden" : "visible",
+      persisted: payload.persisted === true,
+    });
+  });
+  await page.addInitScript(() => {
+    const emit = (event, extra = {}) => {
+      const binding = globalThis.__omwRumLifecycleEvent;
+      if (typeof binding !== "function") return;
+      binding({
+        event,
+        documentUrl: location.origin + location.pathname,
+        emittedAtEpochMs: Date.now(),
+        visibilityState: document.visibilityState,
+        ...extra,
+      }).catch(() => {});
+    };
+    emit("document-initialized");
+    addEventListener("pagehide", (event) => emit("pagehide", { persisted: event.persisted }), { capture: true });
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") emit("visibilitychange-hidden");
+    }, { capture: true });
+  });
+
+  session = await page.context().newCDPSession(page);
+  await Promise.all([
+    session.send("Network.enable"),
+    session.send("Page.enable"),
+    session.send("Runtime.enable"),
+    session.send("Page.setLifecycleEventsEnabled", { enabled: true }),
+  ]);
+  session.on("Network.requestWillBeSent", (event) => {
+    if (!isRumUrl(event.request?.url)) return;
+    const entry = {
+      requestId: event.requestId,
+      requestEpochMs: Number(event.wallTime || 0) * 1000,
+      requestTimestamp: Number(event.timestamp || 0),
+      loaderId: event.loaderId || "",
+      frameId: event.frameId || "",
+      documentUrl: cleanUrl(event.documentURL),
+      url: cleanUrl(event.request.url),
+      method: event.request.method,
+      resourceType: String(event.type || "").toLowerCase(),
+      initiatorType: event.initiator?.type || "",
+      initiatorScriptUrls: initiatorScriptUrls(event.initiator),
+      responseStatus: null,
+      loadingFinished: false,
+      loadingFailed: false,
+      errorText: "",
+      canceled: false,
+    };
+    rumRequests.set(event.requestId, entry);
+    record("cdp-rum-request-started", entry);
+  });
+  session.on("Network.responseReceived", (event) => {
+    const entry = rumRequests.get(event.requestId);
+    if (!entry) return;
+    entry.responseStatus = event.response?.status ?? null;
+    record("cdp-rum-response", { requestId: event.requestId, status: entry.responseStatus });
+  });
+  session.on("Network.loadingFinished", (event) => {
+    const entry = rumRequests.get(event.requestId);
+    if (!entry) return;
+    entry.loadingFinished = true;
+    entry.finishedEpochMs = entry.requestEpochMs + (Number(event.timestamp || 0) - entry.requestTimestamp) * 1000;
+    record("cdp-rum-loading-finished", { requestId: event.requestId, finishedEpochMs: entry.finishedEpochMs });
+  });
+  session.on("Network.loadingFailed", (event) => {
+    const entry = rumRequests.get(event.requestId);
+    if (!entry) return;
+    entry.loadingFailed = true;
+    entry.errorText = event.errorText || "";
+    entry.canceled = event.canceled === true;
+    entry.failedEpochMs = entry.requestEpochMs + (Number(event.timestamp || 0) - entry.requestTimestamp) * 1000;
+    record("cdp-rum-loading-failed", {
+      requestId: event.requestId,
+      errorText: entry.errorText,
+      canceled: entry.canceled,
+      failedEpochMs: entry.failedEpochMs,
+    });
+  });
+  session.on("Page.frameNavigated", (event) => {
+    if (event.frame?.parentId) return;
+    record("cdp-main-frame-navigated", {
+      frameId: event.frame.id || "",
+      loaderId: event.frame.loaderId || "",
+      documentUrl: cleanUrl(event.frame.url),
+    });
+  });
+  session.on("Page.navigatedWithinDocument", (event) => {
+    record("cdp-main-frame-navigated-within-document", {
+      frameId: event.frameId || "",
+      documentUrl: cleanUrl(event.url),
+      navigationType: event.navigationType || "",
+    });
+  });
+  session.on("Page.lifecycleEvent", (event) => {
+    record("cdp-page-lifecycle", {
+      frameId: event.frameId || "",
+      loaderId: event.loaderId || "",
+      lifecycleEvent: event.name || "",
+      cdpTimestamp: Number(event.timestamp || 0),
+    });
+  });
+  session.on("Runtime.executionContextCreated", (event) => {
+    const context = event.context || {};
+    executionContexts.set(context.id, {
+      frameId: context.auxData?.frameId || "",
+      isDefault: context.auxData?.isDefault === true,
+      origin: cleanUrl(context.origin || ""),
+    });
+  });
+  session.on("Runtime.executionContextDestroyed", (event) => {
+    const context = executionContexts.get(event.executionContextId) || {};
+    record("cdp-execution-context-destroyed", {
+      executionContextId: event.executionContextId,
+      frameId: context.frameId || "",
+      isDefault: context.isDefault === true,
+      origin: context.origin || "",
+    });
+    executionContexts.delete(event.executionContextId);
+  });
+  page.on("close", () => record("page-closed"));
+  page.context().on("close", () => record("context-closed"));
+
+  return {
+    supported: true,
+    timeline,
+    markTestEnd() { record("test-ended"); },
+    getSanitizedTimeline() { return [...timeline]; },
+    getRumRequests() { return [...rumRequests.values()].map((entry) => ({ ...entry })); },
+    classifyRumXhrNavigationAbort(abort, {
+      consoleCspErrorCount = 0,
+      requestCspFailureCount = 0,
+    } = {}) {
+      const failedCandidates = [...rumRequests.values()]
+        .filter((entry) => entry.method === abort.method &&
+          entry.resourceType === "xhr" &&
+          entry.loadingFailed === true &&
+          entry.errorText === abort.errorText &&
+          Math.abs(Number(entry.failedEpochMs) - Number(abort.failureEpochMs)) <= RUM_XHR_NAVIGATION_WINDOW_MS)
+        .sort((left, right) =>
+          Math.abs(Number(left.failedEpochMs) - Number(abort.failureEpochMs)) -
+          Math.abs(Number(right.failedEpochMs) - Number(abort.failureEpochMs))
+        );
+      if (failedCandidates.length !== 1) {
+        return {
+          httpCompleted: false,
+          navigationLifecycleCompleted: false,
+          classification: "unclassified-failure",
+        };
+      }
+      const request = failedCandidates[0];
+      const domEvents = timeline.filter((entry) =>
+        entry.event === "dom-lifecycle" &&
+        entry.documentUrl === request.documentUrl &&
+        Number(entry.emittedAtEpochMs) <= Number(request.requestEpochMs) &&
+        Number(request.requestEpochMs) - Number(entry.emittedAtEpochMs) <= RUM_XHR_NAVIGATION_WINDOW_MS
+      );
+      const pagehide = [...domEvents].reverse().find((entry) => entry.lifecycleEvent === "pagehide");
+      const hidden = [...domEvents].reverse().find((entry) => entry.lifecycleEvent === "visibilitychange-hidden");
+      const navigation = timeline.find((entry) =>
+        entry.event === "cdp-main-frame-navigated" &&
+        entry.frameId === request.frameId &&
+        entry.loaderId !== request.loaderId &&
+        Number(entry.epochMs) >= Number(request.failedEpochMs) &&
+        Number(entry.epochMs) - Number(request.requestEpochMs) <= RUM_XHR_NAVIGATION_WINDOW_MS
+      );
+      const pageClosed = timeline.find((entry) => entry.event === "page-closed");
+      const contextClosed = timeline.find((entry) => entry.event === "context-closed");
+      const requestUrl = new URL(request.url);
+      return classifyRumXhrNavigationLifecycle({
+        canceled: request.canceled,
+        consoleCspErrorCount,
+        contextClosedEpochMs: contextClosed?.epochMs,
+        destinationCommittedEpochMs: navigation?.epochMs,
+        destinationDocumentUrl: navigation?.documentUrl,
+        destinationFrameId: navigation?.frameId,
+        destinationLoaderId: navigation?.loaderId,
+        errorText: request.errorText,
+        failedEpochMs: request.failedEpochMs,
+        hiddenEpochMs: hidden?.emittedAtEpochMs,
+        initiatorScriptUrls: request.initiatorScriptUrls,
+        initiatorType: request.initiatorType,
+        loadingFailed: request.loadingFailed,
+        loadingFinished: request.loadingFinished,
+        mainFrameId: request.frameId,
+        method: request.method,
+        pageClosedEpochMs: pageClosed?.epochMs,
+        pagehideEpochMs: pagehide?.emittedAtEpochMs,
+        pathname: requestUrl.pathname,
+        requestCspFailureCount,
+        requestOrigin: requestUrl.origin,
+        requestStartedEpochMs: request.requestEpochMs,
+        resourceType: request.resourceType,
+        responseStatus: request.responseStatus,
+        sourceDocumentUrl: request.documentUrl,
+        sourceFrameId: request.frameId,
+        sourceLoaderId: request.loaderId,
+      });
+    },
+    async dispose() {
+      if (!session) return;
+      await session.detach().catch(() => {});
+      session = null;
+    },
+  };
+}
+
+function monitorPage(page, { allowedConsoleMessages = [], allowedResponseUrls = [], rumLifecycleDiagnostics = null } = {}) {
   const issues = [];
   const browserName = page.context().browser()?.browserType().name() || "";
   const monitorStartedAt = Date.now();
   const analyticsRequests = new Map();
   const analyticsTimeline = [];
   const analyticsNavigationAborts = [];
+  const analyticsLifecycleResults = [];
   const expectedNavigationLogoRequests = new WeakSet();
   const seenNavigationLogoRequests = new Set();
+  let consoleCspErrorCount = 0;
+  let requestCspFailureCount = 0;
   let mainNavigationSequence = 0;
   let lastCommittedPathname = "";
   const recordAnalyticsEvent = (event, details = {}) => {
@@ -308,6 +682,7 @@ function monitorPage(page, { allowedConsoleMessages = [], allowedResponseUrls = 
   page.on("console", (message) => {
     if (message.type() !== "error") return;
     if (allowedConsoleMessages.some((pattern) => message.text().includes(pattern))) return;
+    if (/content security policy|\bcsp\b/i.test(message.text())) consoleCspErrorCount += 1;
     issues.push(`console.error: ${message.text()}`);
   });
   page.on("pageerror", (error) => issues.push(`pageerror: ${error.message}`));
@@ -325,6 +700,7 @@ function monitorPage(page, { allowedConsoleMessages = [], allowedResponseUrls = 
       );
       pendingRumNavigationAbort = {
         elapsedMs: Date.now() - monitorStartedAt,
+        failureEpochMs: Date.now(),
         errorText,
         method: request.method(),
         pathname: "/cdn-cgi/rum",
@@ -342,6 +718,7 @@ function monitorPage(page, { allowedConsoleMessages = [], allowedResponseUrls = 
         priorSuccessfulStatus: pendingRumNavigationAbort.priorSuccessfulStatus,
         sourcePathname: pendingRumNavigationAbort.sourcePathname,
       });
+      if (/\bcsp\b/i.test(errorText)) requestCspFailureCount += 1;
     }
     const isNavigationCancellation =
       errorText.includes("net::ERR_ABORTED") || /Load request cancel(?:l)?ed/i.test(errorText);
@@ -384,6 +761,12 @@ function monitorPage(page, { allowedConsoleMessages = [], allowedResponseUrls = 
       pendingRumNavigationAbort.pathname === "/cdn-cgi/rum" &&
       pendingRumNavigationAbort.resourceType === "ping" &&
       pendingRumNavigationAbort.errorText === "net::ERR_ABORTED") return;
+    if (pendingRumNavigationAbort &&
+      rumLifecycleDiagnostics?.supported === true &&
+      pendingRumNavigationAbort.method === "POST" &&
+      pendingRumNavigationAbort.pathname === "/cdn-cgi/rum" &&
+      pendingRumNavigationAbort.resourceType === "xhr" &&
+      pendingRumNavigationAbort.errorText === "net::ERR_ABORTED") return;
     if (isExpectedFirefoxLogoAbort || isCanceledStaticImage || isCanceledFunnelEvent || isCanceledStartupRequest) return;
     issues.push(`requestfailed: ${request.method()} ${request.url()} ${errorText}`);
   });
@@ -421,27 +804,57 @@ function monitorPage(page, { allowedConsoleMessages = [], allowedResponseUrls = 
       recordAnalyticsEvent("test-checkpoint", { label });
     },
     expectClean() {
+      rumLifecycleDiagnostics?.markTestEnd();
       for (const abort of analyticsNavigationAborts) {
-        const navigationCommitted = analyticsTimeline.some((entry) =>
-          entry.event === "main-frame-navigated" &&
-          entry.elapsedMs >= abort.elapsedMs &&
-          entry.pathname !== abort.sourcePathname
-        );
-        const completedLifecycle = isCompletedRumNavigationLifecycle({
-          ...abort,
-          navigationCommitted,
-        });
+        let lifecycleResult;
+        if (abort.resourceType === "xhr") {
+          lifecycleResult = rumLifecycleDiagnostics?.classifyRumXhrNavigationAbort(abort, {
+            consoleCspErrorCount,
+            requestCspFailureCount,
+          }) || {
+            httpCompleted: false,
+            navigationLifecycleCompleted: false,
+            classification: "unclassified-failure",
+          };
+        } else {
+          const navigationCommitted = analyticsTimeline.some((entry) =>
+            entry.event === "main-frame-navigated" &&
+            entry.elapsedMs >= abort.elapsedMs &&
+            entry.pathname !== abort.sourcePathname
+          );
+          const navigationLifecycleCompleted = isCompletedRumNavigationLifecycle({
+            ...abort,
+            navigationCommitted,
+          });
+          lifecycleResult = {
+            httpCompleted: false,
+            navigationLifecycleCompleted,
+            classification: navigationLifecycleCompleted
+              ? "ping-navigation-abort-classified"
+              : "unclassified-failure",
+          };
+        }
+        analyticsLifecycleResults.push(lifecycleResult);
         recordAnalyticsEvent("rum-navigation-lifecycle-checked", {
-          completed: completedLifecycle,
+          classification: lifecycleResult.classification,
+          httpCompleted: lifecycleResult.httpCompleted,
+          navigationLifecycleCompleted: lifecycleResult.navigationLifecycleCompleted,
           pathname: abort.pathname,
           priorSuccessfulStatus: abort.priorSuccessfulStatus,
         });
-        if (!completedLifecycle) {
+        if (!lifecycleResult.navigationLifecycleCompleted) {
           issues.push(`requestfailed: ${abort.method} ${abort.pathname} ${abort.errorText}`);
         }
       }
       const timeline = analyticsTimeline.map((entry) => JSON.stringify(entry)).join("\n");
-      expect(issues, [issues.join("\n"), "Analytics lifecycle:", timeline].filter(Boolean).join("\n")).toEqual([]);
+      const cdpTimeline = rumLifecycleDiagnostics?.getSanitizedTimeline().map((entry) => JSON.stringify(entry)).join("\n") || "";
+      expect(issues, [
+        issues.join("\n"),
+        "Analytics lifecycle:",
+        timeline,
+        cdpTimeline ? "Chromium lifecycle diagnostics:" : "",
+        cdpTimeline,
+      ].filter(Boolean).join("\n")).toEqual([]);
     },
     getAnalyticsSummary() {
       return {
@@ -449,7 +862,8 @@ function monitorPage(page, { allowedConsoleMessages = [], allowedResponseUrls = 
           .filter((entry) => entry.state === "finished" && Number.isInteger(entry.status))
           .map((entry) => entry.status),
         lifecycleAbortCount: analyticsNavigationAborts.length,
-        cspFailureCount: analyticsNavigationAborts.filter((entry) => /csp/i.test(entry.errorText)).length,
+        lifecycleResults: [...analyticsLifecycleResults],
+        cspFailureCount: consoleCspErrorCount + requestCspFailureCount,
       };
     },
   };
@@ -482,7 +896,9 @@ async function readStored(page, key) {
 
 module.exports = {
   AI_CREDIT_COSTS,
+  classifyRumXhrNavigationLifecycle,
   createUsageResponse,
+  createChromiumRumLifecycleDiagnostics,
   expectNoDuplicateIds,
   expectNoHorizontalOverflow,
   isCompletedRumNavigationLifecycle,

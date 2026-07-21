@@ -1,5 +1,5 @@
 const { test, expect } = require("@playwright/test");
-const { createUsageResponse, mockAccountExperience, monitorPage, waitForAppReady, waitForBootstrap } = require("./helpers");
+const { createChromiumRumLifecycleDiagnostics, createUsageResponse, mockAccountExperience, monitorPage, waitForAppReady, waitForBootstrap } = require("./helpers");
 
 test.setTimeout(90_000);
 
@@ -168,7 +168,8 @@ test("provider 화면에서 browser back으로 돌아오면 자동 재시작 없
 });
 
 test("취소 뒤 다른 provider를 직접 선택하면 성공 복원 후 명시적 CTA에서만 전체 계획을 만든다", async ({ page }) => {
-  const diagnostics = monitorPage(page);
+  const rumLifecycleDiagnostics = await createChromiumRumLifecycleDiagnostics(page);
+  const diagnostics = monitorPage(page, { rumLifecycleDiagnostics });
   const { account, calls } = await openGuestFullPlanAuthChooser(page);
   const providerStarts = [];
   await page.route("**/api/auth/kakao/start**", (route) => {
@@ -209,7 +210,14 @@ test("취소 뒤 다른 provider를 직접 선택하면 성공 복원 후 명시
   await expect.poll(() => calls.full).toBe(1);
   await expect(page.locator("#firstStep")).toHaveAttribute("data-preview-mode", "full");
   expect(calls.preview).toBe(1);
-  diagnostics.expectClean();
+  try {
+    diagnostics.expectClean();
+  } finally {
+    if (rumLifecycleDiagnostics.supported && process.env.E2E_RUM_CDP_DIAGNOSTICS === "1") {
+      console.log(`[rum-xhr-diagnostic] ${JSON.stringify(rumLifecycleDiagnostics.getSanitizedTimeline())}`);
+    }
+    await rumLifecycleDiagnostics.dispose();
+  }
 });
 
 test("provider chooser를 명시적으로 닫으면 pending intent를 정리하고 기존 미리보기로 돌아간다", async ({ page }) => {
