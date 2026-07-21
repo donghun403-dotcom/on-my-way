@@ -1,5 +1,5 @@
 const { test, expect } = require("@playwright/test");
-const { expectNoHorizontalOverflow, monitorPage, prepareApp } = require("./helpers");
+const { expectNoHorizontalOverflow, mockAccountExperience, monitorPage, prepareApp, waitForBootstrap } = require("./helpers");
 
 const viewports = [
   [320, 568],
@@ -13,6 +13,31 @@ const viewports = [
 ];
 
 test.describe.configure({ mode: "serial", timeout: 90_000 });
+
+for (const [width, height] of [[320, 568], [390, 844], [430, 932], [768, 1024]]) {
+  test(`${width}x${height} 목표 추천과 로그인 선택 화면`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    const diagnostics = monitorPage(page);
+    await mockAccountExperience(page);
+
+    await page.goto("/index.html#designFlow");
+    await waitForBootstrap(page);
+    await page.getByRole("button", { name: "시험", exact: true }).click();
+    await expect(page.locator("#goalExampleSuggestions button")).toHaveCount(3);
+    await expect(page.locator("#designGoal")).toBeVisible();
+    await expect(page.locator("#diagnosisNextButton")).toBeDisabled();
+    await expectNoHorizontalOverflow(page);
+
+    await page.goto("/app.html?auth=login");
+    await waitForBootstrap(page);
+    await expect(page.locator("#authSheet")).toBeVisible();
+    await expect(page.getByRole("button", { name: "카카오로 계속하기" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "네이버로 계속하기" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Google로 계속하기" })).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+    diagnostics.expectClean();
+  });
+}
 
 for (const [width, height] of viewports) {
   test(`${width}x${height} 기준 화면 6종`, async ({ page }, testInfo) => {

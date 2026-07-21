@@ -115,20 +115,24 @@
               </div>
               <label class="builder-field builder-field-large" for="designGoal">
                 <span>나의 목표</span>
-                <input id="designGoal" type="text" value="3개월 안에 토익 900점 달성하기" placeholder="예: 3개월 안에 토익 900점 달성하기" required />
+                <input id="designGoal" type="text" placeholder="달성하고 싶은 목표를 직접 입력해 주세요" aria-describedby="goalCategoryHelp goalValidationMessage" required />
               </label>
-              <div class="goal-suggestions" aria-label="목표 예시">
-                <button type="button" data-goal-category="exam">시험</button>
-                <button type="button" data-goal-category="fitness">운동</button>
-                <button type="button" data-goal-category="english">영어</button>
-                <button type="button" data-goal-category="reading">독서</button>
-                <button type="button" data-goal-category="startup">창업</button>
-                <button type="button" data-goal-category="habit">습관</button>
-                <button class="custom-goal-button" type="button" id="customGoalButton">
+              <div class="goal-suggestions" aria-label="목표 카테고리">
+                <button type="button" data-goal-category="exam" aria-pressed="false">시험</button>
+                <button type="button" data-goal-category="fitness" aria-pressed="false">운동</button>
+                <button type="button" data-goal-category="career" aria-pressed="false">취업</button>
+                <button type="button" data-goal-category="english" aria-pressed="false">영어</button>
+                <button type="button" data-goal-category="reading" aria-pressed="false">독서</button>
+                <button type="button" data-goal-category="startup" aria-pressed="false">창업</button>
+                <button type="button" data-goal-category="habit" aria-pressed="false">습관</button>
+                <button class="custom-goal-button" type="button" id="customGoalButton" data-goal-category="custom" aria-pressed="false">
                   <span aria-hidden="true">＋</span>
                   <strong>직접 목표 입력하기</strong>
                 </button>
               </div>
+              <p class="goal-category-help" id="goalCategoryHelp">카테고리를 고르면 목표를 직접 적을 수 있도록 예시를 보여드려요.</p>
+              <div class="goal-example-suggestions" id="goalExampleSuggestions" aria-label="선택한 카테고리의 추천 목표" hidden></div>
+              <p class="goal-validation-message" id="goalValidationMessage" role="status" aria-live="polite">카테고리와 달성하고 싶은 목표를 선택해 주세요.</p>
             </section>
 
             <section class="diagnosis-step" data-step-title="언제 하면 가장 편할까요?" hidden>
@@ -211,7 +215,7 @@
               <img src="assets/ollie-thinking.png" alt="" />
               <p>입력할수록 올리가 나에게 맞는 계획을 구체화해요.</p>
               <dl>
-                <div><dt>목표</dt><dd id="wizardLiveGoal">토익 900점 달성</dd></div>
+                <div><dt>목표</dt><dd id="wizardLiveGoal">목표를 입력해 주세요</dd></div>
                 <div><dt>리듬</dt><dd id="wizardLiveTiming">90일 · 아침</dd></div>
               </dl>
               <div class="summary-progress"><span>설정 완성도</span><strong id="wizardProgressValue">25%</strong></div>
