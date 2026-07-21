@@ -148,6 +148,131 @@ const AI_GENERATION_ROUTES = Object.freeze({
   "/api/ai/reschedule-plan": { action: "reschedule_plan", kind: "revision", maxBytes: 20_000 },
 });
 
+const GUEST_GOAL_PREVIEW_PATH = "/api/ai/goal-preview";
+const GUEST_GOAL_PREVIEW_TTL_SECONDS = 24 * 60 * 60;
+const GUEST_GOAL_PREVIEW_FAILURE_TTL_SECONDS = 60;
+
+async function hmacHex(secret, value) {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(value));
+  return [...new Uint8Array(signature)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function guestGoalPreview(plan = {}) {
+  return {
+    personalitySummary: String(plan.personalitySummary || ""),
+    planningStyle: String(plan.planningStyle || ""),
+    firstAction: String(plan.firstAction || ""),
+    weekTitle: String(plan.weekTitle || ""),
+    weekPlan: Array.isArray(plan.weekPlan) ? plan.weekPlan.slice(0, 3).map(String) : [],
+    coachMessage: String(plan.coachMessage || ""),
+    todaySchedule: Array.isArray(plan.todaySchedule)
+      ? plan.todaySchedule.slice(0, 1).map((item) => ({
+        time: String(item?.time || ""),
+        durationMinutes: Number(item?.durationMinutes || 0),
+        task: String(item?.task || ""),
+        completionRule: String(item?.completionRule || ""),
+      }))
+      : [],
+  };
+}
+
+async function guestPreviewIdentity(request, env, input) {
+  const ip = String(request.headers.get("cf-connecting-ip") || "").trim();
+  const userAgent = String(request.headers.get("user-agent") || "unknown").slice(0, 240);
+  const secret = String(env.SESSION_SECRET || "");
+  if (!ip || secret.length < 32) return null;
+  const [ipHash, actorHash, inputHash] = await Promise.all([
+    hmacHex(secret, `guest-preview-ip:${ip}`),
+    hmacHex(secret, `guest-preview-actor:${ip}|${userAgent}`),
+    hmacHex(secret, `guest-preview-input:${JSON.stringify(input)}`),
+  ]);
+  return { ipHash, actorHash, inputHash };
+}
+
+async function handleGuestGoalPreview({ request, env, accountContext }) {
+  if (request.method !== "POST") {
+    return json({ ok: false, error: "POST 요청만 사용할 수 있어요.", code: "METHOD_NOT_ALLOWED" }, 405);
+  }
+  if (!env.USERS_KV || !env.AI_RATE_LIMITER || !env.OPENAI_API_KEY) {
+    return json({ ok: false, error: "AI 계획 미리보기가 아직 준비되지 않았어요.", code: "GUEST_PREVIEW_UNAVAILABLE" }, 503);
+  }
+  const user = await currentSessionUser(accountContext);
+  if (user) {
+    return json({ ok: false, error: "회원은 무료 체험에서 전체 AI 계획을 만들 수 있어요.", code: "MEMBER_PREVIEW_NOT_ALLOWED" }, 409);
+  }
+
+  let input;
+  try {
+    input = await readBoundedJson(request, 50_000);
+  } catch (error) {
+    return json(aiErrorBody(error), error.status || 400);
+  }
+
+  const identity = await guestPreviewIdentity(request, env, input);
+  if (!identity) {
+    return json({ ok: false, error: "AI 계획 미리보기의 안전한 요청 정보를 확인하지 못했어요.", code: "GUEST_PREVIEW_IDENTITY_REQUIRED" }, 503);
+  }
+  const storageKey = `guest-ai-preview:${identity.actorHash}`;
+
+  return withAiCreditUserLock(storageKey, async () => {
+    const existing = await env.USERS_KV.get(storageKey, "json");
+    if (existing?.status === "complete") {
+      if (existing.inputHash !== identity.inputHash) {
+        return json({ ok: false, error: "오늘의 AI 계획 미리보기를 이미 사용했어요. 로그인·회원가입 후 전체 계획을 이어서 만들어 주세요.", code: "GUEST_PREVIEW_ALREADY_USED" }, 429);
+      }
+      return json({ ok: true, preview: existing.preview, cached: true });
+    }
+    if (existing?.status === "pending") {
+      return json({ ok: false, error: "AI 계획 미리보기를 만들고 있어요. 잠시 후 다시 확인해 주세요.", code: "GUEST_PREVIEW_PENDING" }, 409);
+    }
+    if (existing?.status === "failed") {
+      return json({ ok: false, error: "AI 연결을 잠시 쉬고 있어요. 잠시 후 다시 시도해 주세요.", code: "GUEST_PREVIEW_COOLDOWN" }, 429);
+    }
+
+    const { success } = await env.AI_RATE_LIMITER.limit({ key: `ai:guest-goal-preview:${identity.ipHash}` });
+    if (!success) {
+      return json({ ok: false, error: "AI 계획 미리보기 요청이 잠시 많아요. 1분 뒤 다시 시도해 주세요.", code: "AI_RATE_LIMITED" }, 429);
+    }
+
+    await env.USERS_KV.put(storageKey, JSON.stringify({
+      status: "pending",
+      inputHash: identity.inputHash,
+      createdAt: Date.now(),
+    }), { expirationTtl: 5 * 60 });
+
+    try {
+      const result = await createAiGoalPlan(input, {
+        apiKey: env.OPENAI_API_KEY,
+        model: env.OPENAI_MODEL || "gpt-5.4-mini",
+      });
+      const preview = guestGoalPreview(result.plan);
+      await env.USERS_KV.put(storageKey, JSON.stringify({
+        status: "complete",
+        inputHash: identity.inputHash,
+        preview,
+        createdAt: Date.now(),
+      }), { expirationTtl: GUEST_GOAL_PREVIEW_TTL_SECONDS });
+      return json({ ok: true, preview, cached: false });
+    } catch (error) {
+      console.error("Guest AI goal preview failed", { code: error?.code || "AI_REQUEST_FAILED", status: error?.status || 500 });
+      await env.USERS_KV.put(storageKey, JSON.stringify({
+        status: "failed",
+        inputHash: identity.inputHash,
+        createdAt: Date.now(),
+      }), { expirationTtl: GUEST_GOAL_PREVIEW_FAILURE_TTL_SECONDS });
+      return json(aiErrorBody(error), error?.status || 500);
+    }
+  });
+}
+
 function aiErrorBody(error, usage = null) {
   const body = {
     ok: false,
@@ -432,6 +557,10 @@ async function handleFetch(request, env) {
         const usage = await getAiCreditUsage({ store: accountContext.store, userId: user.id }).catch(() => null);
         return json(aiErrorBody(error, usage), error?.status || 500);
       }
+    }
+
+    if (url.pathname === GUEST_GOAL_PREVIEW_PATH) {
+      return handleGuestGoalPreview({ request, env, accountContext });
     }
 
     const aiGenerationRoute = AI_GENERATION_ROUTES[url.pathname];

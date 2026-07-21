@@ -61,6 +61,9 @@ const appFeatureNext = document.querySelector("#appFeatureNext");
 const appFeatureTitle = document.querySelector("#appFeatureTitle");
 const appFeatureCounter = document.querySelector("#appFeatureCounter");
 const trialStartInlineLink = document.querySelector("#trialStartInlineLink");
+const previewConversionKicker = document.querySelector("#previewConversionKicker");
+const previewConversionCopy = document.querySelector("#previewConversionCopy");
+const previewConversionAction = document.querySelector("#previewConversionAction");
 const trialStatusBanner = document.querySelector("#trialStatusBanner");
 const trialTimeRemaining = document.querySelector("#trialTimeRemaining");
 const trialPaywall = document.querySelector("#trialPaywall");
@@ -208,6 +211,7 @@ const TRIAL_ACCESS_KEY = "omwTrialAccess";
 const LEGACY_OLLIE_ENERGY_KEY = "omwOllieEnergy";
 const FREE_PLAN_GENERATED_KEY = "omwFreePlanGenerated";
 const PENDING_GOAL_DRAFT_KEY = "onmyway:pending-goal-draft";
+const PENDING_GOAL_PREVIEW_KEY = "onmyway:pending-goal-preview";
 const ACCOUNT_STORAGE_SCOPE_KEY = "onmyway:active-scope";
 const ANONYMOUS_DEVICE_KEY = "onmyway:anonymous-device";
 const LEGACY_ACCOUNT_STORAGE_SCOPE_KEY = "omwAccountStorageScope";
@@ -628,6 +632,15 @@ function initializeTrialAccess() {
 
 trialStartInlineLink?.addEventListener("click", async (event) => {
   event.preventDefault();
+  if (planPreviewPanel?.dataset.previewMode === "guest") {
+    savePendingGoalDraft();
+    if (!authUiState.user) {
+      location.assign(`app.html?auth=login&return=${encodeURIComponent("/?resumeGoal=1")}`);
+      return;
+    }
+    await runPersonalityAnalysis({ showLoading: true });
+    return;
+  }
   const started = await startTrialAccess();
   if (started) location.assign(trialStartInlineLink.href);
 });
@@ -1025,6 +1038,8 @@ function renderAccountUi() {
     heroPrimaryCta.href = hasSavedPlan ? "app.html" : "#designFlow";
   }
 
+  syncGoalBuilderCta();
+  if (planPreviewPanel?.dataset.previewMode === "guest") setResultPreviewMode("guest");
   renderMyPageSheet();
 }
 
@@ -1972,6 +1987,31 @@ function savePendingGoalDraft() {
   }
 }
 
+function savePendingGoalPreview(preview) {
+  try {
+    sessionStorage.setItem(PENDING_GOAL_PREVIEW_KEY, JSON.stringify({ preview, createdAt: Date.now() }));
+  } catch {
+    /* session storage unavailable — the preview remains visible for this page */
+  }
+}
+
+function restorePendingGoalPreview() {
+  try {
+    const record = safeJsonParse(sessionStorage.getItem(PENDING_GOAL_PREVIEW_KEY), null);
+    if (!record?.preview || Date.now() - Number(record.createdAt || 0) > 24 * 60 * 60 * 1000) {
+      sessionStorage.removeItem(PENDING_GOAL_PREVIEW_KEY);
+      return false;
+    }
+    renderAiPreview(record.preview);
+    if (aiPreviewStatus) aiPreviewStatus.textContent = "올리가 AI로 만든 계획 미리보기";
+    setResultPreviewMode("guest");
+    openFirstStepResult();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function restorePendingGoalDraft() {
   if (!personalityForm || new URLSearchParams(location.search).get("resumeGoal") !== "1") return false;
   try {
@@ -2565,6 +2605,34 @@ async function requestAiPlan(payload) {
   }
 }
 
+async function requestGuestAiPreview(payload) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 60000);
+  try {
+    const response = await fetch("/api/ai/goal-preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify(payload.input),
+      signal: controller.signal,
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const error = new Error(result.error || "AI 계획 미리보기를 만들지 못했어요.");
+      error.status = response.status;
+      error.code = result.code || "";
+      throw error;
+    }
+    if (!result.preview) throw new Error("AI 계획 미리보기를 확인하지 못했어요.");
+    return result.preview;
+  } catch (error) {
+    if (error.name === "AbortError") throw new Error("AI 미리보기 응답이 늦어지고 있어요. 잠시 후 다시 시도해 주세요.");
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
 async function requestCompanionReply(message) {
   if (!(await ensureAiActionAvailable("companion_chat"))) {
     const error = new Error("올리와 대화할 수 있는 AI 크레딧을 확인해 주세요.");
@@ -2702,10 +2770,12 @@ function renderAiPreview(preview) {
     });
     aiGoalRoadmap.replaceChildren(...items);
   }
-  if (dashboardGoalPreview) dashboardGoalPreview.textContent = preview.dashboard.goal;
-  if (dashboardProgressValue) dashboardProgressValue.textContent = `${preview.dashboard.progress}%`;
-  if (dashboardProgressBar) dashboardProgressBar.style.width = `${preview.dashboard.progress}%`;
-  if (dashboardPaceText) dashboardPaceText.textContent = preview.dashboard.pace;
+  if (preview.dashboard) {
+    if (dashboardGoalPreview) dashboardGoalPreview.textContent = preview.dashboard.goal;
+    if (dashboardProgressValue) dashboardProgressValue.textContent = `${preview.dashboard.progress}%`;
+    if (dashboardProgressBar) dashboardProgressBar.style.width = `${preview.dashboard.progress}%`;
+    if (dashboardPaceText) dashboardPaceText.textContent = preview.dashboard.pace;
+  }
 }
 
 function setAiPreviewButtonLabel(label, { showCost = true } = {}) {
@@ -2718,25 +2788,61 @@ function setAiPreviewButtonLabel(label, { showCost = true } = {}) {
   aiPreviewButton.append(cost);
 }
 
+function syncGoalBuilderCta() {
+  if (!aiPreviewButton) return;
+  if (!authUiState.user) {
+    setAiPreviewButtonLabel("AI 계획 미리보기 만들기", { showCost: false });
+    return;
+  }
+  const plan = aiUsageState?.plan || authUiState.user.plan || "free";
+  setAiPreviewButtonLabel(plan === "pro" ? "AI 전체 계획 만들기" : "24시간 무료 체험으로 전체 계획 만들기");
+}
+
+function setResultPreviewMode(mode) {
+  if (!planPreviewPanel) return;
+  planPreviewPanel.dataset.previewMode = mode;
+  const isGuest = mode === "guest";
+  if (resultDetailsDisclosure) resultDetailsDisclosure.hidden = isGuest;
+  if (isGuest) {
+    if (previewConversionKicker) previewConversionKicker.textContent = "전체 계획이 궁금하다면";
+    if (previewConversionCopy) {
+      previewConversionCopy.textContent = authUiState.user
+        ? "24시간 무료 체험으로 전체 일정과 실행 순서를 이어서 만들어요."
+        : "로그인·회원가입 후 24시간 무료 체험으로 전체 계획을 이어서 만들어요.";
+    }
+    if (previewConversionAction) {
+      previewConversionAction.textContent = authUiState.user
+        ? "무료 체험으로 전체 계획 만들기"
+        : "로그인·회원가입하고 전체 계획 보기";
+    }
+    trialStartInlineLink?.setAttribute("aria-label", previewConversionAction?.textContent || "전체 계획 이어서 만들기");
+    return;
+  }
+  if (previewConversionKicker) previewConversionKicker.textContent = "READY TO GO";
+  if (previewConversionCopy) previewConversionCopy.textContent = "설명은 나중에 봐도 괜찮아요. 올리와 첫 일정부터 시작해요.";
+  if (previewConversionAction) previewConversionAction.textContent = "오늘 계획 바로 시작";
+  trialStartInlineLink?.setAttribute("aria-label", "방금 만든 오늘의 맞춤 계획 바로 시작하기");
+}
+
 async function runPersonalityAnalysis({ showLoading = false } = {}) {
   if (!personalityForm) return;
 
+  let guestPreviewRequest = false;
   if (showLoading) {
     await accountExperienceReady;
     if (!authUiState.user) {
       savePendingGoalDraft();
-      showToast("간편 로그인·회원가입 후 입력한 목표부터 바로 이어갈게요.");
-      location.assign(`app.html?auth=login&return=${encodeURIComponent("/?resumeGoal=1")}`);
-      return;
-    }
-    const usage = await loadAiUsage().catch(() => null);
-    if (usage?.plan === "free" && usage.trial?.eligible) {
-      const trial = await startTrialAccess();
-      if (!trial) return;
+      guestPreviewRequest = true;
+    } else {
+      const usage = await loadAiUsage().catch(() => null);
+      if (usage?.plan === "free" && usage.trial?.eligible) {
+        const trial = await startTrialAccess();
+        if (!trial) return;
+      }
     }
   }
 
-  if (showLoading && (aiUsageState?.plan || authUiState.user?.plan) === "free") {
+  if (showLoading && !guestPreviewRequest && (aiUsageState?.plan || authUiState.user?.plan) === "free") {
     try {
       const serverSaysGenerated = Boolean(authUiState.user?.goalPlanGeneratedAt);
       if (serverSaysGenerated) {
@@ -2786,22 +2892,26 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
   });
 
   if (showLoading) {
-    aiPreviewStatus.textContent = "AI가 목표 설계 중";
+    aiPreviewStatus.textContent = guestPreviewRequest ? "AI가 첫 계획 미리보기를 만드는 중" : "AI가 목표 설계 중";
     aiPreviewButton.disabled = true;
-    setAiPreviewButtonLabel("올리가 오늘 계획을 만드는 중...", { showCost: false });
+    setAiPreviewButtonLabel(guestPreviewRequest ? "올리가 AI 미리보기를 만드는 중..." : "올리가 오늘 계획을 만드는 중...", { showCost: false });
     await playAnalysisLoading();
   }
 
   let preview;
   let usedFallback = false;
   try {
-    preview = showLoading ? await requestAiPlan(payload) : buildLocalAiPreview(payload);
+    preview = showLoading
+      ? guestPreviewRequest
+        ? await requestGuestAiPreview(payload)
+        : await requestAiPlan(payload)
+      : buildLocalAiPreview(payload);
   } catch (error) {
     if (error.code === "GOAL_PLAN_LIMIT_REACHED") {
       if (aiPreviewStatus) aiPreviewStatus.textContent = "무료 목표 계획 1개를 이미 만들었어요";
       if (aiPreviewButton) {
         aiPreviewButton.disabled = false;
-        setAiPreviewButtonLabel("24시간 무료 체험으로 계획 만들기");
+        syncGoalBuilderCta();
       }
       planPreviewPanel?.classList.add("is-ready");
       showToast(error.message);
@@ -2812,7 +2922,7 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
       if (aiPreviewStatus) aiPreviewStatus.textContent = error.message || "AI 계획을 만들지 못했어요.";
       if (aiPreviewButton) {
         aiPreviewButton.disabled = false;
-        setAiPreviewButtonLabel("AI 계획 다시 만들기");
+        setAiPreviewButtonLabel(guestPreviewRequest ? "AI 계획 미리보기 다시 시도" : "AI 계획 다시 만들기", { showCost: !guestPreviewRequest });
       }
       showToast(`${error.message || "AI 계획을 만들지 못했어요."} 실패한 요청은 AI 크레딧으로 확정 차감되지 않아요.`);
       return;
@@ -2823,10 +2933,23 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
   renderAiPreview(preview);
   if (showLoading) planPreviewPanel?.classList.add("is-ready");
 
-  if (aiPreviewStatus) aiPreviewStatus.textContent = usedFallback ? "AI 연결 없이 제공하는 기본 계획 템플릿" : "올리가 AI로 만든 맞춤 계획";
+  if (aiPreviewStatus) {
+    aiPreviewStatus.textContent = guestPreviewRequest
+      ? "올리가 AI로 만든 계획 미리보기"
+      : usedFallback
+        ? "AI 연결 없이 제공하는 기본 계획 템플릿"
+        : "올리가 AI로 만든 맞춤 계획";
+  }
   if (aiPreviewButton) {
     aiPreviewButton.disabled = false;
-    setAiPreviewButtonLabel("24시간 무료 체험으로 계획 만들기");
+    syncGoalBuilderCta();
+  }
+
+  if (showLoading && guestPreviewRequest) {
+    savePendingGoalPreview(preview);
+    setResultPreviewMode("guest");
+    openFirstStepResult();
+    return;
   }
 
   if (showLoading) {
@@ -2852,10 +2975,12 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
         }),
       );
       sessionStorage.removeItem(PENDING_GOAL_DRAFT_KEY);
+      sessionStorage.removeItem(PENDING_GOAL_PREVIEW_KEY);
     } catch (error) {
       console.warn("Unable to save execution plan", error);
     }
   }
+  if (showLoading) setResultPreviewMode("full");
   if (showLoading && authUiState.user) await saveAccountStateToServer();
 
   if (showLoading) {
@@ -6491,6 +6616,9 @@ function markAppReady() {
 accountExperienceReady
   .then((ready) => {
     if (ready) {
+      if (!document.body?.classList.contains("execution-page") && resumedPendingGoal && authUiState.user) {
+        restorePendingGoalPreview();
+      }
       initializeExecutionPage();
       markAppReady();
     }
