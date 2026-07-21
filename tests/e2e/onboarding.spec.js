@@ -23,7 +23,7 @@ test("첫 진입부터 목표 생성과 새로고침까지 이어진다", async 
         ok: true,
         plan: {
           personalitySummary: "작은 실행을 반복할 때 강점이 살아나요.",
-          planningStyle: "루틴 점검형 계획",
+          planningStyle: "유연 조정형: 하루 컨디션에 따라 3단계로 조절하는 긴 계획 설명",
           firstAction: "오늘 10분 동안 E2E 첫 행동 실행",
           weekTitle: "이번 주에는 시작 가능한 크기로 반복해요",
           weekPlan: ["10분 시작", "완료 체크", "한 줄 기록", "막힌 점 정리", "다음 행동 준비"],
@@ -61,8 +61,8 @@ test("첫 진입부터 목표 생성과 새로고침까지 이어진다", async 
   const longGoal = "아주 긴 목표 ".repeat(20);
   await page.locator("#designGoal").fill(longGoal);
   await expect(page.locator("#designGoal")).toHaveValue(longGoal);
-  await page.locator("#designGoal").fill("E2E 목표 완주하기");
-  await page.locator("#diagnosisNextButton").click();
+  await page.getByRole("button", { name: "창업", exact: true }).click();
+  await expect(page.locator("#designGoal")).toHaveValue("90일 안에 첫 유료 고객 10명 만들기");
   await expect(page.locator("#diagnosisStepCount")).toHaveText("2 / 3");
   await page.locator("#diagnosisBackButton").click();
   await expect(page.locator("#diagnosisStepCount")).toHaveText("1 / 3");
@@ -86,6 +86,17 @@ test("첫 진입부터 목표 생성과 새로고침까지 이어진다", async 
   expect(goalPlanRequests[0].requestId).toMatch(/^create_plan:/);
   expect(goalPlanRequests[0].body).not.toHaveProperty("plan");
   expect(goalPlanRequests[0].body).not.toHaveProperty("creditCost");
+  expect(goalPlanRequests[0].body).toMatchObject({
+    goal: "90일 안에 첫 유료 고객 10명 만들기",
+    currentState: "아이디어만 있고 평일 1시간, 주말 3시간 가능",
+    routine: {
+      readiness: "바로 실행하는 편이에요",
+      preferredTime: "저녁",
+      existingRoutine: "저녁 식사 후 노트북 열기",
+    },
+  });
+  await expect(page.locator("#planningStyle")).toHaveText("유연 조정형");
+  expect(await page.locator("#firstStep").evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBeTruthy();
   const planDetails = page.locator(".result-details-disclosure");
   await planDetails.locator("summary").click();
   await expect(planDetails).toHaveAttribute("open", "");
@@ -106,4 +117,25 @@ test("첫 진입부터 목표 생성과 새로고침까지 이어진다", async 
   await expect(page.locator("#trialPaywall")).toBeHidden();
   await expect(page.locator("body")).not.toHaveClass(/trial-locked/);
   diagnostics.expectClean();
+});
+
+test("익명 사용자는 입력한 목표를 보존한 채 로그인·회원가입 화면으로 바로 이동한다", async ({ page }) => {
+  await mockAccountExperience(page);
+  await page.goto("/index.html#designFlow");
+  await waitForBootstrap(page);
+  await page.getByRole("button", { name: "창업", exact: true }).click();
+  await expect(page.locator("#diagnosisStepCount")).toHaveText("2 / 3");
+  await page.locator("#diagnosisNextButton").click();
+  await expect(page.locator("#diagnosisStepCount")).toHaveText("3 / 3");
+  await Promise.all([
+    page.waitForURL(/app\.html\?auth=login&return=/),
+    page.locator("#aiPreviewButton").click(),
+  ]);
+  await expect(page.locator("#authSheet")).toBeVisible();
+  expect(decodeURIComponent(new URL(page.url()).searchParams.get("return"))).toBe("/?resumeGoal=1");
+
+  await page.goto("/?resumeGoal=1&auth=success");
+  await expect(page.locator("#designFlow")).toBeVisible();
+  await expect(page.locator("#designGoal")).toHaveValue("90일 안에 첫 유료 고객 10명 만들기");
+  await expect(page.locator("#diagnosisStepCount")).toHaveText("3 / 3");
 });

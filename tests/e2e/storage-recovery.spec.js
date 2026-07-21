@@ -90,3 +90,43 @@ test("a corrupt account snapshot recovers without a reload loop", async ({ page 
 
   expect(result).toEqual({ changed: true, scope: "user:account-b", plan: null, corruptSnapshot: null });
 });
+
+test("새 목표는 이전 목표의 빈 실행 상태나 시험용 기본 일정을 재사용하지 않는다", async ({ page }) => {
+  const startupPlan = {
+    goal: "90일 안에 첫 유료 고객 10명 만들기",
+    period: 90,
+    routineTime: "저녁",
+    routineReadiness: "바로 실행하는 편이에요",
+    currentState: "아이디어만 있고 평일 1시간, 주말 3시간 가능",
+    currentRoutine: "저녁 식사 후 노트북 열기",
+    firstAction: "잠재 고객 인터뷰 질문 5개 작성",
+    aiPreview: {
+      firstAction: "잠재 고객 인터뷰 질문 5개 작성",
+      weekPlan: ["잠재 고객 10명 목록 만들기", "고객 문제 인터뷰 3회 진행", "첫 제안 문구 작성"],
+    },
+    planSource: "ai",
+    createdAt: "2026-07-21T00:00:00.000Z",
+  };
+  await prepareApp(page, {
+    omwExecutionPlan: startupPlan,
+    omwExecutionState: { scheduleKey: "previous-goal-key", planText: "", checkedByDay: { 1: [true, true, true] } },
+  });
+  await page.goto("/app.html");
+  await page.locator("#tab-plan").click();
+  const planText = await page.locator("#weeklyPlanList").innerText();
+  expect(planText).toContain("잠재 고객");
+  expect(planText).not.toMatch(/오답|LC|RC|단어 40개/);
+});
+
+test("처음 화면의 로컬 미리보기는 이미 저장된 회원 계획을 덮어쓰지 않는다", async ({ page }) => {
+  const savedPlan = {
+    goal: "첫 유료 고객 10명 만들기",
+    period: 90,
+    firstAction: "잠재 고객 인터뷰 질문 작성",
+    planSource: "ai",
+    createdAt: "2026-07-21T00:00:00.000Z",
+  };
+  await prepareApp(page, { omwExecutionPlan: savedPlan });
+  await page.goto("/index.html");
+  await expect.poll(() => readStored(page, "omwExecutionPlan")).toMatchObject(savedPlan);
+});

@@ -25,7 +25,7 @@ test("모든 탭을 클릭과 키보드로 이동한다", async ({ page }) => {
   diagnostics.expectClean();
 });
 
-test("계획 홈은 7일 요약과 단일 주요 CTA를 제공한다", async ({ page }) => {
+test("계획 홈은 7일 요약과 단일 주요 CTA를 제공한다", async ({ page, isMobile }) => {
   await page.goto("/app.html");
   await waitForAppReady(page);
   await page.locator("#tab-plan").click();
@@ -33,6 +33,7 @@ test("계획 홈은 7일 요약과 단일 주요 CTA를 제공한다", async ({ 
   await expect(page.locator("#weeklyPlanList > li")).toHaveCount(3);
   await expect(page.locator("#planOpenDetailButton")).toContainText("전체 계획 보기");
   await expect(page.locator("#planOpenEditorButton")).toContainText("계획 수정하기");
+  if (isMobile) await expect(page.locator("#planOpenDetailButton")).not.toHaveCSS("background-color", "rgb(34, 34, 34)");
   await expect(page.locator("#view-plan")).not.toHaveCSS("overflow-x", "scroll");
 });
 
@@ -46,6 +47,16 @@ test("주간 날짜에서 상세 시트로 이동하고 Escape로 닫으면 초�
   await expect(page.locator("#view-plan")).toHaveAttribute("data-active-plan-screen", "detail");
   await expect(page.locator("#calendarDayDetail")).toBeVisible();
   await expect(page.locator("#calendarDayDetail")).toHaveAttribute("aria-modal", "true");
+  const sheetBounds = await page.evaluate(() => {
+    const sheet = document.querySelector("#calendarDayDetail").getBoundingClientRect();
+    const tabbar = document.querySelector(".execution-tabbar").getBoundingClientRect();
+    const firstTask = document.querySelector("#calendarDayDetailList li")?.getBoundingClientRect();
+    return { sheetBottom: sheet.bottom, tabbarTop: tabbar.top, firstTaskTop: firstTask?.top, firstTaskBottom: firstTask?.bottom, sheetTop: sheet.top, scrollTop: document.querySelector("#calendarDayDetail").scrollTop };
+  });
+  expect(sheetBounds.sheetBottom).toBeLessThanOrEqual(sheetBounds.tabbarTop + 1);
+  expect(sheetBounds.firstTaskTop).toBeGreaterThanOrEqual(sheetBounds.sheetTop);
+  expect(sheetBounds.firstTaskBottom).toBeLessThanOrEqual(sheetBounds.sheetBottom);
+  expect(sheetBounds.scrollTop).toBe(0);
   await page.keyboard.press("Escape");
   await expect(page.locator("#calendarDayDetail")).toBeHidden();
   await expect(page.locator("#scheduleCalendar .calendar-day.selected")).toBeFocused();
