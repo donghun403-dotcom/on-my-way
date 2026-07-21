@@ -1,5 +1,5 @@
 const { test, expect } = require("@playwright/test");
-const { createUsageResponse, expectNoHorizontalOverflow, mockExternalAssets, monitorPage, waitForAppReady, waitForBootstrap } = require("./helpers");
+const { createUsageResponse, expectNoHorizontalOverflow, mockAccountExperience, mockExternalAssets, monitorPage, waitForAppReady, waitForBootstrap } = require("./helpers");
 
 const providers = ["kakao", "naver", "google", "apple"];
 const androidProviders = ["kakao", "naver", "google"];
@@ -311,6 +311,27 @@ test("세션 복원 후 로그아웃하면 회원 UI와 활성 데이터가 초�
   await expect(page.locator("#top")).toBeVisible();
   await expect(page.locator("#navLoginLink")).toHaveText("로그인/회원가입");
   expect(await page.evaluate(() => localStorage.getItem("onmyway:active-scope"))).toMatch(/^anonymous:/);
+  diagnostics.expectClean();
+});
+
+test("앱 메뉴의 앱 구경하기는 소개 첫 화면이 아닌 앱 구경 화면으로 이동한다", async ({ page }) => {
+  const diagnostics = monitorPage(page);
+  await mockAccountExperience(page);
+
+  await page.goto("/app.html");
+  await waitForBootstrap(page);
+  await page.locator("#menuToggle").click();
+
+  const appTourLink = page.getByRole("link", { name: "앱 구경하기" });
+  await expect(appTourLink).toHaveAttribute("href", "index.html#appTour");
+  await Promise.all([
+    page.waitForURL(/\/index\.html#appTour$/),
+    appTourLink.click(),
+  ]);
+
+  await expect(page.locator("body")).toHaveAttribute("data-page-view", "app");
+  await expect(page.locator("#appTour")).toBeVisible();
+  await expect(page.locator("#designFlow")).toBeHidden();
   diagnostics.expectClean();
 });
 
