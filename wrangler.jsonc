@@ -35,5 +35,19 @@
         "period": 60
       }
     }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "GUEST_PLAN_DRAFTS",
+        "class_name": "GuestPlanDraftObject"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "guest-plan-drafts-v1",
+      "new_sqlite_classes": ["GuestPlanDraftObject"]
+    }
   ]
 }

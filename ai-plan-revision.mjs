@@ -79,6 +79,7 @@ function normalizeRevisionInput(input = {}) {
     currentPlanText: cleanText(input.currentPlanText, 5000),
     revisionRequest: cleanText(input.revisionRequest, 1600),
     revisionDetails: {
+      adjustmentScope: ["today", "week", "remaining"].includes(details.adjustmentScope) ? details.adjustmentScope : "remaining",
       goalType: cleanText(details.goalType, 30) || "general",
       resources: cleanText(details.resources || details.materials, 1200),
       targetOutcome: cleanText(details.targetOutcome || details.targetCoverage, 1200),
@@ -130,6 +131,63 @@ function extractOutputText(response) {
   return "";
 }
 
+function revisionText(revision) {
+  return [
+    revision?.summary,
+    ...(Array.isArray(revision?.revisedTasks) ? revision.revisedTasks : []),
+    ...(Array.isArray(revision?.weeklySchedule)
+      ? revision.weeklySchedule.flatMap((day) => (day?.tasks || []).flatMap((task) => [task?.task, task?.completionRule]))
+      : []),
+  ].map((value) => String(value || "")).join("\n");
+}
+
+export function validateRevisionOutput(input, revision) {
+  const errors = [];
+  if (!revision || typeof revision !== "object" || Array.isArray(revision)) return ["변경안 형식이 올바르지 않아요."];
+  const summary = revision.revisionSummary;
+  if (!summary || typeof summary !== "object" || ["goalAlignment", "resourcePlan", "timePlan", "weeklyRule"].some((key) => !cleanText(summary[key], 1200))) {
+    errors.push("변경안 검토 요약이 부족해요.");
+  }
+  const revisedTasks = Array.isArray(revision.revisedTasks) ? revision.revisedTasks : [];
+  if (revisedTasks.length < 4 || revisedTasks.some((task) => !cleanText(task, 600))) errors.push("변경된 실행 항목이 부족해요.");
+
+  const expectedDays = ["월", "화", "수", "목", "금", "토", "일"];
+  const weeklySchedule = Array.isArray(revision.weeklySchedule) ? revision.weeklySchedule : [];
+  if (weeklySchedule.length !== 7) errors.push("월요일부터 일요일까지 7일 변경안이 필요해요.");
+  const availableDays = new Set(input.revisionDetails.schedule.availableDays);
+  const completedTasks = new Set(input.completedTasks.map((task) => cleanText(task, 240)));
+  if (revisedTasks.some((task) => completedTasks.has(cleanText(task, 240)))) {
+    errors.push("변경된 실행 항목이 완료한 일정을 다시 포함했어요.");
+  }
+  weeklySchedule.slice(0, 7).forEach((day, index) => {
+    const dayName = cleanText(day?.day, 10);
+    if (dayName !== expectedDays[index]) errors.push(`${expectedDays[index]}요일 변경안 순서가 올바르지 않아요.`);
+    const tasks = Array.isArray(day?.tasks) ? day.tasks : [];
+    if (day?.isRestDay && tasks.length) errors.push(`${dayName || expectedDays[index]}요일 휴식일에 실행 일정이 있어요.`);
+    if (availableDays.size && !availableDays.has(dayName) && tasks.length) errors.push(`${dayName || expectedDays[index]}요일은 선택한 실행 가능 요일이 아니에요.`);
+    const totalMinutes = tasks.reduce((sum, task) => sum + (Number(task?.durationMinutes) || 0), 0);
+    const dailyLimit = ["토", "일"].includes(dayName)
+      ? input.revisionDetails.schedule.weekendMinutes
+      : input.revisionDetails.schedule.weekdayMinutes;
+    if (dailyLimit && totalMinutes > dailyLimit) errors.push(`${dayName || expectedDays[index]}요일 일정이 가능 시간을 초과해요.`);
+    tasks.forEach((task, taskIndex) => {
+      const duration = Number(task?.durationMinutes);
+      const taskText = cleanText(task?.task, 600);
+      if (!taskText || !cleanText(task?.completionRule, 600) || !Number.isFinite(duration) || duration < 5) {
+        errors.push(`${dayName || expectedDays[index]}요일 ${taskIndex + 1}번 일정의 행동·시간·완료 기준이 부족해요.`);
+      }
+      if (completedTasks.has(taskText)) errors.push(`${dayName || expectedDays[index]}요일 변경안이 완료한 일정을 다시 포함했어요.`);
+    });
+  });
+
+  const goal = String(input.goal || "");
+  const examGoal = /토익|시험|수능|자격증|학습|공부|영어|오답|문제\s*풀이|단어\s*암기/i.test(goal);
+  if (!examGoal && /토익|\bLC\b|\bRC\b|오답\s*(정리|노트)|단어\s*\d+\s*개/i.test(revisionText(revision))) {
+    errors.push("변경안에 다른 목표 분야의 시험 문구가 섞였어요.");
+  }
+  return errors;
+}
+
 export async function createAiPlanRevision(input, { apiKey, model = "gpt-5.4-mini", fetchImpl = fetch, timeoutMs } = {}) {
   if (!apiKey) {
     const error = new Error("서버에 OPENAI_API_KEY가 설정되지 않았어요.");
@@ -161,6 +219,7 @@ export async function createAiPlanRevision(input, { apiKey, model = "gpt-5.4-min
         "목표 유형은 시험·학습, 창업·사업, 취업·커리어, 운동·건강, 습관·생활, 콘텐츠·프로젝트, 재무·저축 또는 기타일 수 있습니다. 공부 계획으로 가정하지 말고 revisionDetails.goalType과 실제 목표 문맥에 맞는 전문 용어와 완료 기준을 사용하세요.",
         "사용자가 요청한 수정 조건을 가장 우선하고, 최종 결과에 직접 도움이 되는 검증 가능하고 구체적인 행동만 남기세요.",
         "완료한 태스크는 성취 기록으로 보호하고 다시 수행하도록 요구하지 마세요.",
+        "revisionDetails.adjustmentScope가 today면 오늘 일정만, week면 현재 7일 범위만, remaining이면 완료하지 않은 남은 계획만 수정하세요. 지정 범위 밖 일정과 완료 기록은 그대로 유지하세요.",
         "resources는 목표에 따라 교재, 도구, 고객, 사람, 예산, 채널, 장비, 계좌 또는 기존 결과물일 수 있습니다. 사용자가 제공하지 않은 수량·사양·성과를 지어내지 말고 필요한 경우 assumptions에 가정을 명시하세요.",
         "targetOutcome을 점수, 완료 범위, 고객 검증, MVP, 매출, 지원 결과, 신체 지표, 반복 빈도, 공개 결과물 또는 금액처럼 목표 유형에 맞는 측정 가능한 완료 기준으로 해석하세요.",
         "평일·주말 가용 시간과 선택 요일을 넘지 않게 총분량을 배치하고, 시간이 부족하면 우선순위를 정해 범위 또는 빈도 조정안을 changes와 assumptions에 분명히 쓰세요.",
@@ -211,8 +270,21 @@ export async function createAiPlanRevision(input, { apiKey, model = "gpt-5.4-min
   }
 
   try {
-    return { revision: JSON.parse(outputText), usage: responseBody.usage || null, requestId: response.headers.get("x-request-id") || "" };
-  } catch {
+    const revision = JSON.parse(outputText);
+    const validationErrors = validateRevisionOutput(normalized, revision);
+    if (validationErrors.length) {
+      const error = new Error("AI 변경안이 입력 조건을 충족하지 않아 적용하지 않았어요.");
+      error.status = 502;
+      error.code = "AI_PLAN_REVISION_VALIDATION_FAILED";
+      error.details = validationErrors.slice(0, 12);
+      error.providerUsage = responseBody.usage || null;
+      error.providerRequestId = response.headers.get("x-request-id") || "";
+      error.providerCalled = true;
+      throw error;
+    }
+    return { revision, usage: responseBody.usage || null, requestId: response.headers.get("x-request-id") || "" };
+  } catch (caught) {
+    if (caught?.code === "AI_PLAN_REVISION_VALIDATION_FAILED") throw caught;
     const error = new Error("AI 변경안을 해석하지 못했어요.");
     error.status = 502;
     error.providerUsage = responseBody.usage || null;

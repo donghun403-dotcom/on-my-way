@@ -98,9 +98,66 @@ function successfulOpenAiResponse(schemaName) {
     return { headline: "좋은 출발이에요", reply: "지금 한 걸음부터 시작해 봐요." };
   }
   if (schemaName === "personalized_goal_plan") {
-    return { goal: "테스트 목표", firstAction: "첫 행동" };
+    return {
+      goal: "테스트 목표",
+      firstAction: "첫 행동",
+      firstWeekSchedule: ["월", "화", "수", "목", "금", "토", "일"].map((dayLabel, index) => ({
+        dayNumber: index + 1,
+        dayLabel,
+        isRestDay: false,
+        items: [{
+          id: `credit-action-${index + 1}`,
+          planId: "credit-fixture-plan",
+          type: "ACTION",
+          title: "목표에 맞는 첫 행동",
+          sourceReference: "",
+          quantityOrRange: "1회",
+          durationMinutes: 20,
+          completionRule: "한 번 실행하면 완료",
+          scheduledAt: "",
+          status: "pending",
+          recurrenceGroupId: "credit-fixture-action",
+        }],
+      })),
+      assumptions: ["자료가 지정되지 않아 일반 계획으로 구성했어요."],
+    };
+  }
+  if (schemaName === "goal_plan_revision") {
+    return {
+      summary: "현재 목표에 맞춘 변경안",
+      revisionSummary: {
+        goalAlignment: "테스트 목표의 실행을 이어갑니다.",
+        resourcePlan: "기존 자료와 진행 상태를 유지합니다.",
+        timePlan: "하루 20분 안에서 실행합니다.",
+        weeklyRule: "월요일부터 일요일까지 한 번씩 확인합니다.",
+        assumptions: [],
+      },
+      weeklySchedule: ["월", "화", "수", "목", "금", "토", "일"].map((day) => ({
+        day,
+        isRestDay: false,
+        tasks: [{ time: "저녁", durationMinutes: 20, task: "목표에 맞는 행동 실행", completionRule: "한 번 실행하면 완료" }],
+      })),
+      revisedTasks: ["첫 행동 20분 실행", "진행 상태 한 줄 기록", "다음 행동 준비", "주간 결과 확인"],
+      changes: ["실행 시간을 20분으로 조정"],
+      ollieMessage: "요청한 조건으로 변경안을 준비했어요.",
+    };
   }
   return { summary: "수정안", changes: ["일정을 조정했어요."] };
+}
+
+function goalPlanInput(goal = "테스트 목표") {
+  return {
+    goal,
+    routine: { readiness: "준비됨", preferredTime: "저녁" },
+    material: { hasMaterial: false },
+    availability: {
+      availableDays: ["월", "화", "수", "목", "금", "토", "일"],
+      sessionMinutes: 30,
+      difficultDays: [],
+      excludedDates: [],
+      weeklyFrequency: 7,
+    },
+  };
 }
 
 function openAiSuccessMock(onCall = () => {}) {
@@ -159,7 +216,7 @@ test("AI 경로는 고정 비용을 사용하고 클라이언트 plan·creditCos
   const calls = [];
   const routeCases = [
     ["/api/ai/companion-chat", 1, { message: "오늘 무엇부터 할까요?" }],
-    ["/api/ai/goal-plan", 4, { goal: "테스트 목표", routine: { readiness: "준비됨", preferredTime: "저녁" } }],
+    ["/api/ai/goal-plan", 4, goalPlanInput()],
     ["/api/ai/plan-revision", 2, { goal: "테스트 목표", currentPlanText: "기존 계획", revisionRequest: "시간을 줄여 주세요" }],
     ["/api/ai/recovery-plan", 3, { goal: "테스트 목표", currentPlanText: "기존 계획", revisionRequest: "회복 계획을 주세요" }],
     ["/api/ai/reschedule-plan", 4, { goal: "테스트 목표", currentPlanText: "기존 계획", revisionRequest: "전체 일정을 바꿔 주세요" }],
@@ -367,7 +424,7 @@ test("목표 생성과 대화가 겹쳐도 사용자 기록과 총 5크레딧을
       const goalPromise = callApi(context, "/api/ai/goal-plan", {
         method: "POST",
         requestId: "race-goal",
-        body: { goal: "동시성 목표", routine: { readiness: "준비됨", preferredTime: "저녁" } },
+        body: goalPlanInput("동시성 목표"),
       });
       await goalStarted;
       const chat = await callApi(context, "/api/ai/companion-chat", {

@@ -1,4 +1,5 @@
-import { createAiGoalPlan } from "./ai-goal-plan.mjs";
+import { createAiGoalPlan, normalizeGoalInput } from "./ai-goal-plan.mjs";
+import { GuestPlanDraftObject } from "./guest-plan-draft-object.mjs";
 import { createCompanionReply } from "./ai-companion-chat.mjs";
 import { createAiPlanRevision } from "./ai-plan-revision.mjs";
 import {
@@ -149,8 +150,13 @@ const AI_GENERATION_ROUTES = Object.freeze({
 });
 
 const GUEST_GOAL_PREVIEW_PATH = "/api/ai/goal-preview";
+const GUEST_GOAL_DRAFT_REVISE_PATH = "/api/ai/goal-draft/revise";
+const GUEST_GOAL_DRAFT_CLAIM_PATH = "/api/ai/goal-draft/claim";
 const GUEST_GOAL_PREVIEW_TTL_SECONDS = 24 * 60 * 60;
-const GUEST_GOAL_PREVIEW_FAILURE_TTL_SECONDS = 60;
+const GUEST_GOAL_DRAFT_COOKIE = "omw_guest_goal_draft";
+const GUEST_GOAL_INPUT_SCHEMA_VERSION = 1;
+const GUEST_GOAL_PROMPT_VERSION = "goal-plan-p0-2026-07";
+const GUEST_GOAL_OUTPUT_SCHEMA_VERSION = "typed-plan-items-v1";
 
 async function hmacHex(secret, value) {
   const encoder = new TextEncoder();
@@ -165,13 +171,36 @@ async function hmacHex(secret, value) {
   return [...new Uint8Array(signature)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+async function guestDraftCapability(secret, draftPlanId, actorHash) {
+  return hmacHex(secret, `guest-goal-draft-capability:${draftPlanId}:${actorHash}`);
+}
+
+async function guestDraftCapabilityHash(secret, draftPlanId, capability) {
+  return hmacHex(secret, `guest-goal-draft-proof:${draftPlanId}:${capability}`);
+}
+
+async function guestDraftId(secret, actorHash, actorInputHash) {
+  const hex = await hmacHex(secret, `guest-goal-draft-id:v1:${actorHash}:${actorInputHash}`);
+  const variant = ((Number.parseInt(hex[16], 16) & 0x3) | 0x8).toString(16);
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-${variant}${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+}
+
+function guestDraftPreviewResponse(body, capability) {
+  const response = json(body);
+  response.headers.append(
+    "Set-Cookie",
+    `${GUEST_GOAL_DRAFT_COOKIE}=${capability}; Max-Age=${GUEST_GOAL_PREVIEW_TTL_SECONDS}; Path=/; HttpOnly; Secure; SameSite=Lax`,
+  );
+  return response;
+}
+
 function guestGoalPreview(plan = {}) {
   return {
     personalitySummary: String(plan.personalitySummary || ""),
     planningStyle: String(plan.planningStyle || ""),
     firstAction: String(plan.firstAction || ""),
     weekTitle: String(plan.weekTitle || ""),
-    weekPlan: Array.isArray(plan.weekPlan) ? plan.weekPlan.slice(0, 3).map(String) : [],
+    weekPlan: Array.isArray(plan.weekPlan) ? plan.weekPlan.slice(0, 7).map(String) : [],
     coachMessage: String(plan.coachMessage || ""),
     todaySchedule: Array.isArray(plan.todaySchedule)
       ? plan.todaySchedule.slice(0, 1).map((item) => ({
@@ -181,96 +210,376 @@ function guestGoalPreview(plan = {}) {
         completionRule: String(item?.completionRule || ""),
       }))
       : [],
+    firstWeekSchedule: Array.isArray(plan.firstWeekSchedule)
+      ? plan.firstWeekSchedule.slice(0, 7).map((day) => ({
+          dayNumber: Number(day?.dayNumber || 0),
+          dayLabel: String(day?.dayLabel || ""),
+          isRestDay: Boolean(day?.isRestDay),
+          items: Array.isArray(day?.items) ? day.items.slice(0, 5).map((item) => ({
+            id: String(item?.id || ""),
+            planId: String(item?.planId || ""),
+            type: String(item?.type || ""),
+            title: String(item?.title || ""),
+            sourceReference: String(item?.sourceReference || ""),
+            quantityOrRange: String(item?.quantityOrRange || ""),
+            durationMinutes: Number(item?.durationMinutes || 0),
+            completionRule: String(item?.completionRule || ""),
+            scheduledAt: String(item?.scheduledAt || ""),
+            status: String(item?.status || "pending"),
+            recurrenceGroupId: String(item?.recurrenceGroupId || ""),
+          })) : [],
+        }))
+      : [],
+    assumptions: Array.isArray(plan.assumptions) ? plan.assumptions.slice(0, 5).map(String) : [],
   };
 }
 
-async function guestPreviewIdentity(request, env, input) {
+async function sha256Hex(value) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function canonicalJson(value) {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+export async function guestGoalInputHash(input, versions = {}) {
+  return sha256Hex(canonicalJson({
+    inputSchemaVersion: versions.inputSchemaVersion || GUEST_GOAL_INPUT_SCHEMA_VERSION,
+    promptVersion: versions.promptVersion || GUEST_GOAL_PROMPT_VERSION,
+    outputSchemaVersion: versions.outputSchemaVersion || GUEST_GOAL_OUTPUT_SCHEMA_VERSION,
+    input,
+  }));
+}
+
+async function guestPreviewIdentity(request, env) {
   const ip = String(request.headers.get("cf-connecting-ip") || "").trim();
   const userAgent = String(request.headers.get("user-agent") || "unknown").slice(0, 240);
   const secret = String(env.SESSION_SECRET || "");
   if (!ip || secret.length < 32) return null;
-  const [ipHash, actorHash, inputHash] = await Promise.all([
+  const [ipHash, actorHash] = await Promise.all([
     hmacHex(secret, `guest-preview-ip:${ip}`),
     hmacHex(secret, `guest-preview-actor:${ip}|${userAgent}`),
-    hmacHex(secret, `guest-preview-input:${JSON.stringify(input)}`),
   ]);
-  return { ipHash, actorHash, inputHash };
+  return { ipHash, actorHash };
+}
+
+function guestDraftStub(env, draftPlanId) {
+  if (!env.GUEST_PLAN_DRAFTS) return null;
+  return env.GUEST_PLAN_DRAFTS.get(env.GUEST_PLAN_DRAFTS.idFromName(draftPlanId));
+}
+
+function validGuestDraftId(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ""));
+}
+
+async function guestDraftCommand(env, draftPlanId, command, body) {
+  const stub = guestDraftStub(env, draftPlanId);
+  if (!stub) return { response: null, body: { ok: false, code: "GUEST_DRAFT_STORAGE_UNAVAILABLE" } };
+  const response = await stub.fetch(new Request(`https://guest-plan-draft.internal/${command}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }));
+  return { response, body: await response.json().catch(() => ({ ok: false, code: "GUEST_DRAFT_STORAGE_INVALID" })) };
+}
+
+function guestDraftApiError(code, status) {
+  const messages = {
+    GUEST_PREVIEW_ALREADY_USED: "오늘의 AI 계획 미리보기를 이미 사용했어요. 현재 초안에서 조건을 수정해 주세요.",
+    GUEST_PREVIEW_PENDING: "AI 계획 미리보기를 만들고 있어요. 잠시 후 다시 확인해 주세요.",
+    GUEST_PREVIEW_COOLDOWN: "AI 연결을 잠시 쉬고 있어요. 잠시 후 다시 시도해 주세요.",
+    DRAFT_PLAN_EXPIRED: "계획 초안이 만료되었어요. 목표와 조건을 확인해 다시 만들어 주세요.",
+    DRAFT_PLAN_ACCESS_DENIED: "이 브라우저에서 만든 계획 초안인지 확인하지 못했어요.",
+    DRAFT_PLAN_ALREADY_CLAIMED: "이미 다른 계정에 저장된 계획 초안이에요.",
+    DRAFT_REVISION_PENDING: "수정한 조건으로 계획을 만드는 중이에요.",
+    DRAFT_REVISION_CONFLICT: "계획 초안이 다른 화면에서 변경됐어요. 최신 초안을 다시 확인해 주세요.",
+    DRAFT_PLAN_INPUT_MISMATCH: "입력 조건과 AI 일정이 일치하지 않아 저장하지 않았어요.",
+  };
+  return json({ ok: false, code, error: messages[code] || "계획 초안을 처리하지 못했어요." }, status || 409);
 }
 
 async function handleGuestGoalPreview({ request, env, accountContext }) {
-  if (request.method !== "POST") {
-    return json({ ok: false, error: "POST 요청만 사용할 수 있어요.", code: "METHOD_NOT_ALLOWED" }, 405);
-  }
-  if (!env.USERS_KV || !env.AI_RATE_LIMITER || !env.OPENAI_API_KEY) {
+  if (request.method !== "POST") return json({ ok: false, error: "POST 요청만 사용할 수 있어요.", code: "METHOD_NOT_ALLOWED" }, 405);
+  if (!env.USERS_KV || !env.GUEST_PLAN_DRAFTS || !env.AI_RATE_LIMITER || !env.OPENAI_API_KEY) {
     return json({ ok: false, error: "AI 계획 미리보기가 아직 준비되지 않았어요.", code: "GUEST_PREVIEW_UNAVAILABLE" }, 503);
   }
-  const user = await currentSessionUser(accountContext);
-  if (user) {
+  if (await currentSessionUser(accountContext)) {
     return json({ ok: false, error: "회원은 무료 체험에서 전체 AI 계획을 만들 수 있어요.", code: "MEMBER_PREVIEW_NOT_ALLOWED" }, 409);
   }
-
   let input;
   try {
     input = await readBoundedJson(request, 50_000);
   } catch (error) {
     return json(aiErrorBody(error), error.status || 400);
   }
+  const identity = await guestPreviewIdentity(request, env);
+  if (!identity) return json({ ok: false, error: "AI 계획 미리보기의 안전한 요청 정보를 확인하지 못했어요.", code: "GUEST_PREVIEW_IDENTITY_REQUIRED" }, 503);
 
-  const identity = await guestPreviewIdentity(request, env, input);
-  if (!identity) {
-    return json({ ok: false, error: "AI 계획 미리보기의 안전한 요청 정보를 확인하지 못했어요.", code: "GUEST_PREVIEW_IDENTITY_REQUIRED" }, 503);
+  const actorInputHash = await guestGoalInputHash(normalizeGoalInput({ ...input, draftPlanId: "" }));
+  const actorCacheKey = `guest-ai-preview:${identity.actorHash}:${actorInputHash}`;
+  const actorDailyKey = `guest-ai-preview-day:${identity.actorHash}`;
+  const actorDaily = await env.USERS_KV.get(actorDailyKey, "json");
+  if (actorDaily?.actorInputHash && actorDaily.actorInputHash !== actorInputHash) {
+    return guestDraftApiError("GUEST_PREVIEW_ALREADY_USED", 429);
   }
-  const storageKey = `guest-ai-preview:${identity.actorHash}`;
-
-  return withAiCreditUserLock(storageKey, async () => {
-    const existing = await env.USERS_KV.get(storageKey, "json");
-    if (existing?.status === "complete") {
-      if (existing.inputHash !== identity.inputHash) {
-        return json({ ok: false, error: "오늘의 AI 계획 미리보기를 이미 사용했어요. 로그인·회원가입 후 전체 계획을 이어서 만들어 주세요.", code: "GUEST_PREVIEW_ALREADY_USED" }, 429);
-      }
-      return json({ ok: true, preview: existing.preview, cached: true });
-    }
-    if (existing?.status === "pending") {
-      return json({ ok: false, error: "AI 계획 미리보기를 만들고 있어요. 잠시 후 다시 확인해 주세요.", code: "GUEST_PREVIEW_PENDING" }, 409);
-    }
-    if (existing?.status === "failed") {
-      return json({ ok: false, error: "AI 연결을 잠시 쉬고 있어요. 잠시 후 다시 시도해 주세요.", code: "GUEST_PREVIEW_COOLDOWN" }, 429);
-    }
-
-    const { success } = await env.AI_RATE_LIMITER.limit({ key: `ai:guest-goal-preview:${identity.ipHash}` });
-    if (!success) {
-      return json({ ok: false, error: "AI 계획 미리보기 요청이 잠시 많아요. 1분 뒤 다시 시도해 주세요.", code: "AI_RATE_LIMITED" }, 429);
-    }
-
-    await env.USERS_KV.put(storageKey, JSON.stringify({
-      status: "pending",
-      inputHash: identity.inputHash,
-      createdAt: Date.now(),
-    }), { expirationTtl: 5 * 60 });
-
-    try {
-      const result = await createAiGoalPlan(input, {
-        apiKey: env.OPENAI_API_KEY,
-        model: env.OPENAI_MODEL || "gpt-5.4-mini",
-      });
-      const preview = guestGoalPreview(result.plan);
-      await env.USERS_KV.put(storageKey, JSON.stringify({
-        status: "complete",
-        inputHash: identity.inputHash,
-        preview,
-        createdAt: Date.now(),
-      }), { expirationTtl: GUEST_GOAL_PREVIEW_TTL_SECONDS });
-      return json({ ok: true, preview, cached: false });
-    } catch (error) {
-      console.error("Guest AI goal preview failed", { code: error?.code || "AI_REQUEST_FAILED", status: error?.status || 500 });
-      await env.USERS_KV.put(storageKey, JSON.stringify({
-        status: "failed",
-        inputHash: identity.inputHash,
-        createdAt: Date.now(),
-      }), { expirationTtl: GUEST_GOAL_PREVIEW_FAILURE_TTL_SECONDS });
-      return json(aiErrorBody(error), error?.status || 500);
-    }
+  const actorCache = await env.USERS_KV.get(actorCacheKey, "json");
+  const cachedDraftPlanId = String(actorCache?.draftPlanId || actorDaily?.draftPlanId || "");
+  const draftPlanId = validGuestDraftId(cachedDraftPlanId)
+    ? cachedDraftPlanId
+    : await guestDraftId(env.SESSION_SECRET, identity.actorHash, actorInputHash);
+  const normalizedInput = normalizeGoalInput({ ...input, draftPlanId });
+  const inputHash = await guestGoalInputHash(normalizedInput);
+  const capability = await guestDraftCapability(env.SESSION_SECRET, draftPlanId, identity.actorHash);
+  const capabilityHash = await guestDraftCapabilityHash(env.SESSION_SECRET, draftPlanId, capability);
+  const generationToken = crypto.randomUUID();
+  const idempotencyKey = `initial:${inputHash}`;
+  const begin = await guestDraftCommand(env, draftPlanId, "begin-initial", {
+    draftPlanId,
+    anonymousActorHash: identity.actorHash,
+    capabilityHash,
+    input: normalizedInput,
+    inputHash,
+    generationToken,
+    idempotencyKey,
   });
+  if (!begin.response?.ok) return guestDraftApiError(begin.body.code, begin.response?.status || 503);
+  if (begin.body.cached) {
+    return guestDraftPreviewResponse({
+      ok: true,
+      draftPlanId,
+      preview: begin.body.preview,
+      activeInput: begin.body.activeInput,
+      activeInputHash: begin.body.activeInputHash,
+      activeRevision: begin.body.activeRevision,
+      cached: true,
+    }, capability);
+  }
+  const { success } = await env.AI_RATE_LIMITER.limit({ key: `ai:guest-goal-preview:${identity.ipHash}` });
+  if (!success) {
+    await guestDraftCommand(env, draftPlanId, "fail-generation", { generationToken });
+    return json({ ok: false, error: "AI 계획 미리보기 요청이 잠시 많아요. 1분 뒤 다시 시도해 주세요.", code: "AI_RATE_LIMITED" }, 429);
+  }
+  let committed;
+  try {
+    const result = await createAiGoalPlan(normalizedInput, { apiKey: env.OPENAI_API_KEY, model: env.OPENAI_MODEL || "gpt-5.4-mini" });
+    const preview = guestGoalPreview(result.plan);
+    committed = await guestDraftCommand(env, draftPlanId, "commit-generation", {
+      generationToken, idempotencyKey, inputHash, plan: result.plan, preview,
+    });
+    if (!committed.response?.ok) return guestDraftApiError(committed.body.code, committed.response?.status || 503);
+  } catch (error) {
+    console.error("Guest AI goal preview failed", { code: error?.code || "AI_REQUEST_FAILED", status: error?.status || 500 });
+    await guestDraftCommand(env, draftPlanId, "fail-generation", { generationToken });
+    return json(aiErrorBody(error), error?.status || 500);
+  }
+  const expiresAt = Number(committed.body.expiresAt || Date.now() + GUEST_GOAL_PREVIEW_TTL_SECONDS * 1_000);
+  const cacheRecord = JSON.stringify({
+    draftPlanId,
+    actorInputHash,
+    inputHash: committed.body.activeInputHash,
+    promptVersion: GUEST_GOAL_PROMPT_VERSION,
+    inputSchemaVersion: GUEST_GOAL_INPUT_SCHEMA_VERSION,
+    outputSchemaVersion: GUEST_GOAL_OUTPUT_SCHEMA_VERSION,
+    expiresAt,
+  });
+  try {
+    await Promise.all([
+      env.USERS_KV.put(actorCacheKey, cacheRecord, { expiration: Math.floor(expiresAt / 1_000) }),
+      env.USERS_KV.put(actorDailyKey, cacheRecord, { expiration: Math.floor(expiresAt / 1_000) }),
+    ]);
+  } catch (error) {
+    console.error("Guest AI preview cache metadata failed", { code: "GUEST_PREVIEW_CACHE_WRITE_FAILED" });
+  }
+  return guestDraftPreviewResponse({
+    ok: true,
+    draftPlanId,
+    preview: committed.body.preview,
+    activeInput: committed.body.activeInput,
+    activeInputHash: committed.body.activeInputHash,
+    activeRevision: committed.body.activeRevision,
+    cached: false,
+  }, capability);
+}
+
+async function handleGuestGoalDraftRevision({ request, env, accountContext }) {
+  if (request.method !== "POST") return json({ ok: false, error: "POST 요청만 사용할 수 있어요.", code: "METHOD_NOT_ALLOWED" }, 405);
+  if (!env.GUEST_PLAN_DRAFTS || !env.AI_RATE_LIMITER || !env.OPENAI_API_KEY || String(env.SESSION_SECRET || "").length < 32) {
+    return json({ ok: false, error: "AI 계획 초안 저장소가 아직 준비되지 않았어요.", code: "GUEST_PREVIEW_UNAVAILABLE" }, 503);
+  }
+  if (await currentSessionUser(accountContext)) return json({ ok: false, error: "로그인한 계획은 계획 수정에서 변경해 주세요.", code: "MEMBER_PREVIEW_NOT_ALLOWED" }, 409);
+  let body;
+  try {
+    body = await readBoundedJson(request, 50_000);
+  } catch (error) {
+    return json(aiErrorBody(error), error.status || 400);
+  }
+  const draftPlanId = String(body?.draftPlanId || "").trim();
+  const idempotencyKey = String(body?.idempotencyKey || "").trim();
+  if (!validGuestDraftId(draftPlanId) || !/^[A-Za-z0-9:_-]{16,160}$/.test(idempotencyKey)) {
+    return json({ ok: false, error: "수정할 계획 초안을 확인하지 못했어요.", code: "DRAFT_PLAN_INVALID" }, 400);
+  }
+  const capability = String(parseCookies(request.headers.get("cookie"))[GUEST_GOAL_DRAFT_COOKIE] || "");
+  if (!/^[a-f0-9]{64}$/.test(capability)) return guestDraftApiError("DRAFT_PLAN_ACCESS_DENIED", 403);
+  const capabilityHash = await guestDraftCapabilityHash(env.SESSION_SECRET, draftPlanId, capability);
+  const normalizedInput = normalizeGoalInput({ ...(body.input || {}), draftPlanId });
+  const inputHash = await guestGoalInputHash(normalizedInput);
+  const generationToken = crypto.randomUUID();
+  const begin = await guestDraftCommand(env, draftPlanId, "begin-revision", {
+    capabilityHash,
+    expectedRevision: Number(body.expectedRevision),
+    expectedInputHash: String(body.expectedInputHash || ""),
+    input: normalizedInput,
+    inputHash,
+    generationToken,
+    idempotencyKey,
+  });
+  if (!begin.response?.ok) return guestDraftApiError(begin.body.code, begin.response?.status || 503);
+  if (!begin.body.shouldGenerate) {
+    return json({
+      ok: true,
+      draftPlanId,
+      preview: begin.body.preview,
+      activeInput: begin.body.activeInput,
+      activeInputHash: begin.body.activeInputHash,
+      activeRevision: begin.body.activeRevision,
+      cached: true,
+      unchanged: Boolean(begin.body.unchanged),
+    });
+  }
+  const identity = await guestPreviewIdentity(request, env);
+  if (!identity) {
+    await guestDraftCommand(env, draftPlanId, "fail-generation", { generationToken });
+    return json({ ok: false, error: "AI 계획 수정 요청 정보를 확인하지 못했어요.", code: "GUEST_PREVIEW_IDENTITY_REQUIRED" }, 503);
+  }
+  const { success } = await env.AI_RATE_LIMITER.limit({ key: `ai:guest-goal-revision:${identity.ipHash}` });
+  if (!success) {
+    await guestDraftCommand(env, draftPlanId, "fail-generation", { generationToken });
+    return json({ ok: false, error: "AI 계획 수정 요청이 잠시 많아요. 1분 뒤 다시 시도해 주세요.", code: "AI_RATE_LIMITED" }, 429);
+  }
+  try {
+    const result = await createAiGoalPlan(normalizedInput, { apiKey: env.OPENAI_API_KEY, model: env.OPENAI_MODEL || "gpt-5.4-mini" });
+    const preview = guestGoalPreview(result.plan);
+    const committed = await guestDraftCommand(env, draftPlanId, "commit-generation", {
+      generationToken, idempotencyKey, inputHash, plan: result.plan, preview,
+    });
+    if (!committed.response?.ok) return guestDraftApiError(committed.body.code, committed.response?.status || 503);
+    return json({
+      ok: true,
+      draftPlanId,
+      preview: committed.body.preview,
+      activeInput: committed.body.activeInput,
+      activeInputHash: committed.body.activeInputHash,
+      activeRevision: committed.body.activeRevision,
+      cached: false,
+    });
+  } catch (error) {
+    console.error("Guest AI goal revision failed", { code: error?.code || "AI_REQUEST_FAILED", status: error?.status || 500 });
+    await guestDraftCommand(env, draftPlanId, "fail-generation", { generationToken });
+    return json(aiErrorBody(error), error?.status || 500);
+  }
+}
+
+function activatedGuestPlan(plan, input, claimPlanId, claimedAt) {
+  const firstAction = (plan?.firstWeekSchedule || []).flatMap((day) => Array.isArray(day?.items) ? day.items : []).find((item) => item?.type === "ACTION");
+  return {
+    ...(plan || {}),
+    planId: claimPlanId,
+    goal: input?.goal || plan?.goal || "나의 목표",
+    period: Number(input?.periodDays) || Number(plan?.periodDays) || 30,
+    currentState: input?.currentState || input?.material?.currentProgress || "",
+    routineReadiness: input?.routine?.readiness || "계획이 있으면 실행해요",
+    routineTime: input?.routine?.preferredTime || "아침",
+    currentRoutine: input?.routine?.existingRoutine || "",
+    mbti: input?.mbti || "",
+    firstAction: plan?.firstAction || firstAction?.title || "첫 행동 시작하기",
+    coachMessage: plan?.coachMessage || "검토한 첫 일정부터 시작해요.",
+    material: input?.material || {},
+    availability: input?.availability || {},
+    planningPreferences: input?.planningPreferences || [],
+    aiPreview: plan,
+    planSource: "ai-reviewed-draft",
+    createdAt: new Date(claimedAt || Date.now()).toISOString(),
+  };
+}
+
+async function upsertClaimedPlanForUser(store, userId, activatedPlan) {
+  const existing = await store.getAppState(userId);
+  const state = existing?.state && typeof existing.state === "object" ? { ...existing.state } : {};
+  let storedPlan = null;
+  try { storedPlan = JSON.parse(state.omwExecutionPlan || "null"); } catch {}
+  if (storedPlan?.planId === activatedPlan.planId) return storedPlan;
+  state.omwExecutionPlan = JSON.stringify(activatedPlan);
+  await store.putAppState(userId, {
+    userId,
+    state,
+    revision: Number(existing?.revision || 0) + 1,
+    updatedAt: Date.now(),
+    deviceId: String(existing?.deviceId || "guest-draft-claim"),
+  });
+  return activatedPlan;
+}
+
+async function handleGuestGoalDraftClaim({ request, env, accountContext }) {
+  if (request.method !== "POST") return json({ ok: false, error: "POST 요청만 사용할 수 있어요.", code: "METHOD_NOT_ALLOWED" }, 405);
+  if (!env.USERS_KV || !env.GUEST_PLAN_DRAFTS || String(env.SESSION_SECRET || "").length < 32) return json({ ok: false, error: "회원 계획 저장소 설정이 필요합니다.", code: "ACCOUNT_STORAGE_UNAVAILABLE" }, 503);
+  const user = await currentSessionUser(accountContext);
+  if (!user) return json({ ok: false, error: "로그인·회원가입 후 계획 초안을 저장할 수 있어요.", code: "AUTH_REQUIRED" }, 401);
+  let body;
+  try {
+    body = await readBoundedJson(request, 2_000);
+  } catch (error) {
+    return json(aiErrorBody(error), error.status || 400);
+  }
+  const draftPlanId = String(body?.draftPlanId || "").trim();
+  const expectedRevision = Number(body?.expectedRevision);
+  const expectedInputHash = String(body?.expectedInputHash || "");
+  if (!validGuestDraftId(draftPlanId) || !Number.isInteger(expectedRevision) || expectedRevision < 1 || !/^[a-f0-9]{64}$/.test(expectedInputHash)) {
+    return json({ ok: false, error: "저장할 계획 초안을 확인하지 못했어요.", code: "DRAFT_PLAN_INVALID" }, 400);
+  }
+  const capability = String(parseCookies(request.headers.get("cookie"))[GUEST_GOAL_DRAFT_COOKIE] || "");
+  if (!/^[a-f0-9]{64}$/.test(capability)) return guestDraftApiError("DRAFT_PLAN_ACCESS_DENIED", 403);
+  const capabilityHash = await guestDraftCapabilityHash(env.SESSION_SECRET, draftPlanId, capability);
+  const inspected = await guestDraftCommand(env, draftPlanId, "inspect", { capabilityHash });
+  if (!inspected.response?.ok) return guestDraftApiError(inspected.body.code, inspected.response?.status || 503);
+  const latestUser = await accountContext.store.getUser(user.id);
+  if (!latestUser || (latestUser.status && latestUser.status !== "active")) {
+    return json({ ok: false, error: "계정 상태를 확인하지 못해 계획을 저장하지 않았어요.", code: "ACCOUNT_INACTIVE" }, 409);
+  }
+  const sameUserRetry = inspected.body.status === "CLAIMED" && inspected.body.claimedBy === user.id;
+  const hasFreeLimit = latestUser.role !== "admin" && latestUser.plan === "free";
+  if (hasFreeLimit && latestUser.goalPlanGeneratedAt && !sameUserRetry) {
+    return json({ ok: false, error: "Free 플랜에서는 목표와 활성 계획을 1개까지 이용할 수 있어요.", code: "GOAL_PLAN_LIMIT_REACHED" }, 409);
+  }
+  const claimed = await guestDraftCommand(env, draftPlanId, "claim", {
+    capabilityHash,
+    userId: user.id,
+    expectedRevision,
+    expectedInputHash,
+  });
+  if (!claimed.response?.ok) return guestDraftApiError(claimed.body.code, claimed.response?.status || 503);
+  const activatedPlan = activatedGuestPlan(claimed.body.plan, claimed.body.activeInput, claimed.body.claimPlanId, claimed.body.claimedAt);
+  try {
+    const storedPlan = await upsertClaimedPlanForUser(accountContext.store, user.id, activatedPlan);
+    latestUser.goalPlanGeneratedAt = latestUser.goalPlanGeneratedAt || claimed.body.claimedAt || Date.now();
+    await accountContext.store.putUser(latestUser);
+    return json({
+      ok: true,
+      draftPlanId,
+      plan: claimed.body.plan,
+      activatedPlan: storedPlan,
+      activeRevision: claimed.body.activeRevision,
+      activeInputHash: claimed.body.activeInputHash,
+      chargedCredits: 0,
+    });
+  } catch {
+    console.error("Claimed guest plan member upsert failed", { code: "DRAFT_MEMBER_SAVE_RETRY" });
+    return json({ ok: false, error: "계획 초안은 보호되어 있어요. 저장을 다시 시도해 주세요.", code: "DRAFT_MEMBER_SAVE_RETRY" }, 503);
+  }
 }
 
 function aiErrorBody(error, usage = null) {
@@ -563,6 +872,14 @@ async function handleFetch(request, env) {
       return handleGuestGoalPreview({ request, env, accountContext });
     }
 
+    if (url.pathname === GUEST_GOAL_DRAFT_REVISE_PATH) {
+      return handleGuestGoalDraftRevision({ request, env, accountContext });
+    }
+
+    if (url.pathname === GUEST_GOAL_DRAFT_CLAIM_PATH) {
+      return handleGuestGoalDraftClaim({ request, env, accountContext });
+    }
+
     const aiGenerationRoute = AI_GENERATION_ROUTES[url.pathname];
     if (aiGenerationRoute) {
       if (!env.USERS_KV) return json({ ok: false, error: "회원 저장소 설정이 필요합니다.", code: "ACCOUNT_STORAGE_UNAVAILABLE" }, 503);
@@ -600,6 +917,8 @@ async function handleFetch(request, env) {
 
     return fetchStaticAsset(request, env);
 }
+
+export { GuestPlanDraftObject };
 
 export default {
   async fetch(request, env) {

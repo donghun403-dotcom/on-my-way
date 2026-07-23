@@ -1,9 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { createAiGoalPlan } from "./ai-goal-plan.mjs";
+import { createAiGoalPlan, validateGeneratedPlan } from "./ai-goal-plan.mjs";
 
 function validPlan(overrides = {}) {
+  const planId = "draft-fixture-plan";
+  const dayLabels = ["월", "화", "수", "목", "금", "토", "일"];
   return {
     personalitySummary: "작은 실행을 반복할 때 강점이 살아나요.",
     planningStyle: "유연 조정형: 하루 컨디션에 따라 세 단계로 조절하는 긴 설명",
@@ -21,6 +23,25 @@ function validPlan(overrides = {}) {
       { time: "저녁", durationMinutes: 20, task: "인터뷰 질문 작성", completionRule: "질문 5개를 쓰면 완료" },
       { time: "저녁", durationMinutes: 20, task: "고객 후보 찾기", completionRule: "후보 3명을 적으면 완료" },
     ],
+    firstWeekSchedule: dayLabels.map((dayLabel, index) => ({
+      dayNumber: index + 1,
+      dayLabel,
+      isRestDay: false,
+      items: [{
+        id: `fixture-action-${index + 1}`,
+        planId,
+        type: "ACTION",
+        title: index ? "잠재 고객 인터뷰 결과 정리" : "잠재 고객 인터뷰 질문 5개 작성",
+        sourceReference: "고객 인터뷰 노트",
+        quantityOrRange: index ? "응답 1건" : "질문 5개",
+        durationMinutes: 20,
+        completionRule: index ? "핵심 문장 한 줄을 적으면 완료" : "질문 5개를 쓰면 완료",
+        scheduledAt: `2026-07-${String(index + 20).padStart(2, "0")}T19:00:00+09:00`,
+        status: "pending",
+        recurrenceGroupId: "fixture-interview",
+      }],
+    })),
+    assumptions: ["입력하지 않은 정보는 임의로 단정하지 않았어요."],
     checkInRules: ["실행 직후 체크", "막히면 5분으로 축소", "주말에 다음 주 조정"],
     fallbackPlan: "어려운 날에는 고객 후보 한 명만 적어요.",
     ...overrides,
@@ -41,6 +62,18 @@ function input(goal = "90일 안에 첫 유료 고객 10명 만들기") {
     mbti: "",
     manseoryeok: {},
     recommendedPlanningStyle: "유연 조정형",
+    material: { hasMaterial: false },
+    availability: {
+      availableDays: ["월", "화", "수", "목", "금", "토", "일"],
+      sessionMinutes: 60,
+      difficultDays: [],
+      excludedDates: [],
+      weeklyFrequency: 7,
+      intensity: "균형 있게",
+      bufferDays: 0,
+      notificationTime: "19:00",
+    },
+    planningPreferences: [],
   };
 }
 
@@ -85,4 +118,63 @@ test("시험 목표에는 목표와 일치하는 오답 정리를 허용한다",
     fetchImpl: async () => responseFor(validPlan({ firstAction: "오답 정리 20분" })),
   });
   assert.equal(result.plan.firstAction, "오답 정리 20분");
+});
+
+test("첫 7일 검증은 휴식일 ACTION, 가능 시간 초과, 자료 미반영을 활성화 전에 거부한다", () => {
+  const normalizedInput = input();
+  normalizedInput.material = { hasMaterial: true, name: "고객 인터뷰 노트", targetRange: "10명", currentProgress: "0명", completionRule: "기록 완료", unit: "명" };
+  normalizedInput.availability.sessionMinutes = 15;
+  const plan = validPlan();
+  plan.firstWeekSchedule[0].isRestDay = true;
+  plan.firstWeekSchedule[0].items[0].durationMinutes = 30;
+  plan.firstWeekSchedule.forEach((day) => { day.items[0].sourceReference = ""; });
+
+  const errors = validateGeneratedPlan(normalizedInput, plan);
+  assert.ok(errors.some((message) => message.includes("휴식일에 ACTION")));
+  assert.ok(errors.some((message) => message.includes("회당 가능 시간을 초과")));
+  assert.ok(errors.some((message) => message.includes("자료와 범위")));
+});
+
+test("첫 7일 ACTION의 stable id 충돌과 현재 draft planId 불일치를 거부한다", () => {
+  const normalizedInput = input();
+  normalizedInput.draftPlanId = "expected-draft-plan";
+  const plan = validPlan();
+  plan.firstWeekSchedule.forEach((day) => { day.items[0].planId = "expected-draft-plan"; });
+  plan.firstWeekSchedule[1].items[0].id = plan.firstWeekSchedule[0].items[0].id;
+  plan.firstWeekSchedule[2].items[0].planId = "other-plan";
+
+  const errors = validateGeneratedPlan(normalizedInput, plan);
+  assert.ok(errors.some((message) => message.includes("식별자가 중복")));
+  assert.ok(errors.some((message) => message.includes("현재 계획 ID와 일치하지 않아요")));
+});
+
+test("제외 날짜와 완료 기준 누락은 계획 활성화 전에 거부한다", () => {
+  const normalizedInput = input();
+  normalizedInput.availability.excludedDates = ["2026-07-20"];
+  const plan = validPlan();
+  plan.firstWeekSchedule[1].items[0].completionRule = "";
+
+  const errors = validateGeneratedPlan(normalizedInput, plan);
+  assert.ok(errors.some((message) => message.includes("제외 날짜")));
+  assert.ok(errors.some((message) => message.includes("완료 기준")));
+});
+
+test("잘못된 JSON과 필드가 빠진 AI 계획은 성공으로 처리하지 않는다", async () => {
+  await assert.rejects(
+    createAiGoalPlan(input(), {
+      apiKey: "fixture-key",
+      fetchImpl: async () => Response.json({ output_text: "{broken-json" }),
+    }),
+    (error) => error.status === 502 && error.providerCalled === true,
+  );
+
+  const incomplete = validPlan();
+  delete incomplete.firstWeekSchedule;
+  await assert.rejects(
+    createAiGoalPlan(input(), {
+      apiKey: "fixture-key",
+      fetchImpl: async () => responseFor(incomplete),
+    }),
+    (error) => error.code === "AI_PLAN_VALIDATION_FAILED" && error.status === 502,
+  );
 });
