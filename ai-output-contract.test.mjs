@@ -5,6 +5,8 @@ import {
   parseStructuredResponse,
   providerHttpError,
   safeAiDiagnostics,
+  safeAiSuccessDiagnostics,
+  validateStructuredValue,
 } from "./ai-output-contract.mjs";
 import { GOAL_PLAN_SCHEMA } from "./ai-goal-plan.mjs";
 import { PLAN_REVISION_SCHEMA } from "./ai-plan-revision.mjs";
@@ -133,6 +135,18 @@ test("schema and domain failures remain distinct", () => {
   );
 });
 
+test("local structured validator enforces string bounds used by compact contracts", () => {
+  const bounded = {
+    type: "object",
+    additionalProperties: false,
+    required: ["name"],
+    properties: { name: { type: "string", minLength: 2, maxLength: 4 } },
+  };
+  assert.equal(validateStructuredValue({ name: "가" }, bounded)[0].rule, "minLength");
+  assert.equal(validateStructuredValue({ name: "가나다라마" }, bounded)[0].rule, "maxLength");
+  assert.deepEqual(validateStructuredValue({ name: "가나다" }, bounded), []);
+});
+
 for (const [status, code] of [
   [429, "AI_PROVIDER_RATE_LIMITED"],
   [500, "AI_PROVIDER_UNAVAILABLE"],
@@ -168,4 +182,30 @@ test("safe diagnostics include metadata but exclude raw input and response field
   assert.deepEqual(diagnostics.contentItemTypes, ["output_text"]);
   assert.equal(JSON.stringify(diagnostics).includes("{broken"), false);
   assert.equal(Object.hasOwn(diagnostics, "responseBody"), false);
+});
+
+test("success diagnostics expose only bounded metadata and mark absent usage as unknown", () => {
+  const diagnostics = safeAiSuccessDiagnostics({
+    requestId: "req_success",
+    diagnostics: {
+      responseStatus: "completed",
+      outputTokens: 123,
+      reasoningTokens: null,
+      outputTextLength: 456,
+      parsedPayloadBytes: 789,
+      parsedItemCount: 12,
+    },
+    contract: { maxOutputTokens: 6000 },
+    plan: { rawGoal: "로그에 나오면 안 되는 목표" },
+  }, {
+    correlationId: "correlation-success",
+    model: "gpt-fixture",
+    latencyMs: 45,
+  });
+  assert.equal(diagnostics.maxOutputTokens, 6000);
+  assert.equal(diagnostics.outputTokens, 123);
+  assert.equal(diagnostics.reasoningTokens, "unknown");
+  assert.equal(diagnostics.parsedItemCount, 12);
+  assert.equal(JSON.stringify(diagnostics).includes("로그에 나오면 안 되는 목표"), false);
+  assert.equal(Object.hasOwn(diagnostics, "plan"), false);
 });

@@ -2,7 +2,16 @@ import { createAiGoalPlan, normalizeGoalInput } from "./ai-goal-plan.mjs";
 import { GuestPlanDraftObject } from "./guest-plan-draft-object.mjs";
 import { createCompanionReply } from "./ai-companion-chat.mjs";
 import { createAiPlanRevision } from "./ai-plan-revision.mjs";
-import { AI_CONTRACT_VERSIONS, safeAiDiagnostics } from "./ai-output-contract.mjs";
+import {
+  AI_CONTRACT_VERSIONS,
+  safeAiDiagnostics,
+  safeAiSuccessDiagnostics,
+} from "./ai-output-contract.mjs";
+import {
+  AI_OUTPUT_BUDGET_VERSION,
+  GOAL_PLAN_MAX_OUTPUT_TOKENS,
+  PLAN_REVISION_MAX_OUTPUT_TOKENS,
+} from "./ai-plan-output-policy.mjs";
 import {
   commitAiCredits,
   getAiCreditUsage,
@@ -120,7 +129,11 @@ export async function createGoalPlanForUser({ input, env, userStore, user, gener
     throw error;
   }
 
-  const result = await generatePlan(input, {
+  const planInput = {
+    ...input,
+    draftPlanId: String(input?.draftPlanId || "").trim() || crypto.randomUUID(),
+  };
+  const result = await generatePlan(planInput, {
     apiKey: env.OPENAI_API_KEY,
     model: env.OPENAI_MODEL || "gpt-5.4-mini",
   });
@@ -158,6 +171,7 @@ const GUEST_GOAL_DRAFT_COOKIE = "omw_guest_goal_draft";
 const GUEST_GOAL_INPUT_SCHEMA_VERSION = 1;
 const GUEST_GOAL_PROMPT_VERSION = AI_CONTRACT_VERSIONS.goalPlanPrompt;
 const GUEST_GOAL_OUTPUT_SCHEMA_VERSION = AI_CONTRACT_VERSIONS.goalPlanSchema;
+const GUEST_GOAL_OUTPUT_BUDGET_VERSION = AI_OUTPUT_BUDGET_VERSION;
 
 async function hmacHex(secret, value) {
   const encoder = new TextEncoder();
@@ -225,6 +239,7 @@ function guestGoalPreview(plan = {}) {
             quantityOrRange: String(item?.quantityOrRange || ""),
             durationMinutes: Number(item?.durationMinutes || 0),
             completionRule: String(item?.completionRule || ""),
+            time: String(item?.time || ""),
             scheduledAt: String(item?.scheduledAt || ""),
             status: String(item?.status || "pending"),
             recurrenceGroupId: String(item?.recurrenceGroupId || ""),
@@ -253,6 +268,7 @@ export async function guestGoalInputHash(input, versions = {}) {
     inputSchemaVersion: versions.inputSchemaVersion || GUEST_GOAL_INPUT_SCHEMA_VERSION,
     promptVersion: versions.promptVersion || GUEST_GOAL_PROMPT_VERSION,
     outputSchemaVersion: versions.outputSchemaVersion || GUEST_GOAL_OUTPUT_SCHEMA_VERSION,
+    outputBudgetVersion: versions.outputBudgetVersion || GUEST_GOAL_OUTPUT_BUDGET_VERSION,
     input,
   }));
 }
@@ -397,6 +413,11 @@ async function handleGuestGoalPreview({ request, env, accountContext }) {
   const aiStartedAt = Date.now();
   try {
     const result = await createAiGoalPlan(normalizedInput, { apiKey: env.OPENAI_API_KEY, model: env.OPENAI_MODEL || "gpt-5.4-mini" });
+    console.info("Guest AI goal preview completed", safeAiSuccessDiagnostics(result, {
+      correlationId: aiCorrelationId,
+      model: env.OPENAI_MODEL || "gpt-5.4-mini",
+      latencyMs: Date.now() - aiStartedAt,
+    }));
     const preview = guestGoalPreview(result.plan);
     committed = await guestDraftCommand(env, draftPlanId, "commit-generation", {
       generationToken, idempotencyKey, inputHash, plan: result.plan, preview,
@@ -407,6 +428,7 @@ async function handleGuestGoalPreview({ request, env, accountContext }) {
       correlationId: aiCorrelationId,
       model: env.OPENAI_MODEL || "gpt-5.4-mini",
       latencyMs: Date.now() - aiStartedAt,
+      maxOutputTokens: GOAL_PLAN_MAX_OUTPUT_TOKENS,
     }));
     await guestDraftCommand(env, draftPlanId, "fail-generation", { generationToken });
     return json(aiErrorBody(error), error?.status || 500);
@@ -419,6 +441,7 @@ async function handleGuestGoalPreview({ request, env, accountContext }) {
     promptVersion: GUEST_GOAL_PROMPT_VERSION,
     inputSchemaVersion: GUEST_GOAL_INPUT_SCHEMA_VERSION,
     outputSchemaVersion: GUEST_GOAL_OUTPUT_SCHEMA_VERSION,
+    outputBudgetVersion: GUEST_GOAL_OUTPUT_BUDGET_VERSION,
     expiresAt,
   });
   try {
@@ -499,6 +522,11 @@ async function handleGuestGoalDraftRevision({ request, env, accountContext }) {
   const aiStartedAt = Date.now();
   try {
     const result = await createAiGoalPlan(normalizedInput, { apiKey: env.OPENAI_API_KEY, model: env.OPENAI_MODEL || "gpt-5.4-mini" });
+    console.info("Guest AI goal revision completed", safeAiSuccessDiagnostics(result, {
+      correlationId: aiCorrelationId,
+      model: env.OPENAI_MODEL || "gpt-5.4-mini",
+      latencyMs: Date.now() - aiStartedAt,
+    }));
     const preview = guestGoalPreview(result.plan);
     const committed = await guestDraftCommand(env, draftPlanId, "commit-generation", {
       generationToken, idempotencyKey, inputHash, plan: result.plan, preview,
@@ -518,6 +546,7 @@ async function handleGuestGoalDraftRevision({ request, env, accountContext }) {
       correlationId: aiCorrelationId,
       model: env.OPENAI_MODEL || "gpt-5.4-mini",
       latencyMs: Date.now() - aiStartedAt,
+      maxOutputTokens: GOAL_PLAN_MAX_OUTPUT_TOKENS,
     }));
     await guestDraftCommand(env, draftPlanId, "fail-generation", { generationToken });
     return json(aiErrorBody(error), error?.status || 500);
@@ -647,6 +676,7 @@ function publicAiResult(result) {
   const payload = { ...result };
   delete payload.usage;
   delete payload.requestId;
+  delete payload.diagnostics;
   return payload;
 }
 
@@ -750,6 +780,13 @@ async function handleAiGenerationRequest({ request, env, accountContext, route }
       result = await createAiPlanRevision(input, { apiKey: env.OPENAI_API_KEY, model });
     }
     providerCalled = true;
+    if (route.kind === "goal" || route.kind === "revision") {
+      console.info(`AI ${route.action} completed`, safeAiSuccessDiagnostics(result, {
+        correlationId: aiCorrelationId,
+        model,
+        latencyMs: Date.now() - aiStartedAt,
+      }));
+    }
 
     const committed = await commitAiCredits({
       store: userStore,
@@ -769,6 +806,11 @@ async function handleAiGenerationRequest({ request, env, accountContext, route }
       correlationId: aiCorrelationId,
       model,
       latencyMs: aiStartedAt ? Date.now() - aiStartedAt : 0,
+      maxOutputTokens: route.kind === "goal"
+        ? GOAL_PLAN_MAX_OUTPUT_TOKENS
+        : route.kind === "revision"
+          ? PLAN_REVISION_MAX_OUTPUT_TOKENS
+          : 0,
     }));
     if (reservation?.shouldExecute) {
       try {

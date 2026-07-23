@@ -215,6 +215,7 @@ function publicAiResult(result) {
   const payload = { ...result };
   delete payload.usage;
   delete payload.requestId;
+  delete payload.diagnostics;
   return payload;
 }
 

@@ -1,8 +1,8 @@
 export const AI_CONTRACT_VERSIONS = Object.freeze({
-  goalPlanSchema: "goal-plan.v1",
-  goalPlanPrompt: "goal-plan.prompt.v1",
-  planRevisionSchema: "plan-revision.v1",
-  planRevisionPrompt: "plan-revision.prompt.v1",
+  goalPlanSchema: "goal-plan-blueprint.v2",
+  goalPlanPrompt: "goal-plan.prompt.v2",
+  planRevisionSchema: "plan-revision-blueprint.v2",
+  planRevisionPrompt: "plan-revision.prompt.v2",
   domainOutput: "typed-plan.v1",
 });
 
@@ -10,7 +10,7 @@ const ERROR_MESSAGES = Object.freeze({
   AI_PROVIDER_TIMEOUT: "AI 응답 시간이 초과되었어요. 잠시 후 다시 시도해 주세요.",
   AI_PROVIDER_RATE_LIMITED: "AI 요청이 잠시 많아요. 잠시 후 다시 시도해 주세요.",
   AI_PROVIDER_UNAVAILABLE: "AI 서비스에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.",
-  AI_OUTPUT_INCOMPLETE_MAX_TOKENS: "AI가 계획 작성을 끝내지 못했어요. 기존 내용은 그대로 유지했어요.",
+  AI_OUTPUT_INCOMPLETE_MAX_TOKENS: "계획을 완성하지 못했어요. 입력 내용은 그대로 보관했어요.",
   AI_OUTPUT_INCOMPLETE_FILTER: "AI가 안전 기준 때문에 계획 작성을 완료하지 못했어요.",
   AI_OUTPUT_REFUSED: "AI가 이 요청에 대한 계획을 만들지 못했어요.",
   AI_OUTPUT_MESSAGE_MISSING: "AI 응답에서 계획을 확인하지 못했어요.",
@@ -49,7 +49,12 @@ function responseDiagnostics(responseBody) {
       : "",
     outputItemTypes: [...new Set(output.map((item) => String(item?.type || "unknown")))].slice(0, 12),
     contentItemTypes: [...new Set(content.map((item) => String(item?.type || "unknown")))].slice(0, 12),
-    outputTokens: Number(responseBody?.usage?.output_tokens) || 0,
+    outputTokens: Number.isFinite(responseBody?.usage?.output_tokens)
+      ? responseBody.usage.output_tokens
+      : null,
+    reasoningTokens: Number.isFinite(responseBody?.usage?.output_tokens_details?.reasoning_tokens)
+      ? responseBody.usage.output_tokens_details.reasoning_tokens
+      : null,
     outputTextLength: contentTextLength || (typeof responseBody?.output_text === "string" ? responseBody.output_text.length : 0),
     retryCount: 0,
   };
@@ -83,6 +88,8 @@ function validateSchemaNode(value, schema, path, errors) {
   if (Array.isArray(schema.enum) && !schema.enum.includes(value)) errors.push({ path, rule: "enum" });
 
   if (typeof value === "string") {
+    if (Number.isFinite(schema.minLength) && value.length < schema.minLength) errors.push({ path, rule: "minLength" });
+    if (Number.isFinite(schema.maxLength) && value.length > schema.maxLength) errors.push({ path, rule: "maxLength" });
     if (schema.pattern) {
       try {
         if (!new RegExp(schema.pattern).test(value)) errors.push({ path, rule: "pattern" });
@@ -159,6 +166,8 @@ export function parseStructuredResponse(responseBody, {
   schema,
   domainValidate = () => [],
   domainValidationCode = "DOMAIN_VALIDATION_FAILED",
+  maxParsedBytes = 0,
+  countItems = () => 0,
 } = {}) {
   const diagnostics = responseDiagnostics(responseBody);
   const status = diagnostics.responseStatus;
@@ -202,6 +211,22 @@ export function parseStructuredResponse(responseBody, {
     }
   }
 
+  let parsedPayloadBytes = 0;
+  try {
+    parsedPayloadBytes = new TextEncoder().encode(JSON.stringify(value)).byteLength;
+  } catch {
+    throw createAiContractError("AI_OUTPUT_PARSE_FAILED", diagnostics);
+  }
+  diagnostics.parsedPayloadBytes = parsedPayloadBytes;
+  diagnostics.parsedItemCount = Math.max(0, Number(countItems(value)) || 0);
+  if (Number.isFinite(maxParsedBytes) && maxParsedBytes > 0 && parsedPayloadBytes > maxParsedBytes) {
+    throw createAiContractError("AI_OUTPUT_DOMAIN_INVALID", {
+      ...diagnostics,
+      domainValidationCode: "AI_OUTPUT_PAYLOAD_TOO_LARGE",
+      domainErrorCount: 1,
+    });
+  }
+
   const schemaErrors = validateStructuredValue(value, schema);
   if (schemaErrors.length) {
     throw createAiContractError("AI_OUTPUT_SCHEMA_INVALID", {
@@ -236,7 +261,10 @@ export function providerHttpError(response, responseBody = {}) {
     incompleteReason: "",
     outputItemTypes: [],
     contentItemTypes: [],
-    outputTokens: Number(responseBody?.usage?.output_tokens) || 0,
+    outputTokens: Number.isFinite(responseBody?.usage?.output_tokens) ? responseBody.usage.output_tokens : null,
+    reasoningTokens: Number.isFinite(responseBody?.usage?.output_tokens_details?.reasoning_tokens)
+      ? responseBody.usage.output_tokens_details.reasoning_tokens
+      : null,
     outputTextLength: 0,
     retryCount: 0,
   });
@@ -256,8 +284,10 @@ export function safeAiDiagnostics(error, {
   correlationId = "",
   model = "",
   latencyMs = 0,
+  maxOutputTokens = 0,
 } = {}) {
   const diagnostics = error?.diagnostics || {};
+  const metric = (value) => (Number.isFinite(value) ? value : "unknown");
   return {
     correlationId,
     providerRequestId: String(error?.providerRequestId || "").slice(0, 160),
@@ -265,13 +295,42 @@ export function safeAiDiagnostics(error, {
     responseStatus: String(diagnostics.responseStatus || ""),
     incompleteReason: String(diagnostics.incompleteReason || ""),
     model,
+    maxOutputTokens: Number(maxOutputTokens) || 0,
     outputItemTypes: Array.isArray(diagnostics.outputItemTypes) ? diagnostics.outputItemTypes : [],
     contentItemTypes: Array.isArray(diagnostics.contentItemTypes) ? diagnostics.contentItemTypes : [],
-    outputTokens: Number(diagnostics.outputTokens) || 0,
-    outputTextLength: Number(diagnostics.outputTextLength) || 0,
+    outputTokens: metric(diagnostics.outputTokens),
+    reasoningTokens: metric(diagnostics.reasoningTokens),
+    outputTextLength: metric(diagnostics.outputTextLength),
+    parsedPayloadBytes: metric(diagnostics.parsedPayloadBytes),
+    parsedItemCount: metric(diagnostics.parsedItemCount),
     schemaErrorPath: String(diagnostics.schemaErrorPath || ""),
     schemaErrorRule: String(diagnostics.schemaErrorRule || ""),
     domainValidationCode: String(diagnostics.domainValidationCode || ""),
+    latencyMs: Math.max(0, Math.round(Number(latencyMs) || 0)),
+    retryCount: Number(diagnostics.retryCount) || 0,
+  };
+}
+
+export function safeAiSuccessDiagnostics(result, {
+  correlationId = "",
+  model = "",
+  latencyMs = 0,
+} = {}) {
+  const diagnostics = result?.diagnostics || {};
+  const metric = (value) => (Number.isFinite(value) ? value : "unknown");
+  return {
+    correlationId,
+    providerRequestId: String(result?.requestId || "").slice(0, 160),
+    errorCategory: "",
+    responseStatus: String(diagnostics.responseStatus || "completed"),
+    incompleteReason: String(diagnostics.incompleteReason || ""),
+    model,
+    maxOutputTokens: Number(result?.contract?.maxOutputTokens) || 0,
+    outputTokens: metric(diagnostics.outputTokens),
+    reasoningTokens: metric(diagnostics.reasoningTokens),
+    outputTextLength: metric(diagnostics.outputTextLength),
+    parsedPayloadBytes: metric(diagnostics.parsedPayloadBytes),
+    parsedItemCount: metric(diagnostics.parsedItemCount),
     latencyMs: Math.max(0, Math.round(Number(latencyMs) || 0)),
     retryCount: Number(diagnostics.retryCount) || 0,
   };
