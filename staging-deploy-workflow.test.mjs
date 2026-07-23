@@ -216,6 +216,19 @@ test("readiness requires Staging AI while keeping storage and payments safety ga
   assert.equal((worker.match(/if \(!getGuestAiReadiness\(env\)\.ready\)/g) || []).length, 2);
 });
 
+test("exact 40-character deployment input must equal the checked-out SHA", () => {
+  const script = extractRunScript(extractStep("Verify exact checked-out Staging ref"));
+  assert.match(script, /git rev-parse HEAD/);
+  assert.match(script, /\^\[0-9a-fA-F\]\{40\}\$/);
+  assert.match(script, /checked_out_sha/);
+  assert.match(script, /DEPLOY_REF/);
+  const head = spawnSync("git", ["rev-parse", "HEAD"], { encoding: "utf8", windowsHide: true }).stdout.trim();
+  assert.match(head, /^[0-9a-f]{40}$/);
+  assert.equal(runBash(script, { DEPLOY_REF: head }).status, 0);
+  assert.notEqual(runBash(script, { DEPLOY_REF: "0".repeat(40) }).status, 0);
+  assert.equal(runBash(script, { DEPLOY_REF: "codex/plan-experience-overhaul" }).status, 0);
+});
+
 test("generated Staging config injects an isolated canonical AI rate limiter", () => {
   const step = extractStep("Generate isolated Staging Wrangler config");
   const script = extractRunScript(step);
@@ -310,6 +323,11 @@ test("generated config validation and Wrangler dry-run precede every remote Stag
   assert.match(dryRunStep, /npx --yes wrangler@4\.81\.0 deploy/);
   assert.match(dryRunStep, /--dry-run/);
   assert.match(dryRunStep, /--config wrangler\.staging\.generated\.jsonc/);
+  assert.match(dryRunStep, /staging-worker-dry-run\.log/);
+  assert.match(dryRunStep, /GUEST_PLAN_DRAFTS AI_RATE_LIMITER/);
+  assert.match(dryRunStep, /find "\$dry_run_dir" -type f/);
+  assert.match(dryRunStep, /grep -Fq "\$binding_name" "\$dry_run_log"/);
+  assert.doesNotMatch(dryRunStep, /--remote/);
 });
 
 test("cleanup always removes every generated config and temporary Secret artifact", () => {
@@ -322,6 +340,7 @@ test("cleanup always removes every generated config and temporary Secret artifac
     "staging-billing-schema.json",
     "staging-worker-secrets.json",
     "staging-worker-secret-list.raw",
+    "staging-worker-dry-run.log",
     "staging-worker-dry-run",
   ]) {
     assert.match(step, new RegExp(target.replaceAll(".", "\\.")));

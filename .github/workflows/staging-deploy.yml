@@ -39,6 +39,19 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
 
+      - name: Verify exact checked-out Staging ref
+        shell: bash
+        env:
+          DEPLOY_REF: ${{ inputs.ref }}
+        run: |
+          set -euo pipefail
+          checked_out_sha="$(git rev-parse HEAD)"
+          if [[ "$DEPLOY_REF" =~ ^[0-9a-fA-F]{40}$ ]] && [[ "${checked_out_sha,,}" != "${DEPLOY_REF,,}" ]]; then
+            echo "Checked-out SHA does not match the requested Staging SHA"
+            exit 1
+          fi
+          echo "Checked-out Staging SHA: $checked_out_sha"
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -116,10 +129,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          dry_run_dir="$RUNNER_TEMP/staging-worker-dry-run"
+          dry_run_log="$RUNNER_TEMP/staging-worker-dry-run.log"
           npx --yes wrangler@4.81.0 deploy \
             --dry-run \
             --config wrangler.staging.generated.jsonc \
-            --outdir "$RUNNER_TEMP/staging-worker-dry-run"
+            --outdir "$dry_run_dir" 2>&1 | tee "$dry_run_log"
+          test -n "$(find "$dry_run_dir" -type f -print -quit)"
+          for binding_name in GUEST_PLAN_DRAFTS AI_RATE_LIMITER; do
+            if ! grep -Fq "$binding_name" "$dry_run_log"; then
+              echo "Wrangler dry-run did not recognize required binding: $binding_name"
+              exit 1
+            fi
+          done
 
       - name: Apply Staging D1 migrations before deploy
         shell: bash
@@ -388,5 +410,5 @@ jobs:
         if: always()
         shell: bash
         run: |
-          rm -f "$GITHUB_WORKSPACE/wrangler.staging.generated.jsonc" health.json providers.json "$RUNNER_TEMP/staging-billing-schema.json" "$RUNNER_TEMP/staging-worker-secrets.json" "$RUNNER_TEMP/staging-worker-secret-list.raw"
+          rm -f "$GITHUB_WORKSPACE/wrangler.staging.generated.jsonc" health.json providers.json "$RUNNER_TEMP/staging-billing-schema.json" "$RUNNER_TEMP/staging-worker-secrets.json" "$RUNNER_TEMP/staging-worker-secret-list.raw" "$RUNNER_TEMP/staging-worker-dry-run.log"
           rm -rf "$RUNNER_TEMP/staging-worker-dry-run"
