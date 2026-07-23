@@ -1,4 +1,11 @@
 import { fetchAiResponse } from "./ai-request.mjs";
+import {
+  AI_CONTRACT_VERSIONS,
+  attachProviderContext,
+  createAiContractError,
+  parseStructuredResponse,
+  providerHttpError,
+} from "./ai-output-contract.mjs";
 
 export const PLAN_ITEM_TYPES = Object.freeze(["ACTION", "REVIEW", "TIP", "SYSTEM_RULE"]);
 
@@ -19,21 +26,25 @@ const PLAN_ITEM_SCHEMA = {
     "recurrenceGroupId",
   ],
   properties: {
-    id: { type: "string" },
-    planId: { type: "string" },
+    id: { type: "string", pattern: "^[A-Za-z0-9][A-Za-z0-9:_-]{0,127}$", description: "Stable task identifier unique within this plan." },
+    planId: { type: "string", pattern: "^[A-Za-z0-9][A-Za-z0-9:_-]{0,127}$", description: "Must equal the server-provided draftPlanId." },
     type: { type: "string", enum: PLAN_ITEM_TYPES },
     title: { type: "string" },
-    sourceReference: { type: "string" },
+    sourceReference: { type: "string", description: "Use the supplied material name/range when present; otherwise use an empty string." },
     quantityOrRange: { type: "string" },
     durationMinutes: { type: "integer", minimum: 0, maximum: 180 },
-    completionRule: { type: "string" },
-    scheduledAt: { type: "string" },
+    completionRule: { type: "string", description: "A measurable rule that lets the user decide whether the action is complete." },
+    scheduledAt: {
+      type: "string",
+      pattern: "^(?:$|\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(?::\\d{2})?(?:Z|[+-]\\d{2}:\\d{2}))$",
+      description: "ISO 8601 date-time with timezone, or an empty string when no calendar date is available.",
+    },
     status: { type: "string", enum: ["pending"] },
-    recurrenceGroupId: { type: "string" },
+    recurrenceGroupId: { type: "string", pattern: "^[A-Za-z0-9][A-Za-z0-9:_-]{0,127}$", description: "Stable identifier shared only by occurrences of the same repeated action." },
   },
 };
 
-const PLAN_SCHEMA = {
+export const GOAL_PLAN_SCHEMA = {
   type: "object",
   additionalProperties: false,
   required: [
@@ -188,16 +199,6 @@ function validateGoalInput(input) {
   return "";
 }
 
-function extractOutputText(response) {
-  if (typeof response.output_text === "string") return response.output_text;
-  for (const item of response.output || []) {
-    for (const content of item.content || []) {
-      if (content.type === "output_text" && typeof content.text === "string") return content.text;
-    }
-  }
-  return "";
-}
-
 function compactPlanningStyle(value) {
   const label = cleanText(value, 120)
     .split(/[:：·\n]/, 1)[0]
@@ -219,14 +220,6 @@ function planText(plan) {
       : []),
     plan.fallbackPlan,
   ].map((value) => String(value || "")).join("\n");
-}
-
-function validationFailure(details) {
-  const error = new Error("AI 계획이 입력 조건을 충족하지 않아 활성화하지 않았어요.");
-  error.status = 502;
-  error.code = "AI_PLAN_VALIDATION_FAILED";
-  error.details = details.slice(0, 12);
-  return error;
 }
 
 export function validateGeneratedPlan(input, plan) {
@@ -334,7 +327,7 @@ export async function createAiGoalPlan(input, { apiKey, model = "gpt-5.4-mini", 
           type: "json_schema",
           name: "personalized_goal_plan",
           strict: true,
-          schema: PLAN_SCHEMA,
+          schema: GOAL_PLAN_SCHEMA,
         },
       },
     }),
@@ -344,54 +337,52 @@ export async function createAiGoalPlan(input, { apiKey, model = "gpt-5.4-mini", 
     throw error;
   }
 
-  const responseBody = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const error = new Error(responseBody.error?.message || "OpenAI API 요청에 실패했어요.");
-    error.status = response.status >= 400 && response.status < 500 ? 502 : response.status;
-    error.providerUsage = responseBody.usage || null;
-    error.providerRequestId = response.headers.get("x-request-id") || "";
-    error.providerCalled = true;
-    throw error;
+  let responseBody = {};
+  let responseJsonInvalid = false;
+  try {
+    responseBody = await response.json();
+  } catch {
+    responseJsonInvalid = true;
   }
-
-  const outputText = extractOutputText(responseBody);
-  if (!outputText) {
-    const error = new Error("AI 응답에서 계획을 확인하지 못했어요.");
-    error.status = 502;
-    error.providerUsage = responseBody.usage || null;
-    error.providerRequestId = response.headers.get("x-request-id") || "";
-    error.providerCalled = true;
-    throw error;
+  if (!response.ok) {
+    throw providerHttpError(response, responseBody);
+  }
+  if (responseJsonInvalid) {
+    throw attachProviderContext(createAiContractError("AI_OUTPUT_PARSE_FAILED", {
+      responseStatus: "invalid_response_json",
+      incompleteReason: "",
+      outputItemTypes: [],
+      contentItemTypes: [],
+      outputTokens: 0,
+      outputTextLength: 0,
+      retryCount: 0,
+    }), { requestId: response.headers.get("x-request-id") || "" });
   }
 
   try {
-    const plan = JSON.parse(outputText);
-    if (hasUnrelatedExamLeakage(normalized.goal, plan)) {
-      const error = new Error("AI 계획이 입력한 목표 분야와 일치하지 않아 적용하지 않았어요.");
-      error.status = 502;
-      error.code = "AI_PLAN_GOAL_MISMATCH";
-      error.providerUsage = responseBody.usage || null;
-      error.providerRequestId = response.headers.get("x-request-id") || "";
-      error.providerCalled = true;
-      throw error;
-    }
-    const validationErrors = validateGeneratedPlan(normalized, plan);
-    if (validationErrors.length) {
-      const error = validationFailure(validationErrors);
-      error.providerUsage = responseBody.usage || null;
-      error.providerRequestId = response.headers.get("x-request-id") || "";
-      error.providerCalled = true;
-      throw error;
-    }
+    const { value: plan } = parseStructuredResponse(responseBody, {
+      schema: GOAL_PLAN_SCHEMA,
+      domainValidate: (candidate) => {
+        if (hasUnrelatedExamLeakage(normalized.goal, candidate)) return ["GOAL_FIELD_MISMATCH"];
+        return validateGeneratedPlan(normalized, candidate).length ? ["GOAL_PLAN_VALIDATION_FAILED"] : [];
+      },
+      domainValidationCode: "GOAL_PLAN_VALIDATION_FAILED",
+    });
     plan.planningStyle = compactPlanningStyle(plan.planningStyle);
-    return { plan, usage: responseBody.usage || null, requestId: response.headers.get("x-request-id") || "" };
+    return {
+      plan,
+      usage: responseBody.usage || null,
+      requestId: response.headers.get("x-request-id") || "",
+      contract: {
+        schemaVersion: AI_CONTRACT_VERSIONS.goalPlanSchema,
+        promptVersion: AI_CONTRACT_VERSIONS.goalPlanPrompt,
+        domainOutputVersion: AI_CONTRACT_VERSIONS.domainOutput,
+      },
+    };
   } catch (caught) {
-    if (["AI_PLAN_GOAL_MISMATCH", "AI_PLAN_VALIDATION_FAILED"].includes(caught?.code)) throw caught;
-    const error = new Error("AI 계획 응답을 해석하지 못했어요.");
-    error.status = 502;
-    error.providerUsage = responseBody.usage || null;
-    error.providerRequestId = response.headers.get("x-request-id") || "";
-    error.providerCalled = true;
-    throw error;
+    throw attachProviderContext(caught, {
+      responseBody,
+      requestId: response.headers.get("x-request-id") || "",
+    });
   }
 }

@@ -3610,7 +3610,7 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
     }
     if (showLoading) {
       if (aiPreviewStatus) aiPreviewStatus.textContent = guestRevisionRequest
-        ? "계획을 다시 만들지 못했어요. 기존 계획은 그대로 유지했어요."
+        ? "수정한 조건으로 계획을 다시 만들지 못했어요. 기존 계획은 그대로 유지했어요."
         : error.message || "AI 계획을 만들지 못했어요.";
       if (aiPreviewButton) {
         aiPreviewButton.disabled = false;

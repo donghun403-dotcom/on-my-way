@@ -2,6 +2,7 @@ import { createAiGoalPlan, normalizeGoalInput } from "./ai-goal-plan.mjs";
 import { GuestPlanDraftObject } from "./guest-plan-draft-object.mjs";
 import { createCompanionReply } from "./ai-companion-chat.mjs";
 import { createAiPlanRevision } from "./ai-plan-revision.mjs";
+import { AI_CONTRACT_VERSIONS, safeAiDiagnostics } from "./ai-output-contract.mjs";
 import {
   commitAiCredits,
   getAiCreditUsage,
@@ -155,8 +156,8 @@ const GUEST_GOAL_DRAFT_CLAIM_PATH = "/api/ai/goal-draft/claim";
 const GUEST_GOAL_PREVIEW_TTL_SECONDS = 24 * 60 * 60;
 const GUEST_GOAL_DRAFT_COOKIE = "omw_guest_goal_draft";
 const GUEST_GOAL_INPUT_SCHEMA_VERSION = 1;
-const GUEST_GOAL_PROMPT_VERSION = "goal-plan-p0-2026-07";
-const GUEST_GOAL_OUTPUT_SCHEMA_VERSION = "typed-plan-items-v1";
+const GUEST_GOAL_PROMPT_VERSION = AI_CONTRACT_VERSIONS.goalPlanPrompt;
+const GUEST_GOAL_OUTPUT_SCHEMA_VERSION = AI_CONTRACT_VERSIONS.goalPlanSchema;
 
 async function hmacHex(secret, value) {
   const encoder = new TextEncoder();
@@ -392,6 +393,8 @@ async function handleGuestGoalPreview({ request, env, accountContext }) {
     return json({ ok: false, error: "AI 계획 미리보기 요청이 잠시 많아요. 1분 뒤 다시 시도해 주세요.", code: "AI_RATE_LIMITED" }, 429);
   }
   let committed;
+  const aiCorrelationId = crypto.randomUUID();
+  const aiStartedAt = Date.now();
   try {
     const result = await createAiGoalPlan(normalizedInput, { apiKey: env.OPENAI_API_KEY, model: env.OPENAI_MODEL || "gpt-5.4-mini" });
     const preview = guestGoalPreview(result.plan);
@@ -400,7 +403,11 @@ async function handleGuestGoalPreview({ request, env, accountContext }) {
     });
     if (!committed.response?.ok) return guestDraftApiError(committed.body.code, committed.response?.status || 503);
   } catch (error) {
-    console.error("Guest AI goal preview failed", { code: error?.code || "AI_REQUEST_FAILED", status: error?.status || 500 });
+    console.error("Guest AI goal preview failed", safeAiDiagnostics(error, {
+      correlationId: aiCorrelationId,
+      model: env.OPENAI_MODEL || "gpt-5.4-mini",
+      latencyMs: Date.now() - aiStartedAt,
+    }));
     await guestDraftCommand(env, draftPlanId, "fail-generation", { generationToken });
     return json(aiErrorBody(error), error?.status || 500);
   }
@@ -488,6 +495,8 @@ async function handleGuestGoalDraftRevision({ request, env, accountContext }) {
     await guestDraftCommand(env, draftPlanId, "fail-generation", { generationToken });
     return json({ ok: false, error: "AI 계획 수정 요청이 잠시 많아요. 1분 뒤 다시 시도해 주세요.", code: "AI_RATE_LIMITED" }, 429);
   }
+  const aiCorrelationId = crypto.randomUUID();
+  const aiStartedAt = Date.now();
   try {
     const result = await createAiGoalPlan(normalizedInput, { apiKey: env.OPENAI_API_KEY, model: env.OPENAI_MODEL || "gpt-5.4-mini" });
     const preview = guestGoalPreview(result.plan);
@@ -505,7 +514,11 @@ async function handleGuestGoalDraftRevision({ request, env, accountContext }) {
       cached: false,
     });
   } catch (error) {
-    console.error("Guest AI goal revision failed", { code: error?.code || "AI_REQUEST_FAILED", status: error?.status || 500 });
+    console.error("Guest AI goal revision failed", safeAiDiagnostics(error, {
+      correlationId: aiCorrelationId,
+      model: env.OPENAI_MODEL || "gpt-5.4-mini",
+      latencyMs: Date.now() - aiStartedAt,
+    }));
     await guestDraftCommand(env, draftPlanId, "fail-generation", { generationToken });
     return json(aiErrorBody(error), error?.status || 500);
   }
@@ -614,8 +627,9 @@ function aiErrorBody(error, usage = null) {
     ok: false,
     error: error?.message || "AI 요청을 처리하지 못했어요.",
     code: error?.code || "AI_REQUEST_FAILED",
+    retryable: Boolean(error?.retryable),
   };
-  if (error?.details) body.details = error.details;
+  if (error?.details && !error?.diagnostics) body.details = error.details;
   if (usage) body.usage = usage;
   return body;
 }
@@ -715,10 +729,13 @@ async function handleAiGenerationRequest({ request, env, accountContext, route }
   let reservation = null;
   let providerCalled = false;
   const model = env.OPENAI_MODEL || "gpt-5.4-mini";
+  const aiCorrelationId = crypto.randomUUID();
+  let aiStartedAt = 0;
   try {
     reservation = await reserveAiCredits({ store: userStore, userId: user.id, action: route.action, requestId });
 
     let result;
+    aiStartedAt = Date.now();
     if (route.kind === "goal") {
       // Reload after the reservation write so the goal-limit write cannot overwrite credit state.
       const creditAwareUser = await userStore.getUser(user.id);
@@ -748,7 +765,11 @@ async function handleAiGenerationRequest({ request, env, accountContext, route }
       usage: committed.usage,
     });
   } catch (error) {
-    console.error(`AI ${route.action} request failed`, error);
+    console.error(`AI ${route.action} request failed`, safeAiDiagnostics(error, {
+      correlationId: aiCorrelationId,
+      model,
+      latencyMs: aiStartedAt ? Date.now() - aiStartedAt : 0,
+    }));
     if (reservation?.shouldExecute) {
       try {
         await releaseAiCredits({
@@ -762,7 +783,10 @@ async function handleAiGenerationRequest({ request, env, accountContext, route }
           model,
         });
       } catch (releaseError) {
-        console.error("AI credit reservation release failed", releaseError);
+        console.error("AI credit reservation release failed", {
+          correlationId: aiCorrelationId,
+          errorCategory: releaseError?.code || "AI_CREDIT_RELEASE_FAILED",
+        });
       }
     }
     const usage = await getAiCreditUsage({ store: userStore, userId: user.id }).catch(() => null);

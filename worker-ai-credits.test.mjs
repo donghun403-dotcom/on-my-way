@@ -99,8 +99,22 @@ function successfulOpenAiResponse(schemaName) {
   }
   if (schemaName === "personalized_goal_plan") {
     return {
-      goal: "테스트 목표",
+      personalitySummary: "짧고 반복 가능한 실행에 강점이 있어요.",
+      planningStyle: "꾸준한 실행형",
       firstAction: "첫 행동",
+      weekTitle: "첫 주 실행 리듬 만들기",
+      weekPlan: ["첫 행동", "진행 기록", "반복 실행", "중간 점검", "주간 검토"],
+      coachMessage: "가능한 시간 안에서 한 번씩 실행해요.",
+      dashboard: { goal: "테스트 목표", progress: 0, pace: "첫 주 실행" },
+      fullSchedule: [
+        { phase: "시작", days: "1~7일", focus: "첫 행동 반복", successMetric: "5회 실행" },
+        { phase: "확장", days: "8~21일", focus: "실행 범위 확장", successMetric: "주 5회 실행" },
+        { phase: "정착", days: "22~30일", focus: "루틴 정착", successMetric: "주간 검토 완료" },
+      ],
+      todaySchedule: [
+        { time: "저녁", durationMinutes: 20, task: "목표에 맞는 첫 행동", completionRule: "한 번 실행하면 완료" },
+        { time: "실행 직후", durationMinutes: 5, task: "진행 상태 기록", completionRule: "한 줄 기록하면 완료" },
+      ],
       firstWeekSchedule: ["월", "화", "수", "목", "금", "토", "일"].map((dayLabel, index) => ({
         dayNumber: index + 1,
         dayLabel,
@@ -120,6 +134,8 @@ function successfulOpenAiResponse(schemaName) {
         }],
       })),
       assumptions: ["자료가 지정되지 않아 일반 계획으로 구성했어요."],
+      checkInRules: ["실행 직후 기록해요.", "막히면 5분으로 줄여요.", "주말에 다음 주를 조정해요."],
+      fallbackPlan: "어려운 날에는 5분짜리 첫 행동만 실행해요.",
     };
   }
   if (schemaName === "goal_plan_revision") {
@@ -145,6 +161,27 @@ function successfulOpenAiResponse(schemaName) {
   return { summary: "수정안", changes: ["일정을 조정했어요."] };
 }
 
+function openAiFixtureResponse(schemaName) {
+  const value = successfulOpenAiResponse(schemaName);
+  const payload = schemaName === "companion_reply"
+    ? { output_text: JSON.stringify(value) }
+    : {
+        status: "completed",
+        output: [{
+          type: "message",
+          role: "assistant",
+          content: [{ type: "output_text", text: "{not-reparsed", parsed: value }],
+        }],
+      };
+  return new Response(JSON.stringify({
+    ...payload,
+    usage: { input_tokens: 5, output_tokens: 2, total_tokens: 7 },
+  }), {
+    status: 200,
+    headers: { "Content-Type": "application/json", "X-Request-ID": "openai-test-request" },
+  });
+}
+
 function goalPlanInput(goal = "테스트 목표") {
   return {
     goal,
@@ -165,13 +202,7 @@ function openAiSuccessMock(onCall = () => {}) {
     const requestBody = JSON.parse(options.body || "{}");
     const schemaName = requestBody.text?.format?.name;
     onCall({ url: String(url), requestBody, schemaName });
-    return new Response(JSON.stringify({
-      output_text: JSON.stringify(successfulOpenAiResponse(schemaName)),
-      usage: { input_tokens: 5, output_tokens: 2, total_tokens: 7 },
-    }), {
-      status: 200,
-      headers: { "Content-Type": "application/json", "X-Request-ID": "openai-test-request" },
-    });
+    return openAiFixtureResponse(schemaName);
   };
 }
 
@@ -369,10 +400,7 @@ test("처리 중인 같은 X-Request-ID는 409로 거부하고 원래 예약을 
       await providerGate;
       const requestBody = JSON.parse(options.body || "{}");
       const schemaName = requestBody.text?.format?.name;
-      return new Response(JSON.stringify({
-        output_text: JSON.stringify(successfulOpenAiResponse(schemaName)),
-        usage: { input_tokens: 5, output_tokens: 2, total_tokens: 7 },
-      }), { status: 200, headers: { "Content-Type": "application/json" } });
+      return openAiFixtureResponse(schemaName);
     }, async () => {
       const request = {
         method: "POST",
@@ -416,10 +444,7 @@ test("목표 생성과 대화가 겹쳐도 사용자 기록과 총 5크레딧을
         markGoalStarted();
         await goalGate;
       }
-      return new Response(JSON.stringify({
-        output_text: JSON.stringify(successfulOpenAiResponse(schemaName)),
-        usage: { input_tokens: 5, output_tokens: 2, total_tokens: 7 },
-      }), { status: 200, headers: { "Content-Type": "application/json" } });
+      return openAiFixtureResponse(schemaName);
     }, async () => {
       const goalPromise = callApi(context, "/api/ai/goal-plan", {
         method: "POST",
@@ -490,16 +515,20 @@ test("AI 제공자 실패는 예약 크레딧을 환불한다", { concurrency: f
         headers: { "Content-Type": "application/json" },
       });
     }, async () => {
-      const failed = await callApi(context, "/api/ai/companion-chat", {
+      const request = {
         method: "POST",
         requestId: "provider-failure",
         body: { message: "실패해도 환불해 주세요" },
-      });
+      };
+      const failed = await callApi(context, "/api/ai/companion-chat", request);
       assert.equal(failed.response.status, 500);
       assert.equal(failed.body.ok, false);
       assert.equal(failed.body.usage.daily.used, 0);
       assert.equal(failed.body.usage.daily.reserved, 0);
       assert.equal(failed.body.usage.daily.remaining, 30);
+      const sameIdRetry = await callApi(context, "/api/ai/companion-chat", request);
+      assert.equal(sameIdRetry.response.status, 409);
+      assert.equal(sameIdRetry.body.code, "AI_REQUEST_PREVIOUSLY_RELEASED");
     });
   } finally {
     console.error = originalConsoleError;

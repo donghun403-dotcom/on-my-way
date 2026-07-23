@@ -1,6 +1,13 @@
 import { fetchAiResponse } from "./ai-request.mjs";
+import {
+  AI_CONTRACT_VERSIONS,
+  attachProviderContext,
+  createAiContractError,
+  parseStructuredResponse,
+  providerHttpError,
+} from "./ai-output-contract.mjs";
 
-const REVISION_SCHEMA = {
+export const PLAN_REVISION_SCHEMA = {
   type: "object",
   additionalProperties: false,
   required: ["summary", "revisionSummary", "weeklySchedule", "revisedTasks", "changes", "ollieMessage"],
@@ -38,10 +45,10 @@ const REVISION_SCHEMA = {
               additionalProperties: false,
               required: ["time", "durationMinutes", "task", "completionRule"],
               properties: {
-                time: { type: "string" },
+                time: { type: "string", description: "A specific HH:mm time or a user-facing time label such as 아침 or 저녁." },
                 durationMinutes: { type: "integer", minimum: 5, maximum: 360 },
                 task: { type: "string" },
-                completionRule: { type: "string" },
+                completionRule: { type: "string", description: "A measurable rule that lets the user decide whether the task is complete." },
               },
             },
           },
@@ -119,16 +126,6 @@ function hasRevisionIntent(input) {
       details.priorityAdjustment.keepRules ||
       details.constraints,
   );
-}
-
-function extractOutputText(response) {
-  if (typeof response.output_text === "string") return response.output_text;
-  for (const item of response.output || []) {
-    for (const content of item.content || []) {
-      if (content.type === "output_text" && typeof content.text === "string") return content.text;
-    }
-  }
-  return "";
 }
 
 function revisionText(revision) {
@@ -239,7 +236,7 @@ export async function createAiPlanRevision(input, { apiKey, model = "gpt-5.4-min
           type: "json_schema",
           name: "goal_plan_revision",
           strict: true,
-          schema: REVISION_SCHEMA,
+          schema: PLAN_REVISION_SCHEMA,
         },
       },
     }),
@@ -249,47 +246,50 @@ export async function createAiPlanRevision(input, { apiKey, model = "gpt-5.4-min
     throw error;
   }
 
-  const responseBody = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const error = new Error(responseBody.error?.message || "OpenAI API 요청에 실패했어요.");
-    error.status = response.status >= 400 && response.status < 500 ? 502 : response.status;
-    error.providerUsage = responseBody.usage || null;
-    error.providerRequestId = response.headers.get("x-request-id") || "";
-    error.providerCalled = true;
-    throw error;
+  let responseBody = {};
+  let responseJsonInvalid = false;
+  try {
+    responseBody = await response.json();
+  } catch {
+    responseJsonInvalid = true;
   }
-
-  const outputText = extractOutputText(responseBody);
-  if (!outputText) {
-    const error = new Error("AI 응답에서 변경안을 확인하지 못했어요.");
-    error.status = 502;
-    error.providerUsage = responseBody.usage || null;
-    error.providerRequestId = response.headers.get("x-request-id") || "";
-    error.providerCalled = true;
-    throw error;
+  if (!response.ok) {
+    throw providerHttpError(response, responseBody);
+  }
+  if (responseJsonInvalid) {
+    throw attachProviderContext(createAiContractError("AI_OUTPUT_PARSE_FAILED", {
+      responseStatus: "invalid_response_json",
+      incompleteReason: "",
+      outputItemTypes: [],
+      contentItemTypes: [],
+      outputTokens: 0,
+      outputTextLength: 0,
+      retryCount: 0,
+    }), { requestId: response.headers.get("x-request-id") || "" });
   }
 
   try {
-    const revision = JSON.parse(outputText);
-    const validationErrors = validateRevisionOutput(normalized, revision);
-    if (validationErrors.length) {
-      const error = new Error("AI 변경안이 입력 조건을 충족하지 않아 적용하지 않았어요.");
-      error.status = 502;
-      error.code = "AI_PLAN_REVISION_VALIDATION_FAILED";
-      error.details = validationErrors.slice(0, 12);
-      error.providerUsage = responseBody.usage || null;
-      error.providerRequestId = response.headers.get("x-request-id") || "";
-      error.providerCalled = true;
-      throw error;
-    }
-    return { revision, usage: responseBody.usage || null, requestId: response.headers.get("x-request-id") || "" };
+    const { value: revision } = parseStructuredResponse(responseBody, {
+      schema: PLAN_REVISION_SCHEMA,
+      domainValidate: (candidate) => (
+        validateRevisionOutput(normalized, candidate).length ? ["PLAN_REVISION_VALIDATION_FAILED"] : []
+      ),
+      domainValidationCode: "PLAN_REVISION_VALIDATION_FAILED",
+    });
+    return {
+      revision,
+      usage: responseBody.usage || null,
+      requestId: response.headers.get("x-request-id") || "",
+      contract: {
+        schemaVersion: AI_CONTRACT_VERSIONS.planRevisionSchema,
+        promptVersion: AI_CONTRACT_VERSIONS.planRevisionPrompt,
+        domainOutputVersion: AI_CONTRACT_VERSIONS.domainOutput,
+      },
+    };
   } catch (caught) {
-    if (caught?.code === "AI_PLAN_REVISION_VALIDATION_FAILED") throw caught;
-    const error = new Error("AI 변경안을 해석하지 못했어요.");
-    error.status = 502;
-    error.providerUsage = responseBody.usage || null;
-    error.providerRequestId = response.headers.get("x-request-id") || "";
-    error.providerCalled = true;
-    throw error;
+    throw attachProviderContext(caught, {
+      responseBody,
+      requestId: response.headers.get("x-request-id") || "",
+    });
   }
 }

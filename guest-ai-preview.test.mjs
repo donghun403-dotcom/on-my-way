@@ -150,6 +150,22 @@ function generatedPlanForProviderRequest(init) {
   return generatedPlan(normalizedInput.draftPlanId);
 }
 
+function providerPlanResponse(plan, { rawText, requestId = "" } = {}) {
+  const content = {
+    type: "output_text",
+    text: rawText === undefined ? "{parsed-output-is-authoritative" : rawText,
+    ...(rawText === undefined ? { parsed: plan } : {}),
+  };
+  return new Response(JSON.stringify({
+    status: "completed",
+    output: [{ type: "message", role: "assistant", content: [content] }],
+    usage: { input_tokens: 10, output_tokens: 20, total_tokens: 30 },
+  }), {
+    status: 200,
+    headers: { "Content-Type": "application/json", ...(requestId ? { "X-Request-ID": requestId } : {}) },
+  });
+}
+
 function constrainedPlanForProviderRequest(init) {
   const providerBody = JSON.parse(init.body);
   const normalizedInput = JSON.parse(providerBody.input.slice(providerBody.input.indexOf("{")));
@@ -181,13 +197,7 @@ async function createGuestDraft(env, input = goalInput()) {
   let providerCalls = 0;
   const response = await withMockFetch(async (_url, init) => {
     providerCalls += 1;
-    return new Response(JSON.stringify({
-      output_text: JSON.stringify(generatedPlanForProviderRequest(init)),
-      usage: { input_tokens: 10, output_tokens: 20, total_tokens: 30 },
-    }), {
-      status: 200,
-      headers: { "Content-Type": "application/json", "X-Request-ID": "fixture-request" },
-    });
+    return providerPlanResponse(generatedPlanForProviderRequest(init), { requestId: "fixture-request" });
   }, () => worker.fetch(previewRequest(input), env));
   const body = await response.clone().json();
   return {
@@ -253,13 +263,7 @@ test("비회원은 실제 AI 계획의 일부만 하루 한 번 받고 같은 �
 
   await withMockFetch(async (_url, init) => {
     providerCalls += 1;
-    return new Response(JSON.stringify({
-      output_text: JSON.stringify(generatedPlanForProviderRequest(init)),
-      usage: { input_tokens: 10, output_tokens: 20, total_tokens: 30 },
-    }), {
-      status: 200,
-      headers: { "Content-Type": "application/json", "X-Request-ID": "fixture-request" },
-    });
+    return providerPlanResponse(generatedPlanForProviderRequest(init), { requestId: "fixture-request" });
   }, async () => {
     const firstResponse = await worker.fetch(previewRequest(), env);
     const first = await firstResponse.json();
@@ -323,10 +327,7 @@ test("서로 다른 Worker isolate의 동시 최초 요청도 같은 actor와 in
   await withMockFetch(async (_url, init) => {
     providerCalls += 1;
     await providerGate;
-    return new Response(JSON.stringify({
-      output_text: JSON.stringify(generatedPlanForProviderRequest(init)),
-      usage: { input_tokens: 10, output_tokens: 20, total_tokens: 30 },
-    }), { status: 200, headers: { "Content-Type": "application/json" } });
+    return providerPlanResponse(generatedPlanForProviderRequest(init));
   }, async () => {
     const firstPromise = worker.fetch(previewRequest(), env);
     const secondPromise = worker.fetch(previewRequest(), env);
@@ -499,10 +500,7 @@ test("명시적 revision 성공 뒤에만 active input과 plan이 함께 교체�
   let lostResponseRetry;
   await withMockFetch(async (_url, init) => {
     revisionCalls += 1;
-    return new Response(JSON.stringify({
-      output_text: JSON.stringify(generatedPlanForProviderRequest(init)),
-      usage: { input_tokens: 10, output_tokens: 20, total_tokens: 30 },
-    }), { status: 200, headers: { "Content-Type": "application/json" } });
+    return providerPlanResponse(generatedPlanForProviderRequest(init));
   }, async () => {
     revisedResponse = await worker.fetch(revisionRequest({ draft: original, draftCookie, input: changedInput }), env);
     lostResponseRetry = await worker.fetch(revisionRequest({ draft: original, draftCookie, input: changedInput }), env);
@@ -578,15 +576,15 @@ test("revision은 자료·요일·시간·범위를 새 schedule에 함께 반�
     weeklyFrequency: 2,
     sessionMinutes: 25,
   };
-  const response = await withMockFetch(async (_url, init) => new Response(JSON.stringify({
-    output_text: JSON.stringify(constrainedPlanForProviderRequest(init)),
-    usage: { input_tokens: 10, output_tokens: 20, total_tokens: 30 },
-  }), { status: 200, headers: { "Content-Type": "application/json" } }), () => worker.fetch(revisionRequest({
+  const response = await withMockFetch(
+    async (_url, init) => providerPlanResponse(constrainedPlanForProviderRequest(init)),
+    () => worker.fetch(revisionRequest({
     draft: original,
     draftCookie,
     input: changedInput,
     idempotencyKey: "revision:material-schedule-0001",
-  }), env));
+    }), env),
+  );
   assert.equal(response.status, 200);
   const revised = await response.json();
   const stored = await env.GUEST_PLAN_DRAFTS.storages.get(original.draftPlanId).get("draft");
@@ -601,9 +599,10 @@ test("revision은 자료·요일·시간·범위를 새 schedule에 함께 반�
 
 test("revision의 잘못된 JSON과 validator 실패는 이전 active revision을 그대로 유지한다", async () => {
   const variants = [
-    { name: "invalid-json", output: () => "{not-json" },
+    { name: "invalid-json", code: "AI_OUTPUT_PARSE_FAILED", output: () => "{not-json" },
     {
       name: "validation-failure",
+      code: "AI_OUTPUT_DOMAIN_INVALID",
       output: (init) => {
         const invalid = generatedPlanForProviderRequest(init);
         invalid.firstWeekSchedule = invalid.firstWeekSchedule.map((day) => ({ ...day, items: [] }));
@@ -614,16 +613,20 @@ test("revision의 잘못된 JSON과 validator 실패는 이전 active revision�
   for (const variant of variants) {
     const env = testEnv();
     const { body: original, draftCookie } = await createGuestDraft(env);
-    const response = await withMockFetch(async (_url, init) => new Response(JSON.stringify({
-      output_text: variant.output(init),
-      usage: { input_tokens: 10, output_tokens: 20, total_tokens: 30 },
-    }), { status: 200, headers: { "Content-Type": "application/json" } }), () => worker.fetch(revisionRequest({
+    const response = await withMockFetch(async (_url, init) => providerPlanResponse(null, {
+      rawText: variant.output(init),
+    }), () => worker.fetch(revisionRequest({
       draft: original,
       draftCookie,
       input: goalInput(`실패 fixture ${variant.name}`),
       idempotencyKey: `revision:${variant.name}-0001`,
     }), env));
     assert.equal(response.status, 502, variant.name);
+    const failureBody = await response.json();
+    assert.equal(failureBody.code, variant.code, variant.name);
+    assert.equal(failureBody.retryable, false, variant.name);
+    assert.equal(Object.hasOwn(failureBody, "diagnostics"), false, variant.name);
+    assert.equal(Object.hasOwn(failureBody, "details"), false, variant.name);
     const stored = await env.GUEST_PLAN_DRAFTS.storages.get(original.draftPlanId).get("draft");
     assert.equal(stored.status, "READY", variant.name);
     assert.equal(stored.activeRevision, 1, variant.name);
