@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import {
+  EXPECTED_AI_RATE_LIMIT_POLICY,
+  STAGING_RATE_LIMIT_NAMESPACE_PLACEHOLDER,
+  isPositiveIntegerNamespaceId,
+} from "./.github/scripts/staging-config.mjs";
 
 const CONFIG_FILES = [
   "wrangler.jsonc",
@@ -38,4 +43,27 @@ test("Production route, KV, rate limiter, cron은 Durable Object 추가 전 계�
   assert.equal(production.kv_namespaces?.[0]?.binding, "USERS_KV");
   assert.equal(production.ratelimits?.[0]?.name, "AI_RATE_LIMITER");
   assert.deepEqual(production.triggers?.crons, ["15 0 * * *"]);
+});
+
+test("Every AI-enabled Worker config defines the canonical rate limiter contract", async () => {
+  const values = new Map();
+  for (const file of CONFIG_FILES) {
+    const value = await config(file);
+    const bindings = (value.ratelimits || []).filter((binding) => binding.name === "AI_RATE_LIMITER");
+    assert.equal(bindings.length, 1, `${file}: expected exactly one AI_RATE_LIMITER`);
+    assert.deepEqual(bindings[0].simple, EXPECTED_AI_RATE_LIMIT_POLICY, file);
+    if (file === "wrangler.staging.jsonc") {
+      assert.equal(bindings[0].namespace_id, STAGING_RATE_LIMIT_NAMESPACE_PLACEHOLDER, file);
+    } else {
+      assert.equal(isPositiveIntegerNamespaceId(bindings[0].namespace_id), true, file);
+    }
+    values.set(file, bindings[0].namespace_id);
+  }
+  assert.notEqual(values.get("wrangler.staging.jsonc"), values.get("wrangler.preview.jsonc"));
+  assert.notEqual(values.get("wrangler.staging.jsonc"), values.get("wrangler.production.jsonc"));
+});
+
+test("GuestPlanDraftObject config class is exported by the Worker entry", async () => {
+  const worker = await readFile(new URL("worker.mjs", import.meta.url), "utf8");
+  assert.match(worker, /export\s*\{\s*GuestPlanDraftObject\s*\}/);
 });

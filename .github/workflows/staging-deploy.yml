@@ -92,36 +92,34 @@ jobs:
         env:
           STAGING_USERS_KV_ID: ${{ secrets.CLOUDFLARE_STAGING_USERS_KV_ID }}
           STAGING_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_STAGING_D1_DATABASE_ID }}
+          STAGING_AI_RATE_LIMITER_NAMESPACE_ID: ${{ secrets.CLOUDFLARE_STAGING_AI_RATE_LIMITER_NAMESPACE_ID }}
         run: |
-          test -n "${STAGING_USERS_KV_ID:-}"
-          test "$STAGING_USERS_KV_ID" != "null"
-          test -n "${STAGING_D1_DATABASE_ID:-}"
-          test "$STAGING_D1_DATABASE_ID" != "null"
-          echo "::add-mask::$STAGING_USERS_KV_ID"
-          echo "::add-mask::$STAGING_D1_DATABASE_ID"
+          set -euo pipefail
+          umask 077
+
+          for resource_name in STAGING_USERS_KV_ID STAGING_D1_DATABASE_ID STAGING_AI_RATE_LIMITER_NAMESPACE_ID; do
+            if [[ -n "${!resource_name:-}" ]]; then
+              echo "::add-mask::${!resource_name}"
+            fi
+          done
 
           generated_config="$GITHUB_WORKSPACE/wrangler.staging.generated.jsonc"
-          jq --arg kv_id "$STAGING_USERS_KV_ID" --arg d1_id "$STAGING_D1_DATABASE_ID" '
-            .kv_namespaces = [{"binding":"USERS_KV","id":$kv_id}] |
-            .d1_databases = [{
-              "binding":"BILLING_DB",
-              "database_name":"on-my-way-billing-staging",
-              "database_id":$d1_id,
-              "migrations_dir":"migrations"
-            }] |
-            .assets.exclude = ((.assets.exclude // []) + ["wrangler.staging.generated.jsonc"])
-          ' wrangler.staging.jsonc > "$generated_config"
+          node .github/scripts/staging-config.mjs generate wrangler.staging.jsonc "$generated_config"
 
-          jq -e '
-            (.name == "on-my-way-staging") and
-            (.vars.APP_ENV == "staging") and
-            (.vars.PAYMENTS_ENABLED == "false") and
-            (.kv_namespaces | length == 1) and
-            (.kv_namespaces[0].binding == "USERS_KV") and
-            (.d1_databases | length == 1) and
-            (.d1_databases[0].binding == "BILLING_DB") and
-            (.d1_databases[0].database_name == "on-my-way-billing-staging")
-          ' "$generated_config" > /dev/null
+      - name: Validate generated Staging config before remote changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          node .github/scripts/staging-config.mjs validate wrangler.staging.generated.jsonc
+
+      - name: Bundle Staging Worker before remote changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4.81.0 deploy \
+            --dry-run \
+            --config wrangler.staging.generated.jsonc \
+            --outdir "$RUNNER_TEMP/staging-worker-dry-run"
 
       - name: Apply Staging D1 migrations before deploy
         shell: bash
@@ -389,4 +387,6 @@ jobs:
       - name: Remove generated Staging config
         if: always()
         shell: bash
-        run: rm -f "$GITHUB_WORKSPACE/wrangler.staging.generated.jsonc" health.json providers.json "$RUNNER_TEMP/staging-billing-schema.json" "$RUNNER_TEMP/staging-worker-secrets.json" "$RUNNER_TEMP/staging-worker-secret-list.raw"
+        run: |
+          rm -f "$GITHUB_WORKSPACE/wrangler.staging.generated.jsonc" health.json providers.json "$RUNNER_TEMP/staging-billing-schema.json" "$RUNNER_TEMP/staging-worker-secrets.json" "$RUNNER_TEMP/staging-worker-secret-list.raw"
+          rm -rf "$RUNNER_TEMP/staging-worker-dry-run"

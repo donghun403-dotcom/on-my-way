@@ -4,6 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
+import {
+  repositoryRateLimitNamespaceIds,
+  validateGeneratedStagingConfig,
+} from "./.github/scripts/staging-config.mjs";
 
 const workflowPath = new URL("./.github/workflows/staging-deploy.yml", import.meta.url);
 const workflow = readFileSync(workflowPath, "utf8").replace(/\r\n/g, "\n");
@@ -23,6 +27,12 @@ const fixtureSecrets = {
   TOSS_CLIENT_KEY: "test_ck_fixture",
   TOSS_SECRET_KEY: "test_sk_fixture",
   OPENAI_API_KEY: "fixture-openai-key",
+};
+
+const fixtureResources = {
+  STAGING_USERS_KV_ID: "fixture-staging-kv-id",
+  STAGING_D1_DATABASE_ID: "fixture-staging-d1-id",
+  STAGING_AI_RATE_LIMITER_NAMESPACE_ID: "48119",
 };
 
 function extractStep(name) {
@@ -96,8 +106,7 @@ test("Staging workflow keeps its guarded dispatch and environment boundary", () 
   assert.match(workflow, /^      ref:$/m);
   assert.match(workflow, /^    environment: staging$/m);
   assert.match(workflow, /^          ref: \$\{\{ inputs\.ref \}\}$/m);
-  assert.match(workflow, /\.name == "on-my-way-staging"/);
-  assert.match(workflow, /\.vars\.PAYMENTS_ENABLED == "false"/);
+  assert.match(workflow, /node \.github\/scripts\/staging-config\.mjs validate wrangler\.staging\.generated\.jsonc/);
   assert.match(workflow, /wranglerVersion: "4\.81\.0"/);
   assert.match(workflow, /deploy --config wrangler\.staging\.generated\.jsonc --secrets-file \$\{\{ runner\.temp \}\}\/staging-worker-secrets\.json/);
 });
@@ -202,7 +211,105 @@ test("readiness requires Staging AI while keeping storage and payments safety ga
   assert.match(step, /health\.services\.payments !== false/);
 
   const worker = readFileSync(new URL("./worker.mjs", import.meta.url), "utf8");
-  assert.match(worker, /ai: Boolean\(env\.OPENAI_API_KEY\)/);
+  assert.match(worker, /const guestAi = getGuestAiReadiness\(env\)/);
+  assert.match(worker, /ai: guestAi\.ready/);
+  assert.equal((worker.match(/if \(!getGuestAiReadiness\(env\)\.ready\)/g) || []).length, 2);
+});
+
+test("generated Staging config injects an isolated canonical AI rate limiter", () => {
+  const step = extractStep("Generate isolated Staging Wrangler config");
+  const script = extractRunScript(step);
+  assert.match(
+    step,
+    /STAGING_AI_RATE_LIMITER_NAMESPACE_ID: \$\{\{ secrets\.CLOUDFLARE_STAGING_AI_RATE_LIMITER_NAMESPACE_ID \}\}/,
+  );
+  assert.match(script, /node \.github\/scripts\/staging-config\.mjs generate/);
+  assert.doesNotMatch(script, /set -x/);
+
+  const fixtureDir = mkdtempSync(join(tmpdir(), "omw-staging-config-"));
+  const result = runBash(script, {
+    ...fixtureResources,
+    GITHUB_WORKSPACE: fixtureDir,
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const generatedPath = join(fixtureDir, "wrangler.staging.generated.jsonc");
+  const generated = JSON.parse(readFileSync(generatedPath, "utf8"));
+  const preview = JSON.parse(readFileSync(new URL("./wrangler.preview.jsonc", import.meta.url), "utf8"));
+  const production = JSON.parse(readFileSync(new URL("./wrangler.production.jsonc", import.meta.url), "utf8"));
+  const knownNamespaceIds = repositoryRateLimitNamespaceIds(preview, production);
+  assert.doesNotThrow(() => validateGeneratedStagingConfig(generated, knownNamespaceIds));
+  assert.deepEqual(generated.ratelimits, [{
+    name: "AI_RATE_LIMITER",
+    namespace_id: fixtureResources.STAGING_AI_RATE_LIMITER_NAMESPACE_ID,
+    simple: { limit: 5, period: 60 },
+  }]);
+  assert.equal(JSON.stringify(generated).includes('"namespace_id":"0"'), false);
+  if (process.platform !== "win32") assert.equal(statSync(generatedPath).mode & 0o777, 0o600);
+  rmSync(fixtureDir, { recursive: true, force: true });
+});
+
+test("Staging config generation fails closed for missing, invalid, placeholder, and shared namespaces", () => {
+  const script = extractRunScript(extractStep("Generate isolated Staging Wrangler config"));
+  for (const namespaceId of ["", "0", "not-a-number", "48118", "48117"]) {
+    const fixtureDir = mkdtempSync(join(tmpdir(), "omw-staging-config-invalid-"));
+    const result = runBash(script, {
+      ...fixtureResources,
+      STAGING_AI_RATE_LIMITER_NAMESPACE_ID: namespaceId,
+      GITHUB_WORKSPACE: fixtureDir,
+    });
+    assert.notEqual(result.status, 0, `namespace ${namespaceId || "<empty>"} must fail`);
+    assert.equal(existsSync(join(fixtureDir, "wrangler.staging.generated.jsonc")), false);
+    rmSync(fixtureDir, { recursive: true, force: true });
+  }
+});
+
+test("generated Staging config validator rejects missing or duplicate required bindings", () => {
+  const base = JSON.parse(readFileSync(new URL("./wrangler.staging.jsonc", import.meta.url), "utf8"));
+  const valid = {
+    ...base,
+    kv_namespaces: [{ binding: "USERS_KV", id: "fixture-kv" }],
+    d1_databases: [{
+      binding: "BILLING_DB",
+      database_name: "on-my-way-billing-staging",
+      database_id: "fixture-d1",
+      migrations_dir: "migrations",
+    }],
+    ratelimits: [{
+      name: "AI_RATE_LIMITER",
+      namespace_id: fixtureResources.STAGING_AI_RATE_LIMITER_NAMESPACE_ID,
+      simple: { limit: 5, period: 60 },
+    }],
+  };
+  assert.doesNotThrow(() => validateGeneratedStagingConfig(valid, new Set(["48117", "48118"])));
+
+  for (const mutate of [
+    (value) => { delete value.assets; },
+    (value) => { value.kv_namespaces = []; },
+    (value) => { value.d1_databases = []; },
+    (value) => { value.ratelimits = []; },
+    (value) => { value.durable_objects.bindings = []; },
+    (value) => { value.ratelimits.push({ ...value.ratelimits[0] }); },
+  ]) {
+    const invalid = structuredClone(valid);
+    mutate(invalid);
+    assert.throws(() => validateGeneratedStagingConfig(invalid, new Set(["48117", "48118"])));
+  }
+});
+
+test("generated config validation and Wrangler dry-run precede every remote Staging mutation", () => {
+  const generated = workflow.indexOf("      - name: Generate isolated Staging Wrangler config");
+  const validate = workflow.indexOf("      - name: Validate generated Staging config before remote changes");
+  const dryRun = workflow.indexOf("      - name: Bundle Staging Worker before remote changes");
+  const migrate = workflow.indexOf("      - name: Apply Staging D1 migrations before deploy");
+  const deploy = workflow.indexOf("      - name: Deploy isolated Staging Worker");
+  assert.ok(generated >= 0 && generated < validate);
+  assert.ok(validate < dryRun);
+  assert.ok(dryRun < migrate);
+  assert.ok(migrate < deploy);
+  const dryRunStep = extractStep("Bundle Staging Worker before remote changes");
+  assert.match(dryRunStep, /npx --yes wrangler@4\.81\.0 deploy/);
+  assert.match(dryRunStep, /--dry-run/);
+  assert.match(dryRunStep, /--config wrangler\.staging\.generated\.jsonc/);
 });
 
 test("cleanup always removes every generated config and temporary Secret artifact", () => {
@@ -215,6 +322,7 @@ test("cleanup always removes every generated config and temporary Secret artifac
     "staging-billing-schema.json",
     "staging-worker-secrets.json",
     "staging-worker-secret-list.raw",
+    "staging-worker-dry-run",
   ]) {
     assert.match(step, new RegExp(target.replaceAll(".", "\\.")));
   }

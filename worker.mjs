@@ -303,9 +303,36 @@ function guestDraftApiError(code, status) {
   return json({ ok: false, code, error: messages[code] || "계획 초안을 처리하지 못했어요." }, status || 409);
 }
 
+export function getGuestAiReadiness(env = {}) {
+  const missingDependencies = [];
+  const invalidDependencies = [];
+  const requireBinding = (name, value, isValid) => {
+    if (value === undefined || value === null || value === "") {
+      missingDependencies.push(name);
+    } else if (!isValid(value)) {
+      invalidDependencies.push(name);
+    }
+  };
+
+  requireBinding("OPENAI_API_KEY", env.OPENAI_API_KEY, (value) => String(value).trim().length > 0);
+  requireBinding("SESSION_SECRET", env.SESSION_SECRET, (value) => String(value).length >= 32);
+  requireBinding("USERS_KV", env.USERS_KV, (value) => (
+    typeof value?.get === "function" && typeof value?.put === "function"
+  ));
+  requireBinding("AI_RATE_LIMITER", env.AI_RATE_LIMITER, (value) => typeof value?.limit === "function");
+  requireBinding("GUEST_PLAN_DRAFTS", env.GUEST_PLAN_DRAFTS, (value) => (
+    typeof value?.idFromName === "function" && typeof value?.get === "function"
+  ));
+  return {
+    ready: missingDependencies.length === 0 && invalidDependencies.length === 0,
+    missingDependencies,
+    invalidDependencies,
+  };
+}
+
 async function handleGuestGoalPreview({ request, env, accountContext }) {
   if (request.method !== "POST") return json({ ok: false, error: "POST 요청만 사용할 수 있어요.", code: "METHOD_NOT_ALLOWED" }, 405);
-  if (!env.USERS_KV || !env.GUEST_PLAN_DRAFTS || !env.AI_RATE_LIMITER || !env.OPENAI_API_KEY) {
+  if (!getGuestAiReadiness(env).ready) {
     return json({ ok: false, error: "AI 계획 미리보기가 아직 준비되지 않았어요.", code: "GUEST_PREVIEW_UNAVAILABLE" }, 503);
   }
   if (await currentSessionUser(accountContext)) {
@@ -408,7 +435,7 @@ async function handleGuestGoalPreview({ request, env, accountContext }) {
 
 async function handleGuestGoalDraftRevision({ request, env, accountContext }) {
   if (request.method !== "POST") return json({ ok: false, error: "POST 요청만 사용할 수 있어요.", code: "METHOD_NOT_ALLOWED" }, 405);
-  if (!env.GUEST_PLAN_DRAFTS || !env.AI_RATE_LIMITER || !env.OPENAI_API_KEY || String(env.SESSION_SECRET || "").length < 32) {
+  if (!getGuestAiReadiness(env).ready) {
     return json({ ok: false, error: "AI 계획 초안 저장소가 아직 준비되지 않았어요.", code: "GUEST_PREVIEW_UNAVAILABLE" }, 503);
   }
   if (await currentSessionUser(accountContext)) return json({ ok: false, error: "로그인한 계획은 계획 수정에서 변경해 주세요.", code: "MEMBER_PREVIEW_NOT_ALLOWED" }, 409);
@@ -785,12 +812,13 @@ async function handleFetch(request, env) {
 
     if (url.pathname === "/api/health" && request.method === "GET") {
       const billing = billingStatus(env);
+      const guestAi = getGuestAiReadiness(env);
       return json({
         ok: Boolean(env.USERS_KV),
         environment: String(env.APP_ENV || "unknown"),
         services: {
           accountStorage: Boolean(env.USERS_KV),
-          ai: Boolean(env.OPENAI_API_KEY),
+          ai: guestAi.ready,
           payments: billing.enabled,
         },
       }, env.USERS_KV ? 200 : 503);

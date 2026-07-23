@@ -359,6 +359,7 @@ test("비회원 AI 미리보기는 rate limiter, 저장소, API key, pseudonymou
     testEnv({ USERS_KV: null }),
     testEnv({ GUEST_PLAN_DRAFTS: null }),
     testEnv({ OPENAI_API_KEY: "" }),
+    testEnv({ SESSION_SECRET: "" }),
     testEnv({ SESSION_SECRET: "short" }),
   ];
   let providerCalls = 0;
@@ -368,9 +369,17 @@ test("비회원 AI 미리보기는 rate limiter, 저장소, API key, pseudonymou
     throw new Error("provider must not be called");
   }, async () => {
     for (const env of cases) {
+      const healthResponse = await worker.fetch(new Request("https://preview.example/api/health"), env);
+      assert.equal((await healthResponse.json()).services.ai, false);
       const response = await worker.fetch(previewRequest(), env);
       assert.equal(response.status, 503);
+      const revisionResponse = await worker.fetch(new Request("https://preview.example/api/ai/goal-draft/revise", {
+        method: "POST",
+      }), env);
+      assert.equal(revisionResponse.status, 503);
     }
+    const readyHealth = await worker.fetch(new Request("https://preview.example/api/health"), testEnv());
+    assert.equal((await readyHealth.json()).services.ai, true);
     const noIpRequest = previewRequest();
     noIpRequest.headers.delete("CF-Connecting-IP");
     const noIpResponse = await worker.fetch(noIpRequest, testEnv());
