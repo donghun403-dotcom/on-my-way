@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>On My Way Core Loop — Local Prototype</title>
+    <link
+      rel="preload"
+      href="assets/fonts/yeogieottae-jalnan2.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link rel="stylesheet" href="core-loop-v2.css" />
+  </head>
+  <body class="core-loop-prototype" data-font-state="loading" data-prototype-screen="goal">
+    <header class="prototype-header">
+      <a href="core-loop-v2.html?experience=core-loop-v2&amp;reset=1" aria-label="On My Way 프로토타입 처음으로">
+        <img src="assets/logo-horizontal-ollie.png" alt="On My Way" />
+      </a>
+      <span>LOCAL PROTOTYPE</span>
+    </header>
+
+    <main class="prototype-main" id="prototypeMain">
+      <section class="prototype-screen goal-screen is-active" data-screen="goal" aria-labelledby="goalTitle">
+        <div class="goal-layout">
+          <div class="goal-copy">
+            <p class="soft-kicker">길 만들기</p>
+            <h1 class="brand-display" id="goalTitle">무엇을 이루고 싶나요?</h1>
+            <p class="body-copy">혼자서는 자꾸 미뤄지는 목표를, 올리와 오늘 하나씩 이루어 가요.</p>
+          </div>
+          <div class="goal-ollie">
+            <span class="olly-speech brand-display">큰 길은 내가 먼저 그려볼게요!</span>
+            <img src="assets/ollie-thinking.png" alt="목표를 함께 고민하는 올리" />
+          </div>
+        </div>
+
+        <form class="goal-form soft-surface" id="goalForm">
+          <label class="text-field" for="prototypeGoal">
+            <span>목표</span>
+            <textarea id="prototypeGoal" rows="3" required>3개월 안에 작은 온라인 서비스를 출시하고 싶어요.</textarea>
+          </label>
+
+          <fieldset class="period-picker">
+            <legend>기간</legend>
+            <div class="choice-chips">
+              <label><input type="radio" name="period" value="1개월" /><span>1개월</span></label>
+              <label><input type="radio" name="period" value="3개월" checked required /><span>3개월</span></label>
+              <label><input type="radio" name="period" value="6개월" /><span>6개월</span></label>
+              <label><input type="radio" name="period" value="직접 입력" /><span>직접 입력</span></label>
+            </div>
+          </fieldset>
+
+          <label class="text-field optional-context" for="prototypeContext">
+            <span>지금 상황도 함께 적기 <small>선택</small></span>
+            <textarea id="prototypeContext" rows="2" placeholder="예: 아이디어는 있지만 개발 경험은 없어요.">아이디어는 있지만 개발 경험은 없어요.</textarea>
+          </label>
+
+          <button class="primary-action brand-display" type="submit">AI로 큰 계획 보기</button>
+          <p class="quiet-note">필수 입력은 목표와 기간, 두 가지뿐이에요.</p>
+        </form>
+      </section>
+
+      <section class="prototype-screen roadmap-screen" data-screen="roadmap" aria-labelledby="roadmapTitle" hidden>
+        <header class="screen-heading">
+          <div>
+            <p class="soft-kicker">올리가 만든 첫 번째 길</p>
+            <h1 class="brand-display" id="roadmapTitle">올리가 큰 길을 먼저 그려봤어요</h1>
+            <p class="body-copy">지금은 날짜별 일정이 아니라, 목표까지 갈 방향을 함께 확인해요.</p>
+          </div>
+          <img src="assets/ollie-action.png" alt="길을 안내하는 올리" />
+        </header>
+
+        <article class="goal-understanding soft-surface">
+          <div><span>AI가 이해한 목표</span><strong id="roadmapGoal">작은 온라인 서비스 출시</strong></div>
+          <div><span>성공 기준</span><strong>사용자가 직접 써볼 수 있는 첫 버전 공개</strong></div>
+          <div><span>현실성</span><strong>주 3회 작은 결과물을 만들면 가능해요</strong></div>
+        </article>
+
+        <ol class="journey-path" id="journeyPath" aria-label="목표 로드맵">
+          <li class="is-current">
+            <span class="milestone-marker"><img src="assets/ollie-action.png" alt="현재 위치" /></span>
+            <article><small>지금 여기</small><h2 class="brand-display">문제 하나 고르기</h2><p>누구의 어떤 불편을 풀지 한 문장으로 정해요.</p><button type="button" class="text-action" data-detail="problem">자세히 보기</button></article>
+          </li>
+          <li>
+            <span class="milestone-marker" aria-hidden="true">🌿</span>
+            <article><small>첫 마일스톤</small><h2 class="brand-display">가장 작은 해결책 만들기</h2><p>핵심 흐름 하나만 작동하는 첫 버전을 만들어요.</p><button type="button" class="text-action" data-detail="solution">자세히 보기</button></article>
+          </li>
+          <li>
+            <span class="milestone-marker" aria-hidden="true">☁️</span>
+            <article><small>확인하기</small><h2 class="brand-display">세 사람에게 보여주기</h2><p>설명보다 사용 장면을 보고 막히는 지점을 찾아요.</p><button type="button" class="text-action" data-detail="feedback">자세히 보기</button></article>
+          </li>
+          <li>
+            <span class="milestone-marker" aria-hidden="true">🫒</span>
+            <article><small>도착점</small><h2 class="brand-display">첫 버전 세상에 내놓기</h2><p>완벽함보다 실제 공개와 다음 개선을 선택해요.</p><button type="button" class="text-action" data-detail="launch">자세히 보기</button></article>
+          </li>
+        </ol>
+
+        <div class="roadmap-support-grid">
+          <article class="support-card">
+            <span>주간 진행 방식</span>
+            <strong>만들기 2회 · 보여주기 1회</strong>
+            <p>한 번에 25분부터 시작해요.</p>
+          </article>
+          <article class="support-card">
+            <span>AI가 임시로 둔 가정</span>
+            <strong>평일 저녁에 짧게 실행</strong>
+            <p>다음 화면에서 상황에 맞게 바꿀 수 있어요.</p>
+          </article>
+        </div>
+
+        <aside class="week-peek" aria-label="첫 7일 미리보기">
+          <div><span>첫 7일 작은 미리보기</span><strong>큰 길을 고정한 뒤 일정이 확정돼요</strong></div>
+          <ul><li>문제 후보 3개 적기</li><li>사용자 한 명 떠올리기</li><li>첫 질문 만들기</li></ul>
+        </aside>
+
+        <button class="primary-action brand-display" type="button" data-next="adjust">이 길에서 바꾸고 싶은 점 말하기</button>
+      </section>
+
+      <section class="prototype-screen adjust-screen" data-screen="adjust" aria-labelledby="adjustTitle" hidden>
+        <header class="screen-heading compact">
+          <div>
+            <p class="soft-kicker">올리와 길 다듬기</p>
+            <h1 class="brand-display" id="adjustTitle">이 길에서 바꾸고 싶은 점을 말해 주세요</h1>
+            <p class="body-copy">입력하거나 빠른 선택을 눌러도 아직 AI를 부르지 않아요.</p>
+          </div>
+          <img src="assets/ollie-thinking.png" alt="이야기를 듣는 올리" />
+        </header>
+
+        <article class="roadmap-mini soft-surface">
+          <span>현재 Roadmap</span>
+          <strong>문제 선택 → 작은 해결책 → 사용자 확인 → 첫 공개</strong>
+          <p>주 3회 · 하루 40분 · 8주로 임시 계산했어요.</p>
+        </article>
+
+        <div class="quick-actions" aria-label="빠른 수정">
+          <button type="button" data-change="내 자료가 있어요">내 자료가 있어요</button>
+          <button type="button" data-change="이미 시작했어요">이미 시작했어요</button>
+          <button type="button" data-change="평일에는 하루 20분만 가능해요">가능한 시간이 적어요</button>
+          <button type="button" data-change="수요일은 할 수 없어요">못 하는 요일이 있어요</button>
+          <button type="button" data-change="첫 달 분량을 줄여 주세요">계획을 더 가볍게</button>
+          <button type="button" data-change="금요일에는 복습을 넣어 주세요">복습을 넣고 싶어요</button>
+        </div>
+
+        <label class="text-field chat-field" for="changeInput">
+          <span>올리에게 더 알려주기</span>
+          <textarea id="changeInput" rows="3" placeholder="예: 수요일은 할 수 없고, 평일에는 하루 20분만 가능해요."></textarea>
+        </label>
+        <button class="secondary-action add-change" id="addChange" type="button">말한 내용 모아두기</button>
+
+        <section class="pending-changes" aria-labelledby="pendingTitle">
+          <div><h2 class="brand-display" id="pendingTitle">반영을 기다리는 내용</h2><span id="pendingCount">0개</span></div>
+          <ul id="pendingChangeList"><li class="empty-pending">아직 모아둔 내용이 없어요.</li></ul>
+        </section>
+        <p class="inline-error" id="revisionError" role="alert" hidden>이번에는 반영하지 못했어요. 기존 Roadmap은 그대로 두었어요.</p>
+        <button class="primary-action brand-display" id="applyChanges" type="button" disabled>계획에 반영하기</button>
+      </section>
+
+      <section class="prototype-screen changes-screen" data-screen="changes" aria-labelledby="changesTitle" hidden>
+        <header class="screen-heading compact">
+          <div>
+            <p class="soft-kicker">Roadmap revision</p>
+            <h1 class="brand-display" id="changesTitle">계획을 이렇게 바꿨어요</h1>
+            <p class="body-copy">큰 방향은 지키고, 지금 할 수 있는 속도로 가볍게 조정했어요.</p>
+          </div>
+          <img src="assets/ollie-celebrate.png" alt="조정된 계획을 보여주는 올리" />
+        </header>
+
+        <div class="comparison-grid">
+          <article><span>변경 전</span><strong>주 5회 · 하루 40분 · 8주</strong><p>빠르게 완성하는 일정</p></article>
+          <article class="is-after"><span>변경 후</span><strong>주 3회 · 하루 25분 · 10주</strong><p>지속 가능한 작은 실행</p></article>
+        </div>
+
+        <article class="applied-changes soft-surface">
+          <h2 class="brand-display">올리가 반영한 것</h2>
+          <ul id="appliedChangeList"><li>수요일 제외</li><li>첫 달 분량 축소</li><li>금요일 짧은 복습</li></ul>
+        </article>
+
+        <ol class="revised-roadmap" aria-label="수정된 로드맵">
+          <li><span>1</span><div><strong class="brand-display">문제 하나 고르기</strong><small>이번 주</small></div></li>
+          <li><span>2</span><div><strong class="brand-display">작은 해결책 만들기</strong><small>2~5주</small></div></li>
+          <li><span>3</span><div><strong class="brand-display">사용자와 확인하기</strong><small>6~8주</small></div></li>
+          <li><span>4</span><div><strong class="brand-display">첫 버전 공개하기</strong><small>9~10주</small></div></li>
+        </ol>
+
+        <button class="primary-action brand-display" id="lockRoadmap" type="button">이 계획 고정하고 일정 만들기</button>
+      </section>
+
+      <section class="prototype-screen locked-screen" data-screen="locked" aria-labelledby="lockedTitle" hidden>
+        <header class="screen-heading compact">
+          <div>
+            <p class="soft-kicker">길 고정 완료</p>
+            <h1 class="brand-display" id="lockedTitle">첫 7일을 가볍게 시작해 볼까요?</h1>
+            <p class="body-copy">고정 과정에서는 AI를 다시 부르지 않았어요.</p>
+          </div>
+          <img src="assets/ollie-action.png" alt="출발을 준비하는 올리" />
+        </header>
+
+        <article class="schedule-suggestion soft-surface">
+          <span>올리의 기본 실행 제안</span>
+          <h2 class="brand-display">월·수·금에 25분씩 시작해 볼까요?</h2>
+          <div class="schedule-options">
+            <button type="button" aria-pressed="true">이대로 시작</button>
+            <button type="button" id="changeDays">요일 바꾸기</button>
+            <button type="button" id="reduceTime">시간 줄이기</button>
+          </div>
+        </article>
+
+        <div class="first-week" id="firstWeek" aria-label="첫 7일 일정"></div>
+        <button class="primary-action brand-display" id="startPlan" type="button">올리와 첫 걸음 시작하기</button>
+      </section>
+
+      <section class="prototype-screen today-screen" data-screen="today" aria-labelledby="todayTitle" hidden>
+        <header class="today-heading">
+          <div><p class="soft-kicker">오늘 한 걸음</p><h1 class="brand-display" id="todayTitle">올리와 오늘의 한 걸음</h1></div>
+          <img src="assets/ollie-action.png" alt="오늘의 행동을 함께할 올리" />
+        </header>
+
+        <article class="today-action soft-surface" data-task-id="prototype-action-001">
+          <div class="action-label"><span>ACTION</span><b>예상 15분</b></div>
+          <h2 class="brand-display" id="todayActionTitle">사용자 한 명의 불편을 한 문장으로 적기</h2>
+          <p>완료 기준: 문제 문장 하나를 저장하면 완료</p>
+          <div class="action-buttons">
+            <button class="secondary-action" id="editTask" type="button">직접 수정</button>
+            <button class="primary-action brand-display" id="startAction" type="button">올리와 시작하기</button>
+          </div>
+        </article>
+
+        <section class="supporting-items" aria-label="오늘의 보조 일정">
+          <article data-item-type="REVIEW"><span>REVIEW · 점검</span><strong>이 문제가 실제로 자주 생기는지 돌아보기</strong><p>체크 대상이 아닌 별도 점검 카드예요.</p></article>
+          <aside data-item-type="TIP"><span>TIP · 올리의 팁</span><p>완벽한 문장보다 실제 누군가의 불편을 먼저 떠올려 보세요.</p></aside>
+        </section>
+      </section>
+
+      <section class="prototype-screen focus-screen" data-screen="focus" aria-labelledby="focusTitle" hidden>
+        <header class="focus-heading">
+          <img src="assets/ollie-action.png" alt="곁에서 함께하는 올리" />
+          <div><p class="soft-kicker">올리와 실행 중</p><h1 class="brand-display" id="focusTitle">15분만 같이 있어볼까요?</h1></div>
+        </header>
+        <div class="focus-orbit" role="timer" aria-label="남은 시간"><strong id="focusMinutes">15</strong><span>분</span></div>
+        <p class="focus-task" id="focusTask">사용자 한 명의 불편을 한 문장으로 적기</p>
+        <div class="focus-controls">
+          <button class="secondary-action" id="pauseFocus" type="button" aria-pressed="false">잠시 멈춤</button>
+          <button class="secondary-action" id="shortenFocus" type="button">5분으로 줄이기</button>
+          <button class="primary-action brand-display" id="completeAction" type="button">오늘 한 걸음 완료</button>
+        </div>
+      </section>
+
+      <section class="prototype-screen reflection-screen" data-screen="reflection" aria-labelledby="reflectionTitle" hidden>
+        <header class="screen-heading compact">
+          <div><p class="soft-kicker">자동 기록 완료</p><h1 class="brand-display" id="reflectionTitle">오늘 한 걸음은 어땠어요?</h1><p class="body-copy">글을 쓰지 않아도 완료 기록은 이미 남았어요.</p></div>
+          <img src="assets/ollie-celebrate.png" alt="완료를 축하하는 올리" />
+        </header>
+        <div class="mood-picker" role="group" aria-label="오늘의 느낌">
+          <button type="button" data-mood="쉬웠어요" aria-pressed="false">쉬웠어요</button>
+          <button type="button" data-mood="적당했어요" aria-pressed="false">적당했어요</button>
+          <button type="button" data-mood="힘들었어요" aria-pressed="false">힘들었어요</button>
+        </div>
+        <label class="text-field" for="diaryNote"><span>한 줄 남기기 <small>선택</small></span><textarea id="diaryNote" rows="3" placeholder="오늘 발견한 점을 짧게 남겨도 좋아요."></textarea></label>
+        <article class="auto-entry soft-surface"><span>Diary 자동 기록</span><strong>오늘의 ACTION 완료</strong><p id="autoEntryTime">방금 저장됨 · note 없이도 유지돼요</p></article>
+        <button class="primary-action brand-display" id="seeGrowth" type="button">올리의 성장 확인하기</button>
+      </section>
+
+      <section class="prototype-screen growth-screen" data-screen="growth" aria-labelledby="growthTitle" hidden>
+        <header class="growth-hero">
+          <div><p class="soft-kicker">함께 성장</p><h1 class="brand-display" id="growthTitle">첫 잎이 조금 더 펴졌어요</h1><p>오늘의 한 걸음이 올리에게도 작은 변화를 만들었어요.</p></div>
+          <div class="growth-visual"><span aria-hidden="true">🌱</span><img src="assets/ollie-celebrate.png" alt="첫 잎과 함께 성장한 올리" /></div>
+        </header>
+        <ol class="growth-track">
+          <li class="is-grown"><span>1</span><strong class="brand-display">첫 잎</strong><small>ACTION 1회</small></li>
+          <li><span>3</span><strong class="brand-display">새순</strong><small>ACTION 3회</small></li>
+          <li><span>●</span><strong class="brand-display">첫 열매</strong><small>마일스톤 완료</small></li>
+          <li><span>🌈</span><strong class="brand-display">다시 걷기</strong><small>놓친 뒤 재시작</small></li>
+        </ol>
+        <p class="growth-message brand-display">“오늘 여기까지 온 것도 충분히 멋져요.”</p>
+        <button class="primary-action brand-display" type="button" data-next="recovery">놓친 날의 올리도 만나보기</button>
+      </section>
+
+      <section class="prototype-screen recovery-screen" data-screen="recovery" aria-labelledby="recoveryTitle" hidden>
+        <header class="recovery-hero">
+          <img src="assets/ollie-comfort.png" alt="구름 아래에서 기다리는 올리" />
+          <div><p class="soft-kicker">놓쳐도 다시 시작</p><h1 class="brand-display" id="recoveryTitle">오늘은 구름이 조금 무거워 보여요</h1><p>원래 계획을 다 하지 않아도 괜찮아요. 다시 걷는 것도 성장으로 남아요.</p></div>
+        </header>
+        <div class="recovery-options">
+          <button class="primary-action brand-display" type="button" data-recovery="tiny">5분짜리 한 걸음으로 줄이기</button>
+          <button class="secondary-action" type="button" data-recovery="rest">오늘은 쉬고 내일 다시 시작하기</button>
+          <button class="secondary-action" type="button" data-recovery="talk">올리에게 지금 상태 말하기</button>
+        </div>
+        <p class="recovery-status brand-display" id="recoveryStatus" role="status" hidden>작은 무지개가 떴어요. 다시 시작한 오늘도 성장으로 남겼어요.</p>
+      </section>
+
+      <section class="prototype-screen plan-screen" data-screen="plan" aria-labelledby="planTitle" hidden>
+        <header class="screen-heading compact"><div><p class="soft-kicker">내가 걷는 길</p><h1 class="brand-display" id="planTitle">Roadmap과 이번 주</h1><p class="body-copy">큰 방향과 실행 일정을 한 화면에서 구분해 봐요.</p></div><img src="assets/ollie-action.png" alt="계획 길 위의 올리" /></header>
+        <ol class="plan-roadmap revised-roadmap"><li class="is-current"><span>1</span><div><strong class="brand-display">문제 하나 고르기</strong><small>진행 중</small></div></li><li><span>2</span><div><strong class="brand-display">작은 해결책 만들기</strong><small>다음 마일스톤</small></div></li><li><span>3</span><div><strong class="brand-display">사용자와 확인하기</strong><small>준비 중</small></div></li></ol>
+        <section class="plan-week soft-surface"><div><h2 class="brand-display">첫 7일 일정</h2><button class="text-action" id="adjustPlan" type="button">일정 조정</button></div><div id="planWeekList"></div></section>
+      </section>
+
+      <section class="prototype-screen record-screen" data-screen="record" aria-labelledby="recordTitle" hidden>
+        <header class="screen-heading compact"><div><p class="soft-kicker">짧게 기록</p><h1 class="brand-display" id="recordTitle">이번 주, 어떻게 걸어왔나요?</h1><p class="body-copy">완료는 자동으로 남고, 마음은 원할 때만 덧붙여요.</p></div><img src="assets/ollie-comfort.png" alt="기록을 함께 돌아보는 올리" /></header>
+        <article class="record-summary soft-surface"><span>이번 주</span><strong class="brand-display">한 걸음 완료 1회</strong><p>포기하지 않고 시작한 날이 한 번 생겼어요.</p></article>
+        <section class="diary-list" id="diaryList"><article><time>오늘</time><div><strong>사용자 한 명의 불편을 한 문장으로 적기</strong><p>완료 기록은 글 없이도 자동으로 남아요.</p></div><span>🌱</span></article></section>
+      </section>
+    </main>
+
+    <nav class="prototype-tabs" id="prototypeTabs" aria-label="프로토타입 앱 탭" hidden>
+      <button type="button" data-tab="today"><span aria-hidden="true">⌂</span>오늘</button>
+      <button type="button" data-tab="plan"><span aria-hidden="true">⌁</span>계획</button>
+      <button type="button" data-tab="growth"><span aria-hidden="true">🌱</span>올리</button>
+      <button type="button" data-tab="record"><span aria-hidden="true">✎</span>기록</button>
+    </nav>
+
+    <dialog class="prototype-sheet" id="taskEditSheet" aria-labelledby="taskEditTitle">
+      <form method="dialog">
+        <header><div><span>TaskEditSheet</span><h2 class="brand-display" id="taskEditTitle">오늘 한 걸음 수정</h2></div><button value="cancel" aria-label="닫기">×</button></header>
+        <label class="text-field" for="editTaskTitle"><span>행동</span><input id="editTaskTitle" value="사용자 한 명의 불편을 한 문장으로 적기" /></label>
+        <label class="text-field" for="editTaskMinutes"><span>예상 시간</span><input id="editTaskMinutes" type="number" min="5" max="60" value="15" /></label>
+        <button class="sheet-save brand-display" id="saveTaskEdit" value="default">수정한 한 걸음 저장</button>
+      </form>
+    </dialog>
+
+    <dialog class="prototype-sheet" id="planAdjustSheet" aria-labelledby="planAdjustTitle">
+      <form method="dialog">
+        <header><div><span>PlanAdjustSheet</span><h2 class="brand-display" id="planAdjustTitle">이번 주 일정 조정</h2></div><button value="cancel" aria-label="닫기">×</button></header>
+        <p>AI 호출 없이 직접 월·수·금 25분을 월·금 20분으로 줄일 수 있어요.</p>
+        <button class="sheet-save brand-display" id="savePlanAdjust" value="default">직접 조정 저장</button>
+      </form>
+    </dialog>
+
+    <div class="prototype-toast brand-display" id="prototypeToast" role="status" aria-live="polite" hidden></div>
+    <script src="core-loop-v2.js" defer></script>
+  </body>
+</html>
