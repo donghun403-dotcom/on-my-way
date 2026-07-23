@@ -1,5 +1,5 @@
 const { test, expect } = require("@playwright/test");
-const { mockExternalAssets, monitorPage, prepareApp, readStored } = require("./helpers");
+const { mockExternalAssets, monitorPage, prepareApp, readStored, waitForAppReady } = require("./helpers");
 
 const corruptions = [
   ["invalid JSON and empty values", { omwExecutionState: "{bad-json", omwCompanionState: "" }],
@@ -15,6 +15,12 @@ for (const [name, storage] of corruptions) {
     const diagnostics = monitorPage(page);
     await page.goto("/app.html");
     await expect(page.locator("#view-today")).toBeVisible();
+    const rawBeforeMutation = await page.evaluate(() => localStorage.getItem("omwExecutionState"));
+    const originalExecutionState = storage.omwExecutionState;
+    expect(rawBeforeMutation).toBe(typeof originalExecutionState === "string" ? originalExecutionState : JSON.stringify(originalExecutionState));
+
+    const firstAction = page.locator("#executionChecklist .execution-check").first();
+    if (await firstAction.count()) await firstAction.check();
     const state = await readStored(page, "omwExecutionState");
     expect(state.selectedDay).toBeGreaterThanOrEqual(1);
     expect(Array.isArray(state.completedLog)).toBeTruthy();
@@ -30,6 +36,50 @@ for (const [name, storage] of corruptions) {
     diagnostics.expectClean();
   });
 }
+
+test("정상 v3 상태는 첫 읽기에 원문을 유지하고 명시적 변경 뒤 완료·일기·진행률과 확장 필드를 v4로 보존한다", async ({ page }) => {
+  await prepareApp(page);
+  await page.goto("/app.html");
+  await waitForAppReady(page);
+  const seeded = await page.evaluate(() => {
+    const bundle = getPlanBundle();
+    const firstTask = bundle.schedule[0].tasks[0];
+    const legacyState = {
+      ...bundle.state,
+      version: 3,
+      selectedDay: 1,
+      checkedByDay: { ...bundle.state.checkedByDay, "1": [true, ...bundle.schedule[0].tasks.slice(1).map(() => false)] },
+      checkedTaskKeysByDay: { ...bundle.state.checkedTaskKeysByDay, "1": { [firstTask._taskKey]: true } },
+      completedLog: [{ taskKey: firstTask._taskKey, day: 1, taskIndex: 0, text: firstTask.text, completedAt: "2026-07-20T00:00:00.000Z" }],
+      dailyMemories: [{ id: "2026-07-20-memory", diaryDate: "2026-07-20", text: "기존 일기", createdAt: "2026-07-20T01:00:00.000Z" }],
+      legacyExtension: { keep: true },
+    };
+    const raw = JSON.stringify(legacyState);
+    localStorage.setItem("omwExecutionState", raw);
+    return { raw, firstTaskKey: firstTask._taskKey };
+  });
+
+  await page.reload();
+  await waitForAppReady(page);
+  expect(await page.evaluate(() => localStorage.getItem("omwExecutionState"))).toBe(seeded.raw);
+  await expect(page.locator("#executionChecklist .execution-check").first()).toBeChecked();
+  await expect(page.locator("#todayGoalProgress")).toContainText("1 /");
+
+  const firstCheckbox = page.locator("#executionChecklist .execution-check").first();
+  await firstCheckbox.uncheck();
+  await firstCheckbox.check();
+  const migrated = await readStored(page, "omwExecutionState");
+  expect(migrated.version).toBe(4);
+  expect(migrated.legacyExtension).toEqual({ keep: true });
+  expect(migrated.dailyMemories).toEqual([expect.objectContaining({ id: "2026-07-20-memory", text: "기존 일기" })]);
+  expect(migrated.completedLog).toHaveLength(1);
+  expect(migrated.completedLog[0].taskKey).toBe(`1:${seeded.firstTaskKey}`);
+
+  await page.reload();
+  await waitForAppReady(page);
+  await expect(page.locator("#executionChecklist .execution-check").first()).toBeChecked();
+  expect((await readStored(page, "omwExecutionState")).dailyMemories).toHaveLength(1);
+});
 
 test("account changes isolate local plans and restore only the matching account", async ({ page }) => {
   await mockExternalAssets(page);

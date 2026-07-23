@@ -79,8 +79,8 @@
       <section class="design-flow section-band story-flow" id="designFlow" data-page-view="trial" aria-live="polite" hidden>
         <div class="section-heading">
           <p class="eyebrow">3 Steps · About 30 Seconds</p>
-          <h2>세 가지만 고르면 오늘 계획이 완성돼요</h2>
-          <p>정답은 없어요. 편하게 고르고 나중에 언제든 바꿀 수 있어요.</p>
+          <h2>내 조건에 맞는 계획 초안을 함께 만들어요</h2>
+          <p>목표와 실제 가능한 시간을 알려주면, 저장 전에 첫 7일을 먼저 확인할 수 있어요.</p>
           <ul class="trial-trust-list" aria-label="무료 체험 안내">
             <li><span aria-hidden="true">✓</span> 카드 등록 없음</li>
             <li><span aria-hidden="true">✓</span> 자동 결제 없음</li>
@@ -90,32 +90,32 @@
         <div class="design-panel first-meeting-panel goal-builder-shell">
           <nav class="diagnosis-stepper" aria-label="목표 설정 단계">
             <span class="active" data-diagnosis-step="0" aria-current="step"><b>01</b><em>목표</em></span>
-            <span data-diagnosis-step="1"><b>02</b><em>루틴</em></span>
-            <span data-diagnosis-step="2"><b>03</b><em>성향</em></span>
+            <span data-diagnosis-step="1"><b>02</b><em>자료·일정</em></span>
+            <span data-diagnosis-step="2"><b>03</b><em>계획 초안</em></span>
           </nav>
 
           <form class="personality-form ollie-goal-card" id="personalityForm">
             <header class="builder-header">
               <div>
-                <p class="builder-kicker">한 번에 하나씩만 선택해요</p>
-                <h3 id="diagnosisStepTitle" aria-live="polite">무엇을 시작해볼까요?</h3>
+                <p class="builder-kicker">저장하기 전에 충분히 확인해요</p>
+                <h3 id="diagnosisStepTitle" aria-live="polite">어떤 결과를 만들고 싶나요?</h3>
               </div>
               <span id="diagnosisStepCount">1 / 3</span>
             </header>
             <div class="builder-progress" aria-hidden="true"><span id="diagnosisProgressBar" style="width: 33%"></span></div>
             <p class="builder-reassurance"><span aria-hidden="true">✓</span> 지금 선택은 임시 설정이에요. 앱에서 편하게 다시 바꿀 수 있어요.</p>
 
-            <section class="diagnosis-step active" data-step-title="무엇을 시작해볼까요?">
+            <section class="diagnosis-step active" data-step-title="어떤 결과를 만들고 싶나요?">
               <div class="ollie-message compact-ollie-message">
                 <img class="mascot-art mascot-avatar" src="assets/ollie-thinking.png" alt="" />
                 <div>
                   <span>올리가 함께 정해볼게요</span>
-                  <p>이번에는 어떤 목표부터 한 걸음 시작해볼까요?</p>
+                  <p>구체적인 결과와 기간, 범위를 한 문장으로 적어 주세요.</p>
                 </div>
               </div>
               <label class="builder-field builder-field-large" for="designGoal">
-                <span>나의 목표</span>
-                <input id="designGoal" type="text" placeholder="달성하고 싶은 목표를 직접 입력해 주세요" aria-describedby="goalCategoryHelp goalValidationMessage" required />
+                <span>만들고 싶은 결과</span>
+                <input id="designGoal" type="text" placeholder="예: 8주 동안 Grammar in Use Unit 1부터 60까지 끝내고 싶어요" aria-describedby="goalCategoryHelp goalValidationMessage" required />
               </label>
               <div class="goal-suggestions" aria-label="목표 카테고리">
                 <button type="button" data-goal-category="exam" aria-pressed="false">시험</button>
@@ -125,61 +125,81 @@
                 <button type="button" data-goal-category="reading" aria-pressed="false">독서</button>
                 <button type="button" data-goal-category="startup" aria-pressed="false">창업</button>
                 <button type="button" data-goal-category="habit" aria-pressed="false">습관</button>
-                <button class="custom-goal-button" type="button" id="customGoalButton" data-goal-category="custom" aria-pressed="false">
-                  <span aria-hidden="true">＋</span>
-                  <strong>직접 목표 입력하기</strong>
-                </button>
               </div>
-              <p class="goal-category-help" id="goalCategoryHelp">카테고리를 고르면 목표를 직접 적을 수 있도록 예시를 보여드려요.</p>
+              <p class="goal-category-help" id="goalCategoryHelp">빠른 시작 버튼을 누르면 수정 가능한 예시를 보여드려요. 선택하지 않고 바로 적어도 됩니다.</p>
               <div class="goal-example-suggestions" id="goalExampleSuggestions" aria-label="선택한 카테고리의 추천 목표" hidden></div>
-              <p class="goal-validation-message" id="goalValidationMessage" role="status" aria-live="polite">카테고리와 달성하고 싶은 목표를 선택해 주세요.</p>
+              <p class="goal-validation-message" id="goalValidationMessage" role="status" aria-live="polite">달성하고 싶은 결과를 입력해 주세요.</p>
             </section>
 
-            <section class="diagnosis-step" data-step-title="언제 하면 가장 편할까요?" hidden>
-              <div class="builder-field-grid">
-                <label class="builder-field" for="goalPeriod">
-                  <span>얼마 동안 해볼까요?</span>
-                  <select id="goalPeriod" required>
-                    <option value="7">7일 · 가볍게 시작</option>
-                    <option value="14">14일 · 2주 도전</option>
-                    <option value="30">30일 · 빠르게 집중</option>
-                    <option value="90" selected>90일 · 꾸준히 성장</option>
-                    <option value="100">100일 · 습관으로 정착</option>
-                    <option value="180">6개월 · 여유 있게 달성</option>
-                  </select>
-                </label>
-                <label class="builder-field" for="routineTime">
-                  <span>언제 가장 여유롭나요?</span>
-                  <select id="routineTime" required>
-                    <option selected>아침</option>
-                    <option>점심</option>
-                    <option>저녁</option>
-                    <option>자기 전</option>
-                  </select>
-                </label>
+            <section class="diagnosis-step" data-step-title="자료와 실제 가능한 일정을 알려주세요" hidden>
+              <fieldset class="builder-choice-section material-choice-section">
+                <legend>이미 사용하고 있는 자료가 있나요?</legend>
+                <div class="builder-choice-row">
+                  <label><input type="radio" name="materialMode" value="yes" /><span>자료 추가</span></label>
+                  <label><input type="radio" name="materialMode" value="none" checked /><span>정해진 자료 없음</span></label>
+                </div>
+              </fieldset>
+              <div class="material-fields" id="materialFields" hidden>
+                <label class="builder-field" for="materialName"><span>자료 이름</span><input id="materialName" type="text" maxlength="200" placeholder="예: Grammar in Use" /></label>
+                <label class="builder-field" for="materialRange"><span>목표 범위</span><input id="materialRange" type="text" maxlength="200" placeholder="예: Unit 1–60" /></label>
+                <label class="builder-field" for="materialProgress"><span>현재 진행 위치</span><input id="materialProgress" type="text" maxlength="200" placeholder="예: Unit 12까지 완료" /></label>
+                <label class="builder-field" for="materialCompletion"><span>완료 기준</span><input id="materialCompletion" type="text" maxlength="300" placeholder="예: 문제 풀이와 오답 복습까지" /></label>
+                <label class="builder-field" for="materialUnit"><span>자료 단위</span><input id="materialUnit" type="text" maxlength="80" placeholder="예: Unit" /></label>
               </div>
-              <details class="optional-settings">
-                <summary><span>조금 더 맞춤 설정</span><small>선택</small></summary>
-                <label class="builder-field" for="routineReadiness">
-                  <span>평소 실행 스타일</span>
-                  <select id="routineReadiness" required>
-                    <option>바로 실행하는 편이에요</option>
-                    <option selected>계획이 있으면 실행해요</option>
-                    <option>시작 전 준비가 필요해요</option>
-                    <option>자주 미뤄요</option>
-                    <option>시작해도 쉽게 중단돼요</option>
-                  </select>
-                </label>
-              </details>
+
+              <fieldset class="builder-choice-section schedule-days-section">
+                <legend>가능한 요일</legend>
+                <div class="weekday-choice-row">
+                  <label><input type="checkbox" value="월" data-available-day checked /><span>월</span></label>
+                  <label><input type="checkbox" value="화" data-available-day /><span>화</span></label>
+                  <label><input type="checkbox" value="수" data-available-day checked /><span>수</span></label>
+                  <label><input type="checkbox" value="목" data-available-day /><span>목</span></label>
+                  <label><input type="checkbox" value="금" data-available-day checked /><span>금</span></label>
+                  <label><input type="checkbox" value="토" data-available-day /><span>토</span></label>
+                  <label><input type="checkbox" value="일" data-available-day /><span>일</span></label>
+                </div>
+              </fieldset>
+
+              <div class="builder-field-grid schedule-detail-grid">
+                <label class="builder-field" for="sessionMinutes"><span>한 번에 가능한 시간</span><div class="session-minute-field"><input id="sessionMinutes" type="number" min="5" max="180" step="5" value="25" required /><em>분</em></div></label>
+                <label class="builder-field" for="weeklyFrequency"><span>주당 횟수</span><select id="weeklyFrequency"><option value="2">주 2회</option><option value="3" selected>주 3회</option><option value="4">주 4회</option><option value="5">주 5회</option><option value="6">주 6회</option><option value="7">매일</option></select></label>
+                <label class="builder-field" for="goalPeriod"><span>완료 기간</span><select id="goalPeriod" required><option value="7">7일</option><option value="14">14일</option><option value="30">30일</option><option value="90" selected>90일</option><option value="100">100일</option><option value="180">6개월</option></select></label>
+                <label class="builder-field" for="targetDate"><span>완료 희망일</span><input id="targetDate" type="date" /></label>
+                <label class="builder-field" for="planIntensity"><span>진행 방식</span><select id="planIntensity"><option>가볍게</option><option selected>균형 있게</option><option>집중적으로</option></select></label>
+                <label class="builder-field" for="bufferDays"><span>여유일</span><div class="session-minute-field"><input id="bufferDays" type="number" min="0" max="30" value="2" /><em>일</em></div></label>
+              </div>
+
+              <fieldset class="builder-choice-section difficult-days-section">
+                <legend>실행하기 어려운 요일 <small>선택</small></legend>
+                <div class="weekday-choice-row">
+                  <label><input type="checkbox" value="월" data-difficult-day /><span>월</span></label><label><input type="checkbox" value="화" data-difficult-day /><span>화</span></label><label><input type="checkbox" value="수" data-difficult-day /><span>수</span></label><label><input type="checkbox" value="목" data-difficult-day /><span>목</span></label><label><input type="checkbox" value="금" data-difficult-day /><span>금</span></label><label><input type="checkbox" value="토" data-difficult-day /><span>토</span></label><label><input type="checkbox" value="일" data-difficult-day /><span>일</span></label>
+                </div>
+              </fieldset>
+
+              <label class="builder-field" for="excludedDates"><span>제외 날짜 또는 휴식 기간 <small>선택</small></span><input id="excludedDates" type="text" placeholder="예: 8/12, 8/15–8/18" /></label>
+              <div class="builder-field-grid notification-grid">
+                <label class="builder-field" for="routineTime"><span>알림을 받을 시간대</span><select id="routineTime" required><option selected>아침</option><option>점심</option><option>저녁</option><option>자기 전</option></select></label>
+                <label class="builder-field" for="notificationTime"><span>실제 알림 시각</span><input id="notificationTime" type="time" value="07:00" /></label>
+              </div>
             </section>
 
-            <section class="diagnosis-step" data-step-title="이대로 바로 시작할까요?" hidden>
+            <section class="diagnosis-step" data-step-title="계획 초안을 만들 준비가 됐어요" hidden>
               <div class="profile-intro refined-profile-intro">
-                <span>필수 설정은 모두 끝났어요</span>
-                <p>아래 정보는 건너뛰어도 계획을 바로 만들 수 있어요.</p>
+                <span>3/3 · 계획 초안</span>
+                <p>올리가 입력한 자료와 실제 일정을 기준으로 첫 7일 초안을 만들어요. 아직 저장되거나 적용되지 않습니다.</p>
               </div>
+              <fieldset class="builder-choice-section planning-preferences">
+                <legend>원하는 계획 방식 <small>선택</small></legend>
+                <div class="preference-choice-list">
+                  <label><input type="checkbox" value="짧게 자주 하고 싶어요" data-planning-preference /><span>짧게 자주 하고 싶어요</span></label>
+                  <label><input type="checkbox" value="한 번 할 때 길게 하고 싶어요" data-planning-preference /><span>한 번 할 때 길게 하고 싶어요</span></label>
+                  <label><input type="checkbox" value="복습을 많이 넣어 주세요" data-planning-preference /><span>복습을 많이 넣어 주세요</span></label>
+                  <label><input type="checkbox" value="밀린 일정은 주말에 모아 주세요" data-planning-preference /><span>밀린 일정은 주말에 모아 주세요</span></label>
+                  <label><input type="checkbox" value="휴식일을 꼭 넣어 주세요" data-planning-preference /><span>휴식일을 꼭 넣어 주세요</span></label>
+                </div>
+              </fieldset>
               <details class="optional-settings personality-optional-settings">
-                <summary><span>성향 정보를 추가할게요</span><small>선택</small></summary>
+                <summary><span>성향 선호도 더하기</span><small>선택</small></summary>
                 <div class="personality-fields" aria-label="성향 분석 입력">
                   <label for="birthDate">생년월일<input id="birthDate" type="date" /></label>
                   <label for="birthTime">출생 시간<input id="birthTime" type="time" /></label>
@@ -196,13 +216,14 @@
                 </div>
                 <div class="privacy-note"><span aria-hidden="true">✓</span> 입력 내용은 계획·루틴·코칭과 로그인 기기 간 동기화에 사용돼요.</div>
               </details>
-              <div class="trial-terms-note"><span aria-hidden="true">✓</span> 결제정보 없이 24시간 무료 체험 · 자동 결제 없음 · 종료 후 Free로 계속 이용</div>
+              <label class="builder-field" for="routineReadiness"><span>평소 실행 스타일</span><select id="routineReadiness" required><option>바로 실행하는 편이에요</option><option selected>계획이 있으면 실행해요</option><option>시작 전 준비가 필요해요</option><option>자주 미뤄요</option><option>시작해도 쉽게 중단돼요</option></select></label>
+              <div class="trial-terms-note"><span aria-hidden="true">✓</span> 초안을 확인한 뒤 저장 여부를 직접 결정해요. 로그인 전에는 회원 계획으로 저장되지 않아요.</div>
             </section>
 
             <footer class="builder-actions">
               <button class="builder-back" type="button" id="diagnosisBackButton" hidden>이전</button>
-              <button class="builder-next" type="button" id="diagnosisNextButton">다음 단계</button>
-              <button type="submit" id="aiPreviewButton" hidden>AI 계획 미리보기 만들기</button>
+              <button class="builder-next" type="button" id="diagnosisNextButton">다음: 자료와 일정 알려주기</button>
+              <button type="submit" id="aiPreviewButton" hidden>첫 7일 계획 초안 만들기</button>
             </footer>
           </form>
 
@@ -220,29 +241,46 @@
               </dl>
               <div class="summary-progress"><span>설정 완성도</span><strong id="wizardProgressValue">25%</strong></div>
             </div>
-            <a class="first-step-back" href="#designFlow"><span aria-hidden="true">←</span> 목표 입력으로 돌아가기</a>
+            <a class="first-step-back" href="#designFlow"><span aria-hidden="true">←</span> 목표와 조건 수정</a>
             <div class="preview-result-content">
               <div class="result-scroll-area">
                 <div class="analysis-header result-analysis-header">
                   <div>
-                    <small>YOUR FIRST STEP</small>
-                    <span id="aiPreviewStatus">오늘은 이것 하나면 충분해요</span>
+                    <small>3/3 · 계획 초안</small>
+                    <span id="aiPreviewStatus">첫 7일 계획을 확인해 주세요</span>
                   </div>
-                  <strong id="planningStyle">루틴 점검형</strong>
+                  <strong id="planningStyle">진행에 따라 매주 조정</strong>
                 </div>
+                <article class="draft-understanding-card" aria-labelledby="draftUnderstandingTitle">
+                  <div class="result-card-head"><strong id="draftUnderstandingTitle">올리가 이해한 내용</strong><a href="#designFlow">수정</a></div>
+                  <dl id="draftUnderstandingList">
+                    <div><dt>목표</dt><dd id="understoodGoal">입력한 목표</dd></div>
+                    <div><dt>사용 자료</dt><dd id="understoodMaterial">사용 자료 없음 · 일반 계획으로 구성</dd></div>
+                    <div><dt>가능 시간</dt><dd id="understoodAvailability">월·수·금 · 회당 25분</dd></div>
+                    <div><dt>제외 일정</dt><dd id="understoodExclusions">없음</dd></div>
+                    <div><dt>진행 방식</dt><dd id="understoodIntensity">균형 있게</dd></div>
+                    <div><dt>AI 가정</dt><dd id="understoodAssumptions">입력하지 않은 정보는 임의로 단정하지 않아요.</dd></div>
+                  </dl>
+                </article>
+                <article class="draft-feasibility-card" aria-labelledby="draftFeasibilityTitle">
+                  <span>달성 가능성 점검</span><strong id="draftFeasibilityTitle">현재 조건으로 시작할 수 있어요</strong><p id="draftFeasibilityCopy">주 3회, 회당 25분 기준으로 첫 주 실행 리듬을 만듭니다.</p><ul id="draftFeasibilityOptions"></ul>
+                </article>
                 <article class="ollie-chat-preview result-ollie-card">
                   <img src="assets/ollie-celebrate.png" alt="" />
                   <div><span>올리의 한마디</span><p id="aiCoachMessage">목표를 작게 쪼개면 오늘 바로 시작할 수 있습니다.</p></div>
                 </article>
-                <article class="today-plan-card result-today-card">
-                  <div class="result-card-head"><span>오늘의 첫 행동</span><b id="previewDuration">15분</b></div>
-                  <strong id="previewAction">단어 40개 + LC 1세트</strong>
-                  <p id="previewCompletionRule">작게 시작하고 완료 표시까지 남겨요.</p>
+                <article class="result-week-card draft-week-card" aria-labelledby="weekPlanTitle">
+                  <div class="result-section-head"><span>FIRST 7 DAYS</span><strong id="weekPlanTitle">첫 7일 일정</strong></div>
+                  <ol id="aiVisibleWeekPlan" class="result-week-list draft-week-list"><li>첫 7일 계획을 만드는 중이에요.</li></ol>
+                </article>
+                <article class="today-plan-card result-today-card" hidden>
+                  <div class="result-card-head"><span>첫 행동</span><b id="previewDuration">15분</b></div><strong id="previewAction">첫 행동</strong><p id="previewCompletionRule">완료 기준</p>
                 </article>
                 <div class="result-inline-start" role="region" aria-label="오늘 계획 시작하기">
-                  <div><span id="previewConversionKicker">READY TO GO</span><strong id="previewConversionCopy">설명은 나중에 봐도 괜찮아요. 올리와 첫 일정부터 시작해요.</strong></div>
-                  <a id="trialStartInlineLink" href="app.html" aria-label="방금 만든 오늘의 맞춤 계획 바로 시작하기"><span id="previewConversionAction">오늘 계획 바로 시작</span><b aria-hidden="true">→</b></a>
+                  <div><span id="previewConversionKicker">검토 후 결정</span><strong id="previewConversionCopy">저장하기 전에는 현재 계획이나 회원 데이터가 바뀌지 않아요.</strong></div>
+                  <a id="trialStartInlineLink" href="app.html" aria-label="이 계획 저장하고 시작하기"><span id="previewConversionAction">이 계획 저장하고 시작하기</span><b aria-hidden="true">→</b></a>
                 </div>
+                <div class="draft-secondary-actions"><button id="draftAdjustButton" type="button">계획 조정하기</button><button id="discardDraftChangesButton" type="button" hidden>수정 내용 버리기</button><a href="#designFlow">목표와 조건 다시 수정</a></div>
                 <details class="result-details-disclosure">
                   <summary aria-controls="resultDetailsContent" aria-expanded="false">
                     <span><strong>내 계획 자세히 보기</strong><small>오늘 스케줄 · 첫 주 로드맵 · 맞춤 분석</small></span>
@@ -257,12 +295,6 @@
                     </article>
                     <article class="tomorrow-card result-tomorrow-card">
                       <span>다음 단계</span><strong id="aiPreviewTitle">이번 주에는 루틴을 고정합니다</strong>
-                    </article>
-                    <article class="result-week-card" aria-labelledby="weekPlanTitle">
-                      <div class="result-section-head"><span>FIRST 7 DAYS</span><strong id="weekPlanTitle">첫 주 실행 로드맵</strong></div>
-                      <ol id="aiVisibleWeekPlan" class="result-week-list">
-                        <li>같은 시간에 작은 행동 1개를 반복합니다.</li>
-                      </ol>
                     </article>
                     <article class="result-roadmap-card" aria-labelledby="roadmapTitle">
                       <div class="result-section-head"><span>GOAL JOURNEY</span><strong id="roadmapTitle">목표까지 가는 방법</strong></div>

@@ -35,6 +35,23 @@ const mbtiInput = document.querySelector("#mbti");
 const goalPeriodInput = document.querySelector("#goalPeriod");
 const routineReadinessInput = document.querySelector("#routineReadiness");
 const routineTimeInput = document.querySelector("#routineTime");
+const materialModeInputs = document.querySelectorAll("input[name='materialMode']");
+const materialFields = document.querySelector("#materialFields");
+const materialNameInput = document.querySelector("#materialName");
+const materialRangeInput = document.querySelector("#materialRange");
+const materialProgressInput = document.querySelector("#materialProgress");
+const materialCompletionInput = document.querySelector("#materialCompletion");
+const materialUnitInput = document.querySelector("#materialUnit");
+const availableDayInputs = document.querySelectorAll("[data-available-day]");
+const difficultDayInputs = document.querySelectorAll("[data-difficult-day]");
+const planningPreferenceInputs = document.querySelectorAll("[data-planning-preference]");
+const sessionMinutesInput = document.querySelector("#sessionMinutes");
+const weeklyFrequencyInput = document.querySelector("#weeklyFrequency");
+const targetDateInput = document.querySelector("#targetDate");
+const planIntensityInput = document.querySelector("#planIntensity");
+const bufferDaysInput = document.querySelector("#bufferDays");
+const excludedDatesInput = document.querySelector("#excludedDates");
+const notificationTimeInput = document.querySelector("#notificationTime");
 const manseProfile = document.querySelector("#manseProfile");
 const mbtiProfile = document.querySelector("#mbtiProfile");
 const planningStyle = document.querySelector("#planningStyle");
@@ -51,6 +68,17 @@ const previewStyle = document.querySelector("#previewStyle");
 const previewAction = document.querySelector("#previewAction");
 const previewDuration = document.querySelector("#previewDuration");
 const previewCompletionRule = document.querySelector("#previewCompletionRule");
+const understoodGoal = document.querySelector("#understoodGoal");
+const understoodMaterial = document.querySelector("#understoodMaterial");
+const understoodAvailability = document.querySelector("#understoodAvailability");
+const understoodExclusions = document.querySelector("#understoodExclusions");
+const understoodIntensity = document.querySelector("#understoodIntensity");
+const understoodAssumptions = document.querySelector("#understoodAssumptions");
+const draftFeasibilityTitle = document.querySelector("#draftFeasibilityTitle");
+const draftFeasibilityCopy = document.querySelector("#draftFeasibilityCopy");
+const draftFeasibilityOptions = document.querySelector("#draftFeasibilityOptions");
+const draftAdjustButton = document.querySelector("#draftAdjustButton");
+const discardDraftChangesButton = document.querySelector("#discardDraftChangesButton");
 const dashboardGoalPreview = document.querySelector("#dashboardGoalPreview");
 const dashboardProgressValue = document.querySelector("#dashboardProgressValue");
 const dashboardProgressBar = document.querySelector("#dashboardProgressBar");
@@ -162,6 +190,39 @@ const planOverviewPeriod = document.querySelector("#planOverviewPeriod");
 const planOverviewWeek = document.querySelector("#planOverviewWeek");
 const planOverviewRhythm = document.querySelector("#planOverviewRhythm");
 const planWeekStrip = document.querySelector("#planWeekStrip");
+const planCriteriaMaterial = document.querySelector("#planCriteriaMaterial");
+const planCriteriaAvailability = document.querySelector("#planCriteriaAvailability");
+const planCriteriaIntensity = document.querySelector("#planCriteriaIntensity");
+const planRangeButtons = document.querySelectorAll("[data-plan-range]");
+const planScheduleList = document.querySelector("#planScheduleList");
+const openPlanAdjustButton = document.querySelector("#openPlanAdjustButton");
+const taskEditOverlay = document.querySelector("#taskEditOverlay");
+const taskEditSheet = document.querySelector("#taskEditSheet");
+const closeTaskEditButton = document.querySelector("#closeTaskEdit");
+const taskEditForm = document.querySelector("#taskEditForm");
+const taskEditDay = document.querySelector("#taskEditDay");
+const taskEditKey = document.querySelector("#taskEditKey");
+const taskEditName = document.querySelector("#taskEditName");
+const taskEditTargetDay = document.querySelector("#taskEditTargetDay");
+const taskEditTime = document.querySelector("#taskEditTime");
+const taskEditDuration = document.querySelector("#taskEditDuration");
+const taskEditRange = document.querySelector("#taskEditRange");
+const taskEditRule = document.querySelector("#taskEditRule");
+const taskEditScopeInputs = document.querySelectorAll("input[name='taskEditScope']");
+const taskEditScopeHint = document.querySelector("#taskEditScopeHint");
+const taskEditPreview = document.querySelector("#taskEditPreview");
+const taskEditPreviewMessage = document.querySelector("#taskEditPreviewMessage");
+const taskEditSubmitButton = document.querySelector("#taskEditSubmitButton");
+const skipTaskButton = document.querySelector("#skipTaskButton");
+const planAdjustOverlay = document.querySelector("#planAdjustOverlay");
+const planAdjustSheet = document.querySelector("#planAdjustSheet");
+const closePlanAdjustButton = document.querySelector("#closePlanAdjust");
+const planAiAdjustButton = document.querySelector("#planAiAdjustButton");
+const planDirectAdjustButton = document.querySelector("#planDirectAdjustButton");
+const planAdjustScopeButtons = document.querySelectorAll("[data-plan-adjust-scope]");
+const planUndoBanner = document.querySelector("#planUndoBanner");
+const planUndoMessage = document.querySelector("#planUndoMessage");
+const planUndoButton = document.querySelector("#planUndoButton");
 const scheduleModeButtons = document.querySelectorAll("[data-schedule-mode]");
 const todayOrderHint = document.querySelector("#todayOrderHint");
 const recoveryCard = document.querySelector("#recoveryCard");
@@ -325,6 +386,7 @@ function loadPricingPolicy() {
   return pricingPolicyPromise;
 }
 let activePlanScreen = "home";
+let activePlanRange = "week";
 let accountSyncTimer = null;
 let accountSyncInFlight = false;
 
@@ -636,20 +698,88 @@ function initializeTrialAccess() {
   window.setInterval(() => updateTrialStatus(Number(access.expiresAt)), 60 * 1000);
 }
 
+function buildActivatedExecutionPlan(draftPlan, draftInput) {
+  const plan = draftPlan && typeof draftPlan === "object" ? draftPlan : {};
+  const firstActionItem = (plan.firstWeekSchedule || [])
+    .flatMap((day) => Array.isArray(day?.items) ? day.items : [])
+    .find((item) => item?.type === "ACTION");
+  return {
+    ...plan,
+    planId: firstActionItem?.planId || draftInput?.draftId || plan.planId || `plan-${Date.now()}`,
+    goal: draftInput?.goal || plan.goal || "나의 목표",
+    period: Number(draftInput?.period) || Number(plan.periodDays) || 30,
+    currentState: draftInput?.material?.currentProgress || "",
+    routineReadiness: draftInput?.routineReadiness || DEFAULT_ROUTINE_READINESS,
+    routineTime: draftInput?.routineTime || "아침",
+    currentRoutine: "",
+    mbti: draftInput?.mbti || "",
+    firstAction: plan.firstAction || firstActionItem?.title || "첫 행동 시작하기",
+    coachMessage: plan.coachMessage || "검토한 첫 일정부터 시작해요.",
+    material: draftInput?.material || {},
+    availability: draftInput?.availability || {},
+    planningPreferences: draftInput?.planningPreferences || [],
+    aiPreview: plan,
+    planSource: "ai-reviewed-draft",
+    createdAt: new Date().toISOString(),
+  };
+}
+
+let goalDraftActivationPending = false;
+async function activateReviewedGoalDraft() {
+  if (goalDraftActivationPending) return false;
+  goalDraftActivationPending = true;
+  trialStartInlineLink?.setAttribute("aria-busy", "true");
+  try {
+    await accountExperienceReady;
+    const draftInput = safeJsonParse(sessionStorage.getItem(PENDING_GOAL_DRAFT_KEY), null);
+    const previewRecord = safeJsonParse(sessionStorage.getItem(PENDING_GOAL_PREVIEW_KEY), null);
+    if (!draftInput || !previewRecord?.preview) throw new Error("저장할 계획 초안을 찾지 못했어요. 조건을 확인해 다시 만들어 주세요.");
+    if (previewRecord.draftPlanId && (
+      previewRecord.pendingDraftInput
+      || goalDraftSignature(draftInput) !== previewRecord.activeDraftSignature
+      || !previewRecord.activeInputHash
+      || !previewRecord.activeRevision
+    )) {
+      throw new Error("수정한 조건으로 AI 계획을 다시 만든 뒤 저장해 주세요. 현재 미리보기는 수정 전 조건 기준이에요.");
+    }
+    if (!authUiState.user) {
+      createPendingFullPlanAuthIntent(draftInput);
+      location.assign(`app.html?auth=login&return=${encodeURIComponent("/?resumeGoal=1")}`);
+      return false;
+    }
+
+    const usage = aiUsageState || await loadAiUsage().catch(() => null);
+    if (usage?.plan === "free" && usage.trial?.eligible) {
+      const started = await startTrialAccess();
+      if (!started) return false;
+    }
+
+    const claimedDraft = previewRecord.draftPlanId ? await claimGuestGoalDraft(previewRecord) : null;
+    const draftPlan = claimedDraft?.activatedPlan || previewRecord.draftPlan;
+    if (!draftPlan) throw new Error("저장할 전체 계획 초안을 확인하지 못했어요.");
+    localStorage.setItem("omwExecutionPlan", JSON.stringify(
+      claimedDraft?.activatedPlan || buildActivatedExecutionPlan(draftPlan, draftInput),
+    ));
+    sessionStorage.removeItem(PENDING_GOAL_DRAFT_KEY);
+    sessionStorage.removeItem(PENDING_GOAL_PREVIEW_KEY);
+    clearPendingFullPlanAuthIntent();
+    if (readTrialAccess()?.plan !== "pro") localStorage.setItem(FREE_PLAN_GENERATED_KEY, "true");
+    if (authUiState.user) authUiState.user.goalPlanGeneratedAt = authUiState.user.goalPlanGeneratedAt || Date.now();
+    await saveAccountStateToServer();
+    location.assign("app.html");
+    return true;
+  } catch (error) {
+    showToast(error.message || "계획을 저장하지 못했어요. 현재 계획은 바뀌지 않았습니다.");
+    return false;
+  } finally {
+    goalDraftActivationPending = false;
+    trialStartInlineLink?.removeAttribute("aria-busy");
+  }
+}
+
 trialStartInlineLink?.addEventListener("click", async (event) => {
   event.preventDefault();
-  if (planPreviewPanel?.dataset.previewMode === "guest") {
-    const draft = savePendingGoalDraft();
-    if (!authUiState.user) {
-      createPendingFullPlanAuthIntent(draft);
-      location.assign(`app.html?auth=login&return=${encodeURIComponent("/?resumeGoal=1")}`);
-      return;
-    }
-    await runPersonalityAnalysis({ showLoading: true });
-    return;
-  }
-  const started = await startTrialAccess();
-  if (started) location.assign(trialStartInlineLink.href);
+  await activateReviewedGoalDraft();
 });
 
 function syncResultDetailsDisclosure({ reveal = false } = {}) {
@@ -1980,7 +2110,7 @@ goalInput?.addEventListener("input", () => {
 
 let diagnosisStepIndex = 0;
 
-const wizardStepLabels = ["목표 설정 중", "실행 리듬 설정 중", "성향 설정 중"];
+const wizardStepLabels = ["목표 설정 중", "자료·일정 설정 중", "계획 초안 준비 중"];
 
 const goalTemplates = {
   exam: {
@@ -2116,9 +2246,49 @@ function selectedGoalTemplate() {
   return template && template.goal === designGoal?.value.trim() ? template : null;
 }
 
+function selectedMaterialMode() {
+  return [...materialModeInputs].find((input) => input.checked)?.value || "none";
+}
+
+function checkedValues(inputs) {
+  return [...inputs].filter((input) => input.checked).map((input) => input.value);
+}
+
+function parseExcludedDates(value = excludedDatesInput?.value || "") {
+  return String(value).split(/[,\n]/).map((item) => item.trim()).filter(Boolean).slice(0, 30);
+}
+
+function collectGoalDraftInput() {
+  const materialMode = selectedMaterialMode();
+  return {
+    materialMode,
+    material: {
+      hasMaterial: materialMode === "yes",
+      name: materialNameInput?.value.trim() || "",
+      targetRange: materialRangeInput?.value.trim() || "",
+      currentProgress: materialProgressInput?.value.trim() || "",
+      completionRule: materialCompletionInput?.value.trim() || "",
+      unit: materialUnitInput?.value.trim() || "",
+    },
+    availability: {
+      availableDays: checkedValues(availableDayInputs),
+      sessionMinutes: Number(sessionMinutesInput?.value) || 0,
+      difficultDays: checkedValues(difficultDayInputs),
+      excludedDates: parseExcludedDates(),
+      targetDate: targetDateInput?.value || "",
+      weeklyFrequency: Number(weeklyFrequencyInput?.value) || 0,
+      intensity: planIntensityInput?.value || "균형 있게",
+      bufferDays: Number(bufferDaysInput?.value) || 0,
+      notificationTime: notificationTimeInput?.value || "",
+    },
+    planningPreferences: checkedValues(planningPreferenceInputs),
+  };
+}
+
 function savePendingGoalDraft() {
   try {
     const existing = safeJsonParse(sessionStorage.getItem(PENDING_GOAL_DRAFT_KEY), null);
+    const conditions = collectGoalDraftInput();
     const draft = {
       draftId: existing?.draftId || globalThis.crypto?.randomUUID?.() || `goal-${Date.now()}`,
       goal: designGoal?.value || "",
@@ -2130,6 +2300,7 @@ function savePendingGoalDraft() {
       birthPlace: birthPlaceInput?.value || "",
       mbti: mbtiInput?.value || "",
       category: selectedGoalCategory(),
+      ...conditions,
       updatedAt: Date.now(),
     };
     sessionStorage.setItem(PENDING_GOAL_DRAFT_KEY, JSON.stringify(draft));
@@ -2140,9 +2311,43 @@ function savePendingGoalDraft() {
   }
 }
 
-function savePendingGoalPreview(preview) {
+function goalDraftSignature(draft) {
+  if (!draft || typeof draft !== "object") return "";
+  const { updatedAt: _updatedAt, ...comparable } = draft;
+  return JSON.stringify(comparable);
+}
+
+function readPendingGoalPreview() {
   try {
-    sessionStorage.setItem(PENDING_GOAL_PREVIEW_KEY, JSON.stringify({ preview, createdAt: Date.now() }));
+    return safeJsonParse(sessionStorage.getItem(PENDING_GOAL_PREVIEW_KEY), null);
+  } catch {
+    return null;
+  }
+}
+
+function savePendingGoalPreview(preview, {
+  draftPlanId = "",
+  draftPlan = null,
+  activeDraftInput = null,
+  activeInput = null,
+  activeInputHash = "",
+  activeRevision = 0,
+} = {}) {
+  try {
+    sessionStorage.setItem(PENDING_GOAL_PREVIEW_KEY, JSON.stringify({
+      preview,
+      draftPlanId: String(draftPlanId || ""),
+      draftPlan: draftPlan && typeof draftPlan === "object" ? draftPlan : null,
+      activeDraftInput: activeDraftInput && typeof activeDraftInput === "object" ? activeDraftInput : null,
+      activeDraftSignature: goalDraftSignature(activeDraftInput),
+      activeInput: activeInput && typeof activeInput === "object" ? activeInput : null,
+      activeInputHash: String(activeInputHash || ""),
+      activeRevision: Number(activeRevision || 0),
+      pendingDraftInput: null,
+      pendingDraftSignature: "",
+      pendingRevision: null,
+      createdAt: Date.now(),
+    }));
   } catch {
     /* session storage unavailable — the preview remains visible for this page */
   }
@@ -2221,7 +2426,15 @@ function restorePendingGoalPreview() {
       return false;
     }
     renderAiPreview(record.preview);
-    if (aiPreviewStatus) aiPreviewStatus.textContent = "올리가 AI로 만든 계획 미리보기";
+    const changed = Boolean(record.pendingDraftInput);
+    if (aiPreviewStatus) aiPreviewStatus.textContent = changed
+      ? "변경한 조건으로 계획을 다시 만들어야 해요."
+      : "현재 계획과 조건이 일치해요.";
+    if (trialStartInlineLink) {
+      trialStartInlineLink.classList.toggle("is-disabled", changed);
+      trialStartInlineLink.setAttribute("aria-disabled", String(changed));
+    }
+    if (discardDraftChangesButton) discardDraftChangesButton.hidden = !changed;
     setResultPreviewMode("guest");
     openFirstStepResult();
     return true;
@@ -2230,11 +2443,9 @@ function restorePendingGoalPreview() {
   }
 }
 
-function restorePendingGoalDraft() {
-  if (!personalityForm || new URLSearchParams(location.search).get("resumeGoal") !== "1") return false;
+function applyGoalDraftToForm(draft) {
+  if (!draft || typeof draft !== "object") return false;
   try {
-    const draft = safeJsonParse(sessionStorage.getItem(PENDING_GOAL_DRAFT_KEY), null);
-    if (!draft || typeof draft !== "object") return false;
     if (designGoal) designGoal.value = String(draft.goal || "");
     if (goalPeriodInput && draft.period) goalPeriodInput.value = String(draft.period);
     if (routineReadinessInput && draft.routineReadiness) routineReadinessInput.value = String(draft.routineReadiness);
@@ -2243,6 +2454,27 @@ function restorePendingGoalDraft() {
     if (birthTimeInput) birthTimeInput.value = String(draft.birthTime || "");
     if (birthPlaceInput) birthPlaceInput.value = String(draft.birthPlace || "");
     if (mbtiInput) mbtiInput.value = String(draft.mbti || "");
+    const materialMode = draft.material?.hasMaterial ? "yes" : draft.materialMode || "none";
+    materialModeInputs.forEach((input) => { input.checked = input.value === materialMode; });
+    if (materialFields) materialFields.hidden = materialMode !== "yes";
+    if (materialNameInput) materialNameInput.value = String(draft.material?.name || "");
+    if (materialRangeInput) materialRangeInput.value = String(draft.material?.targetRange || "");
+    if (materialProgressInput) materialProgressInput.value = String(draft.material?.currentProgress || "");
+    if (materialCompletionInput) materialCompletionInput.value = String(draft.material?.completionRule || "");
+    if (materialUnitInput) materialUnitInput.value = String(draft.material?.unit || "");
+    const available = new Set(draft.availability?.availableDays || []);
+    availableDayInputs.forEach((input) => { input.checked = available.has(input.value); });
+    const difficult = new Set(draft.availability?.difficultDays || []);
+    difficultDayInputs.forEach((input) => { input.checked = difficult.has(input.value); });
+    if (sessionMinutesInput) sessionMinutesInput.value = String(draft.availability?.sessionMinutes || 25);
+    if (weeklyFrequencyInput) weeklyFrequencyInput.value = String(draft.availability?.weeklyFrequency || 3);
+    if (targetDateInput) targetDateInput.value = String(draft.availability?.targetDate || "");
+    if (planIntensityInput) planIntensityInput.value = String(draft.availability?.intensity || "균형 있게");
+    if (bufferDaysInput) bufferDaysInput.value = String(draft.availability?.bufferDays ?? 2);
+    if (excludedDatesInput) excludedDatesInput.value = (draft.availability?.excludedDates || []).join(", ");
+    if (notificationTimeInput) notificationTimeInput.value = String(draft.availability?.notificationTime || "07:00");
+    const preferences = new Set(draft.planningPreferences || []);
+    planningPreferenceInputs.forEach((input) => { input.checked = preferences.has(input.value); });
     setSelectedGoalCategory(String(draft.category || ""));
     applyGoalCategoryGuidance(String(draft.category || ""));
     diagnosisStepIndex = diagnosisSteps.length ? diagnosisSteps.length - 1 : 0;
@@ -2253,42 +2485,94 @@ function restorePendingGoalDraft() {
   }
 }
 
+function restorePendingGoalDraft() {
+  if (!personalityForm) return false;
+  const resumeRequested = new URLSearchParams(location.search).get("resumeGoal") === "1";
+  if (!resumeRequested && !readPendingGoalPreview()?.preview) return false;
+  try {
+    const restored = applyGoalDraftToForm(safeJsonParse(sessionStorage.getItem(PENDING_GOAL_DRAFT_KEY), null));
+    return Boolean(restored && resumeRequested);
+  } catch {
+    return false;
+  }
+}
+
 function updateWizardSummary() {
   const goal = designGoal?.value.trim() || "목표를 입력해 주세요";
   const selectedPeriod = goalPeriodInput?.selectedOptions?.[0]?.textContent.split(" · ")[0] || "기간 미정";
-  const time = routineTimeInput?.value || "시간 미정";
+  const days = checkedValues(availableDayInputs);
+  const time = sessionMinutesInput?.value ? `회당 ${sessionMinutesInput.value}분` : routineTimeInput?.value || "시간 미정";
 
   if (wizardLiveGoal) wizardLiveGoal.textContent = goal;
-  if (wizardLiveTiming) wizardLiveTiming.textContent = `${selectedPeriod} · ${time}`;
+  if (wizardLiveTiming) wizardLiveTiming.textContent = `${selectedPeriod} · ${days.length ? days.join("·") : "요일 미정"} · ${time}`;
 }
 
 function updateGoalStepState() {
   if (!designGoal) return;
-  const hasCategory = Boolean(selectedGoalCategory());
   const hasGoal = Boolean(designGoal.value.trim());
-  if (diagnosisNextButton && diagnosisStepIndex === 0) diagnosisNextButton.disabled = !(hasCategory && hasGoal);
+  if (diagnosisNextButton && diagnosisStepIndex === 0) diagnosisNextButton.disabled = !hasGoal;
   if (goalValidationMessage) {
-    goalValidationMessage.textContent = !hasCategory
-      ? "카테고리와 달성하고 싶은 목표를 선택해 주세요."
-      : !hasGoal
-        ? "달성하고 싶은 목표를 직접 입력해 주세요."
-        : "목표를 확인했어요. 다음 단계를 직접 눌러 계속해 주세요.";
+    goalValidationMessage.textContent = !hasGoal
+      ? "달성하고 싶은 결과를 입력해 주세요."
+      : "목표를 확인했어요. 다음: 자료와 일정 알려주기를 눌러 계속해 주세요.";
   }
+}
+
+function syncGuestDraftConsistency(draft) {
+  const record = readPendingGoalPreview();
+  if (!record?.draftPlanId || !record.activeDraftSignature) return false;
+  const signature = goalDraftSignature(draft);
+  const changed = signature !== record.activeDraftSignature;
+  const next = {
+    ...record,
+    pendingDraftInput: changed ? draft : null,
+    pendingDraftSignature: changed ? signature : "",
+    pendingRevision: changed && record.pendingRevision?.signature === signature ? record.pendingRevision : null,
+  };
+  try { sessionStorage.setItem(PENDING_GOAL_PREVIEW_KEY, JSON.stringify(next)); } catch {}
+  if (discardDraftChangesButton) discardDraftChangesButton.hidden = !changed;
+  if (trialStartInlineLink) {
+    trialStartInlineLink.classList.toggle("is-disabled", changed);
+    trialStartInlineLink.setAttribute("aria-disabled", String(changed));
+  }
+  if (aiPreviewStatus) aiPreviewStatus.textContent = changed
+    ? "변경한 조건으로 계획을 다시 만들어야 해요."
+    : "현재 계획과 조건이 일치해요.";
+  syncGoalBuilderCta();
+  return changed;
+}
+
+function pendingGuestRevision(record, signature) {
+  if (record?.pendingRevision?.signature === signature && record.pendingRevision.idempotencyKey) return record.pendingRevision;
+  const pendingRevision = {
+    signature,
+    idempotencyKey: `revision:${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`}`,
+  };
+  try {
+    sessionStorage.setItem(PENDING_GOAL_PREVIEW_KEY, JSON.stringify({ ...record, pendingRevision }));
+  } catch {}
+  return pendingRevision;
 }
 
 function getInvalidDiagnosisField() {
   const fieldsByStep = [
     [designGoal],
-    [goalPeriodInput, routineTimeInput, routineReadinessInput],
+    [goalPeriodInput, routineTimeInput, sessionMinutesInput],
     [birthDateInput, birthTimeInput, birthPlaceInput, mbtiInput],
   ];
   if (designGoal) {
-    const message = !selectedGoalCategory()
-      ? "목표 카테고리를 먼저 선택해 주세요."
-      : designGoal.value.trim()
-        ? ""
-        : "달성하고 싶은 목표를 직접 입력해 주세요.";
+    const message = designGoal.value.trim() ? "" : "달성하고 싶은 결과를 입력해 주세요.";
     designGoal.setCustomValidity(message);
+  }
+  if (diagnosisStepIndex === 1) {
+    const availableDays = checkedValues(availableDayInputs);
+    const needsMaterial = selectedMaterialMode() === "yes";
+    const message = !availableDays.length
+      ? "가능한 요일을 하나 이상 선택해 주세요."
+      : needsMaterial && (!materialNameInput?.value.trim() || !materialRangeInput?.value.trim())
+        ? "자료 이름과 목표 범위를 입력해 주세요."
+        : "";
+    sessionMinutesInput?.setCustomValidity(message);
   }
   return (fieldsByStep[diagnosisStepIndex] || []).find((field) => field && !field.checkValidity()) || null;
 }
@@ -2331,7 +2615,7 @@ function renderDiagnosisStep() {
 
   if (diagnosisBackButton) diagnosisBackButton.hidden = diagnosisStepIndex === 0;
   if (diagnosisNextButton) diagnosisNextButton.hidden = diagnosisStepIndex === diagnosisSteps.length - 1;
-  if (diagnosisNextButton) diagnosisNextButton.textContent = "다음 단계";
+  if (diagnosisNextButton) diagnosisNextButton.textContent = diagnosisStepIndex === 0 ? "다음: 자료와 일정 알려주기" : "다음: 계획 초안 확인하기";
   if (aiPreviewButton) aiPreviewButton.hidden = diagnosisStepIndex !== diagnosisSteps.length - 1;
   if (diagnosisStepIndex !== 0 && diagnosisNextButton) diagnosisNextButton.disabled = false;
   updateGoalStepState();
@@ -2386,7 +2670,7 @@ diagnosisBackButton?.addEventListener("click", () => {
 diagnosisNextButton?.addEventListener("click", () => advanceDiagnosisStep());
 
 // 단계별 선택형 입력: 전부 직접 확인해야 자동 진행 (하나만 고르고 넘어가지 않도록)
-const stepChoiceFieldIds = [[], ["goalPeriod", "routineTime"], []];
+const stepChoiceFieldIds = [[], [], []];
 const touchedChoiceFields = new Set();
 
 personalityForm?.addEventListener("change", (event) => {
@@ -2626,6 +2910,7 @@ function decidePlanningStyle(manse, mbti) {
 }
 
 function buildAiPlanPayload({
+  draftPlanId,
   goal,
   period,
   currentState,
@@ -2638,11 +2923,15 @@ function buildAiPlanPayload({
   mbti,
   manse,
   style,
+  material,
+  availability,
+  planningPreferences,
 }) {
   return {
     endpoint: "POST /api/ai/goal-plan",
     modelRole: "goal_planning_coach",
     input: {
+      draftPlanId,
       goal,
       periodDays: Number(period),
       currentState,
@@ -2659,6 +2948,9 @@ function buildAiPlanPayload({
       mbti,
       manseoryeok: manse,
       recommendedPlanningStyle: style,
+      material,
+      availability,
+      planningPreferences,
     },
     instruction:
       "만세력 기반 성향, MBTI 성향, 기존 루틴과 실행 성향을 함께 비교해 사용자가 목표를 달성하기 쉬운 계획 스타일을 정하고, 전체 기간 계획, 오늘의 스케줄, 체크인 방식, 성장 보상 메시지를 생성한다.",
@@ -2840,14 +3132,83 @@ async function requestGuestAiPreview(payload) {
       error.code = result.code || "";
       throw error;
     }
-    if (!result.preview) throw new Error("AI 계획 미리보기를 확인하지 못했어요.");
-    return result.preview;
+    if (!result.preview || !result.draftPlanId) throw new Error("AI 계획 초안을 확인하지 못했어요.");
+    return {
+      preview: result.preview,
+      draftPlanId: result.draftPlanId,
+      activeInput: result.activeInput,
+      activeInputHash: result.activeInputHash,
+      activeRevision: Number(result.activeRevision || 0),
+      cached: Boolean(result.cached),
+    };
   } catch (error) {
     if (error.name === "AbortError") throw new Error("AI 미리보기 응답이 늦어지고 있어요. 잠시 후 다시 시도해 주세요.");
     throw error;
   } finally {
     window.clearTimeout(timeoutId);
   }
+}
+
+async function requestGuestAiRevision(payload, previewRecord, idempotencyKey) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 60000);
+  try {
+    const response = await fetch("/api/ai/goal-draft/revise", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({
+        draftPlanId: previewRecord.draftPlanId,
+        expectedRevision: previewRecord.activeRevision,
+        expectedInputHash: previewRecord.activeInputHash,
+        idempotencyKey,
+        input: payload.input,
+      }),
+      signal: controller.signal,
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const error = new Error(result.error || "수정한 조건으로 계획을 다시 만들지 못했어요.");
+      error.status = response.status;
+      error.code = result.code || "";
+      throw error;
+    }
+    if (!result.preview || !result.activeInputHash || !result.activeRevision) throw new Error("수정된 AI 계획 초안을 확인하지 못했어요.");
+    return {
+      preview: result.preview,
+      draftPlanId: result.draftPlanId,
+      activeInput: result.activeInput,
+      activeInputHash: result.activeInputHash,
+      activeRevision: Number(result.activeRevision),
+      cached: Boolean(result.cached),
+      unchanged: Boolean(result.unchanged),
+    };
+  } catch (error) {
+    if (error.name === "AbortError") throw new Error("AI 계획 수정 응답이 늦어지고 있어요. 현재 미리보기는 그대로 유지됩니다.");
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+async function claimGuestGoalDraft(previewRecord) {
+  const response = await fetch("/api/ai/goal-draft/claim", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify({
+      draftPlanId: previewRecord.draftPlanId,
+      expectedRevision: previewRecord.activeRevision,
+      expectedInputHash: previewRecord.activeInputHash,
+    }),
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || !result.activatedPlan) {
+    const error = new Error(result.error || "계획 초안을 저장하지 못했어요.");
+    error.code = result.code || "";
+    throw error;
+  }
+  return result;
 }
 
 async function requestCompanionReply(message) {
@@ -2920,6 +3281,38 @@ async function playAnalysisLoading() {
   }
 }
 
+function renderDraftUnderstanding(preview) {
+  const draft = collectGoalDraftInput();
+  const days = draft.availability.availableDays;
+  if (understoodGoal) understoodGoal.textContent = designGoal?.value.trim() || "입력한 목표";
+  if (understoodMaterial) {
+    understoodMaterial.textContent = draft.material.hasMaterial
+      ? `${draft.material.name || "자료 이름 미입력"} · ${draft.material.targetRange || "목표 범위 미입력"}`
+      : "사용 자료 없음 · 일반 계획으로 구성";
+  }
+  if (understoodAvailability) understoodAvailability.textContent = `${days.join("·") || "가능 요일 미입력"} · 회당 ${draft.availability.sessionMinutes || 0}분`;
+  if (understoodExclusions) understoodExclusions.textContent = draft.availability.excludedDates.join(", ") || "없음";
+  if (understoodIntensity) understoodIntensity.textContent = `${draft.availability.intensity} · 주 ${draft.availability.weeklyFrequency || days.length}회`;
+  if (understoodAssumptions) understoodAssumptions.textContent = (preview.assumptions || []).join(" · ") || "입력하지 않은 정보는 임의로 단정하지 않아요.";
+
+  if (!draftFeasibilityTitle || !draftFeasibilityCopy || !draftFeasibilityOptions) return;
+  const requested = draft.availability.weeklyFrequency || days.length;
+  const usableDays = days.filter((day) => !draft.availability.difficultDays.includes(day)).length;
+  const tight = requested > days.length || usableDays < Math.min(requested, 2);
+  draftFeasibilityTitle.textContent = tight ? "일정 조건을 조금 조정하면 더 안정적이에요" : "현재 조건으로 시작할 수 있어요";
+  draftFeasibilityCopy.textContent = `${days.length}개 가능 요일, 회당 ${draft.availability.sessionMinutes}분 기준으로 첫 주 실행 리듬을 만들었어요.`;
+  const options = [];
+  if (requested > days.length) options.push(`주 ${requested}회 대신 가능한 ${days.length}회부터 시작하기`);
+  if (draft.availability.difficultDays.some((day) => days.includes(day))) options.push("어려운 요일에는 짧은 복습이나 휴식을 우선하기");
+  if (draft.material.hasMaterial && !draft.material.currentProgress) options.push("현재 진도는 첫 실행 뒤 확인해 다음 주에 보정하기");
+  if (!options.length) options.push(`주 ${requested}회 실행 후 7일째에 분량 다시 확인하기`);
+  draftFeasibilityOptions.replaceChildren(...options.map((text) => {
+    const item = document.createElement("li");
+    item.textContent = text;
+    return item;
+  }));
+}
+
 function renderAiPreview(preview) {
   if (planningStyle) {
     const compactStyle = String(preview.planningStyle || "맞춤 실행형")
@@ -2963,10 +3356,45 @@ function renderAiPreview(preview) {
     aiTodaySchedule.replaceChildren(...items);
   }
   if (aiVisibleWeekPlan) {
-    const items = (preview.weekPlan || []).map((item, index) => {
+    const firstWeek = Array.isArray(preview.firstWeekSchedule) ? preview.firstWeekSchedule : [];
+    const items = (firstWeek.length ? firstWeek : (preview.weekPlan || []).map((item, index) => ({
+      dayNumber: index + 1,
+      dayLabel: `Day ${index + 1}`,
+      isRestDay: false,
+      items: [{ type: "ACTION", title: item, durationMinutes: 0, completionRule: "" }],
+    }))).map((day, index) => {
       const row = document.createElement("li");
       row.dataset.day = String(index + 1);
-      row.textContent = item;
+      const heading = document.createElement("div");
+      const dayLabel = document.createElement("strong");
+      const state = document.createElement("span");
+      dayLabel.textContent = day.dayLabel || `Day ${day.dayNumber || index + 1}`;
+      state.textContent = day.isRestDay ? "휴식" : "실행";
+      heading.append(dayLabel, state);
+      const list = document.createElement("div");
+      list.className = "draft-day-items";
+      const dayItems = Array.isArray(day.items) ? day.items : [];
+      if (!dayItems.length) {
+        const empty = document.createElement("p");
+        empty.textContent = "계획된 휴식일";
+        list.append(empty);
+      } else {
+        dayItems.forEach((item) => {
+          const itemRow = document.createElement("article");
+          const type = document.createElement("b");
+          const copy = document.createElement("span");
+          const title = document.createElement("strong");
+          const meta = document.createElement("small");
+          type.textContent = item.type || "ACTION";
+          title.textContent = item.title || "실행 항목";
+          meta.textContent = [item.sourceReference, item.quantityOrRange, item.durationMinutes ? `${item.durationMinutes}분` : "", item.completionRule]
+            .filter(Boolean).join(" · ");
+          copy.append(title, meta);
+          itemRow.append(type, copy);
+          list.append(itemRow);
+        });
+      }
+      row.append(heading, list);
       return row;
     });
     aiVisibleWeekPlan.replaceChildren(...items);
@@ -2993,6 +3421,7 @@ function renderAiPreview(preview) {
     if (dashboardProgressBar) dashboardProgressBar.style.width = `${preview.dashboard.progress}%`;
     if (dashboardPaceText) dashboardPaceText.textContent = preview.dashboard.pace;
   }
+  renderDraftUnderstanding(preview);
 }
 
 function setAiPreviewButtonLabel(label, { showCost = true } = {}) {
@@ -3008,7 +3437,13 @@ function setAiPreviewButtonLabel(label, { showCost = true } = {}) {
 function syncGoalBuilderCta() {
   if (!aiPreviewButton) return;
   if (!authUiState.user) {
-    setAiPreviewButtonLabel("AI 계획 미리보기 만들기", { showCost: false });
+    const previewRecord = readPendingGoalPreview();
+    setAiPreviewButtonLabel(
+      previewRecord?.draftPlanId && previewRecord.pendingDraftInput
+        ? "수정한 조건으로 계획 다시 만들기"
+        : "AI 계획 미리보기 만들기",
+      { showCost: false },
+    );
     return;
   }
   const plan = aiUsageState?.plan || authUiState.user.plan || "free";
@@ -3035,20 +3470,25 @@ function setResultPreviewMode(mode) {
     trialStartInlineLink?.setAttribute("aria-label", previewConversionAction?.textContent || "전체 계획 이어서 만들기");
     return;
   }
-  if (previewConversionKicker) previewConversionKicker.textContent = "READY TO GO";
-  if (previewConversionCopy) previewConversionCopy.textContent = "설명은 나중에 봐도 괜찮아요. 올리와 첫 일정부터 시작해요.";
-  if (previewConversionAction) previewConversionAction.textContent = "오늘 계획 바로 시작";
-  trialStartInlineLink?.setAttribute("aria-label", "방금 만든 오늘의 맞춤 계획 바로 시작하기");
+  if (previewConversionKicker) previewConversionKicker.textContent = "검토 후 결정";
+  if (previewConversionCopy) previewConversionCopy.textContent = "저장하기 전에는 현재 계획이나 회원 데이터가 바뀌지 않아요.";
+  if (previewConversionAction) previewConversionAction.textContent = "이 계획 저장하고 시작하기";
+  trialStartInlineLink?.setAttribute("aria-label", "검토한 계획을 저장하고 시작하기");
 }
 
 async function runPersonalityAnalysis({ showLoading = false } = {}) {
   if (!personalityForm) return;
 
   let guestPreviewRequest = false;
+  const draftRecord = savePendingGoalDraft();
+  const existingGuestPreview = readPendingGoalPreview();
+  const guestInputChanged = existingGuestPreview?.draftPlanId
+    ? syncGuestDraftConsistency(draftRecord)
+    : false;
+  if (!showLoading && existingGuestPreview?.draftPlanId) return;
   if (showLoading) {
     await accountExperienceReady;
     if (!authUiState.user) {
-      savePendingGoalDraft();
       guestPreviewRequest = true;
     } else {
       const usage = await loadAiUsage().catch(() => null);
@@ -3081,6 +3521,7 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
   const routineReadiness = routineReadinessInput?.value || DEFAULT_ROUTINE_READINESS;
   const routineTime = routineTimeInput?.value || "아침";
   const currentRoutine = template?.routine || "";
+  const conditions = collectGoalDraftInput();
   const birthDate = birthDateInput?.value || "";
   const birthTime = birthTimeInput?.value || "";
   const birthPlace = birthPlaceInput?.value.trim() || "";
@@ -3094,6 +3535,7 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
   const mbtiSummary = mbti ? analyzeMbti(mbti) : "성향 정보 없이 목표와 실행 스타일을 기준으로 계획합니다.";
   const style = decidePlanningStyle(rawManse, mbti);
   const payload = buildAiPlanPayload({
+    draftPlanId: draftRecord?.draftId || "",
     goal,
     period,
     currentState,
@@ -3106,23 +3548,54 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
     mbti,
     manse,
     style,
+    material: conditions.material,
+    availability: conditions.availability,
+    planningPreferences: conditions.planningPreferences,
   });
+  const guestRevisionRequest = Boolean(guestPreviewRequest && guestInputChanged && existingGuestPreview?.draftPlanId);
 
   if (showLoading) {
-    aiPreviewStatus.textContent = guestPreviewRequest ? "AI가 첫 계획 미리보기를 만드는 중" : "AI가 목표 설계 중";
+    aiPreviewStatus.textContent = guestRevisionRequest
+      ? "수정한 조건에 맞춰 계획을 다시 만들고 있어요."
+      : guestPreviewRequest ? "AI가 첫 계획 미리보기를 만드는 중" : "AI가 목표 설계 중";
     aiPreviewButton.disabled = true;
-    setAiPreviewButtonLabel(guestPreviewRequest ? "올리가 AI 미리보기를 만드는 중..." : "올리가 오늘 계획을 만드는 중...", { showCost: false });
+    setAiPreviewButtonLabel(guestRevisionRequest
+      ? "수정한 조건을 반영하는 중..."
+      : guestPreviewRequest ? "올리가 AI 미리보기를 만드는 중..." : "올리가 오늘 계획을 만드는 중...", { showCost: false });
     await playAnalysisLoading();
   }
 
   let preview;
+  let generatedDraftPlan = null;
+  let generatedDraftPlanId = "";
+  let generatedActiveInput = null;
+  let generatedActiveInputHash = "";
+  let generatedActiveRevision = 0;
   let usedFallback = false;
   try {
-    preview = showLoading
-      ? guestPreviewRequest
-        ? await requestGuestAiPreview(payload)
-        : await requestAiPlan(payload)
-      : buildLocalAiPreview(payload);
+    if (showLoading && guestRevisionRequest) {
+      const signature = goalDraftSignature(draftRecord);
+      const revision = pendingGuestRevision(existingGuestPreview, signature);
+      const guestResult = await requestGuestAiRevision(payload, existingGuestPreview, revision.idempotencyKey);
+      preview = guestResult.preview;
+      generatedDraftPlanId = guestResult.draftPlanId;
+      generatedActiveInput = guestResult.activeInput;
+      generatedActiveInputHash = guestResult.activeInputHash;
+      generatedActiveRevision = guestResult.activeRevision;
+    } else if (showLoading && guestPreviewRequest) {
+      const guestResult = await requestGuestAiPreview(payload);
+      preview = guestResult.preview;
+      generatedDraftPlan = guestResult.draftPlan;
+      generatedDraftPlanId = guestResult.draftPlanId;
+      generatedActiveInput = guestResult.activeInput;
+      generatedActiveInputHash = guestResult.activeInputHash;
+      generatedActiveRevision = guestResult.activeRevision;
+    } else if (showLoading) {
+      generatedDraftPlan = await requestAiPlan(payload);
+      preview = generatedDraftPlan;
+    } else {
+      preview = buildLocalAiPreview(payload);
+    }
   } catch (error) {
     if (error.code === "GOAL_PLAN_LIMIT_REACHED") {
       if (aiPreviewStatus) aiPreviewStatus.textContent = "무료 목표 계획 1개를 이미 만들었어요";
@@ -3136,10 +3609,15 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
       return;
     }
     if (showLoading) {
-      if (aiPreviewStatus) aiPreviewStatus.textContent = error.message || "AI 계획을 만들지 못했어요.";
+      if (aiPreviewStatus) aiPreviewStatus.textContent = guestRevisionRequest
+        ? "계획을 다시 만들지 못했어요. 기존 계획은 그대로 유지했어요."
+        : error.message || "AI 계획을 만들지 못했어요.";
       if (aiPreviewButton) {
         aiPreviewButton.disabled = false;
-        setAiPreviewButtonLabel(guestPreviewRequest ? "AI 계획 미리보기 다시 시도" : "AI 계획 다시 만들기", { showCost: !guestPreviewRequest });
+        setAiPreviewButtonLabel(
+          guestRevisionRequest ? "수정한 조건으로 계획 다시 만들기" : guestPreviewRequest ? "AI 계획 미리보기 다시 시도" : "AI 계획 다시 만들기",
+          { showCost: !guestPreviewRequest },
+        );
       }
       showToast(`${error.message || "AI 계획을 만들지 못했어요."} 실패한 요청은 AI 크레딧으로 확정 차감되지 않아요.`);
       return;
@@ -3152,7 +3630,7 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
 
   if (aiPreviewStatus) {
     aiPreviewStatus.textContent = guestPreviewRequest
-      ? "올리가 AI로 만든 계획 미리보기"
+      ? "현재 계획과 조건이 일치해요."
       : usedFallback
         ? "AI 연결 없이 제공하는 기본 계획 템플릿"
         : "올리가 AI로 만든 맞춤 계획";
@@ -3163,42 +3641,28 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
   }
 
   if (showLoading && guestPreviewRequest) {
-    savePendingGoalPreview(preview);
+    savePendingGoalPreview(preview, {
+      draftPlanId: generatedDraftPlanId,
+      draftPlan: generatedDraftPlan,
+      activeDraftInput: draftRecord,
+      activeInput: generatedActiveInput,
+      activeInputHash: generatedActiveInputHash,
+      activeRevision: generatedActiveRevision,
+    });
+    if (discardDraftChangesButton) discardDraftChangesButton.hidden = true;
+    if (trialStartInlineLink) {
+      trialStartInlineLink.classList.remove("is-disabled");
+      trialStartInlineLink.setAttribute("aria-disabled", "false");
+    }
     setResultPreviewMode("guest");
     openFirstStepResult();
     return;
   }
 
   if (showLoading) {
-    try {
-      localStorage.setItem(
-        "omwExecutionPlan",
-        JSON.stringify({
-          goal,
-          period: Number(period),
-          currentState,
-          routineReadiness,
-          routineTime,
-          currentRoutine,
-          mbti,
-          style,
-          firstAction: preview.firstAction,
-          coachMessage: preview.coachMessage,
-          manseSummary: manse.summary,
-          mbtiSummary,
-          aiPreview: preview,
-          planSource: usedFallback ? "local-template" : "ai",
-          createdAt: new Date().toISOString(),
-        }),
-      );
-      sessionStorage.removeItem(PENDING_GOAL_DRAFT_KEY);
-      sessionStorage.removeItem(PENDING_GOAL_PREVIEW_KEY);
-    } catch (error) {
-      console.warn("Unable to save execution plan", error);
-    }
+    savePendingGoalPreview(preview, { draftPlanId: generatedDraftPlanId, draftPlan: generatedDraftPlan || preview });
   }
-  if (showLoading) setResultPreviewMode("full");
-  if (showLoading && authUiState.user) await saveAccountStateToServer();
+  if (showLoading) setResultPreviewMode("draft");
 
   if (showLoading) {
     if (birthDate || birthPlace || mbti) {
@@ -3211,14 +3675,6 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
   }
   if (showLoading && usedFallback) showToast("AI 연결에 실패해 기본 계획 템플릿을 보여드려요 · 나중에 AI 계획을 다시 만들 수 있어요");
   if (showLoading) openFirstStepResult();
-  if (showLoading && readTrialAccess()?.plan !== "pro") {
-    try {
-      localStorage.setItem(FREE_PLAN_GENERATED_KEY, "true");
-      if (authUiState.user) authUiState.user.goalPlanGeneratedAt = Date.now();
-    } catch (error) {
-      /* storage unavailable — ignore */
-    }
-  }
 }
 
 function openFirstStepResult() {
@@ -3241,14 +3697,68 @@ personalityForm?.addEventListener("submit", (event) => {
   runPersonalityAnalysis({ showLoading: true });
 });
 
-[birthDateInput, birthTimeInput, birthPlaceInput, mbtiInput, goalPeriodInput, routineReadinessInput, routineTimeInput, designGoal].forEach(
+materialModeInputs.forEach((input) => {
+  input.addEventListener("change", () => {
+    const hasMaterial = selectedMaterialMode() === "yes";
+    if (materialFields) materialFields.hidden = !hasMaterial;
+    [materialNameInput, materialRangeInput].forEach((field) => {
+      if (field) field.required = hasMaterial;
+    });
+    updateWizardSummary();
+  });
+});
+
+[
+  birthDateInput, birthTimeInput, birthPlaceInput, mbtiInput, goalPeriodInput,
+  routineReadinessInput, routineTimeInput, designGoal, materialNameInput,
+  materialRangeInput, materialProgressInput, materialCompletionInput, materialUnitInput,
+  sessionMinutesInput, weeklyFrequencyInput, targetDateInput, planIntensityInput,
+  bufferDaysInput, excludedDatesInput, notificationTimeInput,
+  ...availableDayInputs, ...difficultDayInputs, ...planningPreferenceInputs,
+].forEach(
   (field) => {
     field?.addEventListener("change", runPersonalityAnalysis);
     field?.addEventListener("input", updateWizardSummary);
   },
 );
 
+draftAdjustButton?.addEventListener("click", () => {
+  diagnosisStepIndex = Math.min(1, Math.max(0, diagnosisSteps.length - 1));
+  renderDiagnosisStep();
+  showPageView("#designFlow", true);
+  history.replaceState(null, "", `${location.pathname}${location.search}#designFlow`);
+  revealActiveDiagnosisStep();
+});
+
+discardDraftChangesButton?.addEventListener("click", () => {
+  const record = readPendingGoalPreview();
+  if (!record?.activeDraftInput) return;
+  const restoredRecord = {
+    ...record,
+    pendingDraftInput: null,
+    pendingDraftSignature: "",
+    pendingRevision: null,
+  };
+  try {
+    sessionStorage.setItem(PENDING_GOAL_DRAFT_KEY, JSON.stringify(record.activeDraftInput));
+    sessionStorage.setItem(PENDING_GOAL_PREVIEW_KEY, JSON.stringify(restoredRecord));
+  } catch {}
+  applyGoalDraftToForm(record.activeDraftInput);
+  renderAiPreview(record.preview);
+  discardDraftChangesButton.hidden = true;
+  if (aiPreviewStatus) aiPreviewStatus.textContent = "현재 계획과 조건이 일치해요.";
+  if (trialStartInlineLink) {
+    trialStartInlineLink.classList.remove("is-disabled");
+    trialStartInlineLink.setAttribute("aria-disabled", "false");
+  }
+  syncGoalBuilderCta();
+  showToast("수정 내용을 버리고 AI가 만든 마지막 계획으로 돌아왔어요.");
+});
+
 runPersonalityAnalysis();
+if (!resumedPendingGoal && window.location.hash === "#firstStep" && readPendingGoalPreview()?.preview) {
+  restorePendingGoalPreview();
+}
 
 const adminDashboard = document.querySelector("#adminDashboard");
 const memberTableBody = document.querySelector("#memberTableBody");
@@ -3423,7 +3933,7 @@ document.querySelectorAll(".admin-sidebar nav a").forEach((link) => {
 
 applyAdminTableFilters();
 
-const appStateVersion = 3;
+const appStateVersion = 4;
 
 function safeJsonParse(value, fallback = {}) {
   try {
@@ -3538,6 +4048,12 @@ function dedupeStoredRecords(value, limit, getKey, keyField) {
   return [...records.values()].slice(-limit);
 }
 
+function getStoredCompletionKey(item, index) {
+  const day = String(item?.day || "day");
+  const taskKey = String(item?.taskKey || (item?.taskIndex ?? index));
+  return taskKey.startsWith(`${day}:`) ? taskKey : `${day}:${taskKey}`;
+}
+
 function migrateExecutionState(rawState) {
   const todayKey = getTodayKey();
   const state = isPlainObject(rawState) ? { ...rawState } : {};
@@ -3545,6 +4061,7 @@ function migrateExecutionState(rawState) {
   const lastSeenDate = /^\d{4}-\d{2}-\d{2}$/.test(String(state.lastSeenDate || "")) ? state.lastSeenDate : todayKey;
 
   const migrated = {
+    ...state,
     version: appStateVersion,
     scheduleKey: state.scheduleKey || "",
     planText: typeof state.planText === "string" ? state.planText : "",
@@ -3560,6 +4077,10 @@ function migrateExecutionState(rawState) {
     selectedDay: Math.max(1, Math.min(366, Number(state.selectedDay) || 1)),
     checkedByDay,
     customTasksByDay: normalizeCustomTasks(state.customTasksByDay),
+    taskEditsByDay: isPlainObject(state.taskEditsByDay)
+      ? Object.fromEntries(Object.entries(state.taskEditsByDay).map(([day, edits]) => [day, isPlainObject(edits) ? edits : {}]))
+      : {},
+    hiddenTaskKeysByDay: normalizeArrayRecord(state.hiddenTaskKeysByDay, (items) => items.map(String).filter(Boolean).slice(0, 200)),
     scheduleModeByDay: isPlainObject(state.scheduleModeByDay)
       ? Object.fromEntries(Object.entries(state.scheduleModeByDay).map(([key, mode]) => [key, mode === "priority" ? "priority" : "time"]))
       : {},
@@ -3570,12 +4091,13 @@ function migrateExecutionState(rawState) {
       ? Object.fromEntries(Object.entries(state.dailyCompletionRewardedByDay).map(([key, rewarded]) => [key, Boolean(rewarded)]))
       : {},
     recoveryActions: Array.isArray(state.recoveryActions) ? state.recoveryActions.filter(isPlainObject).slice(-30) : [],
-    completedLog: dedupeStoredRecords(state.completedLog, 80, (item, index) => item.taskKey || `${item.day || "day"}:${item.taskIndex ?? index}`, "taskKey"),
+    completedLog: dedupeStoredRecords(state.completedLog, 80, getStoredCompletionKey, "taskKey"),
     dailyMemories: dedupeStoredRecords(state.dailyMemories, 365, (item, index) => item.id || item.diaryDate || item.createdAt || `memory-${index}`, "id"),
     lastCompletion: isPlainObject(state.lastCompletion) ? state.lastCompletion : null,
     planStartDate: typeof state.planStartDate === "string" ? state.planStartDate : "",
     lastSeenDate,
     rolloverNotice: isPlainObject(state.rolloverNotice) ? state.rolloverNotice : null,
+    undoSnapshot: isPlainObject(state.undoSnapshot) ? state.undoSnapshot : null,
     updatedAt: typeof state.updatedAt === "string" ? state.updatedAt : new Date().toISOString(),
   };
 
@@ -3616,16 +4138,28 @@ function hashText(text) {
   return Math.abs(hash).toString(36);
 }
 
+function classifyPlanItem(value) {
+  const type = String(value?.type || "").toUpperCase();
+  if (["ACTION", "REVIEW", "TIP", "SYSTEM_RULE"].includes(type)) return type;
+  const text = String(value?.title || value?.task || value?.text || value || "");
+  if (/놓친|다음 날|재배치|자동|운영 규칙|두 배로/.test(text)) return "SYSTEM_RULE";
+  if (/확인|점검|회고|기록/.test(text)) return "REVIEW";
+  if (/팁|준비|꺼내|연결|루틴.*후/.test(text)) return "TIP";
+  return "ACTION";
+}
+
 function getDefaultPlanText(plan) {
   const preview = plan.aiPreview || {};
-  const weekPlan = Array.isArray(preview.weekPlan) ? preview.weekPlan : [];
   const goalTemplate = getGoalPlanTemplates(plan.goal || "");
-  const lines = [
-    `기존 루틴(${plan.currentRoutine || "일상 루틴"})을 마친 뒤 목표 행동 시작하기`,
-    plan.firstAction || preview.firstAction || goalTemplate.firstAction,
-    ...weekPlan,
-    "하루 끝에는 완료 여부를 체크하고, 놓친 항목은 다음 날 작은 단위로 다시 배치합니다.",
-  ];
+  const generatedActions = (preview.firstWeekSchedule || [])
+    .flatMap((day) => Array.isArray(day?.items) ? day.items : [])
+    .filter((item) => classifyPlanItem(item) === "ACTION")
+    .map((item) => item.title)
+    .filter(Boolean);
+  const legacyActions = (Array.isArray(preview.weekPlan) ? preview.weekPlan : []).filter((item) => classifyPlanItem(item) === "ACTION");
+  const lines = generatedActions.length
+    ? generatedActions
+    : [plan.firstAction || preview.firstAction || goalTemplate.firstAction, ...legacyActions];
   return lines.map((line) => `- ${line}`).join("\n");
 }
 
@@ -3692,7 +4226,12 @@ function buildSchedule(plan, planText, revisionRequest = "", weeklySchedule = []
   const times = getRoutineTimes(plan, revisionRequest);
   const hints = getScheduleHints(revisionRequest);
   const weeklyFocus = ["루틴 고정", "기초 반복", "중간 점검", "약점 보완", "실전 적용", "가벼운 복습", "주간 리포트"];
-  const structuredWeek = Array.isArray(weeklySchedule) ? weeklySchedule.filter((item) => item && typeof item === "object") : [];
+  const revisionWeek = Array.isArray(weeklySchedule) ? weeklySchedule.filter((item) => item && typeof item === "object") : [];
+  const generatedWeek = Array.isArray(plan.aiPreview?.firstWeekSchedule)
+    ? plan.aiPreview.firstWeekSchedule.filter((item) => item && typeof item === "object").slice(0, 7)
+    : [];
+  const structuredWeek = revisionWeek.length ? revisionWeek : generatedWeek;
+  const usesGeneratedWeek = !revisionWeek.length && generatedWeek.length;
   const structuredByDay = new Map(structuredWeek.map((item) => [String(item.day || ""), item]));
   const dayNames = ["일", "월", "화", "수", "목", "금", "토"];
   const planStart = getPlanStartDate(plan, {});
@@ -3702,21 +4241,34 @@ function buildSchedule(plan, planText, revisionRequest = "", weeklySchedule = []
     if (structuredByDay.size) {
       const actualDate = new Date(planStart.getFullYear(), planStart.getMonth(), planStart.getDate() + index);
       const dayName = dayNames[actualDate.getDay()];
-      const template = structuredByDay.get(dayName);
+      const template = usesGeneratedWeek ? structuredWeek[index % structuredWeek.length] : structuredByDay.get(dayName);
       const isRestDay = !template || template.isRestDay;
+      const sourceItems = usesGeneratedWeek
+        ? (Array.isArray(template?.items) ? template.items : [])
+        : (Array.isArray(template?.tasks) ? template.tasks : []);
+      const typedItems = sourceItems.map((item) => ({ ...item, type: classifyPlanItem(item) }));
       const tasks = isRestDay
         ? []
-        : (Array.isArray(template.tasks) ? template.tasks : []).slice(0, 5).map((task) => ({
-            time: String(task.time || "오늘"),
+        : typedItems.filter((item) => item.type === "ACTION").slice(0, 5).map((task) => ({
+            id: String(task.id || ""),
+            planId: String(task.planId || plan.planId || ""),
+            type: "ACTION",
+            time: String(task.scheduledAt || task.time || "오늘"),
             durationMinutes: Math.max(5, Math.min(360, Number(task.durationMinutes) || 15)),
-            text: String(task.task || "목표 행동 실행하기"),
+            text: String(task.title || task.task || "목표 행동 실행하기"),
+            sourceReference: String(task.sourceReference || ""),
+            quantityOrRange: String(task.quantityOrRange || ""),
             completionRule: String(task.completionRule || "정한 분량을 끝내면 완료"),
+            recurrenceGroupId: String(task.recurrenceGroupId || ""),
           }));
       return {
         day,
-        title: isRestDay ? `Day ${day} · 계획된 휴식` : `Day ${day} · ${dayName}요일 맞춤 계획`,
+        title: isRestDay ? `Day ${day} · 계획된 휴식` : `Day ${day} · ${template?.dayLabel || `${dayName}요일 맞춤 계획`}`,
         isRestDay,
         tasks,
+        reviews: typedItems.filter((item) => item.type === "REVIEW"),
+        tips: typedItems.filter((item) => item.type === "TIP"),
+        systemRules: typedItems.filter((item) => item.type === "SYSTEM_RULE"),
       };
     }
     const focus = weeklyFocus[index % weeklyFocus.length];
@@ -3724,19 +4276,23 @@ function buildSchedule(plan, planText, revisionRequest = "", weeklySchedule = []
     const tasks =
       hints.lightWeekend && isWeekend
         ? [
-            { time: times[0], text: "이번 주 핵심 내용 한 번 복습하기", durationMinutes: 10 },
-            { time: times[2], text: "다음 실행일에 이어갈 항목 1개 정하기", durationMinutes: 5 },
+            { time: times[0], text: "이번 주 핵심 내용 한 번 복습하기", durationMinutes: 10, recurrenceGroupId: "legacy-weekend-review" },
+            { time: times[2], text: "다음 실행일에 이어갈 항목 1개 정하기", durationMinutes: 5, recurrenceGroupId: "legacy-weekend-next" },
           ]
-        : times.map((time, taskIndex) => ({
-            time,
-            durationMinutes: hints.shorterTasks ? 10 : undefined,
-            text:
-              taskIndex === 2 && day % 7 === 0
-                ? "이번 주 완료율 확인하고 다음 주 난이도 조정"
-                : hints.shorterTasks
-                  ? cleanScheduleTaskText(baseTasks[(index + taskIndex) % baseTasks.length]) || "오늘의 핵심 행동 시작하기"
-                  : cleanScheduleTaskText(baseTasks[(index + taskIndex) % baseTasks.length]) || "오늘의 핵심 행동 시작하기",
-          }));
+        : times.map((time, taskIndex) => {
+            const baseTaskIndex = (index + taskIndex) % baseTasks.length;
+            return {
+              time,
+              durationMinutes: hints.shorterTasks ? 10 : undefined,
+              text:
+                taskIndex === 2 && day % 7 === 0
+                  ? "이번 주 완료율 확인하고 다음 주 난이도 조정"
+                  : cleanScheduleTaskText(baseTasks[baseTaskIndex]) || "오늘의 핵심 행동 시작하기",
+              recurrenceGroupId: taskIndex === 2 && day % 7 === 0
+                ? "legacy-weekly-review"
+                : `legacy-${hashText(String(baseTasks[baseTaskIndex] || taskIndex))}`,
+            };
+          });
 
     return {
       day,
@@ -3771,17 +4327,17 @@ function getCompletedDayCount(schedule, checkedByDay) {
 }
 
 function remapCompletedChecks(previousSchedule, nextSchedule, checkedByDay) {
-  const completedTaskTexts = new Set();
+  const completedTaskKeys = new Set();
   previousSchedule.forEach((dayPlan) => {
     const checked = checkedByDay[String(dayPlan.day)] || [];
     dayPlan.tasks.forEach((task, index) => {
-      if (checked[index]) completedTaskTexts.add(`${dayPlan.day}|${String(task.text || "").trim()}`);
+      if (checked[index]) completedTaskKeys.add(task._taskKey);
     });
   });
 
   const remapped = {};
   nextSchedule.forEach((dayPlan) => {
-    const checks = dayPlan.tasks.map((task) => completedTaskTexts.has(`${dayPlan.day}|${String(task.text || "").trim()}`));
+    const checks = dayPlan.tasks.map((task) => completedTaskKeys.has(task._taskKey));
     if (checks.some(Boolean)) remapped[String(dayPlan.day)] = checks;
   });
   return remapped;
@@ -3805,15 +4361,25 @@ function compareTasksByTime(first, second) {
   return Number(first._sourceIndex || 0) - Number(second._sourceIndex || 0);
 }
 
-function prepareScheduleTasks(schedule, customTasksByDay = {}) {
+function prepareScheduleTasks(schedule, customTasksByDay = {}, taskEditsByDay = {}, hiddenTaskKeysByDay = {}) {
   schedule.forEach((dayPlan) => {
     const customTasks = Array.isArray(customTasksByDay[String(dayPlan.day)]) ? customTasksByDay[String(dayPlan.day)] : [];
+    const edits = isPlainObject(taskEditsByDay[String(dayPlan.day)]) ? taskEditsByDay[String(dayPlan.day)] : {};
+    const hiddenKeys = new Set(Array.isArray(hiddenTaskKeysByDay[String(dayPlan.day)]) ? hiddenTaskKeysByDay[String(dayPlan.day)] : []);
+    const taskKeyCounts = new Map();
     dayPlan.tasks = [...dayPlan.tasks, ...customTasks]
-      .map((task, index) => ({
-        ...task,
-        _sourceIndex: index,
-        _taskKey: getStableTaskKey(dayPlan.day, task, index),
-      }))
+      .map((task, index) => {
+        const baseTaskKey = getStableTaskKey(dayPlan.day, task, index);
+        const duplicateIndex = taskKeyCounts.get(baseTaskKey) || 0;
+        taskKeyCounts.set(baseTaskKey, duplicateIndex + 1);
+        return {
+          ...task,
+          _sourceIndex: index,
+          _taskKey: duplicateIndex ? `${baseTaskKey}-duplicate-${duplicateIndex}` : baseTaskKey,
+        };
+      })
+      .filter((task) => !hiddenKeys.has(task._taskKey))
+      .map((task) => edits[task._taskKey] ? { ...task, ...edits[task._taskKey], _taskKey: task._taskKey } : task)
       .sort(compareTasksByTime);
     if (customTasks.length) dayPlan.isRestDay = false;
   });
@@ -3881,12 +4447,14 @@ function getPlanBundle({ reset = false, customText, revisionRequest, revisionDet
   const weekConfig = weeklySchedule ?? stateSource.weeklySchedule ?? [];
   const schedule = buildSchedule(plan, planText, requestText, weekConfig);
   const customTasksByDay = stateSource.customTasksByDay || {};
-  prepareScheduleTasks(schedule, customTasksByDay);
+  const taskEditsByDay = stateSource.taskEditsByDay || {};
+  const hiddenTaskKeysByDay = stateSource.hiddenTaskKeysByDay || {};
+  prepareScheduleTasks(schedule, customTasksByDay, taskEditsByDay, hiddenTaskKeysByDay);
   const previousSchedule = reset
     ? buildSchedule(plan, stateSource.planText || getDefaultPlanText(plan), stateSource.revisionRequest || "", stateSource.weeklySchedule || [])
     : schedule;
   if (reset) {
-    prepareScheduleTasks(previousSchedule, customTasksByDay);
+    prepareScheduleTasks(previousSchedule, customTasksByDay, taskEditsByDay, hiddenTaskKeysByDay);
     applySchedulePreferences(previousSchedule, stateSource);
   }
   const checkedForSchedule = reset
@@ -3912,6 +4480,8 @@ function getPlanBundle({ reset = false, customText, revisionRequest, revisionDet
         selectedDay: stateSource.selectedDay || 1,
         checkedByDay: checkedForSchedule,
         customTasksByDay,
+        taskEditsByDay,
+        hiddenTaskKeysByDay,
         scheduleModeByDay: stateSource.scheduleModeByDay || {},
         taskOrderByDay: stateSource.taskOrderByDay || {},
         taskTimeByDay: stateSource.taskTimeByDay || {},
@@ -3924,6 +4494,7 @@ function getPlanBundle({ reset = false, customText, revisionRequest, revisionDet
         planStartDate: stateSource.planStartDate || getLocalDateKey(plan.createdAt),
         lastSeenDate: stateSource.lastSeenDate || getTodayKey(),
         rolloverNotice: stateSource.rolloverNotice || null,
+        undoSnapshot: stateSource.undoSnapshot || null,
         updatedAt: new Date().toISOString(),
       };
 
@@ -3936,6 +4507,8 @@ function getPlanBundle({ reset = false, customText, revisionRequest, revisionDet
   state.selectedDay = Math.max(1, Math.min(Number(state.selectedDay) || 1, schedule.length));
   state.planStartDate = state.planStartDate || getLocalDateKey(plan.createdAt);
   state.customTasksByDay = state.customTasksByDay || customTasksByDay;
+  state.taskEditsByDay = state.taskEditsByDay || taskEditsByDay;
+  state.hiddenTaskKeysByDay = state.hiddenTaskKeysByDay || hiddenTaskKeysByDay;
   state.scheduleModeByDay = state.scheduleModeByDay || {};
   state.taskOrderByDay = state.taskOrderByDay || {};
   state.taskTimeByDay = state.taskTimeByDay || {};
@@ -4380,6 +4953,7 @@ function applyRevisionGoalProfile(selection = "auto", goalText = "") {
 
 function collectRevisionDetails() {
   return {
+    adjustmentScope: activePlanAdjustScope,
     goalType: activeRevisionGoalType,
     goalTypeSelection: revisionGoalType?.value || "auto",
     resources: revisionResources?.value.trim() || "",
@@ -4418,6 +4992,7 @@ function populateRevisionDetails(details = {}, goalText = "") {
   const schedule = details.schedule || {};
   const priority = details.priorityAdjustment || details.focusAdjustment || {};
   const selection = details.goalTypeSelection || (details.goalType ? details.goalType : "auto");
+  if (details.adjustmentScope) setPlanAdjustScope(details.adjustmentScope);
   if (revisionGoalType) revisionGoalType.value = selection === "auto" || REVISION_GOAL_PROFILES[selection] ? selection : "auto";
   applyRevisionGoalProfile(revisionGoalType?.value || "auto", goalText);
   if (revisionResources) revisionResources.value = details.resources || details.materials || "";
@@ -4522,6 +5097,106 @@ function openAddSchedule() {
 
 function closeAddSchedule() {
   setSheetOpen(addScheduleSheet, addScheduleOverlay, false);
+}
+
+function showPlanUndo(message) {
+  if (planUndoMessage) planUndoMessage.textContent = message;
+  if (planUndoBanner) planUndoBanner.hidden = false;
+}
+
+function snapshotExecutionState(state, kind = "direct-edit") {
+  return {
+    kind,
+    createdAt: Date.now(),
+    state: { ...safeJsonParse(JSON.stringify(state), {}), undoSnapshot: null },
+  };
+}
+
+function openTaskEditor(day, taskKey) {
+  const bundle = getPlanBundle();
+  const dayPlan = bundle.schedule[Number(day) - 1];
+  const taskIndex = dayPlan?.tasks.findIndex((item) => item._taskKey === taskKey) ?? -1;
+  const task = dayPlan?.tasks[taskIndex];
+  const checked = bundle.state.checkedByDay[String(day)] || [];
+  if (!task) return;
+  if (checked[taskIndex]) {
+    showToast("완료한 일정은 기록 보호를 위해 수정할 수 없어요.");
+    return;
+  }
+  if (taskEditDay) taskEditDay.value = String(day);
+  if (taskEditKey) taskEditKey.value = taskKey;
+  if (taskEditTargetDay) {
+    const planStart = getPlanStartDate(bundle.plan, bundle.state);
+    taskEditTargetDay.replaceChildren();
+    bundle.schedule.forEach((scheduleDay) => {
+      const option = document.createElement("option");
+      const date = new Date(planStart.getFullYear(), planStart.getMonth(), planStart.getDate() + scheduleDay.day - 1);
+      option.value = String(scheduleDay.day);
+      option.textContent = `${date.toLocaleDateString("ko-KR", { month: "numeric", day: "numeric", weekday: "short" })}${scheduleDay.day === Number(day) ? " · 현재" : ""}`;
+      taskEditTargetDay.append(option);
+    });
+    taskEditTargetDay.value = String(day);
+  }
+  if (taskEditName) taskEditName.value = task.text || "";
+  if (taskEditTime) taskEditTime.value = /^([01]\d|2[0-3]):[0-5]\d$/.test(task.time || "") ? task.time : "";
+  if (taskEditDuration) taskEditDuration.value = String(getSuggestedFocusMinutes(task));
+  if (taskEditRange) taskEditRange.value = task.quantityOrRange || "";
+  if (taskEditRule) taskEditRule.value = task.completionRule || "정한 분량을 끝내면 완료";
+  taskEditScopeInputs.forEach((input) => {
+    input.checked = input.value === "task";
+    if (input.value === "recurrence") input.disabled = !task.recurrenceGroupId;
+  });
+  resetTaskEditPreview();
+  syncTaskEditScopeHint();
+  setSheetOpen(taskEditSheet, taskEditOverlay, true);
+}
+
+function closeTaskEditor() {
+  setSheetOpen(taskEditSheet, taskEditOverlay, false);
+}
+
+function selectedTaskEditScope() {
+  return [...taskEditScopeInputs].find((input) => input.checked)?.value || "task";
+}
+
+let taskEditPreviewSignature = "";
+let taskEditMutationPending = false;
+
+function resetTaskEditPreview() {
+  taskEditPreviewSignature = "";
+  if (taskEditPreview) taskEditPreview.hidden = true;
+  if (taskEditPreviewMessage) taskEditPreviewMessage.textContent = "";
+  if (taskEditSubmitButton) taskEditSubmitButton.textContent = "수정 내용 적용";
+}
+
+function syncTaskEditScopeHint() {
+  if (!taskEditScopeHint) return;
+  const scope = selectedTaskEditScope();
+  taskEditScopeHint.textContent = scope === "recurrence"
+    ? "완료하지 않은 같은 반복 일정의 현재 회차부터 함께 바뀌어요."
+    : scope === "remaining"
+      ? "남은 계획 전체는 바로 적용하지 않고 조정 범위와 방법을 다시 확인해요."
+      : "이 일정 하나만 바뀌며 다른 날짜는 그대로예요.";
+}
+
+let activePlanAdjustScope = "remaining";
+function setPlanAdjustScope(scope = "remaining") {
+  activePlanAdjustScope = ["today", "week", "remaining"].includes(scope) ? scope : "remaining";
+  planAdjustScopeButtons.forEach((button) => {
+    const active = button.dataset.planAdjustScope === activePlanAdjustScope;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+}
+
+function openPlanAdjust(scope = "remaining", focusOrigin = null) {
+  setPlanAdjustScope(scope);
+  if (!activeSheet && focusOrigin instanceof HTMLElement) previousFocusElement = focusOrigin;
+  setSheetOpen(planAdjustSheet, planAdjustOverlay, true);
+}
+
+function closePlanAdjust() {
+  setSheetOpen(planAdjustSheet, planAdjustOverlay, false);
 }
 
 function getSuggestedFocusMinutes(task) {
@@ -4698,7 +5373,7 @@ function closeFocusMode() {
 }
 
 function getTaskKey(day, taskIndex, task) {
-  return task?._taskKey || `${day}:${taskIndex}`;
+  return `${day}:${task?._taskKey || taskIndex}`;
 }
 
 function setTaskCheckedState(state, dayPlan, taskIndex, isChecked) {
@@ -4832,6 +5507,7 @@ function renderChecklist(dayPlan, state) {
   executionChecklist.innerHTML = "";
   executionChecklist.dataset.mode = dayPlan.scheduleMode || "time";
   const checked = state.checkedByDay[String(dayPlan.day)] || [];
+  const firstPendingIndex = dayPlan.tasks.findIndex((_, index) => !checked[index]);
   executionChecklist.classList.toggle("is-expanded", executionChecklist.dataset.expanded === "true");
   if (todayEmptyState) todayEmptyState.hidden = dayPlan.tasks.length !== 0;
 
@@ -4860,6 +5536,7 @@ function renderChecklist(dayPlan, state) {
     row.dataset.taskKey = task._taskKey;
     row.dataset.taskIndex = String(index);
     row.classList.toggle("is-complete", Boolean(checked[index]));
+    row.classList.toggle("is-next", index === firstPendingIndex);
     row.setAttribute("aria-label", `${index + 1}번째 일정, ${task.text}`);
     checkbox.className = "execution-check";
     checkbox.type = "checkbox";
@@ -4904,11 +5581,36 @@ function renderChecklist(dayPlan, state) {
       ? `예상 ${getSuggestedFocusMinutes(task)}분 · 완료: ${task.completionRule}`
       : `예상 ${getSuggestedFocusMinutes(task)}분`;
 
-    head.append(periodBadge);
+    const editButton = document.createElement("button");
+    editButton.type = "button";
+    editButton.className = "task-edit-button";
+    editButton.dataset.editTask = task._taskKey;
+    editButton.dataset.editDay = String(dayPlan.day);
+    editButton.textContent = "수정";
+    editButton.disabled = Boolean(checked[index]);
+    editButton.setAttribute("aria-label", `${task.text} 일정 수정`);
+
+    head.append(periodBadge, editButton);
     content.append(head, text, minimum);
     row.append(time, orderControl, content, checkbox);
     executionChecklist.append(row);
   });
+
+  const supportItems = [
+    ...(dayPlan.reviews || []).map((item) => ({ ...item, label: "REVIEW", copy: "확인" })),
+    ...(dayPlan.tips || []).map((item) => ({ ...item, label: "TIP", copy: "팁" })),
+  ];
+  if (supportItems.length) {
+    const support = document.createElement("aside");
+    support.className = "today-plan-support";
+    support.setAttribute("aria-label", "오늘 계획 참고 정보");
+    supportItems.forEach((item) => {
+      const row = document.createElement("p");
+      row.innerHTML = `<b>${item.copy}</b><span>${escapeAccountText(item.title || item.task || item.text || "")}</span>`;
+      support.append(row);
+    });
+    executionChecklist.append(support);
+  }
 
   if (scheduleListToggle) {
     const extraCount = Math.max(0, dayPlan.tasks.length - 3);
@@ -5062,12 +5764,17 @@ function renderCalendarDayDetail(schedule, state, plan) {
       const status = document.createElement("i");
       const time = document.createElement("strong");
       const text = document.createElement("span");
+      const edit = document.createElement("button");
 
       item.classList.toggle("is-complete", Boolean(checked[index]));
       status.textContent = checked[index] ? "✓" : "";
       time.textContent = dayPlan.scheduleMode === "priority" ? `${index + 1}순위` : task.time || "시간 미정";
       text.textContent = task.text;
-      item.append(status, time, text);
+      edit.type = "button";
+      edit.textContent = "수정";
+      edit.disabled = Boolean(checked[index]);
+      edit.addEventListener("click", () => openTaskEditor(dayPlan.day, task._taskKey));
+      item.append(status, time, text, edit);
       calendarDayDetailList.append(item);
     });
   }
@@ -5086,7 +5793,53 @@ function renderPlanOverview(plan, schedule, state) {
   if (planOverviewPeriod) planOverviewPeriod.textContent = `${schedule.length}일`;
   if (planOverviewWeek) planOverviewWeek.textContent = `${activeDays}일 · ${taskCount}개`;
   if (planOverviewRhythm) planOverviewRhythm.textContent = plan.routineTime ? `${plan.routineTime} 중심` : "유연하게";
+  if (planCriteriaMaterial) {
+    planCriteriaMaterial.textContent = plan.material?.hasMaterial
+      ? `${plan.material.name || "자료"} · ${plan.material.targetRange || "범위 확인"}`
+      : "정해진 자료 없음";
+  }
+  if (planCriteriaAvailability) {
+    const days = Array.isArray(plan.availability?.availableDays) ? plan.availability.availableDays : [];
+    planCriteriaAvailability.textContent = `${days.join("·") || "요일 유연"} · 회당 ${Number(plan.availability?.sessionMinutes) || 25}분`;
+  }
+  if (planCriteriaIntensity) planCriteriaIntensity.textContent = plan.availability?.intensity || "균형 있게";
   renderPlanWeekStrip(schedule, plan, state);
+  renderPlanScheduleList(schedule, plan, state);
+}
+
+function renderPlanScheduleList(schedule, plan, state) {
+  if (!planScheduleList) return;
+  const startIndex = activePlanRange === "week" ? Math.max(0, Number(state.selectedDay || 1) - 1) : 0;
+  const visible = activePlanRange === "week" ? schedule.slice(startIndex, startIndex + 7) : schedule;
+  const planStart = getPlanStartDate(plan, state);
+  planScheduleList.replaceChildren();
+  for (let offset = 0; offset < visible.length; offset += 7) {
+    const group = document.createElement("details");
+    const summary = document.createElement("summary");
+    const list = document.createElement("div");
+    const days = visible.slice(offset, offset + 7);
+    group.open = activePlanRange === "week" || offset === 0;
+    summary.textContent = activePlanRange === "week" ? "선택한 주 일정" : `${Math.floor(offset / 7) + 1}주차`;
+    list.className = "plan-schedule-week";
+    days.forEach((dayPlan) => {
+      const date = new Date(planStart.getFullYear(), planStart.getMonth(), planStart.getDate() + dayPlan.day - 1);
+      const dayBlock = document.createElement("section");
+      const heading = document.createElement("h3");
+      heading.textContent = `${date.toLocaleDateString("ko-KR", { month: "numeric", day: "numeric", weekday: "short" })} · ${dayPlan.tasks.length ? `${dayPlan.tasks.length}개` : "휴식"}`;
+      dayBlock.append(heading);
+      dayPlan.tasks.forEach((task) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.dataset.editTask = task._taskKey;
+        button.dataset.editDay = String(dayPlan.day);
+        button.innerHTML = `<span><strong>${escapeAccountText(task.text)}</strong><small>${escapeAccountText(task.time || "시간 미정")} · ${getSuggestedFocusMinutes(task)}분</small></span><b aria-hidden="true">수정</b>`;
+        dayBlock.append(button);
+      });
+      list.append(dayBlock);
+    });
+    group.append(summary, list);
+    planScheduleList.append(group);
+  }
 }
 
 function renderPlanWeekStrip(schedule, plan, state) {
@@ -6032,7 +6785,6 @@ function initializeExecutionPage() {
   if (!executionGoal) return;
 
   const bundle = getPlanBundle();
-  savePlanBundleState(bundle.state);
   renderExecutionPage(bundle);
 
   let savedTheme = "buddy";
@@ -6063,9 +6815,209 @@ planOpenDetailButton?.addEventListener("click", () => {
   trackCompanionEvent("plan_detail_opened");
 });
 
-planOpenEditorButton?.addEventListener("click", () => {
+planOpenEditorButton?.addEventListener("click", (event) => {
+  openPlanAdjust("remaining", event.currentTarget);
+  trackCompanionEvent("plan_adjust_opened");
+});
+
+openPlanAdjustButton?.addEventListener("click", (event) => openPlanAdjust("today", event.currentTarget));
+closePlanAdjustButton?.addEventListener("click", closePlanAdjust);
+planAdjustOverlay?.addEventListener("click", closePlanAdjust);
+planAdjustScopeButtons.forEach((button) => button.addEventListener("click", () => setPlanAdjustScope(button.dataset.planAdjustScope)));
+planAiAdjustButton?.addEventListener("click", () => {
+  closePlanAdjust();
   setPlanScreen("editor");
   trackCompanionEvent("plan_editor_opened");
+});
+planDirectAdjustButton?.addEventListener("click", () => {
+  const bundle = getPlanBundle();
+  if (activePlanAdjustScope === "today") {
+    const day = bundle.state.selectedDay;
+    const dayPlan = bundle.schedule[day - 1];
+    const checked = bundle.state.checkedByDay[String(day)] || [];
+    const nextIndex = dayPlan?.tasks.findIndex((task, index) => !checked[index]) ?? -1;
+    if (nextIndex >= 0) {
+      openTaskEditor(day, dayPlan.tasks[nextIndex]._taskKey);
+      trackCompanionEvent("plan_direct_edit_opened", { scope: activePlanAdjustScope });
+      return;
+    }
+  }
+  closePlanAdjust();
+  activePlanRange = activePlanAdjustScope === "remaining" ? "all" : "week";
+  planRangeButtons.forEach((button) => {
+    const active = button.dataset.planRange === activePlanRange;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  renderPlanScheduleList(bundle.schedule, bundle.plan, bundle.state);
+  setPlanScreen("home");
+  window.requestAnimationFrame(() => planScheduleList?.scrollIntoView({ block: "start", behavior: "smooth" }));
+  trackCompanionEvent("plan_direct_edit_opened", { scope: activePlanAdjustScope });
+});
+
+planRangeButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    activePlanRange = button.dataset.planRange === "all" ? "all" : "week";
+    planRangeButtons.forEach((item) => {
+      const active = item === button;
+      item.classList.toggle("active", active);
+      item.setAttribute("aria-pressed", String(active));
+    });
+    const bundle = getPlanBundle();
+    renderPlanScheduleList(bundle.schedule, bundle.plan, bundle.state);
+  });
+});
+
+[executionChecklist, planScheduleList].forEach((container) => {
+  container?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-edit-task][data-edit-day]");
+    if (button) openTaskEditor(button.dataset.editDay, button.dataset.editTask);
+  });
+});
+
+closeTaskEditButton?.addEventListener("click", closeTaskEditor);
+taskEditOverlay?.addEventListener("click", closeTaskEditor);
+taskEditScopeInputs.forEach((input) => input.addEventListener("change", () => {
+  resetTaskEditPreview();
+  syncTaskEditScopeHint();
+}));
+taskEditForm?.addEventListener("input", (event) => {
+  if (event.target?.name === "taskEditScope") return;
+  resetTaskEditPreview();
+});
+taskEditForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (taskEditMutationPending) return;
+  const day = String(taskEditDay?.value || "");
+  const key = String(taskEditKey?.value || "");
+  const targetDay = String(taskEditTargetDay?.value || day);
+  const scope = selectedTaskEditScope();
+  const bundle = getPlanBundle();
+  const dayPlan = bundle.schedule[Number(day) - 1];
+  const taskIndex = dayPlan?.tasks.findIndex((task) => task._taskKey === key) ?? -1;
+  if (!dayPlan || taskIndex < 0 || (bundle.state.checkedByDay[day] || [])[taskIndex]) {
+    showToast("완료되었거나 찾을 수 없는 일정은 수정하지 않았어요.");
+    return;
+  }
+  if (scope === "remaining") {
+    openPlanAdjust("remaining");
+    return;
+  }
+  if (targetDay !== day && scope !== "task") {
+    showToast("날짜 이동은 ‘이 일정만’ 범위에서 먼저 적용해 주세요.");
+    return;
+  }
+  const sourceTask = dayPlan.tasks[taskIndex];
+  const editValues = {
+    text: taskEditName?.value.trim() || sourceTask.text,
+    time: taskEditTime?.value || sourceTask.time,
+    durationMinutes: Math.max(5, Math.min(360, Number(taskEditDuration?.value) || 15)),
+    sourceReference: sourceTask.sourceReference || "",
+    quantityOrRange: taskEditRange?.value.trim() || "",
+    completionRule: taskEditRule?.value.trim() || "정한 분량을 끝내면 완료",
+    recurrenceGroupId: sourceTask.recurrenceGroupId || "",
+  };
+  const recurrenceTargets = [];
+  if (scope === "recurrence" && sourceTask.recurrenceGroupId) {
+    bundle.schedule.slice(Math.max(0, Number(day) - 1)).forEach((candidateDay) => {
+      const checked = bundle.state.checkedByDay[String(candidateDay.day)] || [];
+      candidateDay.tasks.forEach((candidate, index) => {
+        if (candidate.recurrenceGroupId === sourceTask.recurrenceGroupId && !checked[index]) {
+          recurrenceTargets.push({ day: candidateDay.day, key: candidate._taskKey });
+        }
+      });
+    });
+    const previewSignature = JSON.stringify({ day, key, scope, editValues, recurrenceTargets });
+    if (taskEditPreviewSignature !== previewSignature) {
+      taskEditPreviewSignature = previewSignature;
+      if (taskEditPreviewMessage) {
+        taskEditPreviewMessage.textContent = `완료하지 않은 같은 반복 일정 ${recurrenceTargets.length}개를 현재 회차부터 바꿉니다. 완료 기록은 변경하지 않습니다.`;
+      }
+      if (taskEditPreview) taskEditPreview.hidden = false;
+      if (taskEditSubmitButton) taskEditSubmitButton.textContent = "확인한 변경 적용";
+      return;
+    }
+  }
+  taskEditMutationPending = true;
+  if (taskEditSubmitButton) {
+    taskEditSubmitButton.disabled = true;
+    taskEditSubmitButton.setAttribute("aria-busy", "true");
+  }
+  try {
+    const editsByDay = { ...(bundle.state.taskEditsByDay || {}) };
+    bundle.state.undoSnapshot = snapshotExecutionState(bundle.state, "task-edit");
+    if (targetDay !== day) {
+      const hiddenByDay = { ...(bundle.state.hiddenTaskKeysByDay || {}) };
+      hiddenByDay[day] = [...new Set([...(hiddenByDay[day] || []), key])];
+      const customByDay = { ...(bundle.state.customTasksByDay || {}) };
+      customByDay[targetDay] = [
+        ...(customByDay[targetDay] || []),
+        { ...editValues, id: `moved-${key}-${Date.now()}`, custom: true, movedFromDay: Number(day) },
+      ];
+      bundle.state.hiddenTaskKeysByDay = hiddenByDay;
+      bundle.state.customTasksByDay = customByDay;
+    } else if (scope === "recurrence" && sourceTask.recurrenceGroupId) {
+      recurrenceTargets.forEach((target) => {
+        const dayKey = String(target.day);
+        editsByDay[dayKey] = { ...(editsByDay[dayKey] || {}), [target.key]: editValues };
+      });
+    } else {
+      editsByDay[day] = { ...(editsByDay[day] || {}), [key]: editValues };
+    }
+    bundle.state.taskEditsByDay = editsByDay;
+    bundle.state.status = "직접 편집";
+    savePlanBundleState(bundle.state);
+    resetTaskEditPreview();
+    closeTaskEditor();
+    const refreshed = getPlanBundle();
+    renderExecutionPage(refreshed);
+    await saveAccountStateToServer();
+    showPlanUndo(targetDay !== day
+      ? "일정을 다른 날짜로 옮겼어요. 완료 기록은 그대로 유지됩니다."
+      : scope === "recurrence"
+        ? "같은 반복 일정의 남은 회차를 수정했어요."
+        : "이 일정만 수정했어요. 다른 날짜는 그대로예요.");
+  } finally {
+    taskEditMutationPending = false;
+    if (taskEditSubmitButton) {
+      taskEditSubmitButton.disabled = false;
+      taskEditSubmitButton.removeAttribute("aria-busy");
+    }
+  }
+});
+
+skipTaskButton?.addEventListener("click", async () => {
+  const day = String(taskEditDay?.value || "");
+  const key = String(taskEditKey?.value || "");
+  const bundle = getPlanBundle();
+  const dayPlan = bundle.schedule[Number(day) - 1];
+  const taskIndex = dayPlan?.tasks.findIndex((task) => task._taskKey === key) ?? -1;
+  if (!dayPlan || taskIndex < 0 || (bundle.state.checkedByDay[day] || [])[taskIndex]) {
+    showToast("완료되었거나 찾을 수 없는 일정은 건너뛰지 않았어요.");
+    return;
+  }
+  bundle.state.undoSnapshot = snapshotExecutionState(bundle.state, "task-skip");
+  const hiddenByDay = { ...(bundle.state.hiddenTaskKeysByDay || {}) };
+  hiddenByDay[day] = [...new Set([...(hiddenByDay[day] || []), key])];
+  bundle.state.hiddenTaskKeysByDay = hiddenByDay;
+  bundle.state.status = "일정 건너뜀";
+  savePlanBundleState(bundle.state);
+  closeTaskEditor();
+  renderExecutionPage(getPlanBundle());
+  await saveAccountStateToServer();
+  showPlanUndo("이 일정만 건너뛰었어요. 다른 날짜 일정은 그대로예요.");
+});
+
+planUndoButton?.addEventListener("click", async () => {
+  const state = getExecutionState();
+  const snapshot = state.undoSnapshot;
+  if (!snapshot?.state) return;
+  saveExecutionState({ ...snapshot.state, undoSnapshot: null });
+  if (planUndoBanner) planUndoBanner.hidden = true;
+  const bundle = getPlanBundle();
+  renderExecutionPage(bundle);
+  await saveAccountStateToServer();
+  showToast("직전 변경을 되돌렸어요.");
 });
 
 planWeekStrip?.addEventListener("click", (event) => {
@@ -6676,7 +7628,7 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
-acceptPlanButton?.addEventListener("click", () => {
+acceptPlanButton?.addEventListener("click", async () => {
   const current = getPlanBundle();
   if (!current.state.pendingPlanText) {
     if (planEditorMessage) planEditorMessage.textContent = "먼저 변경안 만들기를 눌러 적용할 내용을 확인해 주세요.";
@@ -6695,13 +7647,17 @@ acceptPlanButton?.addEventListener("click", () => {
   bundle.state.pendingRevisionSummary = {};
   bundle.state.pendingWeeklySchedule = [];
   bundle.state.status = "적용 완료";
+  bundle.state.undoSnapshot = snapshotExecutionState(current.state, "ai-plan-apply");
   savePlanBundleState(bundle.state);
   if (planEditorMessage) planEditorMessage.textContent = "변경안을 적용했어요. 오늘 일정도 함께 업데이트했습니다.";
   showToast("변경안을 적용했어요 · 완료한 일정은 그대로 보호했어요");
   renderExecutionPage(bundle);
   setPlanScreen("home");
+  await saveAccountStateToServer();
+  showPlanUndo("AI 변경안을 적용했어요. 직전 계획으로 되돌릴 수 있어요.");
 });
 
+let planRevisionRequestPending = false;
 regeneratePlanButton?.addEventListener("click", async () => {
   const currentBundle = getPlanBundle();
   const baseText = planEditor?.value.trim() || currentBundle.state.planText || getDefaultPlanText(readExecutionPlan());
@@ -6711,13 +7667,20 @@ regeneratePlanButton?.addEventListener("click", async () => {
     updateRevisionButtonState();
     return;
   }
+  if (planRevisionRequestPending) return;
+  planRevisionRequestPending = true;
+  const buttonMarkup = regeneratePlanButton.innerHTML;
+  regeneratePlanButton.disabled = true;
   const revisionAction = pendingRevisionAction || "revise_plan";
-  if (!(await ensureAiActionAvailable(revisionAction))) return;
+  if (!(await ensureAiActionAvailable(revisionAction))) {
+    planRevisionRequestPending = false;
+    regeneratePlanButton.innerHTML = buttonMarkup;
+    updateRevisionButtonState();
+    return;
+  }
   const revisionCost = aiCreditCost(revisionAction);
 
   const plan = currentBundle.plan || readExecutionPlan();
-  const buttonMarkup = regeneratePlanButton.innerHTML;
-  regeneratePlanButton.disabled = true;
   regeneratePlanButton.textContent = "올리가 AI 변경안을 만들고 있어요…";
   if (planEditorMessage) planEditorMessage.textContent = "추억과 실행 기록을 읽고 목표에 맞는 변경안을 설계하고 있어요.";
   trackCompanionEvent("ai_plan_revision_requested", {
@@ -6776,6 +7739,7 @@ regeneratePlanButton?.addEventListener("click", async () => {
     showToast("AI 변경안을 만들지 못했어요 · 실패한 요청은 확정 차감되지 않아요");
     trackCompanionEvent("ai_plan_revision_failed", { message: String(error.message || error).slice(0, 160) });
   } finally {
+    planRevisionRequestPending = false;
     pendingRevisionAction = "revise_plan";
     regeneratePlanButton.innerHTML = buttonMarkup;
     updateRevisionButtonState();

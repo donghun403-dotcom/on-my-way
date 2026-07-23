@@ -1,4 +1,5 @@
 const { expect } = require("@playwright/test");
+const path = require("path");
 
 const testPlan = {
   goal: "E2E 목표 완주하기",
@@ -473,6 +474,16 @@ async function expectNoHorizontalOverflow(page) {
   expect(Math.max(dimensions.body, dimensions.document)).toBeLessThanOrEqual(dimensions.viewport + 1);
 }
 
+async function captureAcceptance(page, testInfo, name) {
+  const outputDir = process.env.ACCEPTANCE_CAPTURE_DIR;
+  if (!outputDir) return;
+  const width = page.viewportSize()?.width || "auto";
+  await page.screenshot({
+    path: path.join(outputDir, `${testInfo.project.name}-${width}-${name}.png`),
+    fullPage: true,
+  });
+}
+
 async function readStored(page, key) {
   return page.evaluate((storageKey) => {
     const value = localStorage.getItem(storageKey);
@@ -482,6 +493,7 @@ async function readStored(page, key) {
 
 module.exports = {
   AI_CREDIT_COSTS,
+  captureAcceptance,
   createUsageResponse,
   expectNoDuplicateIds,
   expectNoHorizontalOverflow,
