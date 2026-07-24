@@ -1,4 +1,4 @@
-import { createAiGoalPlan, normalizeGoalInput } from "./ai-goal-plan.mjs";
+import { createAiGoalPlan, goalInputForHash, normalizeGoalInput } from "./ai-goal-plan.mjs";
 import { GuestPlanDraftObject } from "./guest-plan-draft-object.mjs";
 import { createCompanionReply } from "./ai-companion-chat.mjs";
 import { createAiPlanRevision } from "./ai-plan-revision.mjs";
@@ -168,7 +168,7 @@ const GUEST_GOAL_DRAFT_REVISE_PATH = "/api/ai/goal-draft/revise";
 const GUEST_GOAL_DRAFT_CLAIM_PATH = "/api/ai/goal-draft/claim";
 const GUEST_GOAL_PREVIEW_TTL_SECONDS = 24 * 60 * 60;
 const GUEST_GOAL_DRAFT_COOKIE = "omw_guest_goal_draft";
-const GUEST_GOAL_INPUT_SCHEMA_VERSION = 1;
+const GUEST_GOAL_INPUT_SCHEMA_VERSION = 2;
 const GUEST_GOAL_PROMPT_VERSION = AI_CONTRACT_VERSIONS.goalPlanPrompt;
 const GUEST_GOAL_OUTPUT_SCHEMA_VERSION = AI_CONTRACT_VERSIONS.goalPlanSchema;
 const GUEST_GOAL_OUTPUT_BUDGET_VERSION = AI_OUTPUT_BUDGET_VERSION;
@@ -186,7 +186,11 @@ async function hmacHex(secret, value) {
   return [...new Uint8Array(signature)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-async function guestDraftCapability(secret, draftPlanId, actorHash) {
+async function guestDraftCapability(secret, draftPlanId) {
+  return hmacHex(secret, `guest-goal-draft-capability:v2:${draftPlanId}`);
+}
+
+async function legacyGuestDraftCapability(secret, draftPlanId, actorHash) {
   return hmacHex(secret, `guest-goal-draft-capability:${draftPlanId}:${actorHash}`);
 }
 
@@ -210,6 +214,25 @@ function guestDraftPreviewResponse(body, capability) {
 }
 
 function guestGoalPreview(plan = {}) {
+  const feasibility = plan?.feasibility && typeof plan.feasibility === "object"
+    ? {
+        status: String(plan.feasibility.status || ""),
+        summary: String(plan.feasibility.summary || ""),
+        recommendedOption: String(plan.feasibility.recommendedOption || ""),
+        adjustmentOptions: Array.isArray(plan.feasibility.adjustmentOptions)
+          ? plan.feasibility.adjustmentOptions.slice(0, 4).map(String)
+          : [],
+      }
+    : null;
+  const scheduleContract = plan?.scheduleContract && typeof plan.scheduleContract === "object"
+    ? {
+        timezone: String(plan.scheduleContract.timezone || ""),
+        startDate: String(plan.scheduleContract.startDate || ""),
+        generatedDays: Number(plan.scheduleContract.generatedDays || 0),
+        exactDatesServerDerived: plan.scheduleContract.exactDatesServerDerived === true,
+        requiresAdjustmentBeforeClaim: plan.scheduleContract.requiresAdjustmentBeforeClaim === true,
+      }
+    : null;
   return {
     personalitySummary: String(plan.personalitySummary || ""),
     planningStyle: String(plan.planningStyle || ""),
@@ -217,6 +240,9 @@ function guestGoalPreview(plan = {}) {
     weekTitle: String(plan.weekTitle || ""),
     weekPlan: Array.isArray(plan.weekPlan) ? plan.weekPlan.slice(0, 7).map(String) : [],
     coachMessage: String(plan.coachMessage || ""),
+    feasibility,
+    scheduleContract,
+    feasibilitySummary: String(plan.feasibilitySummary || feasibility?.summary || ""),
     todaySchedule: Array.isArray(plan.todaySchedule)
       ? plan.todaySchedule.slice(0, 1).map((item) => ({
         time: String(item?.time || ""),
@@ -269,7 +295,7 @@ export async function guestGoalInputHash(input, versions = {}) {
     promptVersion: versions.promptVersion || GUEST_GOAL_PROMPT_VERSION,
     outputSchemaVersion: versions.outputSchemaVersion || GUEST_GOAL_OUTPUT_SCHEMA_VERSION,
     outputBudgetVersion: versions.outputBudgetVersion || GUEST_GOAL_OUTPUT_BUDGET_VERSION,
-    input,
+    input: goalInputForHash(input),
   }));
 }
 
@@ -305,7 +331,7 @@ async function guestDraftCommand(env, draftPlanId, command, body) {
   return { response, body: await response.json().catch(() => ({ ok: false, code: "GUEST_DRAFT_STORAGE_INVALID" })) };
 }
 
-function guestDraftApiError(code, status) {
+function guestDraftApiError(code, status, metadata = {}) {
   const messages = {
     GUEST_PREVIEW_ALREADY_USED: "오늘의 AI 계획 미리보기를 이미 사용했어요. 현재 초안에서 조건을 수정해 주세요.",
     GUEST_PREVIEW_PENDING: "AI 계획 미리보기를 만들고 있어요. 잠시 후 다시 확인해 주세요.",
@@ -316,8 +342,87 @@ function guestDraftApiError(code, status) {
     DRAFT_REVISION_PENDING: "수정한 조건으로 계획을 만드는 중이에요.",
     DRAFT_REVISION_CONFLICT: "계획 초안이 다른 화면에서 변경됐어요. 최신 초안을 다시 확인해 주세요.",
     DRAFT_PLAN_INPUT_MISMATCH: "입력 조건과 AI 일정이 일치하지 않아 저장하지 않았어요.",
+    DRAFT_ADJUSTMENT_REQUIRED: "현재 조건으로는 전체 일정을 확정할 수 없어요. 조정안을 선택해 계획을 다시 확인해 주세요.",
+    DRAFT_IDEMPOTENCY_KEY_CONFLICT: "이전 요청과 입력 조건이 달라 새 요청으로 다시 시도해 주세요.",
   };
-  return json({ ok: false, code, error: messages[code] || "계획 초안을 처리하지 못했어요." }, status || 409);
+  const terminal = code === "DRAFT_IDEMPOTENCY_KEY_CONFLICT"
+    || (code === "DRAFT_REVISION_CONFLICT" && Number(status) === 412);
+  return json({
+    ok: false,
+    code,
+    error: messages[code] || "계획 초안을 처리하지 못했어요.",
+    ...(terminal ? { terminal: true, cached: false, retryable: false } : {}),
+    ...(terminal && code === "DRAFT_REVISION_CONFLICT" ? {
+      draftPlanId: String(metadata.draftPlanId || ""),
+      preview: metadata.preview || null,
+      activeInput: metadata.activeInput || null,
+      activeInputHash: String(metadata.activeInputHash || ""),
+      activeRevision: Number(metadata.activeRevision || 0),
+    } : {}),
+  }, status || 409);
+}
+
+function currentKstDateKey(now = Date.now()) {
+  return new Date(now + 9 * 60 * 60 * 1_000).toISOString().slice(0, 10);
+}
+
+function guestGenerationOutcome(error) {
+  const code = String(error?.code || "AI_REQUEST_FAILED");
+  const terminalContract = code.startsWith("AI_OUTPUT_")
+    || code === "MATERIAL_RANGE_INVALID"
+    || error?.retryable === false;
+  return terminalContract ? "terminal_contract_failure" : "retryable_provider_failure";
+}
+
+function guestGenerationFailureResponse(result = {}, { cached = true } = {}) {
+  const code = String(result.code || "AI_REQUEST_FAILED");
+  const terminalContract = result.outcome === "terminal_contract_failure";
+  const status = Number.isInteger(Number(result.status)) ? Number(result.status) : (terminalContract ? 502 : 503);
+  const error = String(result.error || "").trim() || (terminalContract
+    ? "계획을 완성하지 못했어요. 적어둔 내용은 그대로 보관했어요."
+    : "AI 서비스에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.");
+  return json({
+    ok: false,
+    code,
+    error,
+    retryable: Boolean(result.retryable),
+    cached,
+    terminal: true,
+  }, status);
+}
+
+async function recordGuestGenerationFailure(env, draftPlanId, {
+  generationToken,
+  outcome,
+  code,
+  status,
+  error,
+}) {
+  try {
+    const recorded = await guestDraftCommand(env, draftPlanId, "fail-generation", {
+      generationToken,
+      resultCategory: outcome,
+      code,
+      status,
+      error,
+    });
+    if (!recorded.response?.ok || !recorded.body?.generationResult) return null;
+    return recorded.body.generationResult;
+  } catch {
+    console.error("Guest generation result persistence failed", { code: "DRAFT_GENERATION_RESULT_NOT_STORED" });
+    return null;
+  }
+}
+
+function guestGenerationPersistenceError() {
+  return json({
+    ok: false,
+    code: "DRAFT_GENERATION_RESULT_NOT_STORED",
+    error: "요청 결과를 안전하게 저장하지 못했어요. 같은 요청으로 다시 확인해 주세요.",
+    retryable: true,
+    terminal: false,
+    cached: false,
+  }, 503);
 }
 
 export function getGuestAiReadiness(env = {}) {
@@ -355,34 +460,71 @@ async function handleGuestGoalPreview({ request, env, accountContext }) {
   if (await currentSessionUser(accountContext)) {
     return json({ ok: false, error: "회원은 무료 체험에서 전체 AI 계획을 만들 수 있어요.", code: "MEMBER_PREVIEW_NOT_ALLOWED" }, 409);
   }
-  let input;
+  let requestBody;
   try {
-    input = await readBoundedJson(request, 50_000);
+    requestBody = await readBoundedJson(request, 50_000);
   } catch (error) {
     return json(aiErrorBody(error), error.status || 400);
   }
+  const requestedIdempotencyKey = String(requestBody?.idempotencyKey || "").trim();
+  if (requestedIdempotencyKey && !/^initial:[A-Za-z0-9_-]{16,144}$/.test(requestedIdempotencyKey)) {
+    return json({ ok: false, error: "AI 미리보기 요청을 확인하지 못했어요.", code: "DRAFT_IDEMPOTENCY_KEY_INVALID" }, 400);
+  }
+  const input = requestBody && typeof requestBody === "object" ? { ...requestBody } : {};
+  delete input.idempotencyKey;
+  const requestNow = Date.now();
+  input.availability = {
+    ...(input.availability || {}),
+    scheduleStartDate: currentKstDateKey(requestNow),
+  };
   const identity = await guestPreviewIdentity(request, env);
-  if (!identity) return json({ ok: false, error: "AI 계획 미리보기의 안전한 요청 정보를 확인하지 못했어요.", code: "GUEST_PREVIEW_IDENTITY_REQUIRED" }, 503);
+  if (!identity) {
+    return json({
+      ok: false,
+      error: "AI 계획 미리보기의 안전한 요청 정보를 확인하지 못했어요.",
+      code: "GUEST_PREVIEW_IDENTITY_REQUIRED",
+      retryable: true,
+      terminal: true,
+      cached: false,
+    }, 503);
+  }
 
   const actorInputHash = await guestGoalInputHash(normalizeGoalInput({ ...input, draftPlanId: "" }));
   const actorCacheKey = `guest-ai-preview:${identity.actorHash}:${actorInputHash}`;
   const actorDailyKey = `guest-ai-preview-day:${identity.actorHash}`;
   const actorDaily = await env.USERS_KV.get(actorDailyKey, "json");
-  if (actorDaily?.actorInputHash && actorDaily.actorInputHash !== actorInputHash) {
+  const draftIdentitySeed = requestedIdempotencyKey || identity.actorHash;
+  const draftInputIdentity = requestedIdempotencyKey ? "explicit-idempotency-key:v1" : actorInputHash;
+  const deterministicDraftPlanId = await guestDraftId(
+    env.SESSION_SECRET,
+    draftIdentitySeed,
+    draftInputIdentity,
+  );
+  const actorDailyDraftPlanId = String(actorDaily?.draftPlanId || "");
+  const reusesExplicitDraftIdentity = Boolean(
+    requestedIdempotencyKey
+    && validGuestDraftId(actorDailyDraftPlanId)
+    && actorDailyDraftPlanId === deterministicDraftPlanId
+  );
+  if (
+    actorDaily?.actorInputHash
+    && actorDaily.actorInputHash !== actorInputHash
+    && !reusesExplicitDraftIdentity
+  ) {
     return guestDraftApiError("GUEST_PREVIEW_ALREADY_USED", 429);
   }
   const actorCache = await env.USERS_KV.get(actorCacheKey, "json");
   const cachedDraftPlanId = String(actorCache?.draftPlanId || actorDaily?.draftPlanId || "");
   const draftPlanId = validGuestDraftId(cachedDraftPlanId)
     ? cachedDraftPlanId
-    : await guestDraftId(env.SESSION_SECRET, identity.actorHash, actorInputHash);
+    : deterministicDraftPlanId;
   const normalizedInput = normalizeGoalInput({ ...input, draftPlanId });
   const inputHash = await guestGoalInputHash(normalizedInput);
-  const capability = await guestDraftCapability(env.SESSION_SECRET, draftPlanId, identity.actorHash);
-  const capabilityHash = await guestDraftCapabilityHash(env.SESSION_SECRET, draftPlanId, capability);
+  let capability = await guestDraftCapability(env.SESSION_SECRET, draftPlanId);
+  let capabilityHash = await guestDraftCapabilityHash(env.SESSION_SECRET, draftPlanId, capability);
   const generationToken = crypto.randomUUID();
-  const idempotencyKey = `initial:${inputHash}`;
-  const begin = await guestDraftCommand(env, draftPlanId, "begin-initial", {
+  const idempotencyKey = requestedIdempotencyKey || `initial:${inputHash}`;
+  let begin = await guestDraftCommand(env, draftPlanId, "begin-initial", {
     draftPlanId,
     anonymousActorHash: identity.actorHash,
     capabilityHash,
@@ -391,8 +533,58 @@ async function handleGuestGoalPreview({ request, env, accountContext }) {
     generationToken,
     idempotencyKey,
   });
+  if (
+    begin.response?.status === 403
+    && validGuestDraftId(cachedDraftPlanId)
+  ) {
+    capability = await legacyGuestDraftCapability(env.SESSION_SECRET, draftPlanId, identity.actorHash);
+    capabilityHash = await guestDraftCapabilityHash(env.SESSION_SECRET, draftPlanId, capability);
+    begin = await guestDraftCommand(env, draftPlanId, "begin-initial", {
+      draftPlanId,
+      anonymousActorHash: identity.actorHash,
+      capabilityHash,
+      input: normalizedInput,
+      inputHash,
+      generationToken,
+      idempotencyKey,
+    });
+  }
   if (!begin.response?.ok) return guestDraftApiError(begin.body.code, begin.response?.status || 503);
+  if (begin.body.generationResult?.outcome && begin.body.generationResult.outcome !== "success") {
+    console.info("Guest AI goal preview replayed", safeAiDiagnostics({
+      code: begin.body.generationResult.code,
+      retryable: begin.body.generationResult.retryable,
+      cached: true,
+      providerCalled: false,
+      diagnostics: {
+        responseStatus: "cached_terminal",
+        schemaResult: "unknown",
+        domainResult: begin.body.generationResult.outcome === "terminal_contract_failure" ? "fail" : "not_run",
+        domainRuleIds: [],
+      },
+    }, {
+      environment: env.APP_ENV || "unknown",
+      operation: "guest_goal_generation",
+      model: env.OPENAI_MODEL || "gpt-5.4-mini",
+      maxOutputTokens: GOAL_PLAN_MAX_OUTPUT_TOKENS,
+      cached: true,
+      providerCalled: false,
+    }));
+    return guestGenerationFailureResponse(begin.body.generationResult);
+  }
   if (begin.body.cached) {
+    console.info("Guest AI goal preview replayed", safeAiSuccessDiagnostics({
+      cached: true,
+      providerCalled: false,
+      diagnostics: { responseStatus: "completed", schemaResult: "pass", domainResult: "pass" },
+      contract: { maxOutputTokens: GOAL_PLAN_MAX_OUTPUT_TOKENS },
+    }, {
+      environment: env.APP_ENV || "unknown",
+      operation: "guest_goal_generation",
+      model: env.OPENAI_MODEL || "gpt-5.4-mini",
+      cached: true,
+      providerCalled: false,
+    }));
     return guestDraftPreviewResponse({
       ok: true,
       draftPlanId,
@@ -405,17 +597,31 @@ async function handleGuestGoalPreview({ request, env, accountContext }) {
   }
   const { success } = await env.AI_RATE_LIMITER.limit({ key: `ai:guest-goal-preview:${identity.ipHash}` });
   if (!success) {
-    await guestDraftCommand(env, draftPlanId, "fail-generation", { generationToken });
-    return json({ ok: false, error: "AI 계획 미리보기 요청이 잠시 많아요. 1분 뒤 다시 시도해 주세요.", code: "AI_RATE_LIMITED" }, 429);
+    const error = "AI 계획 미리보기 요청이 잠시 많아요. 1분 뒤 다시 시도해 주세요.";
+    const recorded = await recordGuestGenerationFailure(env, draftPlanId, {
+      generationToken,
+      outcome: "retryable_provider_failure",
+      code: "AI_RATE_LIMITED",
+      status: 429,
+      error,
+    });
+    if (!recorded) return guestGenerationPersistenceError();
+    return guestGenerationFailureResponse(recorded, { cached: false });
   }
   let committed;
   const aiCorrelationId = crypto.randomUUID();
   const aiStartedAt = Date.now();
   try {
-    const result = await createAiGoalPlan(normalizedInput, { apiKey: env.OPENAI_API_KEY, model: env.OPENAI_MODEL || "gpt-5.4-mini" });
+    const result = await createAiGoalPlan(normalizedInput, {
+      apiKey: env.OPENAI_API_KEY,
+      model: env.OPENAI_MODEL || "gpt-5.4-mini",
+      now: requestNow,
+    });
     console.info("Guest AI goal preview completed", safeAiSuccessDiagnostics(result, {
       correlationId: aiCorrelationId,
+      environment: env.APP_ENV || "unknown",
       model: env.OPENAI_MODEL || "gpt-5.4-mini",
+      operation: "guest_goal_generation",
       latencyMs: Date.now() - aiStartedAt,
     }));
     const preview = guestGoalPreview(result.plan);
@@ -426,12 +632,22 @@ async function handleGuestGoalPreview({ request, env, accountContext }) {
   } catch (error) {
     console.error("Guest AI goal preview failed", safeAiDiagnostics(error, {
       correlationId: aiCorrelationId,
+      environment: env.APP_ENV || "unknown",
       model: env.OPENAI_MODEL || "gpt-5.4-mini",
+      operation: "guest_goal_generation",
       latencyMs: Date.now() - aiStartedAt,
       maxOutputTokens: GOAL_PLAN_MAX_OUTPUT_TOKENS,
     }));
-    await guestDraftCommand(env, draftPlanId, "fail-generation", { generationToken });
-    return json(aiErrorBody(error), error?.status || 500);
+    const errorBody = aiErrorBody(error);
+    const recorded = await recordGuestGenerationFailure(env, draftPlanId, {
+      generationToken,
+      outcome: guestGenerationOutcome(error),
+      code: error?.code || "AI_REQUEST_FAILED",
+      status: error?.status || 500,
+      error: errorBody.error,
+    });
+    if (!recorded) return guestGenerationPersistenceError();
+    return guestGenerationFailureResponse(recorded, { cached: false });
   }
   const expiresAt = Number(committed.body.expiresAt || Date.now() + GUEST_GOAL_PREVIEW_TTL_SECONDS * 1_000);
   const cacheRecord = JSON.stringify({
@@ -483,7 +699,22 @@ async function handleGuestGoalDraftRevision({ request, env, accountContext }) {
   const capability = String(parseCookies(request.headers.get("cookie"))[GUEST_GOAL_DRAFT_COOKIE] || "");
   if (!/^[a-f0-9]{64}$/.test(capability)) return guestDraftApiError("DRAFT_PLAN_ACCESS_DENIED", 403);
   const capabilityHash = await guestDraftCapabilityHash(env.SESSION_SECRET, draftPlanId, capability);
-  const normalizedInput = normalizeGoalInput({ ...(body.input || {}), draftPlanId });
+  const requestNow = Date.now();
+  const inspected = await guestDraftCommand(env, draftPlanId, "inspect", { capabilityHash });
+  if (!inspected.response?.ok) {
+    return guestDraftApiError(inspected.body.code, inspected.response?.status || 503, inspected.body);
+  }
+  const storedScheduleStartDate = String(inspected.body?.activeInput?.availability?.scheduleStartDate || "");
+  const normalizedInput = normalizeGoalInput({
+    ...(body.input || {}),
+    draftPlanId,
+    availability: {
+      ...(body.input?.availability || {}),
+      scheduleStartDate: /^\d{4}-\d{2}-\d{2}$/.test(storedScheduleStartDate)
+        ? storedScheduleStartDate
+        : currentKstDateKey(requestNow),
+    },
+  });
   const inputHash = await guestGoalInputHash(normalizedInput);
   const generationToken = crypto.randomUUID();
   const begin = await guestDraftCommand(env, draftPlanId, "begin-revision", {
@@ -495,8 +726,42 @@ async function handleGuestGoalDraftRevision({ request, env, accountContext }) {
     generationToken,
     idempotencyKey,
   });
-  if (!begin.response?.ok) return guestDraftApiError(begin.body.code, begin.response?.status || 503);
+  if (!begin.response?.ok) return guestDraftApiError(begin.body.code, begin.response?.status || 503, begin.body);
+  if (begin.body.generationResult?.outcome && begin.body.generationResult.outcome !== "success") {
+    console.info("Guest AI goal revision replayed", safeAiDiagnostics({
+      code: begin.body.generationResult.code,
+      retryable: begin.body.generationResult.retryable,
+      cached: true,
+      providerCalled: false,
+      diagnostics: {
+        responseStatus: "cached_terminal",
+        schemaResult: "unknown",
+        domainResult: begin.body.generationResult.outcome === "terminal_contract_failure" ? "fail" : "not_run",
+        domainRuleIds: [],
+      },
+    }, {
+      environment: env.APP_ENV || "unknown",
+      operation: "guest_goal_revision",
+      model: env.OPENAI_MODEL || "gpt-5.4-mini",
+      maxOutputTokens: PLAN_REVISION_MAX_OUTPUT_TOKENS,
+      cached: true,
+      providerCalled: false,
+    }));
+    return guestGenerationFailureResponse(begin.body.generationResult);
+  }
   if (!begin.body.shouldGenerate) {
+    console.info("Guest AI goal revision replayed", safeAiSuccessDiagnostics({
+      cached: true,
+      providerCalled: false,
+      diagnostics: { responseStatus: "completed", schemaResult: "pass", domainResult: "pass" },
+      contract: { maxOutputTokens: PLAN_REVISION_MAX_OUTPUT_TOKENS },
+    }, {
+      environment: env.APP_ENV || "unknown",
+      operation: "guest_goal_revision",
+      model: env.OPENAI_MODEL || "gpt-5.4-mini",
+      cached: true,
+      providerCalled: false,
+    }));
     return json({
       ok: true,
       draftPlanId,
@@ -510,13 +775,29 @@ async function handleGuestGoalDraftRevision({ request, env, accountContext }) {
   }
   const identity = await guestPreviewIdentity(request, env);
   if (!identity) {
-    await guestDraftCommand(env, draftPlanId, "fail-generation", { generationToken });
-    return json({ ok: false, error: "AI 계획 수정 요청 정보를 확인하지 못했어요.", code: "GUEST_PREVIEW_IDENTITY_REQUIRED" }, 503);
+    const error = "AI 계획 수정 요청 정보를 확인하지 못했어요.";
+    const recorded = await recordGuestGenerationFailure(env, draftPlanId, {
+      generationToken,
+      outcome: "retryable_provider_failure",
+      code: "GUEST_PREVIEW_IDENTITY_REQUIRED",
+      status: 503,
+      error,
+    });
+    if (!recorded) return guestGenerationPersistenceError();
+    return guestGenerationFailureResponse(recorded, { cached: false });
   }
   const { success } = await env.AI_RATE_LIMITER.limit({ key: `ai:guest-goal-revision:${identity.ipHash}` });
   if (!success) {
-    await guestDraftCommand(env, draftPlanId, "fail-generation", { generationToken });
-    return json({ ok: false, error: "AI 계획 수정 요청이 잠시 많아요. 1분 뒤 다시 시도해 주세요.", code: "AI_RATE_LIMITED" }, 429);
+    const error = "AI 계획 수정 요청이 잠시 많아요. 1분 뒤 다시 시도해 주세요.";
+    const recorded = await recordGuestGenerationFailure(env, draftPlanId, {
+      generationToken,
+      outcome: "retryable_provider_failure",
+      code: "AI_RATE_LIMITED",
+      status: 429,
+      error,
+    });
+    if (!recorded) return guestGenerationPersistenceError();
+    return guestGenerationFailureResponse(recorded, { cached: false });
   }
   const aiCorrelationId = crypto.randomUUID();
   const aiStartedAt = Date.now();
@@ -525,10 +806,13 @@ async function handleGuestGoalDraftRevision({ request, env, accountContext }) {
       apiKey: env.OPENAI_API_KEY,
       model: env.OPENAI_MODEL || "gpt-5.4-mini",
       maxOutputTokens: PLAN_REVISION_MAX_OUTPUT_TOKENS,
+      now: requestNow,
     });
     console.info("Guest AI goal revision completed", safeAiSuccessDiagnostics(result, {
       correlationId: aiCorrelationId,
+      environment: env.APP_ENV || "unknown",
       model: env.OPENAI_MODEL || "gpt-5.4-mini",
+      operation: "guest_goal_revision",
       latencyMs: Date.now() - aiStartedAt,
     }));
     const preview = guestGoalPreview(result.plan);
@@ -548,12 +832,22 @@ async function handleGuestGoalDraftRevision({ request, env, accountContext }) {
   } catch (error) {
     console.error("Guest AI goal revision failed", safeAiDiagnostics(error, {
       correlationId: aiCorrelationId,
+      environment: env.APP_ENV || "unknown",
       model: env.OPENAI_MODEL || "gpt-5.4-mini",
+      operation: "guest_goal_revision",
       latencyMs: Date.now() - aiStartedAt,
       maxOutputTokens: PLAN_REVISION_MAX_OUTPUT_TOKENS,
     }));
-    await guestDraftCommand(env, draftPlanId, "fail-generation", { generationToken });
-    return json(aiErrorBody(error), error?.status || 500);
+    const errorBody = aiErrorBody(error);
+    const recorded = await recordGuestGenerationFailure(env, draftPlanId, {
+      generationToken,
+      outcome: guestGenerationOutcome(error),
+      code: error?.code || "AI_REQUEST_FAILED",
+      status: error?.status || 500,
+      error: errorBody.error,
+    });
+    if (!recorded) return guestGenerationPersistenceError();
+    return guestGenerationFailureResponse(recorded, { cached: false });
   }
 }
 
@@ -579,6 +873,7 @@ function activatedGuestPlan(plan, input, claimPlanId, claimedAt, scheduleStartPr
     availability: input?.availability || {},
     planningPreferences: input?.planningPreferences || [],
     scheduleStartPreference: normalizedScheduleStartPreference(scheduleStartPreference),
+    planStartDate: plan?.scheduleContract?.startDate || input?.availability?.scheduleStartDate || currentKstDateKey(claimedAt || Date.now()),
     aiPreview: plan,
     planSource: "ai-reviewed-draft",
     createdAt: new Date(claimedAt || Date.now()).toISOString(),
@@ -639,14 +934,15 @@ async function handleGuestGoalDraftClaim({ request, env, accountContext }) {
     userId: user.id,
     expectedRevision,
     expectedInputHash,
+    scheduleStartPreference,
   });
-  if (!claimed.response?.ok) return guestDraftApiError(claimed.body.code, claimed.response?.status || 503);
+  if (!claimed.response?.ok) return guestDraftApiError(claimed.body.code, claimed.response?.status || 503, claimed.body);
   const activatedPlan = activatedGuestPlan(
     claimed.body.plan,
     claimed.body.activeInput,
     claimed.body.claimPlanId,
     claimed.body.claimedAt,
-    scheduleStartPreference,
+    claimed.body.claimScheduleStartPreference || scheduleStartPreference,
   );
   try {
     const storedPlan = await upsertClaimedPlanForUser(accountContext.store, user.id, activatedPlan);
@@ -799,7 +1095,9 @@ async function handleAiGenerationRequest({ request, env, accountContext, route }
     if (route.kind === "goal" || route.kind === "revision") {
       console.info(`AI ${route.action} completed`, safeAiSuccessDiagnostics(result, {
         correlationId: aiCorrelationId,
+        environment: env.APP_ENV || "unknown",
         model,
+        operation: route.action,
         latencyMs: Date.now() - aiStartedAt,
       }));
     }
@@ -820,7 +1118,9 @@ async function handleAiGenerationRequest({ request, env, accountContext, route }
   } catch (error) {
     console.error(`AI ${route.action} request failed`, safeAiDiagnostics(error, {
       correlationId: aiCorrelationId,
+      environment: env.APP_ENV || "unknown",
       model,
+      operation: route.action,
       latencyMs: aiStartedAt ? Date.now() - aiStartedAt : 0,
       maxOutputTokens: route.kind === "goal"
         ? GOAL_PLAN_MAX_OUTPUT_TOKENS

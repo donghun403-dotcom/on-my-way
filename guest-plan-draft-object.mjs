@@ -1,8 +1,12 @@
 const STATE_KEY = "draft";
 export const GUEST_DRAFT_SCHEMA_VERSION = 1;
 export const GUEST_DRAFT_TTL_MS = 24 * 60 * 60 * 1_000;
-export const GUEST_DRAFT_FAILURE_TTL_MS = 60 * 1_000;
 export const GUEST_DRAFT_GENERATION_LEASE_MS = 90 * 1_000;
+export const GUEST_GENERATION_RESULT_OUTCOMES = Object.freeze({
+  SUCCESS: "success",
+  TERMINAL_CONTRACT_FAILURE: "terminal_contract_failure",
+  RETRYABLE_PROVIDER_FAILURE: "retryable_provider_failure",
+});
 export const GUEST_DRAFT_STATUSES = Object.freeze({
   GENERATING: "GENERATING",
   READY: "READY",
@@ -30,6 +34,7 @@ function publicMetadata(state) {
     claimedBy: state.claimedBy || "",
     claimedAt: Number(state.claimedAt || 0),
     claimPlanId: String(state.claimPlanId || state.draftId || ""),
+    claimScheduleStartPreference: String(state.claimScheduleStartPreference || ""),
     expiresAt: Number(state.expiresAt || 0),
   };
 }
@@ -41,6 +46,122 @@ function generationLeaseExpired(state, now) {
     && startedAt + GUEST_DRAFT_GENERATION_LEASE_MS <= now;
 }
 
+function sanitizeFailureCode(value, fallback = "AI_PROVIDER_REQUEST_FAILED") {
+  const code = String(value || "").trim();
+  return /^[A-Z][A-Z0-9_]{1,63}$/.test(code) ? code : fallback;
+}
+
+function sanitizeFailureMessage(value) {
+  return String(value || "").replace(/\s+/g, " ").trim().slice(0, 240);
+}
+
+function normalizeFailureOutcome(value) {
+  return value === GUEST_GENERATION_RESULT_OUTCOMES.TERMINAL_CONTRACT_FAILURE
+    ? GUEST_GENERATION_RESULT_OUTCOMES.TERMINAL_CONTRACT_FAILURE
+    : GUEST_GENERATION_RESULT_OUTCOMES.RETRYABLE_PROVIDER_FAILURE;
+}
+
+function generationFingerprint(source = {}) {
+  return {
+    idempotencyKey: String(source.idempotencyKey || ""),
+    inputHash: String(source.inputHash || source.pendingInputHash || ""),
+    baseRevision: Number(source.baseRevision ?? source.expectedRevision ?? 0),
+    baseInputHash: String(source.baseInputHash || source.expectedInputHash || ""),
+  };
+}
+
+function generationResultMatches(result, source) {
+  const fingerprint = generationFingerprint(source);
+  return String(result?.idempotencyKey || "") === fingerprint.idempotencyKey
+    && String(result?.inputHash || "") === fingerprint.inputHash
+    && Number(result?.baseRevision || 0) === fingerprint.baseRevision
+    && String(result?.baseInputHash || "") === fingerprint.baseInputHash;
+}
+
+function generationResultForKey(state, idempotencyKey) {
+  const key = String(idempotencyKey || "");
+  if (!key) return null;
+  const stored = Array.isArray(state?.generationResults)
+    ? state.generationResults.find((result) => result?.idempotencyKey === key) || null
+    : null;
+  if (stored) return stored;
+  if (state?.lastGeneration?.idempotencyKey !== key) return null;
+  return {
+    ...generationFingerprint(state.lastGeneration),
+    outcome: GUEST_GENERATION_RESULT_OUTCOMES.SUCCESS,
+    code: "",
+    retryable: false,
+    revision: Number(state.lastGeneration.revision || state.activeRevision || 0),
+  };
+}
+
+function appendGenerationResult(state, result) {
+  const existing = Array.isArray(state?.generationResults) ? state.generationResults : [];
+  return [
+    ...existing.filter((entry) => entry?.idempotencyKey !== result.idempotencyKey),
+    result,
+  ];
+}
+
+function publicGenerationResult(result) {
+  if (!result) return null;
+  const outcome = String(result.outcome || "");
+  const publicResult = {
+    outcome,
+    code: outcome === GUEST_GENERATION_RESULT_OUTCOMES.SUCCESS
+      ? ""
+      : sanitizeFailureCode(result.code),
+    retryable: outcome === GUEST_GENERATION_RESULT_OUTCOMES.RETRYABLE_PROVIDER_FAILURE,
+    status: outcome === GUEST_GENERATION_RESULT_OUTCOMES.SUCCESS
+      ? 200
+      : Number.isInteger(Number(result.status)) && Number(result.status) >= 400 && Number(result.status) <= 599
+        ? Number(result.status)
+        : (outcome === GUEST_GENERATION_RESULT_OUTCOMES.RETRYABLE_PROVIDER_FAILURE ? 503 : 502),
+  };
+  const error = sanitizeFailureMessage(result.error);
+  if (error) publicResult.error = error;
+  return publicResult;
+}
+
+function cachedGenerationResult(state, result) {
+  const generationResult = publicGenerationResult(result);
+  const metadata = generationResult?.outcome === GUEST_GENERATION_RESULT_OUTCOMES.SUCCESS && result?.snapshot
+    ? result.snapshot
+    : publicMetadata(state);
+  return {
+    ok: generationResult?.outcome === GUEST_GENERATION_RESULT_OUTCOMES.SUCCESS,
+    cached: true,
+    idempotent: true,
+    shouldGenerate: false,
+    generationResult,
+    ...metadata,
+  };
+}
+
+function idempotencyReplay(state, source) {
+  const result = generationResultForKey(state, source?.idempotencyKey);
+  if (!result) return null;
+  if (!generationResultMatches(result, source)) {
+    return {
+      status: 409,
+      body: { ok: false, code: "DRAFT_IDEMPOTENCY_KEY_CONFLICT" },
+    };
+  }
+  return { status: 200, body: cachedGenerationResult(state, result) };
+}
+
+function leaseFailureResult(pending, now) {
+  return {
+    ...generationFingerprint(pending),
+    outcome: GUEST_GENERATION_RESULT_OUTCOMES.RETRYABLE_PROVIDER_FAILURE,
+    code: "AI_GENERATION_LEASE_EXPIRED",
+    error: "AI 응답을 확인하지 못했어요. 다시 시도해 주세요.",
+    retryable: true,
+    status: 504,
+    recordedAt: now,
+  };
+}
+
 async function normalizeLiveState(storage, state, now) {
   if (!state) return null;
   if (expired(state, now)) {
@@ -48,14 +169,13 @@ async function normalizeLiveState(storage, state, now) {
     return null;
   }
   if (!generationLeaseExpired(state, now)) return state;
-  if (Number(state.activeRevision || 0) < 1 || !state.activePlan) {
-    await storage.delete(STATE_KEY);
-    return null;
-  }
+  const pending = state.pendingGeneration;
+  const hasActivePlan = Number(state.activeRevision || 0) >= 1 && Boolean(state.activePlan);
   const recovered = {
     ...state,
-    status: GUEST_DRAFT_STATUSES.READY,
+    status: hasActivePlan ? GUEST_DRAFT_STATUSES.READY : GUEST_DRAFT_STATUSES.FAILED,
     pendingGeneration: null,
+    generationResults: appendGenerationResult(state, leaseFailureResult(pending, now)),
     updatedAt: now,
   };
   await storage.put(STATE_KEY, recovered);
@@ -108,16 +228,51 @@ export class GuestPlanDraftObject {
       const generationToken = String(body.generationToken || "");
       const result = await this.ctx.storage.transaction(async (txn) => {
         let state = await normalizeLiveState(txn, await txn.get(STATE_KEY), now);
-        if (state?.status === "FAILED") {
-          return { status: 429, body: { ok: false, code: "GUEST_PREVIEW_COOLDOWN" } };
-        }
-        if (state?.status === "GENERATING") {
-          return { status: 409, body: { ok: false, code: "GUEST_PREVIEW_PENDING" } };
-        }
         if (state) {
           if (!capabilityMatches(state, body.capabilityHash)) return { status: 403, body: { ok: false, code: "DRAFT_PLAN_ACCESS_DENIED" } };
-          if (state.activeInputHash !== body.inputHash) return { status: 429, body: { ok: false, code: "GUEST_PREVIEW_ALREADY_USED" } };
-          return { status: 200, body: { ok: true, cached: true, ...publicMetadata(state) } };
+          const replay = idempotencyReplay(state, {
+            idempotencyKey: body.idempotencyKey,
+            inputHash: body.inputHash,
+            baseRevision: 0,
+            baseInputHash: "",
+          });
+          if (replay) return replay;
+          if (state.status === GUEST_DRAFT_STATUSES.GENERATING) {
+            return { status: 409, body: { ok: false, code: "GUEST_PREVIEW_PENDING" } };
+          }
+          if (state.activeRevision > 0 && state.activePlan) {
+            if (state.activeInputHash !== body.inputHash) return { status: 429, body: { ok: false, code: "GUEST_PREVIEW_ALREADY_USED" } };
+            return { status: 200, body: { ok: true, cached: true, shouldGenerate: false, ...publicMetadata(state) } };
+          }
+          if (state.initialInputHash && state.initialInputHash !== body.inputHash) {
+            return { status: 429, body: { ok: false, code: "GUEST_PREVIEW_ALREADY_USED" } };
+          }
+          state = {
+            ...state,
+            status: GUEST_DRAFT_STATUSES.GENERATING,
+            pendingGeneration: {
+              kind: "initial",
+              generationToken,
+              pendingInputHash: String(body.inputHash || ""),
+              pendingInput: body.input || null,
+              idempotencyKey: String(body.idempotencyKey || ""),
+              baseRevision: 0,
+              baseInputHash: "",
+              startedAt: now,
+            },
+            updatedAt: now,
+          };
+          await txn.put(STATE_KEY, state);
+          return {
+            status: 200,
+            body: {
+              ok: true,
+              cached: false,
+              shouldGenerate: true,
+              generationToken,
+              expiresAt: state.expiresAt,
+            },
+          };
         }
 
         const expiresAt = now + GUEST_DRAFT_TTL_MS;
@@ -133,6 +288,8 @@ export class GuestPlanDraftObject {
           activePlan: null,
           activePlanInputHash: "",
           activePreview: null,
+          initialInputHash: String(body.inputHash || ""),
+          generationResults: [],
           pendingGeneration: {
             kind: "initial",
             generationToken,
@@ -176,6 +333,18 @@ export class GuestPlanDraftObject {
           return { status: 409, body: { ok: false, code: "DRAFT_REVISION_CONFLICT" } };
         }
         const nextRevision = Number(state.activeRevision || 0) + 1;
+        const successSnapshot = {
+          draftPlanId: state.draftId,
+          status: GUEST_DRAFT_STATUSES.READY,
+          activeRevision: nextRevision,
+          activeInputHash: pending.pendingInputHash,
+          activeInput: pending.pendingInput,
+          preview: body.preview,
+          claimedBy: state.claimedBy || "",
+          claimedAt: Number(state.claimedAt || 0),
+          claimPlanId: String(state.claimPlanId || state.draftId || ""),
+          expiresAt: Number(state.expiresAt || 0),
+        };
         const next = {
           ...state,
           status: "READY",
@@ -186,6 +355,16 @@ export class GuestPlanDraftObject {
           activePlanInputHash: pending.pendingInputHash,
           activePreview: body.preview,
           pendingGeneration: null,
+          generationResults: appendGenerationResult(state, {
+            ...generationFingerprint(pending),
+            outcome: GUEST_GENERATION_RESULT_OUTCOMES.SUCCESS,
+            code: "",
+            retryable: false,
+            status: 200,
+            revision: nextRevision,
+            snapshot: successSnapshot,
+            recordedAt: now,
+          }),
           lastGeneration: {
             idempotencyKey: pending.idempotencyKey,
             inputHash: pending.pendingInputHash,
@@ -206,20 +385,42 @@ export class GuestPlanDraftObject {
         const state = await normalizeLiveState(txn, await txn.get(STATE_KEY), now);
         if (!state) return { status: 200, body: { ok: true } };
         if (state.pendingGeneration?.generationToken !== body.generationToken) return { status: 200, body: { ok: true } };
-        if (Number(state.activeRevision || 0) > 0) {
-          await txn.put(STATE_KEY, { ...state, status: "READY", pendingGeneration: null, updatedAt: now });
-        } else {
-          const expiresAt = now + GUEST_DRAFT_FAILURE_TTL_MS;
-          await txn.put(STATE_KEY, {
-            ...state,
-            status: "FAILED",
-            pendingGeneration: null,
-            updatedAt: now,
-            expiresAt,
-          });
-          await txn.setAlarm(expiresAt);
-        }
-        return { status: 200, body: { ok: true } };
+        const pending = state.pendingGeneration;
+        const outcome = normalizeFailureOutcome(body.outcome || body.resultCategory);
+        const failureResult = {
+          ...generationFingerprint(pending),
+          outcome,
+          code: sanitizeFailureCode(
+            body.code,
+            outcome === GUEST_GENERATION_RESULT_OUTCOMES.TERMINAL_CONTRACT_FAILURE
+              ? "AI_OUTPUT_DOMAIN_INVALID"
+              : "AI_PROVIDER_REQUEST_FAILED",
+          ),
+          error: sanitizeFailureMessage(body.error),
+          retryable: outcome === GUEST_GENERATION_RESULT_OUTCOMES.RETRYABLE_PROVIDER_FAILURE,
+          status: Number.isInteger(Number(body.status)) && Number(body.status) >= 400 && Number(body.status) <= 599
+            ? Number(body.status)
+            : (outcome === GUEST_GENERATION_RESULT_OUTCOMES.RETRYABLE_PROVIDER_FAILURE ? 503 : 502),
+          recordedAt: now,
+        };
+        const next = {
+          ...state,
+          status: Number(state.activeRevision || 0) > 0
+            ? GUEST_DRAFT_STATUSES.READY
+            : GUEST_DRAFT_STATUSES.FAILED,
+          pendingGeneration: null,
+          generationResults: appendGenerationResult(state, failureResult),
+          updatedAt: now,
+        };
+        await txn.put(STATE_KEY, next);
+        return {
+          status: 200,
+          body: {
+            ok: true,
+            cached: false,
+            generationResult: publicGenerationResult(failureResult),
+          },
+        };
       });
       return response(result.body, result.status);
     }
@@ -232,15 +433,14 @@ export class GuestPlanDraftObject {
           return { status: 410, body: { ok: false, code: "DRAFT_PLAN_EXPIRED", status: GUEST_DRAFT_STATUSES.EXPIRED } };
         }
         if (!capabilityMatches(state, body.capabilityHash)) return { status: 403, body: { ok: false, code: "DRAFT_PLAN_ACCESS_DENIED" } };
+        const replay = idempotencyReplay(state, {
+          idempotencyKey: body.idempotencyKey,
+          inputHash: body.inputHash,
+          baseRevision: body.expectedRevision,
+          baseInputHash: body.expectedInputHash,
+        });
+        if (replay) return replay;
         if (state.status === "CLAIMED") return { status: 409, body: { ok: false, code: "DRAFT_PLAN_ALREADY_CLAIMED" } };
-        if (
-          state.lastGeneration?.idempotencyKey === body.idempotencyKey
-          && state.lastGeneration?.inputHash === body.inputHash
-          && Number(state.lastGeneration?.baseRevision) === Number(body.expectedRevision)
-          && state.lastGeneration?.baseInputHash === body.expectedInputHash
-        ) {
-          return { status: 200, body: { ok: true, cached: true, idempotent: true, ...publicMetadata(state) } };
-        }
         if (Number(body.expectedRevision) !== Number(state.activeRevision) || body.expectedInputHash !== state.activeInputHash) {
           return { status: 412, body: { ok: false, code: "DRAFT_REVISION_CONFLICT", ...publicMetadata(state) } };
         }
@@ -294,12 +494,18 @@ export class GuestPlanDraftObject {
           if (state.claimedBy !== body.userId) return { status: 409, body: { ok: false, code: "DRAFT_PLAN_ALREADY_CLAIMED" } };
           return { status: 200, body: { ok: true, idempotent: true, plan: state.activePlan, ...publicMetadata(state) } };
         }
+        if (state.activePlan?.scheduleContract?.requiresAdjustmentBeforeClaim === true) {
+          return { status: 409, body: { ok: false, code: "DRAFT_ADJUSTMENT_REQUIRED" } };
+        }
         const next = {
           ...state,
           status: "CLAIMED",
           claimedBy: String(body.userId || ""),
           claimedAt: now,
           claimPlanId: state.draftId,
+          claimScheduleStartPreference: ["as-is", "change-days", "shorter"].includes(body.scheduleStartPreference)
+            ? body.scheduleStartPreference
+            : "as-is",
           updatedAt: now,
         };
         await txn.put(STATE_KEY, next);

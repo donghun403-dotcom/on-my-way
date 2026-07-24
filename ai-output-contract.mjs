@@ -1,9 +1,9 @@
 export const AI_CONTRACT_VERSIONS = Object.freeze({
-  goalPlanSchema: "goal-plan-blueprint.v2",
-  goalPlanPrompt: "goal-plan.prompt.v2",
-  planRevisionSchema: "plan-revision-blueprint.v2",
-  planRevisionPrompt: "plan-revision.prompt.v2",
-  domainOutput: "typed-plan.v1",
+  goalPlanSchema: "goal-plan-blueprint.v3",
+  goalPlanPrompt: "goal-plan.prompt.v3",
+  planRevisionSchema: "plan-revision-blueprint.v3",
+  planRevisionPrompt: "plan-revision.prompt.v3",
+  domainOutput: "typed-plan.v2",
 });
 
 const ERROR_MESSAGES = Object.freeze({
@@ -16,7 +16,7 @@ const ERROR_MESSAGES = Object.freeze({
   AI_OUTPUT_MESSAGE_MISSING: "AI 응답에서 계획을 확인하지 못했어요.",
   AI_OUTPUT_PARSE_FAILED: "AI 계획 응답을 해석하지 못했어요.",
   AI_OUTPUT_SCHEMA_INVALID: "AI 계획 응답 형식이 올바르지 않아요.",
-  AI_OUTPUT_DOMAIN_INVALID: "AI 계획이 입력 조건을 충족하지 못했어요.",
+  AI_OUTPUT_DOMAIN_INVALID: "계획을 완성하지 못했어요. 적어둔 내용은 그대로 보관했어요.",
 });
 
 const RETRYABLE_CODES = new Set([
@@ -24,6 +24,69 @@ const RETRYABLE_CODES = new Set([
   "AI_PROVIDER_RATE_LIMITED",
   "AI_PROVIDER_UNAVAILABLE",
 ]);
+
+const SAFE_EVENT_LABEL = /^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$/;
+const SAFE_DOMAIN_RULE_ID = /^[A-Z][A-Z0-9_]{2,79}$/;
+const SAFE_VALIDATION_RESULTS = new Set(["pass", "fail", "not_run", "unknown"]);
+
+function safeEventLabel(value) {
+  const label = typeof value === "string" ? value.trim() : "";
+  return SAFE_EVENT_LABEL.test(label) ? label : "";
+}
+
+function safeValidationResult(value) {
+  const result = typeof value === "string" ? value : "";
+  return SAFE_VALIDATION_RESULTS.has(result) ? result : "unknown";
+}
+
+function safeDomainRuleIds(values, fallback = "") {
+  const candidates = Array.isArray(values) ? values : [];
+  const ids = candidates
+    .map((value) => {
+      if (typeof value === "string") return value;
+      if (value && typeof value === "object") return value.ruleId || value.code || "";
+      return "";
+    })
+    .filter((value) => typeof value === "string" && SAFE_DOMAIN_RULE_ID.test(value));
+  if (!ids.length && SAFE_DOMAIN_RULE_ID.test(fallback)) ids.push(fallback);
+  return [...new Set(ids)].slice(0, 12);
+}
+
+function safeUsageMetrics(usage) {
+  const inputTokens = Number.isFinite(usage?.input_tokens) ? usage.input_tokens : null;
+  const cachedInputTokens = Number.isFinite(usage?.input_tokens_details?.cached_tokens)
+    ? usage.input_tokens_details.cached_tokens
+    : (Number.isFinite(usage?.cached_input_tokens) ? usage.cached_input_tokens : null);
+  const outputTokens = Number.isFinite(usage?.output_tokens) ? usage.output_tokens : null;
+  const reasoningTokens = Number.isFinite(usage?.output_tokens_details?.reasoning_tokens)
+    ? usage.output_tokens_details.reasoning_tokens
+    : null;
+  return { inputTokens, cachedInputTokens, outputTokens, reasoningTokens };
+}
+
+function measuredUtf8Bytes(value) {
+  if (typeof value !== "string") return 0;
+  return new TextEncoder().encode(value).byteLength;
+}
+
+function outputHeadroomPercent(outputTokens, maxOutputTokens) {
+  if (!Number.isFinite(outputTokens) || !Number.isFinite(maxOutputTokens) || maxOutputTokens <= 0) {
+    return "unknown";
+  }
+  const percent = Math.max(0, Math.min(100, ((maxOutputTokens - outputTokens) / maxOutputTokens) * 100));
+  return Math.round(percent * 100) / 100;
+}
+
+function schemaPathShape(value) {
+  if (typeof value !== "string" || !value.startsWith("$")) return "";
+  const segments = value.split("/");
+  return segments
+    .map((segment, index) => {
+      if (index === 0) return "$";
+      return /^\d+$/.test(segment) ? segment : "*";
+    })
+    .join("/");
+}
 
 export function createAiContractError(code, diagnostics = {}, message = "") {
   const error = new Error(message || ERROR_MESSAGES[code] || "AI 요청을 처리하지 못했어요.");
@@ -38,10 +101,16 @@ export function createAiContractError(code, diagnostics = {}, message = "") {
 function responseDiagnostics(responseBody) {
   const output = Array.isArray(responseBody?.output) ? responseBody.output : [];
   const content = output.flatMap((item) => (Array.isArray(item?.content) ? item.content : []));
+  const usage = safeUsageMetrics(responseBody?.usage);
   const contentTextLength = content.reduce(
     (total, item) => total + (item?.type === "output_text" && typeof item.text === "string" ? item.text.length : 0),
     0,
   );
+  const contentTextBytes = content.reduce(
+    (total, item) => total + (item?.type === "output_text" ? measuredUtf8Bytes(item.text) : 0),
+    0,
+  );
+  const fallbackOutputText = typeof responseBody?.output_text === "string" ? responseBody.output_text : "";
   return {
     responseStatus: typeof responseBody?.status === "string" ? responseBody.status : "",
     incompleteReason: typeof responseBody?.incomplete_details?.reason === "string"
@@ -49,13 +118,15 @@ function responseDiagnostics(responseBody) {
       : "",
     outputItemTypes: [...new Set(output.map((item) => String(item?.type || "unknown")))].slice(0, 12),
     contentItemTypes: [...new Set(content.map((item) => String(item?.type || "unknown")))].slice(0, 12),
-    outputTokens: Number.isFinite(responseBody?.usage?.output_tokens)
-      ? responseBody.usage.output_tokens
-      : null,
-    reasoningTokens: Number.isFinite(responseBody?.usage?.output_tokens_details?.reasoning_tokens)
-      ? responseBody.usage.output_tokens_details.reasoning_tokens
-      : null,
-    outputTextLength: contentTextLength || (typeof responseBody?.output_text === "string" ? responseBody.output_text.length : 0),
+    inputTokens: usage.inputTokens,
+    cachedInputTokens: usage.cachedInputTokens,
+    outputTokens: usage.outputTokens,
+    reasoningTokens: usage.reasoningTokens,
+    outputTextLength: contentTextLength || fallbackOutputText.length,
+    outputBytes: contentTextBytes || measuredUtf8Bytes(fallbackOutputText),
+    schemaResult: "not_run",
+    domainResult: "not_run",
+    domainRuleIds: [],
     retryCount: 0,
   };
 }
@@ -218,11 +289,15 @@ export function parseStructuredResponse(responseBody, {
     throw createAiContractError("AI_OUTPUT_PARSE_FAILED", diagnostics);
   }
   diagnostics.parsedPayloadBytes = parsedPayloadBytes;
+  if (!diagnostics.outputBytes) diagnostics.outputBytes = parsedPayloadBytes;
   diagnostics.parsedItemCount = Math.max(0, Number(countItems(value)) || 0);
   if (Number.isFinite(maxParsedBytes) && maxParsedBytes > 0 && parsedPayloadBytes > maxParsedBytes) {
     throw createAiContractError("AI_OUTPUT_DOMAIN_INVALID", {
       ...diagnostics,
+      schemaResult: "not_run",
+      domainResult: "fail",
       domainValidationCode: "AI_OUTPUT_PAYLOAD_TOO_LARGE",
+      domainRuleIds: ["AI_OUTPUT_PAYLOAD_TOO_LARGE"],
       domainErrorCount: 1,
     });
   }
@@ -231,23 +306,28 @@ export function parseStructuredResponse(responseBody, {
   if (schemaErrors.length) {
     throw createAiContractError("AI_OUTPUT_SCHEMA_INVALID", {
       ...diagnostics,
+      schemaResult: "fail",
+      domainResult: "not_run",
       schemaErrorPath: schemaErrors[0].path,
       schemaErrorRule: schemaErrors[0].rule,
     });
   }
 
+  diagnostics.schemaResult = "pass";
   const domainErrors = domainValidate(value) || [];
   if (domainErrors.length) {
-    const firstDomainCode = typeof domainErrors[0] === "string" && /^[A-Z0-9_]{3,80}$/.test(domainErrors[0])
-      ? domainErrors[0]
-      : domainValidationCode;
+    const ruleIds = safeDomainRuleIds(domainErrors, domainValidationCode);
+    const firstDomainCode = ruleIds[0] || domainValidationCode;
     throw createAiContractError("AI_OUTPUT_DOMAIN_INVALID", {
       ...diagnostics,
+      domainResult: "fail",
       domainValidationCode: firstDomainCode,
+      domainRuleIds: ruleIds,
       domainErrorCount: Math.min(domainErrors.length, 12),
     });
   }
 
+  diagnostics.domainResult = "pass";
   return { value, diagnostics };
 }
 
@@ -256,16 +336,21 @@ export function providerHttpError(response, responseBody = {}) {
   const code = status === 429
     ? "AI_PROVIDER_RATE_LIMITED"
     : "AI_PROVIDER_UNAVAILABLE";
+  const usage = safeUsageMetrics(responseBody?.usage);
   const error = createAiContractError(code, {
     responseStatus: `http_${status}`,
     incompleteReason: "",
     outputItemTypes: [],
     contentItemTypes: [],
-    outputTokens: Number.isFinite(responseBody?.usage?.output_tokens) ? responseBody.usage.output_tokens : null,
-    reasoningTokens: Number.isFinite(responseBody?.usage?.output_tokens_details?.reasoning_tokens)
-      ? responseBody.usage.output_tokens_details.reasoning_tokens
-      : null,
+    inputTokens: usage.inputTokens,
+    cachedInputTokens: usage.cachedInputTokens,
+    outputTokens: usage.outputTokens,
+    reasoningTokens: usage.reasoningTokens,
     outputTextLength: 0,
+    outputBytes: 0,
+    schemaResult: "not_run",
+    domainResult: "not_run",
+    domainRuleIds: [],
     retryCount: 0,
   });
   error.providerUsage = responseBody?.usage || null;
@@ -282,56 +367,134 @@ export function attachProviderContext(error, { responseBody = {}, requestId = ""
 
 export function safeAiDiagnostics(error, {
   correlationId = "",
+  environment = "",
   model = "",
+  operation = "",
   latencyMs = 0,
   maxOutputTokens = 0,
+  cached,
+  providerCalled,
+  retryCount,
 } = {}) {
   const diagnostics = error?.diagnostics || {};
+  const usage = safeUsageMetrics(error?.providerUsage);
   const metric = (value) => (Number.isFinite(value) ? value : "unknown");
+  const configuredMaxOutputTokens = Number(maxOutputTokens) || 0;
+  const inputTokens = Number.isFinite(diagnostics.inputTokens) ? diagnostics.inputTokens : usage.inputTokens;
+  const cachedInputTokens = Number.isFinite(diagnostics.cachedInputTokens)
+    ? diagnostics.cachedInputTokens
+    : usage.cachedInputTokens;
+  const outputTokens = Number.isFinite(diagnostics.outputTokens) ? diagnostics.outputTokens : usage.outputTokens;
+  const reasoningTokens = Number.isFinite(diagnostics.reasoningTokens)
+    ? diagnostics.reasoningTokens
+    : usage.reasoningTokens;
+  const ruleIds = safeDomainRuleIds(
+    diagnostics.domainRuleIds,
+    SAFE_DOMAIN_RULE_ID.test(diagnostics.domainValidationCode) ? diagnostics.domainValidationCode : "",
+  );
+  const cachedResult = typeof cached === "boolean" ? cached : Boolean(error?.cached);
+  const providerCalledResult = typeof providerCalled === "boolean"
+    ? providerCalled
+    : Boolean(error?.providerCalled);
   return {
-    correlationId,
-    providerRequestId: String(error?.providerRequestId || "").slice(0, 160),
-    errorCategory: error?.code || "AI_REQUEST_FAILED",
-    responseStatus: String(diagnostics.responseStatus || ""),
-    incompleteReason: String(diagnostics.incompleteReason || ""),
-    model,
-    maxOutputTokens: Number(maxOutputTokens) || 0,
-    outputItemTypes: Array.isArray(diagnostics.outputItemTypes) ? diagnostics.outputItemTypes : [],
-    contentItemTypes: Array.isArray(diagnostics.contentItemTypes) ? diagnostics.contentItemTypes : [],
-    outputTokens: metric(diagnostics.outputTokens),
-    reasoningTokens: metric(diagnostics.reasoningTokens),
+    correlationId: safeEventLabel(correlationId),
+    providerRequestId: safeEventLabel(error?.providerRequestId),
+    environment: safeEventLabel(environment),
+    operation: safeEventLabel(operation),
+    errorCategory: safeEventLabel(error?.code) || "AI_REQUEST_FAILED",
+    responseStatus: safeEventLabel(diagnostics.responseStatus),
+    incompleteReason: safeEventLabel(diagnostics.incompleteReason),
+    model: safeEventLabel(model),
+    configuredMaxOutputTokens,
+    maxOutputTokens: configuredMaxOutputTokens,
+    outputItemTypes: Array.isArray(diagnostics.outputItemTypes)
+      ? diagnostics.outputItemTypes.map(safeEventLabel).filter(Boolean).slice(0, 12)
+      : [],
+    contentItemTypes: Array.isArray(diagnostics.contentItemTypes)
+      ? diagnostics.contentItemTypes.map(safeEventLabel).filter(Boolean).slice(0, 12)
+      : [],
+    inputTokens: metric(inputTokens),
+    cachedInputTokens: metric(cachedInputTokens),
+    outputTokens: metric(outputTokens),
+    reasoningTokens: metric(reasoningTokens),
+    headroomPercent: outputHeadroomPercent(outputTokens, configuredMaxOutputTokens),
     outputTextLength: metric(diagnostics.outputTextLength),
+    outputBytes: metric(diagnostics.outputBytes),
     parsedPayloadBytes: metric(diagnostics.parsedPayloadBytes),
     parsedItemCount: metric(diagnostics.parsedItemCount),
-    schemaErrorPath: String(diagnostics.schemaErrorPath || ""),
-    schemaErrorRule: String(diagnostics.schemaErrorRule || ""),
-    domainValidationCode: String(diagnostics.domainValidationCode || ""),
+    schemaResult: safeValidationResult(diagnostics.schemaResult),
+    domainResult: safeValidationResult(diagnostics.domainResult),
+    schemaErrorPath: schemaPathShape(diagnostics.schemaErrorPath),
+    schemaErrorRule: safeEventLabel(diagnostics.schemaErrorRule),
+    domainValidationCode: ruleIds[0] || "",
+    domainRuleIds: ruleIds,
     latencyMs: Math.max(0, Math.round(Number(latencyMs) || 0)),
-    retryCount: Number(diagnostics.retryCount) || 0,
+    cached: cachedResult,
+    providerCalled: providerCalledResult,
+    retryCount: Number.isFinite(retryCount) ? retryCount : (Number(diagnostics.retryCount) || 0),
   };
 }
 
 export function safeAiSuccessDiagnostics(result, {
   correlationId = "",
+  environment = "",
   model = "",
+  operation = "",
   latencyMs = 0,
+  maxOutputTokens,
+  cached,
+  providerCalled,
+  retryCount,
 } = {}) {
   const diagnostics = result?.diagnostics || {};
+  const usage = safeUsageMetrics(result?.usage);
   const metric = (value) => (Number.isFinite(value) ? value : "unknown");
+  const configuredMaxOutputTokens = Number.isFinite(maxOutputTokens)
+    ? Number(maxOutputTokens)
+    : (Number(result?.contract?.maxOutputTokens) || 0);
+  const inputTokens = Number.isFinite(diagnostics.inputTokens) ? diagnostics.inputTokens : usage.inputTokens;
+  const cachedInputTokens = Number.isFinite(diagnostics.cachedInputTokens)
+    ? diagnostics.cachedInputTokens
+    : usage.cachedInputTokens;
+  const outputTokens = Number.isFinite(diagnostics.outputTokens) ? diagnostics.outputTokens : usage.outputTokens;
+  const reasoningTokens = Number.isFinite(diagnostics.reasoningTokens)
+    ? diagnostics.reasoningTokens
+    : usage.reasoningTokens;
+  const ruleIds = safeDomainRuleIds(
+    diagnostics.domainRuleIds,
+    SAFE_DOMAIN_RULE_ID.test(diagnostics.domainValidationCode) ? diagnostics.domainValidationCode : "",
+  );
+  const cachedResult = typeof cached === "boolean" ? cached : Boolean(result?.cached);
+  const providerCalledResult = typeof providerCalled === "boolean"
+    ? providerCalled
+    : (typeof result?.providerCalled === "boolean" ? result.providerCalled : !cachedResult);
   return {
-    correlationId,
-    providerRequestId: String(result?.requestId || "").slice(0, 160),
+    correlationId: safeEventLabel(correlationId),
+    providerRequestId: safeEventLabel(result?.requestId),
+    environment: safeEventLabel(environment),
+    operation: safeEventLabel(operation),
     errorCategory: "",
-    responseStatus: String(diagnostics.responseStatus || "completed"),
-    incompleteReason: String(diagnostics.incompleteReason || ""),
-    model,
-    maxOutputTokens: Number(result?.contract?.maxOutputTokens) || 0,
-    outputTokens: metric(diagnostics.outputTokens),
-    reasoningTokens: metric(diagnostics.reasoningTokens),
+    responseStatus: safeEventLabel(diagnostics.responseStatus || "completed"),
+    incompleteReason: safeEventLabel(diagnostics.incompleteReason),
+    model: safeEventLabel(model),
+    configuredMaxOutputTokens,
+    maxOutputTokens: configuredMaxOutputTokens,
+    inputTokens: metric(inputTokens),
+    cachedInputTokens: metric(cachedInputTokens),
+    outputTokens: metric(outputTokens),
+    reasoningTokens: metric(reasoningTokens),
+    headroomPercent: outputHeadroomPercent(outputTokens, configuredMaxOutputTokens),
     outputTextLength: metric(diagnostics.outputTextLength),
+    outputBytes: metric(diagnostics.outputBytes),
     parsedPayloadBytes: metric(diagnostics.parsedPayloadBytes),
     parsedItemCount: metric(diagnostics.parsedItemCount),
+    schemaResult: safeValidationResult(diagnostics.schemaResult),
+    domainResult: safeValidationResult(diagnostics.domainResult),
+    domainValidationCode: ruleIds[0] || "",
+    domainRuleIds: ruleIds,
     latencyMs: Math.max(0, Math.round(Number(latencyMs) || 0)),
-    retryCount: Number(diagnostics.retryCount) || 0,
+    cached: cachedResult,
+    providerCalled: providerCalledResult,
+    retryCount: Number.isFinite(retryCount) ? retryCount : (Number(diagnostics.retryCount) || 0),
   };
 }

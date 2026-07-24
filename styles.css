@@ -13596,6 +13596,23 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .home-page .draft-feasibility-card > strong { display: block; margin-top: 5px; color: #35435b; }
 .home-page .draft-feasibility-card p,
 .home-page .draft-feasibility-card li { color: #6f7c90; font-size: 12px; line-height: 1.55; }
+.home-page .draft-feasibility-card li + li { margin-top: 6px; }
+.home-page .draft-feasibility-card li button {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  color: inherit;
+  background: rgba(255,255,255,.68);
+  border: 1px solid rgba(107,122,166,.14);
+  border-radius: 10px;
+  font: inherit;
+  text-align: left;
+}
+.home-page .draft-feasibility-card li button[aria-pressed="true"] {
+  color: #40556b;
+  background: #edf5f1;
+  border-color: #8eafa7;
+}
 .home-page .draft-week-list > li { display: grid; gap: 10px; padding: 14px; }
 .home-page .draft-week-list > li > div:first-child { display: flex; justify-content: space-between; gap: 10px; }
 .home-page .draft-week-list > li > div:first-child span { color: #78988f; font-size: 10px; font-weight: 900; }
@@ -13617,7 +13634,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .execution-page #view-today .task-row.is-next { border-color: rgba(120,159,155,.42); box-shadow: 0 13px 28px rgba(91,106,151,.11); }
 .execution-page #view-today .task-row.is-next .task-content > label { font-size: 13px; }
 .execution-page #view-today .task-row-head { display: flex; align-items: center; justify-content: space-between; }
-.execution-page .task-edit-button { min-width: 44px; min-height: 44px; padding: 0 9px; color: #63728b; background: rgba(255,255,255,.82); border: 1px solid rgba(107,122,166,.12); border-radius: 11px; font-size: 9px; font-weight: 900; }
+.execution-page .task-edit-button { min-width: 44px; min-height: 45px; padding: 0 9px; color: #63728b; background: rgba(255,255,255,.82); border: 1px solid rgba(107,122,166,.12); border-radius: 11px; font-size: 9px; font-weight: 900; }
 .execution-page .task-edit-button:disabled { opacity: .35; }
 .execution-page .today-plan-support { display: grid; gap: 7px; margin-top: 10px; }
 .execution-page .today-plan-support p { display: grid; grid-template-columns: 70px minmax(0,1fr); gap: 9px; margin: 0; padding: 10px 12px; color: #667488; background: rgba(238,245,243,.65); border-radius: 12px; font-size: 10px; line-height: 1.5; }
