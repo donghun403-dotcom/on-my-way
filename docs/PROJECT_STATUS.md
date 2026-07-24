@@ -553,10 +553,10 @@ PR #9 최신 head의 자동 검증과 diff·리뷰·충돌 상태를 최종 확�
 
 ## P0.5 Phase A — Core loop, visual identity, and font reset (2026-07-24)
 
-- Staging 전체 인수와 Production 준비를 중단하고 RC `0e6f7d3382fb213f92f0b3395811772a059904c0`에서 로컬 전용 branch `codex/olly-core-loop-reset`을 만들었다. 작업 전 미커밋 P0.4 진단 18줄은 삭제하거나 restore하지 않고 worktree 밖 patch로 보존했다.
-- 기본 제품 경로는 바꾸지 않았다. `core-loop-v2.html?experience=core-loop-v2`에만 목표+기간 → Roadmap → pending changes → 명시적 revision → Roadmap 고정 → 첫 7일 → Today ACTION → 실행 → 자동 Diary → Olly 성장 → 회복의 12상태 인터랙티브 fixture를 구현했다. 실제 OpenAI·OAuth·claim·결제·Staging/Preview/Production 호출은 `NOT RUN`이다.
+- Staging 전체 인수와 Production 준비를 중단하고 RC `0e6f7d3382fb213f92f0b3395811772a059904c0`에서 로컬 전용 branch `codex/ollie-core-loop-production`을 만들었다. 작업 전 미커밋 P0.4 진단 18줄은 삭제하거나 restore하지 않고 worktree 밖 patch로 보존했다.
+- 기본 제품 경로 통합 전에는 `core-loop-v2.html?experience=core-loop-v2`에 목표+기간 → Roadmap → pending changes → 명시적 revision → Roadmap 고정 → 첫 7일 → Today ACTION → 실행 → 자동 Diary → Ollie 성장 → 회복의 12상태 인터랙티브 fixture를 구현했다. 당시 실제 OpenAI·OAuth·claim·결제·Staging/Preview/Production 호출은 `NOT RUN`이었다.
 - Git history 감사에서 `b814cb8`이 외부 CDN의 Jalnan `@font-face`를 추가했고 `1d5f907`이 font source만 제거한 뒤 `"Jalnan"` family 참조는 남긴 사실을 확인했다. 현재 기본 화면은 실제 face가 없는 조용한 body fallback 상태다. `bed3d249`의 3열 SaaS builder와 01/02/03 rail, `c075493`의 자료·일정·성향 form 확장이 native fieldset/radio/checkbox/date/select와 모바일 장문 form 회귀를 만들었다.
-- GC Company 공식 페이지가 사용하는 WOFF2를 수정 없이 로컬 asset으로 추가하고 SHA-256과 공식 license URL을 기록했다. display family는 `여기어때 잘난체`, 본문은 기존 Pretendard/Apple SD Gothic Neo/Malgun Gothic stack이며, display/body/numeric token을 분리했다. 대표 제목·Roadmap milestone·Primary CTA·짧은 Olly 대사·성장 제목에만 브랜드 face를 적용한다.
+- GC Company 공식 페이지가 사용하는 WOFF2를 수정 없이 로컬 asset으로 추가하고 SHA-256과 공식 license URL을 기록했다. display family는 `여기어때 잘난체`, 본문은 기존 Pretendard/Apple SD Gothic Neo/Malgun Gothic stack이며, display/body/numeric token을 분리했다. 대표 제목·Roadmap milestone·Primary CTA·짧은 Ollie 대사·성장 제목에만 브랜드 face를 적용한다.
 - font request 200과 `font/woff2`, `document.fonts` load/check, computed family, 실패 warning, fieldset 0px, custom radio, 화면당 primary CTA 1개, AI call map, 실패 시 Roadmap 보존, stable typed item, TaskEditSheet focus return, Diary refresh 복원, punishment 없는 recovery, 320/390/430/1440 overflow와 console 오류를 테스트했다.
 - 세 엔진의 기능 E2E는 desktop Chromium 8/8, mobile Chromium 8/8, iPhone WebKit 8/8이 통과했다. 한 테스트에 20개 navigation을 묶었을 때 WebKit의 60초 test timeout이 발생해 assertion을 줄이지 않고 폭·화면별 한 navigation 사례로 분리했고, overflow·console 검증은 각 엔진 20/20으로 통과했다. 기존 모바일 전용 날짜 sheet도 1/1 통과했다. 전체 unit은 기존 기술 계약을 포함해 211/211 통과했다. 승인 검토용 desktop 10장, 390px 8장, 430px 4장, iPhone WebKit 4장을 저장소 밖에 캡처했다.
 - Phase A는 시각 승인 요청 단계다. 기본 경로 통합, 실제 strict blueprint/API 연결, backend 상태 연결, push, PR, deploy, migration은 수행하지 않는다. 후속 요청에 `CORE_LOOP_VISUAL_REVIEW_APPROVED`가 정확히 포함되기 전에는 Phase B를 시작하지 않는다.
@@ -569,3 +569,15 @@ PR #9 최신 head의 자동 검증과 diff·리뷰·충돌 상태를 최종 확�
 - 저장소 밖 Phase A.1 폴더에 desktop 7장, mobile 390 5장, mobile 430 3장, iPhone WebKit 3장 등 총 18장 캡처를 생성했다. 캡처 중 console warning/error는 0건이었다.
 - 전체 unit 211/211, JavaScript syntax 54/54, desktop Chromium 19/19, mobile Chromium 19/19, iPhone WebKit 19/19가 통과했다. WebKit 동시 실행 자원 경합은 worker를 격리해 원인을 확인했으며 timeout·retry·skip·ignore 설정은 변경하지 않았다.
 - 기본 제품 경로, 실제 AI/OAuth/claim, Worker/DO/migration, 결제와 배포 설정은 변경하지 않았다. commit은 새 로컬 commit으로만 생성하며 push, PR, Staging/Preview/Production deploy는 `NOT RUN`이다.
+
+## P0.5 Phase B — Ollie Core Loop 제품 경로 통합·로컬 게이트 (2026-07-24)
+
+- 승인된 목표+기간 중심 흐름을 실제 기본 경로에 연결했다. 최초 결과는 strict `goal-plan-blueprint.v2`의 3–5단계 큰 길이며, 현재 상황·빠른 선택은 입력 중 AI 호출 없이 pending 조건으로 모이고 명시적 반영 때만 revision 1회를 요청한다. 큰 길 고정, 시작 요일 변경, 15분 축소, 첫 7일 확장, Today 실행, 기록, 성장, 회복, 로그인 claim·reload는 provider 호출 0회 계약을 유지한다.
+- guest generation은 6,000, guest revision은 4,500 `max_output_tokens`를 사용한다. 달성 시간이 부족한 목표는 거부하지 않고 제약과 검증 가능한 중간 목표를 제안하도록 prompt를 보완했다. strict schema/domain 검증, active/pending revision, capability, absolute TTL, Durable Object claim 원자성, idempotency와 실패 시 기존 active plan 보존은 유지한다.
+- `scheduleStartPreference`는 `as-is`, `change-days`, `shorter` 세 값만 허용하며 claim된 회원 계획에 함께 저장한다. 일정 고정 후 AI 없이 기존 stable typed item을 월·수·금 그대로 사용하거나 화·목·토로 결정적으로 재배치하거나 ACTION을 최대 15분으로 줄인다.
+- ACTION 완료 즉시 action reference, 완료 시각, 실제 실행 시간, 자동 요약을 가진 기본 기록을 먼저 저장하고 선택 회고를 덧붙인다. 새 `ollieGrowthState`는 첫 ACTION, 3회 ACTION, milestone, 회복을 저장하며 기존 legacy field는 schema-on-read로 읽고 새 필드에만 쓴다. 회복은 5분 축소·내일 이동·휴식·올리 대화 세 갈래로 처리하고 punishment streak나 AI 호출을 만들지 않는다.
+- 실제 Goal·Roadmap·Today·Plan·Record·Growth·Recovery 화면에 로컬 `여기어때 잘난체` token을 제한적으로 적용했다. 긴 본문·사용자 입력·일정 상세·날짜·숫자는 기존 neutral stack을 유지한다. font 200/MIME/load/check와 computed family를 검증하고 실패 시 사용자에게 명시적 상태를 보인다.
+- worktree 밖 acceptance 폴더에 desktop, mobile Chromium 390, 430, iPhone WebKit, responsive 390/430/1440의 대표 화면 59장을 저장했다. 총 32,424,237 bytes, 최대 1,848,480 bytes이며 저장소에는 포함하지 않았다. 직접 검토에서 하단 navigation·sticky CTA 겹침, 수평 overflow, card clipping, console 오류, 화면당 primary CTA 중복은 없었다.
+- unit은 211/211, JavaScript syntax는 53/53, `git diff --check`와 민감정보 패턴 검사는 통과했다. 전체 Playwright 첫 최종 묶음은 466 passed, 기존 모바일 sheet 조건 1 skipped, 기능 assertion이 아닌 두 navigation lifecycle timeout이었다. Provider·취소 시나리오를 assertion 축소 없이 독립 테스트로 분리한 뒤 auth matrix 79건이 통과했고, 마지막 계정 scope 관찰은 trace에서 실제 기대값 반환이 확인된 뒤 poll 외곽 timeout을 제거해 네 browser 4/4 통과했다. 신규 skip·retry·fixme·오류 ignore·timeout 증가는 없다.
+- `Olly`, `Oli`, `Olli`, `Olley`, `LOCAL PROTOTYPE`과 사용자 화면의 내부 `ACTION`/`REVIEW`/`TIP` 노출은 0건이다. Production workflow/config, OAuth·Secret, 인증·결제, KV/D1/route/domain은 변경하지 않았고 모든 Wrangler의 `PAYMENTS_ENABLED=false`, `ALLOW_DEV_LOGIN=false`, `ALLOW_DEMO_BILLING=false`, `APPLE_LOGIN_VISIBLE=false`를 유지한다.
+- 로컬 실제 OpenAI provider, Staging OAuth A/B, 403/409/412, 64개 동시 claim, Preview, PR, Production은 이 기록 시점에 `NOT RUN`이다. 다음 gate는 exact commit SHA의 guarded Staging 배포와 최대 8회 provider 인수다.
