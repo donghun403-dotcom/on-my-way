@@ -882,7 +882,20 @@ async function activateReviewedGoalDraft() {
 trialStartInlineLink?.addEventListener("click", async (event) => {
   event.preventDefault();
   if (trialStartInlineLink.getAttribute("aria-disabled") === "true") {
-    showToast("조정안을 선택해 계획을 다시 확인한 뒤 일정을 만들 수 있어요.");
+    // 고정이 막힌 이유(조정안 미선택)를 토스트로만 알리지 않고, 조정안 카드로 직접 안내한다.
+    const firstOption = draftFeasibilityOptions?.querySelector("[data-feasibility-adjustment]");
+    const target = firstOption || draftFeasibilityOptions?.closest(".draft-feasibility-card") || draftFeasibilityOptions;
+    if (target) {
+      const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      target.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "center" });
+      const card = draftFeasibilityOptions?.closest(".draft-feasibility-card");
+      if (card) {
+        card.classList.add("is-attention");
+        window.setTimeout(() => card.classList.remove("is-attention"), 1600);
+      }
+      if (firstOption) window.setTimeout(() => firstOption.focus({ preventScroll: true }), reduceMotion ? 0 : 320);
+    }
+    showToast("먼저 위의 조정안을 하나 선택한 뒤 ‘계획에 반영하기’로 계획을 다시 만들어 주세요.");
     return;
   }
   await activateReviewedGoalDraft();

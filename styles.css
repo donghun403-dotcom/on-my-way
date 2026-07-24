@@ -8080,9 +8080,12 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 }
 
 .home-page .story-flow:not(.showing-first-step) .goal-builder-shell {
-  grid-template-columns: 72px minmax(0, 1fr);
-  width: min(100%, 780px);
-  max-width: 780px;
+  /* 온보딩이 목표·기간 2입력으로 단순화되며 좌측 진단 스텝퍼(72px 컬럼)가 제거됨.
+     남은 팬텀 컬럼 때문에 폼이 72px로 collapse되던 문제를 중앙 단일컬럼으로 정리한다. */
+  grid-template-columns: minmax(0, 1fr);
+  width: min(100%, 620px);
+  max-width: 620px;
+  margin-inline: auto;
   min-height: 0;
 }
 
@@ -13592,10 +13595,21 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .home-page .draft-understanding-card dl div { display: grid; grid-template-columns: 92px minmax(0,1fr); gap: 10px; }
 .home-page .draft-understanding-card dt { color: #7d899e; font-size: 12px; font-weight: 800; }
 .home-page .draft-understanding-card dd { margin: 0; color: #35435b; font-size: 13px; font-weight: 800; overflow-wrap: anywhere; }
+.home-page .draft-feasibility-card { transition: box-shadow .25s ease, transform .25s ease; }
+.home-page .draft-feasibility-card.is-attention {
+  box-shadow: 0 0 0 2px #8eafa7, 0 18px 40px rgba(91,106,151,.18);
+  transform: translateY(-1px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-page .draft-feasibility-card { transition: none; }
+  .home-page .draft-feasibility-card.is-attention { transform: none; }
+}
 .home-page .draft-feasibility-card > span { color: #799c93; font-size: 10px; font-weight: 900; letter-spacing: .08em; }
 .home-page .draft-feasibility-card > strong { display: block; margin-top: 5px; color: #35435b; }
 .home-page .draft-feasibility-card p,
 .home-page .draft-feasibility-card li { color: #6f7c90; font-size: 12px; line-height: 1.55; }
+.home-page #draftFeasibilityOptions { list-style: none; margin: 10px 0 0; padding: 0; }
+.home-page .draft-feasibility-card li { list-style: none; }
 .home-page .draft-feasibility-card li + li { margin-top: 6px; }
 .home-page .draft-feasibility-card li button {
   width: 100%;
