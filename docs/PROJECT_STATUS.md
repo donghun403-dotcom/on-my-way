@@ -581,3 +581,12 @@ PR #9 최신 head의 자동 검증과 diff·리뷰·충돌 상태를 최종 확�
 - unit은 211/211, JavaScript syntax는 53/53, `git diff --check`와 민감정보 패턴 검사는 통과했다. 전체 Playwright 첫 최종 묶음은 466 passed, 기존 모바일 sheet 조건 1 skipped, 기능 assertion이 아닌 두 navigation lifecycle timeout이었다. Provider·취소 시나리오를 assertion 축소 없이 독립 테스트로 분리한 뒤 auth matrix 79건이 통과했고, 마지막 계정 scope 관찰은 trace에서 실제 기대값 반환이 확인된 뒤 poll 외곽 timeout을 제거해 네 browser 4/4 통과했다. 신규 skip·retry·fixme·오류 ignore·timeout 증가는 없다.
 - `Olly`, `Oli`, `Olli`, `Olley`, `LOCAL PROTOTYPE`과 사용자 화면의 내부 `ACTION`/`REVIEW`/`TIP` 노출은 0건이다. Production workflow/config, OAuth·Secret, 인증·결제, KV/D1/route/domain은 변경하지 않았고 모든 Wrangler의 `PAYMENTS_ENABLED=false`, `ALLOW_DEV_LOGIN=false`, `ALLOW_DEMO_BILLING=false`, `APPLE_LOGIN_VISIBLE=false`를 유지한다.
 - 로컬 실제 OpenAI provider, Staging OAuth A/B, 403/409/412, 64개 동시 claim, Preview, PR, Production은 이 기록 시점에 `NOT RUN`이다. 다음 gate는 exact commit SHA의 guarded Staging 배포와 최대 8회 provider 인수다.
+
+## P0.5 Phase B — Staging AI gate 중단 (2026-07-24)
+
+- exact RC `86cd2e09604bc031d51c089882b7db9efe3127b6`를 `Staging Deploy` run `30076274549`로 배포했다. checkout SHA 검증, unit, syntax, Secret 이름 gate, generated config 검증, Wrangler 4.81.0 dry-run, D1 migration, Worker deploy, readiness와 cleanup이 모두 성공했다. 배포 Worker version은 `58b71fc0-ab98-4938-98f8-1333169590da`이다.
+- 배포 후 공개 health를 3회 확인했고 모두 `environment=staging`, `payments=false`, `accountStorage=true`, `ai=true`였다. Google은 configured, dev login은 disabled, Apple은 hidden이었다. Production 접근·배포·변경은 없었다.
+- 합성 입력만 사용한 실제 provider 호출은 7회였다. 일반 운동 Roadmap과 영어 교재 Roadmap은 HTTP 200으로 생성됐고, 영어 자료·범위 revision도 revision `1→2`로 저장됐다. 성공 generation과 revision의 동일 요청 재전송은 `cached=true`였고 draft/revision이 증가하지 않았다.
+- 달성하기 어려운 목표와 제외 요일 목표 generation은 HTTP 502 `AI_OUTPUT_DOMAIN_INVALID`로 active draft를 저장하지 않았다. 가능 요일 revision도 첫 호출은 같은 domain 오류였고, 실패 뒤 동일 요청 재시도는 cached 응답이 아니라 새 provider 호출로 처리됐다. 따라서 전체 예산 8회 중 1회만 남아 새 RC에서 필수 6개 시나리오를 다시 증명할 수 없다.
+- 자료 revision은 자료명과 input hash 변경은 반영됐지만 공개 preview의 ACTION 범위 문자열만으로 `Unit 15~30`의 의미상 반영을 전부 증명하지 못했다. 공개 응답은 provider usage를 노출하지 않으므로 이번 실행에서 generation/revision token headroom도 증명하지 못했다.
+- AI gate 실패와 provider 예산 부족 때문에 OAuth A/B, 403/409/412, 64개 동시 claim, desktop/mobile UX, Draft PR, Preview, merge, Production은 `NOT RUN`이다. 보안·인증·결제 완화, retry/skip, 모델·token budget 변경으로 우회하지 않았고 release 상태는 `RELEASE_BLOCKED`이다.
