@@ -256,7 +256,7 @@ textarea:focus-visible {
   filter: drop-shadow(0 20px 24px rgba(82, 112, 143, 0.16));
 }
 
-.olly-speech {
+.ollie-speech {
   position: absolute;
   top: -24px;
   right: 0;
@@ -1500,7 +1500,7 @@ textarea:focus-visible {
     margin-right: 4px;
   }
 
-  .olly-speech {
+  .ollie-speech {
     position: static;
     max-width: 176px;
     margin-right: -2px;
@@ -1774,7 +1774,7 @@ textarea:focus-visible {
     display: none;
   }
 
-  .olly-speech {
+  .ollie-speech {
     right: 105px;
     max-width: 170px;
   }

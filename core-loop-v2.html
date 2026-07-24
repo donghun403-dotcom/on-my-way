@@ -19,7 +19,6 @@
       <a href="core-loop-v2.html?experience=core-loop-v2&amp;reset=1" aria-label="On My Way 프로토타입 처음으로">
         <img src="assets/logo-horizontal-ollie.png" alt="On My Way" />
       </a>
-      <span>LOCAL PROTOTYPE</span>
     </header>
 
     <main class="prototype-main" id="prototypeMain">
@@ -31,7 +30,7 @@
             <p class="body-copy">혼자서는 자꾸 미뤄지는 목표를, 올리와 오늘 하나씩 이루어 가요.</p>
           </div>
           <div class="goal-ollie">
-            <span class="olly-speech brand-display">큰 길은 내가 먼저 그려볼게요!</span>
+            <span class="ollie-speech brand-display">큰 길은 내가 먼저 그려볼게요!</span>
             <img src="assets/ollie-thinking.png" alt="목표를 함께 고민하는 올리" />
           </div>
         </div>
@@ -129,7 +128,7 @@
         </header>
 
         <article class="roadmap-mini soft-surface">
-          <span>현재 Roadmap</span>
+          <span>현재 큰 길</span>
           <strong>문제 선택 → 작은 해결책 → 사용자 확인 → 첫 공개</strong>
           <p>주 3회 · 하루 40분 · 8주로 임시 계산했어요.</p>
         </article>
@@ -153,14 +152,14 @@
           <div><h2 class="brand-display" id="pendingTitle">반영을 기다리는 내용</h2><span id="pendingCount">0개</span></div>
           <ul id="pendingChangeList"><li class="empty-pending">아직 모아둔 내용이 없어요.</li></ul>
         </section>
-        <p class="inline-error" id="revisionError" role="alert" hidden>이번에는 반영하지 못했어요. 기존 Roadmap은 그대로 두었어요.</p>
+        <p class="inline-error" id="revisionError" role="alert" hidden>이번에는 반영하지 못했어요. 기존 큰 길은 그대로 두었어요.</p>
         <button class="primary-action brand-display" id="applyChanges" type="button" disabled>계획에 반영하기</button>
       </section>
 
       <section class="prototype-screen changes-screen" data-screen="changes" aria-labelledby="changesTitle" hidden>
         <header class="screen-heading compact">
           <div>
-            <p class="soft-kicker">Roadmap revision</p>
+            <p class="soft-kicker">계획 조정</p>
             <h1 class="brand-display" id="changesTitle">계획을 이렇게 바꿨어요</h1>
             <p class="body-copy">큰 방향은 지키고, 지금 할 수 있는 속도로 가볍게 조정했어요.</p>
           </div>
@@ -218,7 +217,7 @@
         </header>
 
         <article class="today-action soft-surface" data-task-id="prototype-action-001">
-          <div class="action-label"><span>ACTION</span><b>예상 15분</b></div>
+          <div class="action-label"><span>오늘 행동</span><b>예상 15분</b></div>
           <h2 class="brand-display" id="todayActionTitle">사용자 한 명의 불편을 한 문장으로 적기</h2>
           <p>완료 기준: 문제 문장 하나를 저장하면 완료</p>
           <div class="action-buttons">
@@ -228,8 +227,8 @@
         </article>
 
         <section class="supporting-items" aria-label="오늘의 보조 일정">
-          <article data-item-type="REVIEW"><span>REVIEW · 점검</span><strong>이 문제가 실제로 자주 생기는지 돌아보기</strong><p>체크 대상이 아닌 별도 점검 카드예요.</p></article>
-          <aside data-item-type="TIP"><span>TIP · 올리의 팁</span><p>완벽한 문장보다 실제 누군가의 불편을 먼저 떠올려 보세요.</p></aside>
+          <article data-item-type="REVIEW"><span>점검</span><strong>이 문제가 실제로 자주 생기는지 돌아보기</strong><p>체크 대상이 아닌 별도 점검 카드예요.</p></article>
+          <aside data-item-type="TIP"><span>올리의 팁</span><p>완벽한 문장보다 실제 누군가의 불편을 먼저 떠올려 보세요.</p></aside>
         </section>
       </section>
 
@@ -258,7 +257,7 @@
           <button type="button" data-mood="힘들었어요" aria-pressed="false">힘들었어요</button>
         </div>
         <label class="text-field" for="diaryNote"><span>한 줄 남기기 <small>선택</small></span><textarea id="diaryNote" rows="3" placeholder="오늘 발견한 점을 짧게 남겨도 좋아요."></textarea></label>
-        <article class="auto-entry soft-surface"><span>Diary 자동 기록</span><strong>오늘의 ACTION 완료</strong><p id="autoEntryTime">방금 저장됨 · note 없이도 유지돼요</p></article>
+        <article class="auto-entry soft-surface"><span>기록 자동 저장</span><strong>오늘 행동 완료</strong><p id="autoEntryTime">방금 저장됨 · 메모 없이도 유지돼요</p></article>
         <button class="primary-action brand-display" id="seeGrowth" type="button">올리의 성장 확인하기</button>
       </section>
 
@@ -268,8 +267,8 @@
           <div class="growth-visual"><span aria-hidden="true">🌱</span><img src="assets/ollie-celebrate.png" alt="첫 잎과 함께 성장한 올리" /></div>
         </header>
         <ol class="growth-track">
-          <li class="is-grown"><span>1</span><strong class="brand-display">첫 잎</strong><small>ACTION 1회</small></li>
-          <li><span>3</span><strong class="brand-display">새순</strong><small>ACTION 3회</small></li>
+          <li class="is-grown"><span>1</span><strong class="brand-display">첫 잎</strong><small>오늘 행동 1회</small></li>
+          <li><span>3</span><strong class="brand-display">새순</strong><small>오늘 행동 3회</small></li>
           <li><span>●</span><strong class="brand-display">첫 열매</strong><small>마일스톤 완료</small></li>
           <li><span>🌈</span><strong class="brand-display">다시 걷기</strong><small>놓친 뒤 재시작</small></li>
         </ol>
@@ -291,7 +290,7 @@
       </section>
 
       <section class="prototype-screen plan-screen" data-screen="plan" aria-labelledby="planTitle" hidden>
-        <header class="screen-heading compact"><div><p class="soft-kicker">내가 걷는 길</p><h1 class="brand-display" id="planTitle">Roadmap과 이번 주</h1><p class="body-copy">큰 방향과 실행 일정을 한 화면에서 구분해 봐요.</p></div><img src="assets/ollie-action.png" alt="계획 길 위의 올리" /></header>
+        <header class="screen-heading compact"><div><p class="soft-kicker">내가 걷는 길</p><h1 class="brand-display" id="planTitle">큰 길과 이번 주</h1><p class="body-copy">큰 방향과 실행 일정을 한 화면에서 구분해 봐요.</p></div><img src="assets/ollie-action.png" alt="계획 길 위의 올리" /></header>
         <ol class="plan-roadmap revised-roadmap"><li class="is-current"><span>1</span><div><strong class="brand-display">문제 하나 고르기</strong><small>진행 중</small></div></li><li><span>2</span><div><strong class="brand-display">작은 해결책 만들기</strong><small>다음 마일스톤</small></div></li><li><span>3</span><div><strong class="brand-display">사용자와 확인하기</strong><small>준비 중</small></div></li></ol>
         <section class="plan-week soft-surface"><div><h2 class="brand-display">첫 7일 일정</h2><button class="text-action" id="adjustPlan" type="button">일정 조정</button></div><div id="planWeekList"></div></section>
       </section>

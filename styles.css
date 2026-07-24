@@ -1,4 +1,16 @@
+@font-face {
+  font-family: "여기어때 잘난체";
+  src: url("assets/fonts/yeogieottae-jalnan2.woff2") format("woff2");
+  font-display: swap;
+  font-style: normal;
+  font-weight: 400;
+}
+
 :root {
+  --font-brand-display: "여기어때 잘난체";
+  --font-brand-ui: "여기어때 잘난체";
+  --font-body: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font-numeric: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
   --blue: #5b6a97;
   --paper: #eef1f7;
   --red: #c07f8d;
@@ -28,7 +40,8 @@ body {
   margin: 0;
   background: var(--paper);
   color: var(--ink);
-  font-family: "Jalnan", "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  font-family: var(--font-body);
+  font-synthesis: none;
   letter-spacing: 0;
 }
 
@@ -51,6 +64,25 @@ input,
 select,
 textarea {
   font: inherit;
+}
+
+.brand-display,
+.home-page #designFlow h2,
+.home-page #diagnosisStepTitle,
+.home-page #draftUnderstandingTitle,
+.home-page #roadmapTitle,
+.home-page #aiPreviewButton,
+.home-page #trialStartInlineLink,
+.execution-page .today-welcome h1,
+.execution-page .today-next-action h2,
+.execution-page .focus-start-button,
+.execution-page .plan-overview-head h2,
+.execution-page .plan-roadmap-summary h3,
+.execution-page .execution-tabbar .tab-label,
+.execution-page .ollie-growth-milestones strong {
+  font-family: var(--font-brand-display);
+  font-synthesis: none;
+  font-weight: 400;
 }
 
 .site-header {
@@ -409,7 +441,7 @@ footer p {
   margin-top: 10px;
   padding: 14px;
   resize: vertical;
-  font-family: "Jalnan", "Consolas", "Courier New", monospace;
+  font-family: "Consolas", "Courier New", monospace;
   font-size: 12px;
   line-height: 1.5;
 }
@@ -5499,7 +5531,8 @@ body.sheet-open {
 .execution-page .auth-sheet-heading h2 {
   margin: 0;
   color: #2e443e;
-  font-family: "Jalnan", "Apple SD Gothic Neo", sans-serif;
+  font-family: var(--font-brand-display);
+  font-synthesis: none;
   font-size: clamp(24px, 7vw, 31px);
   font-weight: 700;
   line-height: 1.22;
@@ -6010,14 +6043,16 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 /* Signature serif display for the hero headline. */
 .home-page .hero-poster h1,
 .home-page .hero-poster h1 span {
-  font-family: "Jalnan", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  font-family: var(--font-brand-display);
+  font-synthesis: none;
   font-weight: 600;
   letter-spacing: -0.01em;
 }
 
-/* Section titles use Jalnan (여기어때 잘난체). */
+/* Section titles use the approved local brand font token. */
 .home-page .section-heading h2 {
-  font-family: "Jalnan", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  font-family: var(--font-brand-display);
+  font-synthesis: none;
   font-weight: 700;
   letter-spacing: -0.01em;
 }
@@ -6412,7 +6447,8 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   max-width: 430px;
   margin: 0;
   color: #2a3145;
-  font-family: "Jalnan", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  font-family: var(--font-brand-display);
+  font-synthesis: none;
   font-size: clamp(22px, 2.5vw, 30px);
   line-height: 1.3;
 }
@@ -6832,11 +6868,6 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   transition: transform 160ms ease;
 }
 
-.builder-actions button:hover {
-  filter: brightness(1.03);
-  transform: translateY(-1px);
-}
-
 .builder-actions button:disabled {
   opacity: 0.48;
   box-shadow: none;
@@ -6845,8 +6876,14 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   transform: none;
 }
 
-.builder-next:hover::after {
-  transform: translateX(3px);
+@media (hover: hover) and (pointer: fine) {
+  .builder-actions button:hover {
+    filter: brightness(1.03);
+  }
+
+  .builder-next:hover::after {
+    transform: translateX(3px);
+  }
 }
 
 .builder-actions button:focus-visible {
@@ -7945,7 +7982,8 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 
 .footer-brand-block strong {
   color: #3d4862;
-  font-family: "Jalnan", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  font-family: var(--font-brand-display);
+  font-synthesis: none;
   font-size: clamp(24px, 3vw, 32px);
   font-weight: 600;
   letter-spacing: -0.02em;
@@ -8343,7 +8381,8 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .home-page .feature-copy h3 {
   margin: 0;
   color: #303a50;
-  font-family: "Jalnan", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  font-family: var(--font-brand-display);
+  font-synthesis: none;
   font-size: clamp(27px, 3.7vw, 40px);
   font-weight: 700;
   line-height: 1.28;
@@ -10716,7 +10755,8 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   max-width: 520px;
   margin: 15px 0 10px;
   color: var(--app-ink);
-  font-family: "Jalnan", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  font-family: var(--font-brand-display);
+  font-synthesis: none;
   font-size: clamp(34px, 4.7vw, 58px);
   font-weight: 700;
   line-height: 1.08;
@@ -11153,7 +11193,8 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .execution-page .view-head h1 {
   margin-top: 7px;
   color: var(--app-ink);
-  font-family: "Jalnan", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  font-family: var(--font-brand-display);
+  font-synthesis: none;
   font-size: clamp(30px, 4vw, 44px);
 }
 
@@ -13649,6 +13690,537 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   .execution-page #view-today .task-row-head { display: flex; }
 }
 
+/* Ollie core-loop production integration */
+.home-page #designFlow {
+  min-height: calc(100vh - 72px);
+  padding-bottom: 72px;
+}
+
+.home-page #designFlow .section-heading {
+  max-width: 760px;
+}
+
+.home-page #designFlow .section-heading h2,
+.home-page #diagnosisStepTitle,
+.home-page #roadmapTitle {
+  color: #354057;
+  font-family: var(--font-brand-display);
+  font-synthesis: none;
+  font-weight: 400;
+  word-break: keep-all;
+}
+
+.home-page .goal-builder-shell {
+  grid-template-columns: minmax(0, 1fr);
+  width: min(100%, 900px);
+  margin-inline: auto;
+}
+
+.home-page .goal-builder-shell .personality-form,
+.home-page .goal-builder-shell .app-plan-preview.is-ready {
+  width: min(100%, 780px);
+  margin-inline: auto;
+}
+
+.home-page .goal-builder-shell .personality-form {
+  padding: clamp(22px, 4vw, 38px);
+  background:
+    radial-gradient(circle at 86% 14%, rgba(213, 235, 232, 0.8), transparent 28%),
+    linear-gradient(145deg, rgba(255,255,255,.92), rgba(243,239,249,.86));
+  border: 1px solid rgba(255,255,255,.92);
+  border-radius: 30px;
+  box-shadow: 0 24px 66px rgba(83,104,146,.14);
+}
+
+.home-page .roadmap-period-field,
+.home-page .roadmap-context-field {
+  margin-top: 16px;
+}
+
+.home-page .roadmap-context-field textarea {
+  min-height: 92px;
+  resize: vertical;
+}
+
+.home-page .goal-builder-shell #aiPreviewButton,
+.home-page #trialStartInlineLink {
+  min-height: 58px;
+  color: #fff;
+  background: linear-gradient(135deg, #6d9db0 0%, #6c89ba 58%, #8d86b5 100%);
+  border: 0;
+  border-radius: 19px;
+  box-shadow: 0 15px 30px rgba(84,116,165,.23);
+  font-family: var(--font-brand-ui);
+  font-synthesis: none;
+  font-size: clamp(16px, 2vw, 20px);
+  font-weight: 400;
+}
+
+.home-page .quiet-note {
+  margin: 12px 0 0;
+  color: #8190a4;
+  font-size: 12px;
+  text-align: center;
+}
+
+.home-page .app-plan-preview.is-ready {
+  overflow: visible;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.home-page .app-plan-preview .result-scroll-area {
+  display: grid;
+  gap: 18px;
+  overflow: visible;
+  padding: 0 0 28px;
+}
+
+.home-page .roadmap-understanding-card {
+  background: rgba(255,255,255,.78);
+  border-color: rgba(255,255,255,.96);
+  border-radius: 28px;
+  box-shadow: 0 14px 36px rgba(83,104,146,.1);
+}
+
+.home-page .roadmap-understanding-card dl {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.home-page .roadmap-understanding-card dl > div {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
+  padding: 12px;
+  background: rgba(235,245,241,.66);
+  border-radius: 14px;
+}
+
+.home-page .roadmap-journey-card {
+  padding: clamp(20px, 4vw, 34px);
+  background: rgba(255,255,255,.78);
+  border: 1px solid rgba(255,255,255,.94);
+  border-radius: 30px;
+  box-shadow: 0 18px 46px rgba(83,104,146,.11);
+}
+
+.home-page .roadmap-journey-card .result-roadmap-list {
+  position: relative;
+  display: grid;
+  gap: 14px;
+  margin-top: 20px;
+}
+
+.home-page .roadmap-journey-card .result-roadmap-list::before {
+  position: absolute;
+  top: 18px;
+  bottom: 18px;
+  left: 29px;
+  width: 3px;
+  background: linear-gradient(#75a8a1, #9b92bf, #d5a9b9);
+  border-radius: 99px;
+  content: "";
+}
+
+.home-page .roadmap-journey-card .result-roadmap-list > div {
+  position: relative;
+  z-index: 1;
+  grid-template-columns: 60px minmax(0, 1fr);
+  padding: 14px;
+  background: rgba(247,249,252,.78);
+  border-radius: 18px;
+}
+
+.home-page .roadmap-journey-card .result-roadmap-list > div > b {
+  display: grid;
+  min-height: 44px;
+  padding: 6px;
+  place-items: center;
+  color: #fff;
+  background: #789f9b;
+  border-radius: 14px;
+}
+
+.home-page .roadmap-journey-card .result-roadmap-list strong {
+  font-family: var(--font-brand-display);
+  font-synthesis: none;
+  font-size: 16px;
+  font-weight: 400;
+}
+
+.home-page .first-week-disclosure {
+  padding: 0;
+  overflow: clip;
+  background: rgba(255,255,255,.72);
+  border: 1px solid rgba(255,255,255,.9);
+  border-radius: 22px;
+}
+
+.home-page .first-week-disclosure > summary {
+  display: grid;
+  gap: 4px;
+  min-height: 68px;
+  padding: 16px 20px;
+  cursor: pointer;
+}
+
+.home-page .first-week-disclosure > summary span {
+  color: #77968f;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.home-page .first-week-disclosure > summary strong {
+  color: #435069;
+  font-family: var(--font-brand-ui);
+  font-synthesis: none;
+  font-weight: 400;
+}
+
+.home-page .first-week-disclosure > ol {
+  padding: 0 14px 16px;
+}
+
+.home-page .draft-day-items article > b {
+  min-width: 54px;
+  text-align: center;
+}
+
+.execution-page .plan-roadmap-summary {
+  display: grid;
+  gap: 14px;
+  margin: 18px 0;
+  padding: 18px;
+  background: linear-gradient(145deg, rgba(235,246,242,.9), rgba(247,242,249,.86));
+  border-radius: 20px;
+}
+
+.execution-page .plan-roadmap-summary > div > span {
+  color: #78988f;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.execution-page .plan-roadmap-summary h3 {
+  margin: 5px 0 0;
+  color: #405049;
+}
+
+.execution-page .plan-roadmap-summary ol,
+.execution-page .ollie-growth-milestones {
+  display: grid;
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.execution-page .plan-roadmap-summary li {
+  display: grid;
+  grid-template-columns: 72px minmax(0,1fr);
+  gap: 4px 12px;
+  padding: 11px 13px;
+  background: rgba(255,255,255,.76);
+  border-radius: 14px;
+}
+
+.execution-page .plan-roadmap-summary li b {
+  grid-row: 1 / 3;
+  align-self: center;
+  color: #7c8b9f;
+  font-size: 9px;
+}
+
+.execution-page .plan-roadmap-summary li.is-current b { color: #628e86; }
+.execution-page .plan-roadmap-summary li strong { color: #45536a; font-size: 12px; }
+.execution-page .plan-roadmap-summary li small { color: #8791a1; font-size: 10px; }
+
+.execution-page .ollie-growth-milestones {
+  grid-template-columns: repeat(4, minmax(0,1fr));
+  margin-top: 14px;
+}
+
+.execution-page .ollie-growth-milestones li {
+  display: grid;
+  gap: 4px;
+  min-height: 92px;
+  padding: 11px 7px;
+  place-items: center;
+  color: #8b93a2;
+  background: rgba(255,255,255,.6);
+  border: 1px solid rgba(107,122,166,.08);
+  border-radius: 16px;
+  text-align: center;
+}
+
+.execution-page .ollie-growth-milestones li.is-grown {
+  color: #52756d;
+  background: rgba(229,242,236,.9);
+  border-color: rgba(117,159,149,.22);
+}
+
+.execution-page .ollie-growth-milestones span { font-size: 22px; }
+.execution-page .ollie-growth-milestones small { font-size: 8px; }
+
+.execution-page .execution-app {
+  padding-bottom: 120px;
+}
+
+.roadmap-quick-context {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.roadmap-quick-context button {
+  min-height: 44px;
+  padding: 9px 14px;
+  border: 1px solid rgba(84, 112, 152, 0.2);
+  border-radius: 999px;
+  color: #4f6482;
+  background: rgba(255, 255, 255, 0.78);
+  font-family: var(--font-brand-ui);
+  font-synthesis: none;
+  cursor: pointer;
+}
+
+.roadmap-quick-context button[aria-pressed="true"] {
+  color: #315f5b;
+  border-color: rgba(77, 139, 128, 0.38);
+  background: rgba(220, 242, 236, 0.82);
+}
+
+.roadmap-revision-summary {
+  padding: 22px;
+  border: 1px solid rgba(104, 149, 136, 0.24);
+  border-radius: 24px;
+  background: linear-gradient(145deg, rgba(239, 250, 247, 0.96), rgba(255, 255, 255, 0.94));
+}
+
+.roadmap-revision-summary dl {
+  display: grid;
+  gap: 10px;
+  margin: 16px 0 0;
+}
+
+.roadmap-revision-summary dl > div {
+  display: grid;
+  grid-template-columns: minmax(72px, auto) 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.roadmap-revision-summary dt {
+  color: #668579;
+  font-family: var(--font-brand-ui);
+  font-synthesis: none;
+}
+
+.roadmap-revision-summary dd {
+  margin: 0;
+  color: #394b61;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.schedule-start-options {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+  padding: 18px;
+  border: 1px solid rgba(84, 112, 152, 0.16);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.schedule-start-options legend {
+  padding: 0 4px;
+  color: #35475f;
+  font-size: 18px;
+}
+
+.schedule-start-options > p {
+  margin: 0;
+  color: #768298;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.schedule-start-options > div {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.schedule-start-options button {
+  min-height: 46px;
+  padding: 9px 10px;
+  border: 1px solid rgba(84, 112, 152, 0.18);
+  border-radius: 14px;
+  color: #52657f;
+  background: #fff;
+  font-family: var(--font-brand-ui);
+  font-synthesis: none;
+  cursor: pointer;
+}
+
+.schedule-start-options button[aria-pressed="true"] {
+  color: #315f5b;
+  border-color: rgba(77, 139, 128, 0.42);
+  background: rgba(220, 242, 236, 0.9);
+  box-shadow: 0 8px 18px rgba(80, 130, 119, 0.12);
+}
+
+.brand-font-status {
+  position: relative;
+  z-index: 1000;
+  margin: 0;
+  padding: 10px 18px;
+  color: #593e47;
+  background: #fff3f5;
+  border-bottom: 1px solid #ebcbd2;
+  font-family: var(--font-body);
+  font-size: 13px;
+  text-align: center;
+}
+
+.execution-page .completion-reflection-sheet {
+  width: min(92vw, 520px);
+  padding: 0 22px 24px;
+}
+
+.execution-page .completion-reflection-sheet > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 0 14px;
+}
+
+.execution-page .completion-reflection-sheet > header span {
+  color: #70877e;
+  font-family: var(--font-brand-ui);
+  font-synthesis: none;
+}
+
+.execution-page .completion-reflection-sheet > header h2 {
+  margin: 4px 0 0;
+  color: #27364d;
+  font-family: var(--font-brand-display);
+  font-weight: 400;
+  font-synthesis: none;
+}
+
+.execution-page .completion-reflection-sheet > header button {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 14px;
+  color: #68768b;
+  background: #f1f5f7;
+  font-size: 24px;
+}
+
+.execution-page .completion-reflection-sheet > p {
+  margin: 0 0 16px;
+  color: #667487;
+  line-height: 1.65;
+}
+
+.execution-page .completion-reflection-options {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.execution-page .completion-reflection-options button {
+  min-height: 48px;
+  border: 1px solid rgba(83, 109, 146, 0.16);
+  border-radius: 14px;
+  color: #50647f;
+  background: #f7f9fb;
+  font-family: var(--font-brand-ui);
+  font-synthesis: none;
+}
+
+.execution-page .completion-reflection-options button[aria-pressed="true"] {
+  color: #315f5b;
+  border-color: rgba(71, 139, 125, 0.42);
+  background: #e8f5f1;
+}
+
+.execution-page .completion-reflection-sheet > label {
+  display: grid;
+  gap: 7px;
+  margin-bottom: 14px;
+  color: #667487;
+}
+
+.execution-page .completion-reflection-sheet > label textarea {
+  width: 100%;
+  min-height: 92px;
+  padding: 13px 14px;
+  border: 1px solid rgba(83, 109, 146, 0.18);
+  border-radius: 14px;
+  color: #334158;
+  background: #fff;
+  font-family: var(--font-body);
+  resize: vertical;
+}
+
+@media (max-width: 759px) {
+  .home-page #designFlow {
+    padding-inline: 12px;
+  }
+
+  .home-page #designFlow .section-heading h2,
+  .home-page #diagnosisStepTitle,
+  .home-page #roadmapTitle {
+    max-width: 100%;
+    font-size: clamp(27px, 8vw, 36px);
+    line-height: 1.18;
+  }
+
+  .home-page .goal-builder-shell .personality-form {
+    padding: 20px 16px;
+    border-radius: 24px;
+  }
+
+  .home-page .roadmap-understanding-card dl {
+    grid-template-columns: 1fr;
+  }
+
+  .home-page .roadmap-journey-card {
+    padding: 20px 14px;
+  }
+
+  .home-page .roadmap-journey-card .result-roadmap-list > div {
+    grid-template-columns: 54px minmax(0,1fr);
+    gap: 10px;
+    padding: 12px 10px;
+  }
+
+  .home-page .roadmap-journey-card .result-roadmap-list::before {
+    left: 35px;
+  }
+
+  .home-page .result-inline-start {
+    position: static;
+    margin-bottom: 0;
+  }
+
+  .execution-page .execution-app {
+    padding-bottom: calc(var(--mobile-tabbar-height) + 24px + env(safe-area-inset-bottom));
+  }
+
+  .execution-page .ollie-growth-milestones {
+    grid-template-columns: repeat(2, minmax(0,1fr));
+  }
+}
+
 @media (max-width: 360px) {
   .home-page .weekday-choice-row { grid-template-columns: repeat(3,minmax(0,1fr)); }
   .execution-page .task-edit-grid { grid-template-columns: 1fr; }
@@ -13678,7 +14250,8 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .execution-page .today-welcome h1 {
   margin: 0;
   color: var(--app-ink);
-  font-family: "Jalnan", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  font-family: var(--font-brand-display);
+  font-synthesis: none;
   font-size: clamp(26px, 4vw, 38px);
   line-height: 1.18;
   letter-spacing: -0.03em;
@@ -13742,7 +14315,8 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   max-width: 500px;
   margin: 10px 0 8px;
   color: var(--app-ink);
-  font-family: "Jalnan", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  font-family: var(--font-brand-display);
+  font-synthesis: none;
   font-size: clamp(22px, 3.5vw, 34px);
   line-height: 1.25;
   letter-spacing: -0.03em;
@@ -13925,7 +14499,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 
 .execution-page #view-today .progress-card { order: 4; }
 .execution-page .today-progress-body { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 16px; align-items: center; margin-top: 17px; }
-.execution-page .today-progress-body > strong { color: #647895; font-family: "Jalnan", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; font-size: 34px; }
+.execution-page .today-progress-body > strong { color: #647895; font-family: var(--font-numeric); font-size: 34px; }
 .execution-page .today-progress-body .progress-track { margin: 0; }
 .execution-page #view-today .progress-card > p { margin-bottom: 0; }
 
@@ -14140,7 +14714,8 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .execution-page .plan-overview-head h2 {
   margin: 7px 0 5px;
   color: var(--app-ink);
-  font-family: "Jalnan", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  font-family: var(--font-brand-display);
+  font-synthesis: none;
   font-size: clamp(20px, 3vw, 28px);
   line-height: 1.25;
 }
@@ -14348,7 +14923,8 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .execution-page .plan-subview-header h1 {
   margin: 4px 0;
   color: var(--app-ink);
-  font-family: "Jalnan", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  font-family: var(--font-brand-display);
+  font-synthesis: none;
   font-size: clamp(25px, 4vw, 34px);
 }
 
@@ -16223,5 +16799,53 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 
   .execution-page #view-memory .memory-mood-echo {
     padding: 6px 8px;
+  }
+}
+
+/* Final core-loop layout contracts must win over legacy responsive layers. */
+.home-page #designFlow .brand-display,
+.home-page #designFlow #diagnosisStepTitle,
+.home-page #firstStep #draftUnderstandingTitle,
+.home-page #firstStep #roadmapTitle,
+.home-page #firstStep .result-roadmap-list strong {
+  font-family: var(--font-brand-display);
+  font-synthesis: none;
+  font-weight: 400;
+}
+
+.execution-page .execution-app {
+  padding-bottom: 120px;
+}
+
+@media (max-width: 759px) {
+  .execution-page .execution-app {
+    padding-bottom: calc(var(--mobile-tabbar-height) + 24px + env(safe-area-inset-bottom));
+  }
+
+  .home-page #designFlow .section-heading h2,
+  .home-page #designFlow #diagnosisStepTitle,
+  .home-page #firstStep #roadmapTitle {
+    max-width: 100%;
+    font-size: clamp(27px, 8vw, 36px);
+    line-height: 1.18;
+    word-break: keep-all;
+    overflow-wrap: normal;
+  }
+
+  .home-page #firstStep .result-inline-start {
+    position: static;
+  }
+
+  .roadmap-revision-summary dl > div {
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+
+  .schedule-start-options > div {
+    grid-template-columns: 1fr;
+  }
+
+  .execution-page .completion-reflection-options {
+    grid-template-columns: 1fr;
   }
 }

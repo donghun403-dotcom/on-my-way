@@ -521,7 +521,11 @@ async function handleGuestGoalDraftRevision({ request, env, accountContext }) {
   const aiCorrelationId = crypto.randomUUID();
   const aiStartedAt = Date.now();
   try {
-    const result = await createAiGoalPlan(normalizedInput, { apiKey: env.OPENAI_API_KEY, model: env.OPENAI_MODEL || "gpt-5.4-mini" });
+    const result = await createAiGoalPlan(normalizedInput, {
+      apiKey: env.OPENAI_API_KEY,
+      model: env.OPENAI_MODEL || "gpt-5.4-mini",
+      maxOutputTokens: PLAN_REVISION_MAX_OUTPUT_TOKENS,
+    });
     console.info("Guest AI goal revision completed", safeAiSuccessDiagnostics(result, {
       correlationId: aiCorrelationId,
       model: env.OPENAI_MODEL || "gpt-5.4-mini",
@@ -546,14 +550,18 @@ async function handleGuestGoalDraftRevision({ request, env, accountContext }) {
       correlationId: aiCorrelationId,
       model: env.OPENAI_MODEL || "gpt-5.4-mini",
       latencyMs: Date.now() - aiStartedAt,
-      maxOutputTokens: GOAL_PLAN_MAX_OUTPUT_TOKENS,
+      maxOutputTokens: PLAN_REVISION_MAX_OUTPUT_TOKENS,
     }));
     await guestDraftCommand(env, draftPlanId, "fail-generation", { generationToken });
     return json(aiErrorBody(error), error?.status || 500);
   }
 }
 
-function activatedGuestPlan(plan, input, claimPlanId, claimedAt) {
+function normalizedScheduleStartPreference(value) {
+  return ["as-is", "change-days", "shorter"].includes(value) ? value : "as-is";
+}
+
+function activatedGuestPlan(plan, input, claimPlanId, claimedAt, scheduleStartPreference = "as-is") {
   const firstAction = (plan?.firstWeekSchedule || []).flatMap((day) => Array.isArray(day?.items) ? day.items : []).find((item) => item?.type === "ACTION");
   return {
     ...(plan || {}),
@@ -570,6 +578,7 @@ function activatedGuestPlan(plan, input, claimPlanId, claimedAt) {
     material: input?.material || {},
     availability: input?.availability || {},
     planningPreferences: input?.planningPreferences || [],
+    scheduleStartPreference: normalizedScheduleStartPreference(scheduleStartPreference),
     aiPreview: plan,
     planSource: "ai-reviewed-draft",
     createdAt: new Date(claimedAt || Date.now()).toISOString(),
@@ -607,6 +616,7 @@ async function handleGuestGoalDraftClaim({ request, env, accountContext }) {
   const draftPlanId = String(body?.draftPlanId || "").trim();
   const expectedRevision = Number(body?.expectedRevision);
   const expectedInputHash = String(body?.expectedInputHash || "");
+  const scheduleStartPreference = normalizedScheduleStartPreference(body?.scheduleStartPreference);
   if (!validGuestDraftId(draftPlanId) || !Number.isInteger(expectedRevision) || expectedRevision < 1 || !/^[a-f0-9]{64}$/.test(expectedInputHash)) {
     return json({ ok: false, error: "저장할 계획 초안을 확인하지 못했어요.", code: "DRAFT_PLAN_INVALID" }, 400);
   }
@@ -631,7 +641,13 @@ async function handleGuestGoalDraftClaim({ request, env, accountContext }) {
     expectedInputHash,
   });
   if (!claimed.response?.ok) return guestDraftApiError(claimed.body.code, claimed.response?.status || 503);
-  const activatedPlan = activatedGuestPlan(claimed.body.plan, claimed.body.activeInput, claimed.body.claimPlanId, claimed.body.claimedAt);
+  const activatedPlan = activatedGuestPlan(
+    claimed.body.plan,
+    claimed.body.activeInput,
+    claimed.body.claimPlanId,
+    claimed.body.claimedAt,
+    scheduleStartPreference,
+  );
   try {
     const storedPlan = await upsertClaimedPlanForUser(accountContext.store, user.id, activatedPlan);
     latestUser.goalPlanGeneratedAt = latestUser.goalPlanGeneratedAt || claimed.body.claimedAt || Date.now();

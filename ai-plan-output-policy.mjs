@@ -75,7 +75,7 @@ export const GOAL_PLAN_BLUEPRINT_SCHEMA = {
     phases: {
       type: "array",
       minItems: 3,
-      maxItems: 6,
+      maxItems: 5,
       items: {
         type: "object",
         additionalProperties: false,

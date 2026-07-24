@@ -184,7 +184,11 @@
         const meta = document.createElement("em");
         day.textContent = item.day;
         title.textContent = item.title;
-        type.textContent = item.type;
+        type.textContent = {
+          ACTION: "오늘 행동",
+          REVIEW: "점검",
+          TIP: "올리의 팁",
+        }[item.type] || "안내";
         meta.textContent = item.meta;
         content.append(title, type);
         row.append(day, content, meta);
@@ -279,7 +283,7 @@
   });
 
   $$("[data-detail]").forEach((button) => {
-    button.addEventListener("click", () => showToast("Roadmap의 방향을 설명하는 상세예요. 아직 일정은 아니에요."));
+    button.addEventListener("click", () => showToast("큰 길의 방향을 설명하는 상세예요. 아직 일정은 아니에요."));
   });
 
   $$("[data-change]").forEach((button) => {

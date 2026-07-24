@@ -11,6 +11,7 @@ import {
   GOAL_PLAN_BLUEPRINT_SCHEMA,
   GOAL_PLAN_MAX_OUTPUT_TOKENS,
   GOAL_PLAN_MAX_PARSED_BYTES,
+  PLAN_REVISION_MAX_OUTPUT_TOKENS,
   PLAN_ITEM_TYPES,
   countGoalBlueprintItems,
   enrichGoalPlanBlueprint,
@@ -163,7 +164,13 @@ function hasUnrelatedExamLeakage(goal, plan) {
   return /토익|\bLC\b|\bRC\b|오답\s*(정리|노트)|단어\s*\d+\s*개/i.test(planText(plan));
 }
 
-export async function createAiGoalPlan(input, { apiKey, model = "gpt-5.4-mini", fetchImpl = fetch, timeoutMs } = {}) {
+export async function createAiGoalPlan(input, {
+  apiKey,
+  model = "gpt-5.4-mini",
+  fetchImpl = fetch,
+  timeoutMs,
+  maxOutputTokens = GOAL_PLAN_MAX_OUTPUT_TOKENS,
+} = {}) {
   if (!apiKey) {
     const error = new Error("서버에 OPENAI_API_KEY가 설정되지 않았어요.");
     error.status = 503;
@@ -171,6 +178,9 @@ export async function createAiGoalPlan(input, { apiKey, model = "gpt-5.4-mini", 
   }
 
   const normalized = normalizeGoalInput(input);
+  const boundedMaxOutputTokens = Number(maxOutputTokens) === PLAN_REVISION_MAX_OUTPUT_TOKENS
+    ? PLAN_REVISION_MAX_OUTPUT_TOKENS
+    : GOAL_PLAN_MAX_OUTPUT_TOKENS;
   const validationError = validateGoalInput(normalized);
   if (validationError) {
     const error = new Error(validationError);
@@ -206,10 +216,11 @@ export async function createAiGoalPlan(input, { apiKey, model = "gpt-5.4-mini", 
         "실패한 날을 위한 최소 행동과 재시작 규칙을 fallbackPlan과 checkInRules에 포함하세요.",
         "planningStyle은 설명문이 아니라 18자 이내의 짧은 유형명으로 작성하세요.",
         "모든 일정과 행동은 사용자의 목표 분야에 직접 연결하세요. 다른 목표 분야의 예시나 템플릿 문구를 재사용하지 마세요.",
+        "요청한 기간과 가능 시간만으로 전체 목표 달성이 현실적으로 어렵다면 요청을 거부하지 마세요. assumptions에 제약을 밝히고, 첫 기간 안에 검증 가능한 중간 목표와 첫 7일 ACTION을 제안하세요.",
         "짧고 구체적으로 쓰고 같은 설명을 여러 필드에 반복하지 마세요.",
       ].join("\n"),
       input: `다음 사용자 정보로 정밀 목표 계획을 설계하세요.\n${JSON.stringify(normalized, null, 2)}`,
-      max_output_tokens: GOAL_PLAN_MAX_OUTPUT_TOKENS,
+      max_output_tokens: boundedMaxOutputTokens,
       text: {
         verbosity: "low",
         format: {
@@ -283,7 +294,7 @@ export async function createAiGoalPlan(input, { apiKey, model = "gpt-5.4-mini", 
         promptVersion: AI_CONTRACT_VERSIONS.goalPlanPrompt,
         domainOutputVersion: AI_CONTRACT_VERSIONS.domainOutput,
         budgetVersion: AI_OUTPUT_BUDGET_VERSION,
-        maxOutputTokens: GOAL_PLAN_MAX_OUTPUT_TOKENS,
+        maxOutputTokens: boundedMaxOutputTokens,
       },
     };
   } catch (caught) {

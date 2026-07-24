@@ -7,7 +7,7 @@ const navLinks = document.querySelectorAll(".main-nav a");
 const sectionNavLinks = document.querySelectorAll(".main-nav a[href^='#']");
 const pageViewSections = document.querySelectorAll("main > [data-page-view]");
 const personalityForm = document.querySelector("#personalityForm");
-const diagnosisSteps = document.querySelectorAll(".diagnosis-step");
+const diagnosisSteps = document.querySelectorAll(".diagnosis-step:not([data-advanced])");
 const diagnosisStepperItems = document.querySelectorAll(".diagnosis-stepper span");
 const diagnosisBackButton = document.querySelector("#diagnosisBackButton");
 const diagnosisNextButton = document.querySelector("#diagnosisNextButton");
@@ -33,6 +33,7 @@ const birthTimeInput = document.querySelector("#birthTime");
 const birthPlaceInput = document.querySelector("#birthPlace");
 const mbtiInput = document.querySelector("#mbti");
 const goalPeriodInput = document.querySelector("#goalPeriod");
+const currentContextInput = document.querySelector("#currentContext");
 const routineReadinessInput = document.querySelector("#routineReadiness");
 const routineTimeInput = document.querySelector("#routineTime");
 const materialModeInputs = document.querySelectorAll("input[name='materialMode']");
@@ -77,6 +78,14 @@ const understoodAssumptions = document.querySelector("#understoodAssumptions");
 const draftFeasibilityTitle = document.querySelector("#draftFeasibilityTitle");
 const draftFeasibilityCopy = document.querySelector("#draftFeasibilityCopy");
 const draftFeasibilityOptions = document.querySelector("#draftFeasibilityOptions");
+const roadmapSuccessCriterion = document.querySelector("#roadmapSuccessCriterion");
+const roadmapReality = document.querySelector("#roadmapReality");
+const roadmapNextInfo = document.querySelector("#roadmapNextInfo");
+const roadmapQuickChangeButtons = document.querySelectorAll("[data-roadmap-quick-change]");
+const roadmapRevisionSummary = document.querySelector("#roadmapRevisionSummary");
+const roadmapRevisionBefore = document.querySelector("#roadmapRevisionBefore");
+const roadmapRevisionAfter = document.querySelector("#roadmapRevisionAfter");
+const roadmapRevisionConditions = document.querySelector("#roadmapRevisionConditions");
 const draftAdjustButton = document.querySelector("#draftAdjustButton");
 const discardDraftChangesButton = document.querySelector("#discardDraftChangesButton");
 const dashboardGoalPreview = document.querySelector("#dashboardGoalPreview");
@@ -91,6 +100,7 @@ const appFeatureNext = document.querySelector("#appFeatureNext");
 const appFeatureTitle = document.querySelector("#appFeatureTitle");
 const appFeatureCounter = document.querySelector("#appFeatureCounter");
 const trialStartInlineLink = document.querySelector("#trialStartInlineLink");
+const scheduleStartButtons = document.querySelectorAll("[data-schedule-start]");
 const previewConversionKicker = document.querySelector("#previewConversionKicker");
 const previewConversionCopy = document.querySelector("#previewConversionCopy");
 const previewConversionAction = document.querySelector("#previewConversionAction");
@@ -195,6 +205,7 @@ const planCriteriaAvailability = document.querySelector("#planCriteriaAvailabili
 const planCriteriaIntensity = document.querySelector("#planCriteriaIntensity");
 const planRangeButtons = document.querySelectorAll("[data-plan-range]");
 const planScheduleList = document.querySelector("#planScheduleList");
+const planRoadmapList = document.querySelector("#planRoadmapList");
 const openPlanAdjustButton = document.querySelector("#openPlanAdjustButton");
 const taskEditOverlay = document.querySelector("#taskEditOverlay");
 const taskEditSheet = document.querySelector("#taskEditSheet");
@@ -228,6 +239,15 @@ const todayOrderHint = document.querySelector("#todayOrderHint");
 const recoveryCard = document.querySelector("#recoveryCard");
 const recoverySummary = document.querySelector("#recoverySummary");
 const recoveryButtons = document.querySelectorAll("[data-recovery-action]");
+const ollieGrowthMilestones = document.querySelectorAll("[data-growth-count], [data-growth-milestone], [data-growth-recovery]");
+const completionReflectionOverlay = document.querySelector("#completionReflectionOverlay");
+const completionReflectionSheet = document.querySelector("#completionReflectionSheet");
+const completionReflectionTask = document.querySelector("#completionReflectionTask");
+const completionReflectionDifficultyButtons = document.querySelectorAll("[data-completion-difficulty]");
+const completionReflectionNote = document.querySelector("#completionReflectionNote");
+const saveCompletionReflectionButton = document.querySelector("#saveCompletionReflection");
+const skipCompletionReflectionButton = document.querySelector("#skipCompletionReflection");
+const closeCompletionReflectionButton = document.querySelector("#closeCompletionReflection");
 const scheduleCalendar = document.querySelector("#scheduleCalendar");
 const calendarMonthTitle = document.querySelector("#calendarMonthTitle");
 const calendarSummary = document.querySelector("#calendarSummary");
@@ -275,6 +295,7 @@ const LEGACY_OLLIE_ENERGY_KEY = "omwOllieEnergy";
 const FREE_PLAN_GENERATED_KEY = "omwFreePlanGenerated";
 const PENDING_GOAL_DRAFT_KEY = "onmyway:pending-goal-draft";
 const PENDING_GOAL_PREVIEW_KEY = "onmyway:pending-goal-preview";
+const SCHEDULE_START_PREFERENCE_KEY = "onmyway:schedule-start-preference";
 const PENDING_AUTH_INTENT_KEY = "onmyway:pending-auth-intent";
 const FULL_PLAN_AUTH_INTENT_SOURCE = "anonymous-plan-preview";
 const FULL_PLAN_AUTH_INTENT_PURPOSE = "unlock-full-plan";
@@ -308,6 +329,35 @@ try {
   localStorage.removeItem("omwTrialLead");
   localStorage.removeItem("omwTrialReminderDismissed");
 } catch {}
+
+function showBrandFontFailure() {
+  if (document.querySelector(".brand-font-status")) return;
+  const status = document.createElement("p");
+  status.className = "brand-font-status";
+  status.setAttribute("role", "status");
+  status.textContent = "브랜드 글꼴을 불러오지 못했어요. 네트워크를 확인한 뒤 새로고침해 주세요.";
+  document.body.prepend(status);
+}
+
+async function verifyBrandFont() {
+  if (!document.body) return false;
+  document.body.dataset.brandFontState = "loading";
+  try {
+    if (!document.fonts?.load || !document.fonts?.check) throw new Error("Font Loading API unavailable");
+    await document.fonts.load('32px "여기어때 잘난체"', "올리가 함께 걸어요");
+    const loaded = document.fonts.check('32px "여기어때 잘난체"', "올리가 함께 걸어요");
+    document.body.dataset.brandFontState = loaded ? "loaded" : "failed";
+    if (!loaded) showBrandFontFailure();
+    return loaded;
+  } catch {
+    document.body.dataset.brandFontState = "failed";
+    showBrandFontFailure();
+    return false;
+  }
+}
+
+void verifyBrandFont();
+
 let pricingPolicy = null;
 let pricingPolicyError = "";
 let aiUsageState = null;
@@ -698,7 +748,37 @@ function initializeTrialAccess() {
   window.setInterval(() => updateTrialStatus(Number(access.expiresAt)), 60 * 1000);
 }
 
-function buildActivatedExecutionPlan(draftPlan, draftInput) {
+function normalizeScheduleStartPreference(value) {
+  return ["as-is", "change-days", "shorter"].includes(value) ? value : "as-is";
+}
+
+function readScheduleStartPreference() {
+  try {
+    return normalizeScheduleStartPreference(sessionStorage.getItem(SCHEDULE_START_PREFERENCE_KEY));
+  } catch {
+    return "as-is";
+  }
+}
+
+function setScheduleStartPreference(value) {
+  const preference = normalizeScheduleStartPreference(value);
+  try {
+    sessionStorage.setItem(SCHEDULE_START_PREFERENCE_KEY, preference);
+  } catch {
+    /* The selected value still remains reflected in the current document. */
+  }
+  scheduleStartButtons.forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.scheduleStart === preference));
+  });
+  return preference;
+}
+
+scheduleStartButtons.forEach((button) => {
+  button.addEventListener("click", () => setScheduleStartPreference(button.dataset.scheduleStart));
+});
+setScheduleStartPreference(readScheduleStartPreference());
+
+function buildActivatedExecutionPlan(draftPlan, draftInput, scheduleStartPreference = "as-is") {
   const plan = draftPlan && typeof draftPlan === "object" ? draftPlan : {};
   const firstActionItem = (plan.firstWeekSchedule || [])
     .flatMap((day) => Array.isArray(day?.items) ? day.items : [])
@@ -708,7 +788,7 @@ function buildActivatedExecutionPlan(draftPlan, draftInput) {
     planId: firstActionItem?.planId || draftInput?.draftId || plan.planId || `plan-${Date.now()}`,
     goal: draftInput?.goal || plan.goal || "나의 목표",
     period: Number(draftInput?.period) || Number(plan.periodDays) || 30,
-    currentState: draftInput?.material?.currentProgress || "",
+    currentState: draftInput?.currentContext || draftInput?.material?.currentProgress || "",
     routineReadiness: draftInput?.routineReadiness || DEFAULT_ROUTINE_READINESS,
     routineTime: draftInput?.routineTime || "아침",
     currentRoutine: "",
@@ -718,6 +798,7 @@ function buildActivatedExecutionPlan(draftPlan, draftInput) {
     material: draftInput?.material || {},
     availability: draftInput?.availability || {},
     planningPreferences: draftInput?.planningPreferences || [],
+    scheduleStartPreference: normalizeScheduleStartPreference(scheduleStartPreference),
     aiPreview: plan,
     planSource: "ai-reviewed-draft",
     createdAt: new Date().toISOString(),
@@ -754,14 +835,18 @@ async function activateReviewedGoalDraft() {
       if (!started) return false;
     }
 
-    const claimedDraft = previewRecord.draftPlanId ? await claimGuestGoalDraft(previewRecord) : null;
+    const scheduleStartPreference = readScheduleStartPreference();
+    const claimedDraft = previewRecord.draftPlanId ? await claimGuestGoalDraft(previewRecord, scheduleStartPreference) : null;
     const draftPlan = claimedDraft?.activatedPlan || previewRecord.draftPlan;
     if (!draftPlan) throw new Error("저장할 전체 계획 초안을 확인하지 못했어요.");
     localStorage.setItem("omwExecutionPlan", JSON.stringify(
-      claimedDraft?.activatedPlan || buildActivatedExecutionPlan(draftPlan, draftInput),
+      claimedDraft?.activatedPlan || buildActivatedExecutionPlan(draftPlan, draftInput, scheduleStartPreference),
     ));
+    trackCompanionEvent("roadmap_locked", { revision: Number(previewRecord.activeRevision || 0) });
+    trackCompanionEvent("schedule_created", { source: "locked_roadmap" });
     sessionStorage.removeItem(PENDING_GOAL_DRAFT_KEY);
     sessionStorage.removeItem(PENDING_GOAL_PREVIEW_KEY);
+    sessionStorage.removeItem(SCHEDULE_START_PREFERENCE_KEY);
     clearPendingFullPlanAuthIntent();
     if (readTrialAccess()?.plan !== "pro") localStorage.setItem(FREE_PLAN_GENERATED_KEY, "true");
     if (authUiState.user) authUiState.user.goalPlanGeneratedAt = authUiState.user.goalPlanGeneratedAt || Date.now();
@@ -2293,6 +2378,7 @@ function savePendingGoalDraft() {
       draftId: existing?.draftId || globalThis.crypto?.randomUUID?.() || `goal-${Date.now()}`,
       goal: designGoal?.value || "",
       period: goalPeriodInput?.value || "",
+      currentContext: currentContextInput?.value.trim() || "",
       routineReadiness: routineReadinessInput?.value || "",
       routineTime: routineTimeInput?.value || "",
       birthDate: birthDateInput?.value || "",
@@ -2332,6 +2418,7 @@ function savePendingGoalPreview(preview, {
   activeInput = null,
   activeInputHash = "",
   activeRevision = 0,
+  revisionSummary = null,
 } = {}) {
   try {
     sessionStorage.setItem(PENDING_GOAL_PREVIEW_KEY, JSON.stringify({
@@ -2343,6 +2430,7 @@ function savePendingGoalPreview(preview, {
       activeInput: activeInput && typeof activeInput === "object" ? activeInput : null,
       activeInputHash: String(activeInputHash || ""),
       activeRevision: Number(activeRevision || 0),
+      revisionSummary: revisionSummary && typeof revisionSummary === "object" ? revisionSummary : null,
       pendingDraftInput: null,
       pendingDraftSignature: "",
       pendingRevision: null,
@@ -2426,6 +2514,7 @@ function restorePendingGoalPreview() {
       return false;
     }
     renderAiPreview(record.preview);
+    renderRoadmapRevisionSummary(record.revisionSummary);
     const changed = Boolean(record.pendingDraftInput);
     if (aiPreviewStatus) aiPreviewStatus.textContent = changed
       ? "변경한 조건으로 계획을 다시 만들어야 해요."
@@ -2448,6 +2537,7 @@ function applyGoalDraftToForm(draft) {
   try {
     if (designGoal) designGoal.value = String(draft.goal || "");
     if (goalPeriodInput && draft.period) goalPeriodInput.value = String(draft.period);
+    if (currentContextInput) currentContextInput.value = String(draft.currentContext || "");
     if (routineReadinessInput && draft.routineReadiness) routineReadinessInput.value = String(draft.routineReadiness);
     if (routineTimeInput && draft.routineTime) routineTimeInput.value = String(draft.routineTime);
     if (birthDateInput) birthDateInput.value = String(draft.birthDate || "");
@@ -2511,10 +2601,11 @@ function updateGoalStepState() {
   if (!designGoal) return;
   const hasGoal = Boolean(designGoal.value.trim());
   if (diagnosisNextButton && diagnosisStepIndex === 0) diagnosisNextButton.disabled = !hasGoal;
+  if (aiPreviewButton && diagnosisSteps.length === 1) aiPreviewButton.disabled = !hasGoal;
   if (goalValidationMessage) {
     goalValidationMessage.textContent = !hasGoal
       ? "달성하고 싶은 결과를 입력해 주세요."
-      : "목표를 확인했어요. 다음: 자료와 일정 알려주기를 눌러 계속해 주세요.";
+      : "목표를 확인했어요. 기간을 고른 뒤 AI로 큰 계획 보기를 눌러주세요.";
   }
 }
 
@@ -2556,7 +2647,7 @@ function pendingGuestRevision(record, signature) {
 
 function getInvalidDiagnosisField() {
   const fieldsByStep = [
-    [designGoal],
+    [designGoal, goalPeriodInput],
     [goalPeriodInput, routineTimeInput, sessionMinutesInput],
     [birthDateInput, birthTimeInput, birthPlaceInput, mbtiInput],
   ];
@@ -2608,7 +2699,11 @@ function renderDiagnosisStep() {
   const progress = Math.round(((diagnosisStepIndex + 1) / diagnosisSteps.length) * 100);
   const activeStep = diagnosisSteps[diagnosisStepIndex];
   if (diagnosisStepTitle) diagnosisStepTitle.textContent = activeStep?.dataset.stepTitle || "목표를 설정해 주세요";
-  if (diagnosisStepCount) diagnosisStepCount.textContent = `${diagnosisStepIndex + 1} / ${diagnosisSteps.length}`;
+  if (diagnosisStepCount) {
+    diagnosisStepCount.textContent = diagnosisSteps.length === 1
+      ? "목표 · 기간"
+      : `${diagnosisStepIndex + 1} / ${diagnosisSteps.length}`;
+  }
   if (diagnosisProgressBar) diagnosisProgressBar.style.width = `${progress}%`;
   if (wizardStepLabel) wizardStepLabel.textContent = wizardStepLabels[diagnosisStepIndex] || "설정 중";
   if (wizardProgressValue) wizardProgressValue.textContent = `${progress}%`;
@@ -2698,6 +2793,20 @@ goalSuggestionButtons.forEach((button) => {
     updateGoalStepState();
     updateWizardSummary();
     designGoal.focus({ preventScroll: true });
+  });
+});
+
+roadmapQuickChangeButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    if (!currentContextInput) return;
+    const addition = String(button.dataset.roadmapQuickChange || "").trim();
+    const entries = currentContextInput.value.split(/\n+/).map((item) => item.trim()).filter(Boolean);
+    if (addition && !entries.includes(addition)) entries.push(addition);
+    currentContextInput.value = entries.join("\n").slice(0, Number(currentContextInput.maxLength) || 500);
+    button.setAttribute("aria-pressed", entries.includes(addition) ? "true" : "false");
+    currentContextInput.dispatchEvent(new Event("input", { bubbles: true }));
+    currentContextInput.dispatchEvent(new Event("change", { bubbles: true }));
+    currentContextInput.focus({ preventScroll: true });
   });
 });
 
@@ -3191,7 +3300,7 @@ async function requestGuestAiRevision(payload, previewRecord, idempotencyKey) {
   }
 }
 
-async function claimGuestGoalDraft(previewRecord) {
+async function claimGuestGoalDraft(previewRecord, scheduleStartPreference = "as-is") {
   const response = await fetch("/api/ai/goal-draft/claim", {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -3200,6 +3309,7 @@ async function claimGuestGoalDraft(previewRecord) {
       draftPlanId: previewRecord.draftPlanId,
       expectedRevision: previewRecord.activeRevision,
       expectedInputHash: previewRecord.activeInputHash,
+      scheduleStartPreference: normalizeScheduleStartPreference(scheduleStartPreference),
     }),
   });
   const result = await response.json().catch(() => ({}));
@@ -3294,6 +3404,13 @@ function renderDraftUnderstanding(preview) {
   if (understoodExclusions) understoodExclusions.textContent = draft.availability.excludedDates.join(", ") || "없음";
   if (understoodIntensity) understoodIntensity.textContent = `${draft.availability.intensity} · 주 ${draft.availability.weeklyFrequency || days.length}회`;
   if (understoodAssumptions) understoodAssumptions.textContent = (preview.assumptions || []).join(" · ") || "입력하지 않은 정보는 임의로 단정하지 않아요.";
+  if (roadmapNextInfo) {
+    const nextInfo = [];
+    if (!currentContextInput?.value.trim()) nextInfo.push("지금 어디까지 왔는지");
+    if (!draft.material.hasMaterial) nextInfo.push("꼭 쓰고 싶은 자료가 있는지");
+    nextInfo.push("쉬어야 하는 요일이나 기간");
+    roadmapNextInfo.textContent = nextInfo.join(" · ");
+  }
 
   if (!draftFeasibilityTitle || !draftFeasibilityCopy || !draftFeasibilityOptions) return;
   const requested = draft.availability.weeklyFrequency || days.length;
@@ -3314,6 +3431,14 @@ function renderDraftUnderstanding(preview) {
 }
 
 function renderAiPreview(preview) {
+  const roadmapPhases = Array.isArray(preview.fullSchedule) ? preview.fullSchedule : [];
+  const finalPhase = roadmapPhases.at(-1);
+  if (roadmapSuccessCriterion) {
+    roadmapSuccessCriterion.textContent = finalPhase?.successMetric || preview.weekTitle || "첫 결과를 직접 확인할 수 있는 상태";
+  }
+  if (roadmapReality) {
+    roadmapReality.textContent = String(preview.feasibilitySummary || preview.coachMessage || "현재 조건에서 시작할 수 있는 길로 정리했어요.").slice(0, 240);
+  }
   if (planningStyle) {
     const compactStyle = String(preview.planningStyle || "맞춤 실행형")
       .split(/[:：·\n]/, 1)[0]
@@ -3373,7 +3498,7 @@ function renderAiPreview(preview) {
       heading.append(dayLabel, state);
       const list = document.createElement("div");
       list.className = "draft-day-items";
-      const dayItems = Array.isArray(day.items) ? day.items : [];
+      const dayItems = Array.isArray(day.items) ? day.items.filter((item) => item?.type !== "SYSTEM_RULE") : [];
       if (!dayItems.length) {
         const empty = document.createElement("p");
         empty.textContent = "계획된 휴식일";
@@ -3385,7 +3510,11 @@ function renderAiPreview(preview) {
           const copy = document.createElement("span");
           const title = document.createElement("strong");
           const meta = document.createElement("small");
-          type.textContent = item.type || "ACTION";
+          type.textContent = {
+            ACTION: "오늘 행동",
+            REVIEW: "점검",
+            TIP: "올리의 팁",
+          }[item.type] || "안내";
           title.textContent = item.title || "실행 항목";
           meta.textContent = [item.sourceReference, item.quantityOrRange, item.durationMinutes ? `${item.durationMinutes}분` : "", item.completionRule]
             .filter(Boolean).join(" · ");
@@ -3400,13 +3529,13 @@ function renderAiPreview(preview) {
     aiVisibleWeekPlan.replaceChildren(...items);
   }
   if (aiGoalRoadmap) {
-    const items = (preview.fullSchedule || []).map((item, index) => {
+    const items = roadmapPhases.map((item, index) => {
       const row = document.createElement("div");
       const badge = document.createElement("b");
       const copy = document.createElement("span");
       const title = document.createElement("strong");
       const detail = document.createElement("small");
-      badge.textContent = item.days || `${index + 1}단계`;
+      badge.textContent = index === 0 ? "지금 여기" : item.days || `${index + 1}단계`;
       title.textContent = `${item.phase || `${index + 1}단계`} · ${item.focus || "실행 흐름 만들기"}`;
       detail.textContent = item.successMetric || "완료 여부를 확인해요.";
       copy.append(title, detail);
@@ -3422,6 +3551,23 @@ function renderAiPreview(preview) {
     if (dashboardPaceText) dashboardPaceText.textContent = preview.dashboard.pace;
   }
   renderDraftUnderstanding(preview);
+}
+
+function roadmapLeadStep(preview) {
+  const phase = Array.isArray(preview?.fullSchedule) ? preview.fullSchedule[0] : null;
+  return [phase?.phase, phase?.focus, phase?.successMetric].filter(Boolean).join(" · ")
+    || preview?.firstAction
+    || "첫 행동부터 시작하는 길";
+}
+
+function renderRoadmapRevisionSummary(summary) {
+  if (!roadmapRevisionSummary) return;
+  const safeSummary = summary && typeof summary === "object" ? summary : null;
+  roadmapRevisionSummary.hidden = !safeSummary;
+  if (!safeSummary) return;
+  if (roadmapRevisionBefore) roadmapRevisionBefore.textContent = String(safeSummary.before || "기존 큰 길");
+  if (roadmapRevisionAfter) roadmapRevisionAfter.textContent = String(safeSummary.after || "조정된 큰 길");
+  if (roadmapRevisionConditions) roadmapRevisionConditions.textContent = String(safeSummary.conditions || "사용자가 말한 조건");
 }
 
 function setAiPreviewButtonLabel(label, { showCost = true } = {}) {
@@ -3440,8 +3586,8 @@ function syncGoalBuilderCta() {
     const previewRecord = readPendingGoalPreview();
     setAiPreviewButtonLabel(
       previewRecord?.draftPlanId && previewRecord.pendingDraftInput
-        ? "수정한 조건으로 계획 다시 만들기"
-        : "AI 계획 미리보기 만들기",
+        ? "말한 내용으로 큰 길 다시 그리기"
+        : "AI로 큰 계획 보기",
       { showCost: false },
     );
     return;
@@ -3456,24 +3602,22 @@ function setResultPreviewMode(mode) {
   const isGuest = mode === "guest";
   if (resultDetailsDisclosure) resultDetailsDisclosure.hidden = isGuest;
   if (isGuest) {
-    if (previewConversionKicker) previewConversionKicker.textContent = "전체 계획이 궁금하다면";
+    if (previewConversionKicker) previewConversionKicker.textContent = "큰 길을 확인했다면";
     if (previewConversionCopy) {
       previewConversionCopy.textContent = authUiState.user
-        ? "24시간 무료 체험으로 전체 일정과 실행 순서를 이어서 만들어요."
-        : "로그인·회원가입 후 24시간 무료 체험으로 전체 계획을 이어서 만들어요.";
+        ? "이 큰 길을 고정하고 첫 7일의 실행 일정을 만들어요."
+        : "로그인·회원가입 후 이 큰 길을 그대로 고정하고 첫 7일 일정을 만들어요.";
     }
     if (previewConversionAction) {
-      previewConversionAction.textContent = authUiState.user
-        ? "무료 체험으로 전체 계획 만들기"
-        : "로그인·회원가입하고 전체 계획 보기";
+      previewConversionAction.textContent = "이 계획 고정하고 일정 만들기";
     }
     trialStartInlineLink?.setAttribute("aria-label", previewConversionAction?.textContent || "전체 계획 이어서 만들기");
     return;
   }
   if (previewConversionKicker) previewConversionKicker.textContent = "검토 후 결정";
   if (previewConversionCopy) previewConversionCopy.textContent = "저장하기 전에는 현재 계획이나 회원 데이터가 바뀌지 않아요.";
-  if (previewConversionAction) previewConversionAction.textContent = "이 계획 저장하고 시작하기";
-  trialStartInlineLink?.setAttribute("aria-label", "검토한 계획을 저장하고 시작하기");
+  if (previewConversionAction) previewConversionAction.textContent = "이 계획 고정하고 일정 만들기";
+  trialStartInlineLink?.setAttribute("aria-label", "검토한 계획을 고정하고 일정 만들기");
 }
 
 async function runPersonalityAnalysis({ showLoading = false } = {}) {
@@ -3516,11 +3660,10 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
 
   const goal = designGoal.value.trim() || goalInput?.value.trim() || "목표 미입력";
   const period = goalPeriodInput.value;
-  const template = selectedGoalTemplate();
-  const currentState = template?.state || "";
+  const currentState = currentContextInput?.value.trim() || "";
   const routineReadiness = routineReadinessInput?.value || DEFAULT_ROUTINE_READINESS;
   const routineTime = routineTimeInput?.value || "아침";
-  const currentRoutine = template?.routine || "";
+  const currentRoutine = "";
   const conditions = collectGoalDraftInput();
   const birthDate = birthDateInput?.value || "";
   const birthTime = birthTimeInput?.value || "";
@@ -3557,11 +3700,12 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
   if (showLoading) {
     aiPreviewStatus.textContent = guestRevisionRequest
       ? "수정한 조건에 맞춰 계획을 다시 만들고 있어요."
-      : guestPreviewRequest ? "AI가 첫 계획 미리보기를 만드는 중" : "AI가 목표 설계 중";
+      : guestPreviewRequest ? "올리가 목표까지 갈 큰 길을 그리는 중" : "AI가 목표 설계 중";
     aiPreviewButton.disabled = true;
     setAiPreviewButtonLabel(guestRevisionRequest
       ? "수정한 조건을 반영하는 중..."
-      : guestPreviewRequest ? "올리가 AI 미리보기를 만드는 중..." : "올리가 오늘 계획을 만드는 중...", { showCost: false });
+      : guestPreviewRequest ? "올리가 큰 길을 그리는 중..." : "올리가 오늘 계획을 만드는 중...", { showCost: false });
+    trackCompanionEvent(guestRevisionRequest ? "roadmap_revision_started" : "roadmap_generation_started");
     await playAnalysisLoading();
   }
 
@@ -3597,6 +3741,7 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
       preview = buildLocalAiPreview(payload);
     }
   } catch (error) {
+    if (showLoading) trackCompanionEvent(guestRevisionRequest ? "roadmap_revision_failed" : "roadmap_generation_failed", { code: String(error.code || "UNKNOWN").slice(0, 80) });
     if (error.code === "GOAL_PLAN_LIMIT_REACHED") {
       if (aiPreviewStatus) aiPreviewStatus.textContent = "무료 목표 계획 1개를 이미 만들었어요";
       if (aiPreviewButton) {
@@ -3626,6 +3771,15 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
     usedFallback = true;
   }
   renderAiPreview(preview);
+  const revisionSummary = guestRevisionRequest
+    ? {
+        before: roadmapLeadStep(existingGuestPreview?.preview),
+        after: roadmapLeadStep(preview),
+        conditions: draftRecord?.currentContext || "입력한 목표와 기간",
+      }
+    : null;
+  renderRoadmapRevisionSummary(revisionSummary);
+  if (showLoading) trackCompanionEvent(guestRevisionRequest ? "roadmap_revision_completed" : "roadmap_generation_completed", { revision: generatedActiveRevision || 0 });
   if (showLoading) planPreviewPanel?.classList.add("is-ready");
 
   if (aiPreviewStatus) {
@@ -3638,6 +3792,7 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
   if (aiPreviewButton) {
     aiPreviewButton.disabled = false;
     syncGoalBuilderCta();
+    updateGoalStepState();
   }
 
   if (showLoading && guestPreviewRequest) {
@@ -3648,6 +3803,7 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
       activeInput: generatedActiveInput,
       activeInputHash: generatedActiveInputHash,
       activeRevision: generatedActiveRevision,
+      revisionSummary,
     });
     if (discardDraftChangesButton) discardDraftChangesButton.hidden = true;
     if (trialStartInlineLink) {
@@ -3687,14 +3843,35 @@ function openFirstStepResult() {
   window.setTimeout(() => planPreviewPanel?.focus({ preventScroll: true }), 80);
 }
 
+let goalAnalysisSubmitPending = false;
+async function submitGoalAnalysis() {
+  if (goalAnalysisSubmitPending || !personalityForm?.reportValidity()) return;
+  goalAnalysisSubmitPending = true;
+  try {
+    await runPersonalityAnalysis({ showLoading: true });
+  } finally {
+    goalAnalysisSubmitPending = false;
+  }
+}
+
+aiPreviewButton?.addEventListener("click", (event) => {
+  event.preventDefault();
+  void submitGoalAnalysis();
+});
+
+aiPreviewButton?.addEventListener("pointerup", (event) => {
+  if (event.button !== 0 || event.isPrimary === false) return;
+  void submitGoalAnalysis();
+});
+
 personalityForm?.addEventListener("submit", (event) => {
   event.preventDefault();
   if (diagnosisSteps.length && diagnosisStepIndex < diagnosisSteps.length - 1) {
     canLeaveDiagnosisStep();
     return;
   }
-  if (event.submitter !== aiPreviewButton) return;
-  runPersonalityAnalysis({ showLoading: true });
+  if (event.submitter && event.submitter !== aiPreviewButton) return;
+  void submitGoalAnalysis();
 });
 
 materialModeInputs.forEach((input) => {
@@ -3710,7 +3887,7 @@ materialModeInputs.forEach((input) => {
 
 [
   birthDateInput, birthTimeInput, birthPlaceInput, mbtiInput, goalPeriodInput,
-  routineReadinessInput, routineTimeInput, designGoal, materialNameInput,
+  routineReadinessInput, routineTimeInput, designGoal, currentContextInput, materialNameInput,
   materialRangeInput, materialProgressInput, materialCompletionInput, materialUnitInput,
   sessionMinutesInput, weeklyFrequencyInput, targetDateInput, planIntensityInput,
   bufferDaysInput, excludedDatesInput, notificationTimeInput,
@@ -3745,6 +3922,7 @@ discardDraftChangesButton?.addEventListener("click", () => {
   } catch {}
   applyGoalDraftToForm(record.activeDraftInput);
   renderAiPreview(record.preview);
+  renderRoadmapRevisionSummary(record.revisionSummary);
   discardDraftChangesButton.hidden = true;
   if (aiPreviewStatus) aiPreviewStatus.textContent = "현재 계획과 조건이 일치해요.";
   if (trialStartInlineLink) {
@@ -3987,6 +4165,38 @@ function isPlainObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+const LEGACY_OLLIE_GROWTH_FIELD = ["ol", "lyGrowthState"].join("");
+
+function normalizeOllieGrowthState(state) {
+  const source = isPlainObject(state?.ollieGrowthState)
+    ? state.ollieGrowthState
+    : isPlainObject(state?.[LEGACY_OLLIE_GROWTH_FIELD])
+      ? state[LEGACY_OLLIE_GROWTH_FIELD]
+      : {};
+  return {
+    completedActionCount: Math.max(0, Number(source.completedActionCount) || 0),
+    firstLeafAt: typeof source.firstLeafAt === "string" ? source.firstLeafAt : "",
+    newSproutAt: typeof source.newSproutAt === "string" ? source.newSproutAt : "",
+    firstFruitAt: typeof source.firstFruitAt === "string" ? source.firstFruitAt : "",
+    recoveredAt: typeof source.recoveredAt === "string" ? source.recoveredAt : "",
+  };
+}
+
+function syncOllieGrowthState(state, { milestoneAt = "", recoveredAt = "" } = {}) {
+  const current = normalizeOllieGrowthState(state);
+  const completedActionCount = Array.isArray(state?.completedLog) ? state.completedLog.length : current.completedActionCount;
+  const latestCompletion = state?.completedLog?.at?.(-1)?.completedAt || new Date().toISOString();
+  state.ollieGrowthState = {
+    ...current,
+    completedActionCount,
+    firstLeafAt: current.firstLeafAt || (completedActionCount >= 1 ? latestCompletion : ""),
+    newSproutAt: current.newSproutAt || (completedActionCount >= 3 ? latestCompletion : ""),
+    firstFruitAt: current.firstFruitAt || milestoneAt,
+    recoveredAt: current.recoveredAt || recoveredAt,
+  };
+  return state.ollieGrowthState;
+}
+
 function normalizeArrayRecord(value, normalizeItems) {
   if (!isPlainObject(value)) return {};
   return Object.fromEntries(
@@ -4093,6 +4303,7 @@ function migrateExecutionState(rawState) {
     recoveryActions: Array.isArray(state.recoveryActions) ? state.recoveryActions.filter(isPlainObject).slice(-30) : [],
     completedLog: dedupeStoredRecords(state.completedLog, 80, getStoredCompletionKey, "taskKey"),
     dailyMemories: dedupeStoredRecords(state.dailyMemories, 365, (item, index) => item.id || item.diaryDate || item.createdAt || `memory-${index}`, "id"),
+    ollieGrowthState: normalizeOllieGrowthState(state),
     lastCompletion: isPlainObject(state.lastCompletion) ? state.lastCompletion : null,
     planStartDate: typeof state.planStartDate === "string" ? state.planStartDate : "",
     lastSeenDate,
@@ -4109,6 +4320,7 @@ function migrateExecutionState(rawState) {
     migrated.lastSeenDate = todayKey;
   }
 
+  syncOllieGrowthState(migrated);
   return migrated;
 }
 
@@ -4220,6 +4432,29 @@ function getRoutineTimes(plan, revisionRequest = "") {
   return timeSet[plan.routineTime] || timeSet["아침"];
 }
 
+function buildChangedDayTemplates(generatedWeek) {
+  const actionTemplates = generatedWeek
+    .filter((day) => Array.isArray(day?.items) && day.items.some((item) => classifyPlanItem(item) === "ACTION"))
+    .slice(0, 3)
+    .map((day) => ({
+      ...day,
+      isRestDay: false,
+      items: day.items
+        .filter((item) => classifyPlanItem(item) === "ACTION")
+        .map((item) => ({ ...item })),
+    }));
+  if (!actionTemplates.length) return [];
+
+  const supplementalItems = generatedWeek
+    .flatMap((day) => Array.isArray(day?.items) ? day.items : [])
+    .filter((item) => classifyPlanItem(item) !== "ACTION")
+    .map((item) => ({ ...item }));
+  supplementalItems.forEach((item, index) => {
+    actionTemplates[index % actionTemplates.length].items.push(item);
+  });
+  return actionTemplates;
+}
+
 function buildSchedule(plan, planText, revisionRequest = "", weeklySchedule = []) {
   const period = Math.max(7, Math.min(Number(plan.period) || 30, 100));
   const baseTasks = parsePlanText(planText, plan.firstAction, plan.goal);
@@ -4232,6 +4467,11 @@ function buildSchedule(plan, planText, revisionRequest = "", weeklySchedule = []
     : [];
   const structuredWeek = revisionWeek.length ? revisionWeek : generatedWeek;
   const usesGeneratedWeek = !revisionWeek.length && generatedWeek.length;
+  const scheduleStartPreference = normalizeScheduleStartPreference(plan.scheduleStartPreference);
+  const changedDayTemplates = usesGeneratedWeek && scheduleStartPreference === "change-days"
+    ? buildChangedDayTemplates(generatedWeek)
+    : [];
+  const changedDayNames = ["화", "목", "토"];
   const structuredByDay = new Map(structuredWeek.map((item) => [String(item.day || ""), item]));
   const dayNames = ["일", "월", "화", "수", "목", "금", "토"];
   const planStart = getPlanStartDate(plan, {});
@@ -4241,7 +4481,12 @@ function buildSchedule(plan, planText, revisionRequest = "", weeklySchedule = []
     if (structuredByDay.size) {
       const actualDate = new Date(planStart.getFullYear(), planStart.getMonth(), planStart.getDate() + index);
       const dayName = dayNames[actualDate.getDay()];
-      const template = usesGeneratedWeek ? structuredWeek[index % structuredWeek.length] : structuredByDay.get(dayName);
+      const changedDayIndex = changedDayNames.indexOf(dayName);
+      const template = usesGeneratedWeek
+        ? changedDayTemplates.length
+          ? (changedDayIndex >= 0 ? changedDayTemplates[changedDayIndex % changedDayTemplates.length] : null)
+          : structuredWeek[index % structuredWeek.length]
+        : structuredByDay.get(dayName);
       const isRestDay = !template || template.isRestDay;
       const sourceItems = usesGeneratedWeek
         ? (Array.isArray(template?.items) ? template.items : [])
@@ -4254,7 +4499,10 @@ function buildSchedule(plan, planText, revisionRequest = "", weeklySchedule = []
             planId: String(task.planId || plan.planId || ""),
             type: "ACTION",
             time: String(task.scheduledAt || task.time || "오늘"),
-            durationMinutes: Math.max(5, Math.min(360, Number(task.durationMinutes) || 15)),
+            durationMinutes: Math.max(5, Math.min(
+              scheduleStartPreference === "shorter" ? 15 : 360,
+              Number(task.durationMinutes) || 15,
+            )),
             text: String(task.title || task.task || "목표 행동 실행하기"),
             sourceReference: String(task.sourceReference || ""),
             quantityOrRange: String(task.quantityOrRange || ""),
@@ -4263,7 +4511,9 @@ function buildSchedule(plan, planText, revisionRequest = "", weeklySchedule = []
           }));
       return {
         day,
-        title: isRestDay ? `Day ${day} · 계획된 휴식` : `Day ${day} · ${template?.dayLabel || `${dayName}요일 맞춤 계획`}`,
+        title: isRestDay
+          ? `Day ${day} · 계획된 휴식`
+          : `Day ${day} · ${changedDayTemplates.length ? `${dayName}요일 조정 일정` : template?.dayLabel || `${dayName}요일 맞춤 계획`}`,
         isRestDay,
         tasks,
         reviews: typedItems.filter((item) => item.type === "REVIEW"),
@@ -5056,6 +5306,72 @@ function setSheetOpen(sheet, overlay, open) {
   }
 }
 
+let activeCompletionReflectionId = "";
+
+function syncCompletionReflectionButton() {
+  if (!saveCompletionReflectionButton) return;
+  const hasDifficulty = [...completionReflectionDifficultyButtons].some((button) => button.getAttribute("aria-pressed") === "true");
+  saveCompletionReflectionButton.disabled = !hasDifficulty && !completionReflectionNote?.value.trim();
+}
+
+function openCompletionReflection(state, dayPlan, taskIndex, focusOrigin = null) {
+  const task = dayPlan?.tasks?.[taskIndex];
+  if (!task || !completionReflectionSheet) return;
+  const taskKey = getTaskKey(dayPlan.day, taskIndex, task);
+  const memory = (state.dailyMemories || []).find((entry) => entry.actionReference === taskKey);
+  if (!memory) return;
+  activeCompletionReflectionId = memory.id;
+  if (completionReflectionTask) completionReflectionTask.textContent = `${task.text} 완료 기록은 이미 저장됐어요. 느낌은 선택해서 덧붙일 수 있어요.`;
+  completionReflectionDifficultyButtons.forEach((button) => button.setAttribute("aria-pressed", "false"));
+  if (completionReflectionNote) completionReflectionNote.value = "";
+  syncCompletionReflectionButton();
+  if (focusOrigin instanceof HTMLElement) previousFocusElement = focusOrigin;
+  setSheetOpen(completionReflectionSheet, completionReflectionOverlay, true);
+}
+
+function closeCompletionReflection() {
+  activeCompletionReflectionId = "";
+  setSheetOpen(completionReflectionSheet, completionReflectionOverlay, false);
+}
+
+completionReflectionDifficultyButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    completionReflectionDifficultyButtons.forEach((item) => {
+      item.setAttribute("aria-pressed", String(item === button));
+    });
+    syncCompletionReflectionButton();
+  });
+});
+
+completionReflectionNote?.addEventListener("input", syncCompletionReflectionButton);
+closeCompletionReflectionButton?.addEventListener("click", closeCompletionReflection);
+skipCompletionReflectionButton?.addEventListener("click", closeCompletionReflection);
+completionReflectionOverlay?.addEventListener("click", closeCompletionReflection);
+saveCompletionReflectionButton?.addEventListener("click", () => {
+  const state = getExecutionState();
+  const memoryIndex = (state.dailyMemories || []).findIndex((entry) => entry.id === activeCompletionReflectionId);
+  if (memoryIndex < 0) {
+    closeCompletionReflection();
+    return;
+  }
+  const difficulty = [...completionReflectionDifficultyButtons]
+    .find((button) => button.getAttribute("aria-pressed") === "true")
+    ?.dataset.completionDifficulty || "";
+  const mood = { easy: "proud", steady: "calm", hard: "tired" }[difficulty] || state.dailyMemories[memoryIndex].mood || "";
+  state.dailyMemories[memoryIndex] = {
+    ...state.dailyMemories[memoryIndex],
+    difficulty,
+    mood,
+    note: completionReflectionNote?.value.trim() || state.dailyMemories[memoryIndex].note || "",
+    updatedAt: new Date().toISOString(),
+  };
+  saveExecutionState(state);
+  trackCompanionEvent("reflection_saved", { difficulty: difficulty || "note_only" });
+  showToast("방금 느낌을 완료 기록에 덧붙였어요.");
+  closeCompletionReflection();
+  renderExecutionPage(getPlanBundle());
+});
+
 function openCompanionChat(event) {
   if (event?.currentTarget instanceof HTMLElement) previousFocusElement = event.currentTarget;
   setSheetOpen(companionChatSheet, chatOverlay, true);
@@ -5292,6 +5608,7 @@ function startFocusTimer() {
     }
   }
   trackCompanionEvent("focus_timer_started", { taskKey: focusSession.taskKey, seconds: focusSession.remainingSeconds });
+  trackCompanionEvent("first_action_started", { taskKey: focusSession.taskKey });
 }
 
 function pauseFocusTimer() {
@@ -5391,11 +5708,12 @@ function setTaskCheckedState(state, dayPlan, taskIndex, isChecked) {
   state.checkedTaskKeysByDay = checkedTaskKeysByDay;
 }
 
-function recordTaskCompletion(state, dayPlan, taskIndex) {
+function recordTaskCompletion(state, dayPlan, taskIndex, { actualMinutes = 0 } = {}) {
   const task = dayPlan.tasks[taskIndex];
   if (!task) return false;
   const taskKey = getTaskKey(dayPlan.day, taskIndex, task);
   const exists = (state.completedLog || []).some((item) => item.taskKey === taskKey);
+  const completedAt = new Date().toISOString();
   if (!exists) {
     state.completedLog = [
       ...(state.completedLog || []),
@@ -5405,10 +5723,34 @@ function recordTaskCompletion(state, dayPlan, taskIndex) {
         taskIndex,
         time: task.time,
         text: task.text,
-        completedAt: new Date().toISOString(),
+        completedAt,
       },
     ].slice(-80);
+    const autoDiaryId = `action:${taskKey}`;
+    if (!(state.dailyMemories || []).some((entry) => entry.id === autoDiaryId)) {
+      state.dailyMemories = [
+        ...(state.dailyMemories || []),
+        {
+          id: autoDiaryId,
+          diaryDate: getTodayKey(),
+          day: dayPlan.day,
+          title: task.text,
+          note: "",
+          mood: "",
+          obstacle: "none",
+          nextStep: "",
+          completion: 100,
+          actionReference: taskKey,
+          actualMinutes: Math.max(1, Number(actualMinutes) || getSuggestedFocusMinutes(task)),
+          autoSummary: `${task.text} 완료`,
+          createdAt: completedAt,
+          updatedAt: completedAt,
+          autoCreated: true,
+        },
+      ].slice(-365);
+    }
   }
+  syncOllieGrowthState(state);
   state.lastCompletion = { taskKey, day: dayPlan.day, taskIndex, text: task.text };
   return !exists;
 }
@@ -5420,6 +5762,7 @@ function claimDailyCompletionBonus(state, dayPlan) {
   if (!dayPlan.tasks.every((_, index) => Boolean(checked[index]))) return 0;
   if (state.dailyCompletionRewardedByDay?.[dayKey]) return 0;
   state.dailyCompletionRewardedByDay = { ...(state.dailyCompletionRewardedByDay || {}), [dayKey]: true };
+  syncOllieGrowthState(state, { milestoneAt: new Date().toISOString() });
   return 8;
 }
 
@@ -5431,10 +5774,16 @@ function completeFocusTask() {
   const wasUnchecked = !checked[activeFocusTaskIndex];
 
   setTaskCheckedState(bundle.state, dayPlan, activeFocusTaskIndex, true);
-  const newlyRecorded = wasUnchecked && recordTaskCompletion(bundle.state, dayPlan, activeFocusTaskIndex);
+  const elapsedMinutes = Math.max(1, Math.round((focusSession.durationSeconds - focusSession.remainingSeconds) / 60));
+  const newlyRecorded = wasUnchecked && recordTaskCompletion(bundle.state, dayPlan, activeFocusTaskIndex, { actualMinutes: elapsedMinutes });
   const completionBonus = wasUnchecked ? claimDailyCompletionBonus(bundle.state, dayPlan) : 0;
   savePlanBundleState(bundle.state);
   if (newlyRecorded || completionBonus) addCompanionXp((newlyRecorded ? 10 : 0) + completionBonus, "happy");
+  if (newlyRecorded) {
+    trackCompanionEvent("first_action_completed", { day: dayPlan.day, actualMinutes: elapsedMinutes });
+    trackCompanionEvent("diary_created", { source: "action_completion" });
+    trackCompanionEvent("ollie_growth_changed", { source: "action_completion" });
+  }
   clearFocusTimerInterval();
   try {
     localStorage.removeItem(focusSessionKey);
@@ -5448,6 +5797,7 @@ function completeFocusTask() {
   showToast(newlyRecorded ? `일정 하나를 완료했어요 · 올리가 ${10 + completionBonus} XP를 받았어요` : completionBonus ? "오늘 계획을 모두 완료했어요 · 올리가 8 XP를 받았어요" : wasUnchecked ? "완료 상태를 다시 표시했어요 · XP는 중복 지급되지 않아요" : "이미 완료된 일정이에요");
   trackCompanionEvent("focus_completed", { day: dayPlan.day, taskIndex: activeFocusTaskIndex, rewarded: Boolean(newlyRecorded || completionBonus), completionBonus });
   renderExecutionPage(bundle);
+  if (newlyRecorded) openCompletionReflection(bundle.state, dayPlan, activeFocusTaskIndex, startFocusButton);
 }
 
 function renderFocusTask(dayPlan, selectedCompletion) {
@@ -6219,7 +6569,7 @@ function renderMemoryCards({ selectedCompletion }) {
 
       const note = document.createElement("p");
       note.className = "memory-note";
-      note.textContent = memory.note || "글로 남기지는 않았지만, 오늘의 감정과 실행을 한 장의 기억으로 저장했어요.";
+      note.textContent = memory.note || memory.autoSummary || "글로 남기지는 않았지만, 오늘의 감정과 실행을 한 장의 기억으로 저장했어요.";
 
       const nextStep = document.createElement("div");
       nextStep.className = "diary-next-step";
@@ -6455,7 +6805,7 @@ function renderRecoveryPrompt(state, selectedCompletion) {
   const shouldShow = Boolean(notice && selectedCompletion.percent < 100);
   recoveryCard.hidden = !shouldShow;
   if (recoverySummary && notice) {
-    recoverySummary.textContent = `지난 접속에서 ${notice.missedCount}개가 남았어요. 올리가 다시 시작할 형태로 바꿔둘게요.`;
+    recoverySummary.textContent = "원래 계획을 다 하지 않아도 괜찮아요. 지금 가능한 크기로 다시 이어가요.";
   }
 }
 
@@ -6474,6 +6824,18 @@ function renderCompanionExperience({ plan, selectedCompletion, remainingTasks, c
     readiness: plan.routineReadiness || DEFAULT_ROUTINE_READINESS,
   });
   const nextMilestone = [25, 50, 75, 100].find((value) => overallProgress < value) || 100;
+  const executionState = getExecutionState();
+  const growthState = normalizeOllieGrowthState(executionState);
+  const completedActionCount = executionState.completedLog?.length || growthState.completedActionCount;
+  ollieGrowthMilestones.forEach((milestone) => {
+    const reached = milestone.hasAttribute("data-growth-milestone")
+      ? Boolean(growthState.firstFruitAt)
+      : milestone.hasAttribute("data-growth-recovery")
+        ? Boolean(growthState.recoveredAt)
+        : completedActionCount >= Number(milestone.dataset.growthCount || 0);
+    milestone.classList.toggle("is-grown", reached);
+    milestone.setAttribute("aria-current", reached ? "step" : "false");
+  });
 
   const ollieMoodImage =
     companionState.mood === "happy"
@@ -6583,6 +6945,40 @@ function renderPlanPreview(planText, pendingPlanText = "", pendingRevisionSummar
   });
 }
 
+function renderPlanRoadmap(plan) {
+  if (!planRoadmapList) return;
+  const phases = Array.isArray(plan?.fullSchedule)
+    ? plan.fullSchedule
+    : Array.isArray(plan?.aiPreview?.fullSchedule)
+      ? plan.aiPreview.fullSchedule
+      : [];
+  const visible = phases.slice(0, 5);
+  if (!visible.length) {
+    const item = document.createElement("li");
+    const marker = document.createElement("b");
+    const title = document.createElement("strong");
+    const detail = document.createElement("small");
+    marker.textContent = "지금 여기";
+    title.textContent = plan?.firstAction || "오늘의 첫 행동";
+    detail.textContent = "현재 실행부터 시작해 큰 길을 이어가요.";
+    item.append(marker, title, detail);
+    planRoadmapList.replaceChildren(item);
+    return;
+  }
+  planRoadmapList.replaceChildren(...visible.map((phase, index) => {
+    const item = document.createElement("li");
+    const marker = document.createElement("b");
+    const title = document.createElement("strong");
+    const detail = document.createElement("small");
+    marker.textContent = index === 0 ? "지금 여기" : String(phase.days || `${index + 1}단계`);
+    title.textContent = String(phase.focus || phase.phase || `${index + 1}단계`);
+    detail.textContent = String(phase.successMetric || "완료 기준을 확인해요.");
+    item.classList.toggle("is-current", index === 0);
+    item.append(marker, title, detail);
+    return item;
+  }));
+}
+
 function updateRevisionButtonState() {
   if (!regeneratePlanButton || !planRevisionRequest) return;
 
@@ -6667,6 +7063,7 @@ function renderExecutionPage(bundle) {
   const remainingTasks = selectedCompletion.total - selectedCompletion.completed;
 
   if (planEditor && planEditor.value !== planText) planEditor.value = planText;
+  renderPlanRoadmap(plan);
   renderPlanPreview(planText, state.pendingPlanText || "", state.pendingRevisionSummary || {});
   const visibleRevisionRequest = state.pendingRevisionRequest || state.revisionRequest || "";
   if (planRevisionRequest && document.activeElement !== planRevisionRequest && planRevisionRequest.value !== visibleRevisionRequest) {
@@ -7220,6 +7617,10 @@ executionChecklist?.addEventListener("change", (event) => {
     showOllieStarShower(dayPlan.tasks[taskIndex]?.text);
     showToast(`일정 하나를 완료했어요 · 올리가 ${(newlyRecorded ? 10 : 0) + completionBonus} XP를 받았어요`);
     trackCompanionEvent("task_completed", { day: dayPlan.day, taskIndex, completionBonus });
+    if (newlyRecorded) {
+      trackCompanionEvent("diary_created", { source: "action_completion" });
+      trackCompanionEvent("ollie_growth_changed", { source: "action_completion" });
+    }
   } else if (event.target.checked && wasUnchecked) {
     showToast("완료 상태를 다시 표시했어요 · XP는 중복 지급되지 않아요");
   }
@@ -7255,6 +7656,10 @@ completeTodayButton?.addEventListener("click", () => {
     showOllieStarShower("오늘의 AI 스케줄");
     showToast(`오늘 계획 완료 · 올리가 ${xpEarned} XP를 얻었어요`);
     trackCompanionEvent("all_day_completed", { day: dayPlan.day, newlyCompleted, completionBonus });
+    if (newlyCompleted > 0) {
+      trackCompanionEvent("diary_created", { source: "action_completion", count: newlyCompleted });
+      trackCompanionEvent("ollie_growth_changed", { source: "action_completion", count: newlyCompleted });
+    }
   } else if (restoredCompleted > 0) {
     showToast("오늘 계획의 완료 상태를 복원했어요 · XP는 중복 지급되지 않아요");
   }
@@ -7562,8 +7967,8 @@ sendCompanionMessage?.addEventListener("click", async () => {
     if (memoryConversationSummary) memoryConversationSummary.hidden = false;
     showOllieReaction(reply, headline || "올리의 대답이에요.");
     trackCompanionEvent("companion_dialogue", {
-      user: message.slice(0, 160),
-      reply: reply.slice(0, 240),
+      userLength: message.length,
+      replyLength: reply.length,
     });
   } catch (error) {
     const fallback = `${error.message || "지금은 답을 만들지 못했어요."} 실패한 요청은 AI 크레딧으로 확정 차감되지 않아요.`;
@@ -7585,24 +7990,80 @@ increaseFocusTime?.addEventListener("click", () => adjustFocusMinutes(5));
 focusMinutesInput?.addEventListener("change", () => setFocusMinutes(focusMinutesInput.value));
 
 recoveryButtons.forEach((button) => {
-  button.addEventListener("click", async () => {
-    if (!(await ensureAiActionAvailable("recovery_plan"))) return;
+  button.addEventListener("click", () => {
     const action = button.dataset.recoveryAction;
-    const request = {
-      tomorrow: "놓친 일정은 내일 첫 번째 할 일로 옮겨줘.",
-      five: "놓친 일정은 5분짜리 최소 성공 버전으로 줄여줘.",
-      skip: "이번 주에는 놓친 일정을 제외하고 핵심 한 가지만 남겨줘.",
-      time: "놓친 일정은 저녁 시간대로 다시 배치해줘.",
-    }[action];
+    if (action === "talk") {
+      openCompanionChat({ currentTarget: button });
+      trackCompanionEvent("recovery_selected", { action });
+      return;
+    }
     const bundle = getPlanBundle();
+    const dayPlan = bundle.schedule[bundle.state.selectedDay - 1] || bundle.schedule[0];
+    const checked = bundle.state.checkedByDay[String(dayPlan.day)] || [];
+    const task = dayPlan.tasks.find((_, index) => !checked[index]);
+    if (!task) {
+      showToast("다시 시작할 미완료 행동이 없어요.");
+      return;
+    }
+    const dayKey = String(dayPlan.day);
+    if (action === "five") {
+      bundle.state.taskEditsByDay = { ...(bundle.state.taskEditsByDay || {}) };
+      bundle.state.taskEditsByDay[dayKey] = {
+        ...(bundle.state.taskEditsByDay[dayKey] || {}),
+        [task._taskKey]: { text: task.text, time: task.time, durationMinutes: 5, completionRule: "5분 동안 시작하면 완료" },
+      };
+    } else if (action === "time") {
+      bundle.state.taskTimeByDay = { ...(bundle.state.taskTimeByDay || {}) };
+      bundle.state.taskTimeByDay[dayKey] = { ...(bundle.state.taskTimeByDay[dayKey] || {}), [task._taskKey]: "19:00" };
+    } else if (action === "skip") {
+      bundle.state.hiddenTaskKeysByDay = { ...(bundle.state.hiddenTaskKeysByDay || {}) };
+      bundle.state.hiddenTaskKeysByDay[dayKey] = [...new Set([...(bundle.state.hiddenTaskKeysByDay[dayKey] || []), task._taskKey])];
+    } else if (action === "tomorrow") {
+      const nextDay = Math.min(bundle.schedule.length, dayPlan.day + 1);
+      const nextKey = String(nextDay);
+      bundle.state.customTasksByDay = { ...(bundle.state.customTasksByDay || {}) };
+      bundle.state.customTasksByDay[nextKey] = [
+        ...(bundle.state.customTasksByDay[nextKey] || []),
+        { id: `recovery-${task._taskKey}`, text: task.text, time: task.time || "09:00", durationMinutes: getSuggestedFocusMinutes(task), completionRule: task.completionRule || "정한 분량을 마치면 완료" },
+      ];
+      bundle.state.hiddenTaskKeysByDay = { ...(bundle.state.hiddenTaskKeysByDay || {}) };
+      bundle.state.hiddenTaskKeysByDay[dayKey] = [...new Set([...(bundle.state.hiddenTaskKeysByDay[dayKey] || []), task._taskKey])];
+    }
+    const request = {
+      tomorrow: "내일 첫 행동으로 옮겼어요.",
+      five: "5분짜리 첫 걸음으로 줄였어요.",
+      skip: "이번 주에서는 잠시 내려놓았어요.",
+      time: "저녁 7시로 옮겼어요.",
+    }[action] || "다시 시작할 수 있게 바꿨어요.";
+    const createdAt = new Date().toISOString();
     bundle.state.recoveryActions = [
       ...(bundle.state.recoveryActions || []),
       { action, request, createdAt: new Date().toISOString(), notice: bundle.state.rolloverNotice },
     ].slice(-30);
+    bundle.state.dailyMemories = [
+      ...(bundle.state.dailyMemories || []),
+      {
+        id: `recovery:${createdAt}`,
+        diaryDate: getTodayKey(),
+        day: dayPlan.day,
+        title: "다시 걷기",
+        note: request,
+        mood: "",
+        obstacle: "none",
+        nextStep: task.text,
+        completion: getDayCompletion(dayPlan, bundle.state.checkedByDay).percent,
+        recoveryAction: action,
+        createdAt,
+        updatedAt: createdAt,
+      },
+    ].slice(-365);
+    syncOllieGrowthState(bundle.state, { recoveredAt: createdAt });
     bundle.state.rolloverNotice = null;
     savePlanBundleState(bundle.state);
-    appendRevisionRequest(request, "좋아요. 놓친 일정은 실패가 아니라 변경안으로 다시 연결할게요.", "recovery_plan");
-    trackCompanionEvent("missed_task_recovery_selected", { action });
+    showToast(request);
+    trackCompanionEvent("recovery_selected", { action });
+    trackCompanionEvent("diary_created", { source: "recovery" });
+    trackCompanionEvent("ollie_growth_changed", { source: "recovery" });
     renderExecutionPage(getPlanBundle());
   });
 });
@@ -7611,6 +8072,7 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && activeSheet) {
     event.preventDefault();
     if (activeSheet === authSheet) closeAuthSheet();
+    else if (activeSheet === completionReflectionSheet) closeCompletionReflection();
     else setSheetOpen(activeSheet, activeSheetOverlay, false);
   }
 
