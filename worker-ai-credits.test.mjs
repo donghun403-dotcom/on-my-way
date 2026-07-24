@@ -103,7 +103,12 @@ function successfulOpenAiResponse(schemaName) {
       planningStyle: "꾸준한 실행형",
       weekTitle: "첫 주 실행 리듬 만들기",
       coachMessage: "가능한 시간 안에서 한 번씩 실행해요.",
-      feasibility: "첫 주 실행",
+      feasibility: {
+        status: "feasible",
+        summary: "첫 주 실행",
+        recommendedOption: "keep_current_plan",
+        adjustmentOptions: ["keep_current_plan"],
+      },
       phases: [
         { phase: "시작", days: "1~7일", focus: "첫 행동 반복", successMetric: "5회 실행" },
         { phase: "확장", days: "8~21일", focus: "실행 범위 확장", successMetric: "주 5회 실행" },
@@ -140,10 +145,10 @@ function successfulOpenAiResponse(schemaName) {
         assumptions: [],
       },
       taskTemplates: [
-        { time: "저녁", durationMinutes: 20, task: "목표에 맞는 행동 실행", completionRule: "한 번 실행하면 완료" },
-        { time: "실행 직후", durationMinutes: 5, task: "진행 상태 한 줄 기록", completionRule: "한 줄 기록하면 완료" },
-        { time: "아침", durationMinutes: 5, task: "다음 행동 준비", completionRule: "준비물을 놓으면 완료" },
-        { time: "주말", durationMinutes: 20, task: "주간 결과 확인", completionRule: "완료 횟수를 확인하면 완료" },
+        { time: "저녁", durationMinutes: 20, task: "목표에 맞는 행동 실행", completionRule: "한 번 실행하면 완료", sourceReference: "", quantityOrRange: "" },
+        { time: "실행 직후", durationMinutes: 5, task: "진행 상태 한 줄 기록", completionRule: "한 줄 기록하면 완료", sourceReference: "", quantityOrRange: "" },
+        { time: "아침", durationMinutes: 5, task: "다음 행동 준비", completionRule: "준비물을 놓으면 완료", sourceReference: "", quantityOrRange: "" },
+        { time: "주말", durationMinutes: 20, task: "주간 결과 확인", completionRule: "완료 횟수를 확인하면 완료", sourceReference: "", quantityOrRange: "" },
       ],
       days: [
         { isRestDay: false, taskIndexes: [0, 1] },

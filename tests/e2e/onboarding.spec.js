@@ -108,6 +108,440 @@ async function openGuestFullPlanAuthChooser(page) {
   return { account, calls, claimBodies };
 }
 
+test("infeasible roadmap requires an explicit adjustment before claim", async ({ page }, testInfo) => {
+  if (testInfo.project.name === "mobile-chromium") {
+    await page.setViewportSize({ width: 390, height: 844 });
+  }
+  const diagnostics = monitorPage(page);
+  const account = await mockAccountExperience(page);
+  let previewCalls = 0;
+  let revisionCalls = 0;
+  let claimCalls = 0;
+  const goal = "Build a customer interview roadmap";
+  const initialRoadmap = {
+    ...fullGoalPlan(),
+    scheduleContract: {
+      exactDatesServerDerived: true,
+      requiresAdjustmentBeforeClaim: true,
+    },
+    feasibility: {
+      status: "infeasible_as_requested",
+      summary: "현재 횟수로는 기간 안에 완료하기 어려워요.",
+      adjustmentOptions: ["extend_duration", "increase_frequency"],
+      recommendedOption: "increase_frequency",
+    },
+  };
+  const allowedDayIndexes = new Set([0, 1, 2, 4]);
+  const revisedRoadmap = {
+    ...fullGoalPlan(),
+    goal,
+    firstAction: "고객 인터뷰 질문 3개를 25분 안에 정리하기",
+    scheduleContract: {
+      exactDatesServerDerived: true,
+      requiresAdjustmentBeforeClaim: false,
+    },
+    feasibility: {
+      status: "feasible",
+      summary: "주 4회, 회당 25분으로 첫 주를 시작할 수 있어요.",
+      adjustmentOptions: ["keep_current_plan"],
+      recommendedOption: "keep_current_plan",
+    },
+    firstWeekSchedule: fullGoalPlan().firstWeekSchedule.map((day, index) => ({
+      ...day,
+      isRestDay: !allowedDayIndexes.has(index),
+      items: allowedDayIndexes.has(index)
+        ? day.items.map((item) => ({
+            ...item,
+            durationMinutes: 25,
+            scheduledAt: `2026-07-${String(27 + index).padStart(2, "0")}T07:00:00+09:00`,
+          }))
+        : [],
+    })),
+  };
+  await page.route("**/api/ai/goal-preview", (route) => {
+    previewCalls += 1;
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        cached: false,
+        draftPlanId: "e2e-infeasible-roadmap",
+        preview: initialRoadmap,
+        activeInput: { goal },
+        activeInputHash: "f".repeat(64),
+        activeRevision: 1,
+      }),
+    });
+  });
+  await page.route("**/api/ai/goal-draft/revise", (route) => {
+    revisionCalls += 1;
+    const body = route.request().postDataJSON();
+    expect(body).toMatchObject({
+      draftPlanId: "e2e-infeasible-roadmap",
+      expectedRevision: 1,
+      expectedInputHash: "f".repeat(64),
+      input: {
+        goal,
+        feasibilityAdjustment: "increase_frequency",
+        availability: { weeklyFrequency: 4, sessionMinutes: 25 },
+      },
+    });
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        cached: false,
+        draftPlanId: "e2e-infeasible-roadmap",
+        preview: revisedRoadmap,
+        activeInput: body.input,
+        activeInputHash: "e".repeat(64),
+        activeRevision: 2,
+      }),
+    });
+  });
+  await page.route("**/api/ai/goal-draft/claim", (route) => {
+    claimCalls += 1;
+    expect(route.request().postDataJSON()).toMatchObject({
+      draftPlanId: "e2e-infeasible-roadmap",
+      expectedRevision: 2,
+      expectedInputHash: "e".repeat(64),
+    });
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        draftPlanId: "e2e-infeasible-roadmap",
+        plan: revisedRoadmap,
+        activatedPlan: {
+          ...revisedRoadmap,
+          planId: "e2e-infeasible-roadmap",
+          planSource: "ai-reviewed-draft",
+        },
+        chargedCredits: 0,
+      }),
+    });
+  });
+
+  await page.goto("/index.html#designFlow");
+  await waitForBootstrap(page);
+  await page.locator("#designGoal").fill(goal);
+  await page.locator("#goalPeriod").selectOption("30");
+  await page.locator("#aiPreviewButton").click();
+  await expect.poll(() => previewCalls).toBe(1);
+  await expect(page.locator("#aiPreviewStatus")).toHaveText("현재 계획과 조건이 일치해요.");
+  await expect(page.locator("#draftFeasibilityTitle")).toContainText("조정안");
+
+  const adjustment = page.locator('[data-feasibility-adjustment="increase_frequency"]');
+  await expect(adjustment).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator("#trialStartInlineLink")).toHaveAttribute("aria-disabled", "true");
+  await adjustment.click();
+
+  await expect(adjustment).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("#weeklyFrequency")).toHaveValue("4");
+  await expect(page.locator("[data-available-day]:checked")).toHaveCount(4);
+  await expect(page.locator("#trialStartInlineLink")).toHaveAttribute("aria-disabled", "true");
+  const stored = await page.evaluate(() => JSON.parse(sessionStorage.getItem("onmyway:pending-goal-preview") || "null"));
+  expect(stored.pendingDraftInput.feasibilityAdjustment).toBe("increase_frequency");
+  expect(stored.activeRevision).toBe(1);
+  expect(previewCalls).toBe(1);
+  expect(await page.evaluate(() => localStorage.getItem("omwExecutionPlan"))).toBeNull();
+
+  await page.locator("#draftAdjustButton").click();
+  await expect(page.locator("#designGoal")).toHaveValue(goal);
+  await page.locator("#aiPreviewButton").click();
+  await expect.poll(() => revisionCalls).toBe(1);
+  await expect(page.locator("#previewAction")).toHaveText(revisedRoadmap.firstAction);
+  await expect(page.locator("#draftFeasibilityTitle")).toHaveText("현재 조건으로 시작할 수 있어요");
+  const revised = await page.evaluate(() => JSON.parse(sessionStorage.getItem("onmyway:pending-goal-preview") || "null"));
+  expect(revised.pendingDraftInput).toBeNull();
+  expect(revised.activeRevision).toBe(2);
+  expect(revised.activeInputHash).toBe("e".repeat(64));
+  expect(await page.evaluate(() => localStorage.getItem("omwExecutionPlan"))).toBeNull();
+
+  await Promise.all([
+    page.waitForURL(/app\.html\?auth=login&return=/),
+    page.locator("#trialStartInlineLink").click(),
+  ]);
+  await expect(page.locator("#authSheet")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Google로 계속하기" })).toBeVisible();
+  account.user = { id: "usr_infeasible_e2e", provider: "google", name: "Roadmap Tester", email: "roadmap@example.com", plan: "free", role: "member" };
+  account.usage = createUsageResponse({ plan: "free", trialEligible: true });
+  const authenticatedStateLoaded = page.waitForResponse((response) =>
+    response.request().method() === "GET"
+    && new URL(response.url()).pathname === "/api/account/state"
+    && response.status() === 200);
+  await Promise.all([
+    authenticatedStateLoaded.then((response) => response.finished()),
+    page.goto("/?resumeGoal=1&auth=success"),
+  ]);
+  await waitForBootstrap(page);
+  await expect(page.locator("#designGoal")).toHaveValue(goal);
+  await expect(page.locator("#previewAction")).toHaveText(revisedRoadmap.firstAction);
+
+  await Promise.all([
+    page.waitForResponse((response) => new URL(response.url()).pathname === "/api/ai/goal-draft/claim" && response.status() === 200),
+    page.waitForURL(/\/app\.html/),
+    page.locator("#trialStartInlineLink").click(),
+  ]);
+  await waitForAppReady(page);
+
+  const activated = await page.evaluate(() => (localStorage.getItem("omwExecutionPlan") ? readExecutionPlan() : null));
+  expect(activated.goal).toBe(goal);
+  expect(activated.planSource).toBe("ai-reviewed-draft");
+  const scheduledActions = activated.firstWeekSchedule.flatMap((day) => day.items || []);
+  expect(scheduledActions).toHaveLength(4);
+  expect(scheduledActions.every((item) => item.type === "ACTION" && item.durationMinutes <= 25)).toBeTruthy();
+  expect(claimCalls).toBe(1);
+  expect(previewCalls).toBe(1);
+  expect(revisionCalls).toBe(1);
+  diagnostics.expectClean();
+});
+
+test("guest generation keeps its request key after transport loss and rotates it after a terminal result", async ({ page }) => {
+  await mockAccountExperience(page);
+  const requestBodies = [];
+  const requestFailures = [];
+  const consoleErrors = [];
+  page.on("requestfailed", (request) => {
+    if (new URL(request.url()).pathname === "/api/ai/goal-preview") {
+      requestFailures.push({
+        method: request.method(),
+        errorText: request.failure()?.errorText || "",
+      });
+    }
+  });
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
+  await page.route("**/api/ai/goal-preview", (route) => {
+    const body = route.request().postDataJSON();
+    requestBodies.push(body);
+    if (requestBodies.length === 1) return route.abort("connectionreset");
+    if (requestBodies.length === 2) {
+      return route.fulfill({
+        status: 502,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: false,
+          code: "AI_OUTPUT_DOMAIN_INVALID",
+          error: "계획을 완성하지 못했어요. 적어둔 내용은 그대로 보관했어요.",
+          retryable: false,
+          terminal: true,
+          cached: true,
+        }),
+      });
+    }
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        cached: false,
+        draftPlanId: "e2e-explicit-generation-retry",
+        preview: guestPreviewPlan(),
+        activeInput: { goal: "Prepare a launch roadmap" },
+        activeInputHash: "a".repeat(64),
+        activeRevision: 1,
+      }),
+    });
+  });
+
+  await page.goto("/index.html#designFlow");
+  await waitForBootstrap(page);
+  await page.locator("#designGoal").fill("Prepare a launch roadmap");
+  await page.locator("#goalPeriod").selectOption("90");
+  await page.locator("#currentContext").fill("Keep the first week light");
+
+  await page.locator("#aiPreviewButton").click();
+  await expect.poll(() => requestBodies.length).toBe(1);
+  await expect(page.locator("#aiPreviewButton")).toBeEnabled();
+  expect(await page.evaluate(() => localStorage.getItem("omwExecutionPlan"))).toBeNull();
+  let savedDraft = await page.evaluate(() => JSON.parse(sessionStorage.getItem("onmyway:pending-goal-draft") || "null"));
+  expect(savedDraft).toMatchObject({
+    goal: "Prepare a launch roadmap",
+    period: "90",
+    currentContext: "Keep the first week light",
+  });
+
+  await page.locator("#aiPreviewButton").click();
+  await expect.poll(() => requestBodies.length).toBe(2);
+  expect(requestBodies[1].idempotencyKey).toBe(requestBodies[0].idempotencyKey);
+  await expect(page.locator("#aiPreviewStatus")).toHaveText("계획을 완성하지 못했어요. 적어둔 내용은 그대로 보관했어요.");
+  expect(await page.evaluate(() => sessionStorage.getItem("onmyway:pending-goal-preview"))).toBeNull();
+  expect(await page.evaluate(() => sessionStorage.getItem("onmyway:guest-goal-initial-attempt"))).toBeNull();
+
+  await page.locator("#aiPreviewButton").click();
+  await expect.poll(() => requestBodies.length).toBe(3);
+  expect(requestBodies[2].idempotencyKey).not.toBe(requestBodies[1].idempotencyKey);
+  await expect(page.locator("#previewAction")).toHaveText(guestPreviewPlan().firstAction);
+  savedDraft = await page.evaluate(() => JSON.parse(sessionStorage.getItem("onmyway:pending-goal-draft") || "null"));
+  expect(savedDraft).toMatchObject({
+    goal: "Prepare a launch roadmap",
+    period: "90",
+    currentContext: "Keep the first week light",
+  });
+  expect(requestFailures).toHaveLength(1);
+  expect(requestFailures[0].method).toBe("POST");
+  expect(requestFailures[0].errorText).toBeTruthy();
+  expect(consoleErrors.every((message) => /Failed to load resource|ERR_CONNECTION_RESET/i.test(message))).toBeTruthy();
+});
+
+test("guest generation fails closed before the provider request when its attempt key cannot be stored", async ({ page }) => {
+  await mockAccountExperience(page);
+  let previewRequests = 0;
+  await page.route("**/api/ai/goal-preview", (route) => {
+    previewRequests += 1;
+    return route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ ok: false }) });
+  });
+
+  await page.goto("/index.html#designFlow");
+  await waitForBootstrap(page);
+  await page.locator("#designGoal").fill("Prepare a launch roadmap");
+  await page.locator("#goalPeriod").selectOption("90");
+  await page.locator("#currentContext").fill("Keep the first week light");
+  await page.evaluate(() => {
+    const nativeSetItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = function setItem(key, value) {
+      if (this === sessionStorage && key === "onmyway:guest-goal-initial-attempt") {
+        throw new DOMException("fixture storage failure", "QuotaExceededError");
+      }
+      return nativeSetItem.call(this, key, value);
+    };
+  });
+
+  await page.locator("#aiPreviewButton").click();
+  await expect(page.locator("#aiPreviewStatus")).toContainText("브라우저 저장 공간을 사용할 수 없어");
+  await expect(page.locator("#aiPreviewButton")).toBeEnabled();
+  expect(previewRequests).toBe(0);
+  expect(await page.evaluate(() => sessionStorage.getItem("onmyway:pending-goal-preview"))).toBeNull();
+
+  await page.locator("#aiPreviewButton").click();
+  await expect(page.locator("#aiPreviewStatus")).toContainText("브라우저 저장 공간을 사용할 수 없어");
+  expect(previewRequests).toBe(0);
+});
+
+test("a failed initial attempt-key cleanup blocks another request instead of silently reusing stale state", async ({ page }) => {
+  await mockAccountExperience(page);
+  let previewRequests = 0;
+  await page.route("**/api/ai/goal-preview", (route) => {
+    previewRequests += 1;
+    return route.fulfill({
+      status: 502,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: false,
+        code: "AI_OUTPUT_DOMAIN_INVALID",
+        error: "계획을 완성하지 못했어요. 적어둔 내용은 그대로 보관했어요.",
+        retryable: false,
+        terminal: true,
+        cached: true,
+      }),
+    });
+  });
+
+  await page.goto("/index.html#designFlow");
+  await waitForBootstrap(page);
+  await page.locator("#designGoal").fill("Prepare a launch roadmap");
+  await page.locator("#goalPeriod").selectOption("90");
+  await page.locator("#currentContext").fill("Keep the first week light");
+  await page.evaluate(() => {
+    const nativeRemoveItem = Storage.prototype.removeItem;
+    Storage.prototype.removeItem = function removeItem(key) {
+      if (this === sessionStorage && key === "onmyway:guest-goal-initial-attempt") {
+        throw new DOMException("fixture storage failure", "SecurityError");
+      }
+      return nativeRemoveItem.call(this, key);
+    };
+  });
+
+  await page.locator("#aiPreviewButton").click();
+  await expect(page.locator("#aiPreviewStatus")).toContainText("브라우저 저장 공간을 사용할 수 없어");
+  expect(previewRequests).toBe(1);
+  expect(await page.evaluate(() => sessionStorage.getItem("onmyway:guest-goal-initial-attempt"))).toBeTruthy();
+
+  await page.locator("#aiPreviewButton").click();
+  await expect(page.locator("#aiPreviewStatus")).toContainText("브라우저 저장 공간을 사용할 수 없어");
+  expect(previewRequests).toBe(1);
+});
+
+test("a failed revision attempt-key cleanup preserves the active roadmap and blocks another request", async ({ page }) => {
+  await mockAccountExperience(page);
+  let previewRequests = 0;
+  let revisionRequests = 0;
+  await page.route("**/api/ai/goal-preview", (route) => {
+    previewRequests += 1;
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        cached: false,
+        draftPlanId: "e2e-storage-revision",
+        preview: guestPreviewPlan(),
+        activeInput: { goal: "Prepare a launch roadmap", currentState: "Keep the first week light" },
+        activeInputHash: "a".repeat(64),
+        activeRevision: 1,
+      }),
+    });
+  });
+  await page.route("**/api/ai/goal-draft/revise", (route) => {
+    revisionRequests += 1;
+    return route.fulfill({
+      status: 502,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: false,
+        code: "AI_OUTPUT_DOMAIN_INVALID",
+        error: "계획을 완성하지 못했어요. 기존 계획은 그대로 보관했어요.",
+        retryable: false,
+        terminal: true,
+        cached: true,
+      }),
+    });
+  });
+
+  await page.goto("/index.html#designFlow");
+  await waitForBootstrap(page);
+  await page.locator("#designGoal").fill("Prepare a launch roadmap");
+  await page.locator("#goalPeriod").selectOption("90");
+  await page.locator("#currentContext").fill("Keep the first week light");
+  await page.locator("#aiPreviewButton").click();
+  await expect.poll(() => previewRequests).toBe(1);
+  await expect(page.locator("#previewAction")).toHaveText(guestPreviewPlan().firstAction);
+
+  await page.locator("#draftAdjustButton").click();
+  await page.locator("#currentContext").fill("Use thirty minutes on weekdays");
+  await page.locator("#currentContext").blur();
+  await page.evaluate(() => {
+    const nativeSetItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = function setItem(key, value) {
+      if (this === sessionStorage && key === "onmyway:pending-goal-preview") {
+        const current = JSON.parse(sessionStorage.getItem(key) || "null");
+        const next = JSON.parse(String(value || "null"));
+        if (current?.pendingRevision?.idempotencyKey && next?.pendingRevision === null) {
+          throw new DOMException("fixture storage failure", "QuotaExceededError");
+        }
+      }
+      return nativeSetItem.call(this, key, value);
+    };
+  });
+
+  await page.locator("#aiPreviewButton").click();
+  await expect(page.locator(".app-toast")).toContainText("브라우저 저장 공간을 사용할 수 없어");
+  expect(revisionRequests).toBe(1);
+  const afterFailure = await page.evaluate(() => JSON.parse(sessionStorage.getItem("onmyway:pending-goal-preview") || "null"));
+  expect(afterFailure.activeRevision).toBe(1);
+  expect(afterFailure.preview.firstAction).toBe(guestPreviewPlan().firstAction);
+  expect(afterFailure.pendingRevision.idempotencyKey).toMatch(/^revision:/);
+
+  await page.locator("#aiPreviewButton").click();
+  await expect(page.locator(".app-toast")).toContainText("브라우저 저장 공간을 사용할 수 없어");
+  expect(revisionRequests).toBe(1);
+});
+
 test("목표 카테고리는 예시만 제안하고 사용자의 명시적 확인 전에는 진행하지 않는다", async ({ page }) => {
   const diagnostics = monitorPage(page);
   await mockAccountExperience(page);
@@ -492,6 +926,7 @@ test("익명 초안 수정은 기존 AI 일정을 보존하고 명시적 재생�
   await mockAccountExperience(page);
   let previewCalls = 0;
   let revisionCalls = 0;
+  const revisionKeys = [];
   await page.route("**/api/ai/goal-preview", (route) => {
     previewCalls += 1;
     return route.fulfill({
@@ -511,14 +946,39 @@ test("익명 초안 수정은 기존 AI 일정을 보존하고 명시적 재생�
   await page.route("**/api/ai/goal-draft/revise", (route) => {
     revisionCalls += 1;
     const body = route.request().postDataJSON();
+    revisionKeys.push(body.idempotencyKey);
     expect(body.draftPlanId).toBe("e2e-active-pending-draft");
     expect(body.idempotencyKey).toMatch(/^revision:/);
-    if (body.input.currentState === "평일 60분 가능") {
+    if (body.input.currentState === "평일 60분 가능" && revisionCalls === 2) {
       expect(body).toMatchObject({ expectedRevision: 2, expectedInputHash: "d".repeat(64) });
       return route.fulfill({
         status: 502,
         contentType: "application/json",
-        body: JSON.stringify({ ok: false, code: "AI_OUTPUT_DOMAIN_INVALID", error: "fixture revision failure", retryable: false }),
+        body: JSON.stringify({
+          ok: false,
+          code: "AI_OUTPUT_DOMAIN_INVALID",
+          error: "fixture revision failure",
+          retryable: false,
+          terminal: true,
+          cached: false,
+        }),
+      });
+    }
+    if (body.input.currentState === "평일 60분 가능") {
+      expect(body).toMatchObject({ expectedRevision: 2, expectedInputHash: "d".repeat(64) });
+      const retried = { ...guestPreviewPlan(), firstAction: "고객 인터뷰 질문 3개를 60분 안에 정리하기" };
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: true,
+          cached: false,
+          draftPlanId: "e2e-active-pending-draft",
+          preview: retried,
+          activeInput: { goal: "90일 안에 첫 유료 고객 10명 만들기", currentState: "평일 60분 가능" },
+          activeInputHash: "e".repeat(64),
+          activeRevision: 3,
+        }),
       });
     }
     expect(body).toMatchObject({ expectedRevision: 1, expectedInputHash: "c".repeat(64) });
@@ -598,18 +1058,20 @@ test("익명 초안 수정은 기존 AI 일정을 보존하고 명시적 재생�
   expect(revisionCalls).toBe(1);
   await page.locator("#aiPreviewButton").click();
   await expect.poll(() => revisionCalls).toBe(2);
-  await expect(page.locator("#aiPreviewStatus")).toHaveText("수정한 조건으로 계획을 다시 만들지 못했어요. 기존 계획은 그대로 유지했어요.");
+  await expect(page.locator("#aiPreviewStatus")).toHaveText("이번에는 계획을 바꾸지 못했어요. 기존 길은 그대로 두었어요.");
   const afterFailure = await page.evaluate(() => JSON.parse(sessionStorage.getItem("onmyway:pending-goal-preview") || "null"));
   expect(afterFailure.activeRevision).toBe(2);
   expect(afterFailure.preview.firstAction).toBe("고객 인터뷰 질문 3개를 45분 안에 정리하기");
   expect(afterFailure.pendingDraftInput.currentContext).toBe("평일 60분 가능");
+  expect(afterFailure.pendingRevision).toBeNull();
   expect(revisionCalls).toBe(2);
-  await page.evaluate(() => { location.hash = "firstStep"; });
-  await expect(page.locator("#discardDraftChangesButton")).toBeVisible();
-  await page.locator("#discardDraftChangesButton").click();
-  await expect(page.locator("#currentContext")).toHaveValue("평일 45분 가능");
-  await expect(page.locator("#previewAction")).toHaveText("고객 인터뷰 질문 3개를 45분 안에 정리하기");
-  expect(revisionCalls).toBe(2);
-  const discarded = await page.evaluate(() => JSON.parse(sessionStorage.getItem("onmyway:pending-goal-preview") || "null"));
-  expect(discarded.pendingDraftInput).toBeNull();
+  await page.locator("#aiPreviewButton").click();
+  await expect.poll(() => revisionCalls).toBe(3);
+  expect(revisionKeys[2]).not.toBe(revisionKeys[1]);
+  await expect(page.locator("#previewAction")).toHaveText("고객 인터뷰 질문 3개를 60분 안에 정리하기");
+  const retried = await page.evaluate(() => JSON.parse(sessionStorage.getItem("onmyway:pending-goal-preview") || "null"));
+  expect(retried.activeRevision).toBe(3);
+  expect(retried.activeInputHash).toBe("e".repeat(64));
+  expect(retried.pendingDraftInput).toBeNull();
+  expect(previewCalls).toBe(1);
 });

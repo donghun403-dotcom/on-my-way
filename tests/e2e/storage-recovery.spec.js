@@ -21,7 +21,8 @@ for (const [name, storage] of corruptions) {
 
     const firstAction = page.locator("#executionChecklist .execution-check").first();
     if (await firstAction.count()) await firstAction.check();
-    const state = await readStored(page, "omwExecutionState");
+    // v5는 완료 기록을 completionLedger로 압축 저장하므로 디코드된 상태로 검증한다.
+    const state = await page.evaluate(() => getExecutionState());
     expect(state.selectedDay).toBeGreaterThanOrEqual(1);
     expect(Array.isArray(state.completedLog)).toBeTruthy();
     expect(Array.isArray(state.dailyMemories)).toBeTruthy();
@@ -37,7 +38,7 @@ for (const [name, storage] of corruptions) {
   });
 }
 
-test("정상 v3 상태는 첫 읽기에 원문을 유지하고 명시적 변경 뒤 완료·일기·진행률과 확장 필드를 v4로 보존한다", async ({ page }) => {
+test("정상 v3 상태는 첫 읽기에 원문을 유지하고 명시적 변경 뒤 완료·일기·진행률과 확장 필드를 v5로 보존한다", async ({ page }) => {
   await prepareApp(page);
   await page.goto("/app.html");
   await waitForAppReady(page);
@@ -69,21 +70,23 @@ test("정상 v3 상태는 첫 읽기에 원문을 유지하고 명시적 변경 
   const firstCheckbox = page.locator("#executionChecklist .execution-check").first();
   await firstCheckbox.uncheck();
   await firstCheckbox.check();
-  const migrated = await readStored(page, "omwExecutionState");
-  expect(migrated.version).toBe(4);
-  expect(migrated.legacyExtension).toEqual({ keep: true });
-  expect(migrated.dailyMemories).toEqual([expect.objectContaining({ id: "2026-07-20-memory", text: "기존 일기" })]);
-  expect(migrated.completedLog).toHaveLength(1);
-  expect(migrated.completedLog[0].taskKey).toBe(`1:${seeded.firstTaskKey}`);
-  expect(migrated.ollieGrowthState).toMatchObject({
+  // v5는 raw 저장의 버전을 5로 올리고 완료·일기를 completionLedger로 압축하되, 확장 필드와 기록은 그대로 보존한다.
+  const rawStored = await readStored(page, "omwExecutionState");
+  expect(rawStored.version).toBe(5);
+  expect(rawStored.legacyExtension).toEqual({ keep: true });
+  expect(rawStored.ollieGrowthState).toMatchObject({
     completedActionCount: 1,
     firstLeafAt: "2026-07-20T00:00:00.000Z",
   });
+  const migrated = await page.evaluate(() => getExecutionState());
+  expect(migrated.dailyMemories).toEqual([expect.objectContaining({ id: "2026-07-20-memory", text: "기존 일기" })]);
+  expect(migrated.completedLog).toHaveLength(1);
+  expect(migrated.completedLog[0].taskKey).toBe(`1:${seeded.firstTaskKey}`);
 
   await page.reload();
   await waitForAppReady(page);
   await expect(page.locator("#executionChecklist .execution-check").first()).toBeChecked();
-  expect((await readStored(page, "omwExecutionState")).dailyMemories).toHaveLength(1);
+  expect((await page.evaluate(() => getExecutionState())).dailyMemories).toHaveLength(1);
 });
 
 test("account changes isolate local plans and restore only the matching account", async ({ page }) => {

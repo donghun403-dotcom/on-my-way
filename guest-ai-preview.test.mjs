@@ -106,15 +106,21 @@ function generatedPlan(planId = "guest-draft-fixture") {
   };
 }
 
-function previewRequest(input = goalInput()) {
+function previewRequest(input = goalInput(), {
+  ip = TEST_IP,
+  idempotencyKey = "",
+} = {}) {
   return new Request("https://preview.example/api/ai/goal-preview", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "CF-Connecting-IP": TEST_IP,
+      "CF-Connecting-IP": ip,
       "User-Agent": "guest-preview-test-browser",
     },
-    body: JSON.stringify(input),
+    body: JSON.stringify({
+      ...input,
+      ...(idempotencyKey ? { idempotencyKey } : {}),
+    }),
   });
 }
 
@@ -150,7 +156,12 @@ function generatedBlueprint() {
     planningStyle: "고객 검증 실행형 계획",
     weekTitle: "첫 주에는 고객 문제를 직접 확인해요.",
     coachMessage: "완벽한 제품보다 실제 고객의 말을 먼저 모아 봐요.",
-    feasibility: "첫 주 고객 검증",
+    feasibility: {
+      status: "feasible",
+      summary: "첫 주 고객 검증",
+      recommendedOption: "keep_current_plan",
+      adjustmentOptions: ["keep_current_plan"],
+    },
     phases: [
       { phase: "탐색", days: "1~7일", focus: "고객 문제 확인", successMetric: "인터뷰 3명" },
       { phase: "제안", days: "8~30일", focus: "작은 해결안 제안", successMetric: "제안 5회" },
@@ -278,13 +289,225 @@ function revisionRequest({ draft, draftCookie, input, idempotencyKey = "revision
   });
 }
 
+test("explicit initial idempotency key replays the same draft across IP changes", async () => {
+  const env = testEnv();
+  const input = goalInput();
+  const idempotencyKey = "initial:cross-ip-replay-0001";
+  let providerCalls = 0;
+
+  await withMockFetch(async (_url, init) => {
+    providerCalls += 1;
+    return providerPlanResponse(generatedPlanForProviderRequest(init));
+  }, async () => {
+    const firstResponse = await worker.fetch(previewRequest(input, {
+      ip: "203.0.113.41",
+      idempotencyKey,
+    }), env);
+    const first = await firstResponse.json();
+    assert.equal(firstResponse.status, 200);
+    assert.equal(first.cached, false);
+
+    const replayResponse = await worker.fetch(previewRequest(input, {
+      ip: "203.0.113.42",
+      idempotencyKey,
+    }), env);
+    const replay = await replayResponse.json();
+    assert.equal(replayResponse.status, 200);
+    assert.equal(replay.cached, true);
+    assert.equal(replay.draftPlanId, first.draftPlanId);
+    assert.deepEqual(replay.preview, first.preview);
+  });
+
+  assert.equal(providerCalls, 1);
+  assert.equal(env.GUEST_PLAN_DRAFTS.storages.size, 1);
+});
+
+test("explicit initial idempotency key rejects changed normalized input before rate limiting or provider use", async () => {
+  let rateLimitCalls = 0;
+  const env = testEnv({
+    AI_RATE_LIMITER: {
+      async limit() {
+        rateLimitCalls += 1;
+        return { success: true };
+      },
+    },
+  });
+  const idempotencyKey = "initial:input-conflict-0001";
+  let providerCalls = 0;
+
+  await withMockFetch(async (_url, init) => {
+    providerCalls += 1;
+    return providerPlanResponse(generatedPlanForProviderRequest(init));
+  }, async () => {
+    const firstResponse = await worker.fetch(previewRequest(goalInput("first normalized input"), {
+      idempotencyKey,
+    }), env);
+    const first = await firstResponse.json();
+    assert.equal(firstResponse.status, 200);
+    assert.equal(first.cached, false);
+    assert.equal(providerCalls, 1);
+    assert.equal(rateLimitCalls, 1);
+
+    const conflictResponse = await worker.fetch(previewRequest(goalInput("different normalized input"), {
+      idempotencyKey,
+    }), env);
+    const conflict = await conflictResponse.json();
+    assert.equal(conflictResponse.status, 409);
+    assert.deepEqual({
+      ok: conflict.ok,
+      code: conflict.code,
+      terminal: conflict.terminal,
+      retryable: conflict.retryable,
+      cached: conflict.cached,
+    }, {
+      ok: false,
+      code: "DRAFT_IDEMPOTENCY_KEY_CONFLICT",
+      terminal: true,
+      retryable: false,
+      cached: false,
+    });
+    assert.equal(providerCalls, 1);
+    assert.equal(rateLimitCalls, 1);
+    assert.equal(env.GUEST_PLAN_DRAFTS.storages.size, 1);
+    assert.equal(JSON.stringify(conflict).includes("first normalized input"), false);
+    assert.equal(JSON.stringify(conflict).includes("different normalized input"), false);
+
+    const crossIpConflictResponse = await worker.fetch(previewRequest(goalInput("cross-IP normalized input"), {
+      ip: "203.0.113.92",
+      idempotencyKey,
+    }), env);
+    const crossIpConflict = await crossIpConflictResponse.json();
+    assert.equal(crossIpConflictResponse.status, 409);
+    assert.equal(crossIpConflict.code, "DRAFT_IDEMPOTENCY_KEY_CONFLICT");
+    assert.equal(providerCalls, 1);
+    assert.equal(rateLimitCalls, 1);
+    assert.equal(env.GUEST_PLAN_DRAFTS.storages.size, 1);
+    assert.equal(JSON.stringify(crossIpConflict).includes("cross-IP normalized input"), false);
+  });
+});
+
+test("terminal revision failure replays its public result and a new key calls the provider once", async () => {
+  const env = testEnv();
+  const { body: draft, draftCookie } = await createGuestDraft(env);
+  const changedInput = goalInput("terminal revision fixture");
+  let providerCalls = 0;
+  const firstKey = "revision:terminal-replay-0001";
+  const secondKey = "revision:terminal-replay-0002";
+
+  await withMockFetch(async () => {
+    providerCalls += 1;
+    return providerPlanResponse(null, { rawText: "{not-json" });
+  }, async () => {
+    const firstResponse = await worker.fetch(revisionRequest({
+      draft,
+      draftCookie,
+      input: changedInput,
+      idempotencyKey: firstKey,
+    }), env);
+    const first = await firstResponse.json();
+    assert.equal(firstResponse.status, 502);
+    assert.equal(first.cached, false);
+    assert.equal(first.terminal, true);
+    assert.equal(first.retryable, false);
+    assert.equal(providerCalls, 1);
+
+    const replayResponse = await worker.fetch(revisionRequest({
+      draft,
+      draftCookie,
+      input: changedInput,
+      idempotencyKey: firstKey,
+    }), env);
+    const replay = await replayResponse.json();
+    assert.equal(replayResponse.status, firstResponse.status);
+    assert.equal(replay.cached, true);
+    const { cached: firstCached, ...firstPublicResult } = first;
+    const { cached: replayCached, ...replayPublicResult } = replay;
+    assert.equal(firstCached, false);
+    assert.equal(replayCached, true);
+    assert.deepEqual(replayPublicResult, firstPublicResult);
+    assert.equal(providerCalls, 1);
+
+    const newKeyResponse = await worker.fetch(revisionRequest({
+      draft,
+      draftCookie,
+      input: changedInput,
+      idempotencyKey: secondKey,
+    }), env);
+    const newKeyResult = await newKeyResponse.json();
+    assert.equal(newKeyResponse.status, firstResponse.status);
+    const { cached: newKeyCached, ...newKeyPublicResult } = newKeyResult;
+    assert.equal(newKeyCached, false);
+    assert.deepEqual(newKeyPublicResult, firstPublicResult);
+    assert.equal(providerCalls, 2);
+  });
+});
+
+test("generation failure persistence errors return a safe non-terminal response", async () => {
+  const durableObjects = memoryDurableObjectNamespace();
+  const persistenceFailureMarker = "fixture-sensitive-durable-object-detail";
+  const wrappedDurableObjects = {
+    ...durableObjects,
+    get(id) {
+      const stub = durableObjects.get(id);
+      return {
+        async fetch(request) {
+          if (new URL(request.url).pathname === "/fail-generation") {
+            throw new Error(persistenceFailureMarker);
+          }
+          return stub.fetch(request);
+        },
+      };
+    },
+  };
+  const env = testEnv({ GUEST_PLAN_DRAFTS: wrappedDurableObjects });
+  const providerFailureMarker = "fixture-sensitive-provider-detail";
+  const loggedErrors = [];
+  const originalConsoleError = console.error;
+  let providerCalls = 0;
+  let response;
+
+  console.error = (...args) => {
+    loggedErrors.push(JSON.stringify(args));
+  };
+  try {
+    response = await withMockFetch(async () => {
+      providerCalls += 1;
+      throw new Error(providerFailureMarker);
+    }, () => worker.fetch(previewRequest(goalInput(), {
+      idempotencyKey: "initial:persistence-failure-0001",
+    }), env));
+  } finally {
+    console.error = originalConsoleError;
+  }
+
+  assert.equal(providerCalls, 1);
+  assert.equal(response.status, 503);
+  const body = await response.json();
+  assert.deepEqual({
+    code: body.code,
+    retryable: body.retryable,
+    terminal: body.terminal,
+    cached: body.cached,
+  }, {
+    code: "DRAFT_GENERATION_RESULT_NOT_STORED",
+    retryable: true,
+    terminal: false,
+    cached: false,
+  });
+  assert.equal(Object.hasOwn(body, "details"), false);
+  assert.equal(Object.hasOwn(body, "diagnostics"), false);
+  const publicAndLoggedOutput = `${JSON.stringify(body)}\n${loggedErrors.join("\n")}`;
+  assert.equal(publicAndLoggedOutput.includes(persistenceFailureMarker), false);
+  assert.equal(publicAndLoggedOutput.includes(providerFailureMarker), false);
+});
+
 test("guest input hash는 key 순서에 안정적이고 prompt/schema version 변경을 분리한다", async () => {
   const left = { goal: "운동", availability: { sessionMinutes: 20, availableDays: ["월", "수"] } };
   const reordered = { availability: { availableDays: ["월", "수"], sessionMinutes: 20 }, goal: "운동" };
   const baseline = await guestGoalInputHash(left);
   assert.equal(await guestGoalInputHash(reordered), baseline);
   assert.notEqual(await guestGoalInputHash(left, { promptVersion: "next-prompt" }), baseline);
-  assert.notEqual(await guestGoalInputHash(left, { inputSchemaVersion: 2 }), baseline);
+  assert.notEqual(await guestGoalInputHash(left, { inputSchemaVersion: 3 }), baseline);
   assert.notEqual(await guestGoalInputHash(left, { outputSchemaVersion: "typed-plan-items-v2" }), baseline);
   assert.notEqual(await guestGoalInputHash(left, { outputBudgetVersion: "next-budget" }), baseline);
 });
@@ -308,6 +531,13 @@ test("비회원은 실제 AI 계획의 일부만 하루 한 번 받고 같은 �
     assert.equal(first.preview.weekPlan.length, 5);
     assert.equal(first.preview.firstWeekSchedule.length, 7);
     assert.equal(first.preview.todaySchedule.length, 1);
+    assert.deepEqual(first.preview.scheduleContract, {
+      timezone: "Asia/Seoul",
+      startDate: first.preview.firstWeekSchedule[0].items[0].scheduledAt.slice(0, 10),
+      generatedDays: 90,
+      exactDatesServerDerived: true,
+      requiresAdjustmentBeforeClaim: false,
+    });
     assert.equal(typeof first.draftPlanId, "string");
     assert.notEqual(first.draftPlanId, "guest-draft-fixture");
     assert.match(first.draftPlanId, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
@@ -349,6 +579,38 @@ test("비회원은 실제 AI 계획의 일부만 하루 한 번 받고 같은 �
   assert.equal(changedResponse.status, 429);
   assert.equal(changed.code, "GUEST_PREVIEW_ALREADY_USED");
   assert.equal(providerCalls, 1);
+});
+
+test("server-derived zero-ACTION preview exposes the claim lock contract", async () => {
+  const env = testEnv();
+  const input = {
+    ...goalInput(),
+    availability: {
+      ...goalInput().availability,
+      availableDays: ["월"],
+      difficultDays: ["월"],
+      weeklyFrequency: 1,
+    },
+  };
+
+  const response = await withMockFetch(async (_url, init) => {
+    const blueprint = generatedPlanForProviderRequest(init);
+    blueprint.feasibility = {
+      status: "constrained",
+      summary: "선택한 가능 요일이 모두 어려운 날이라 조건 조정이 필요해요.",
+      recommendedOption: "increase_frequency",
+      adjustmentOptions: ["increase_frequency", "extend_duration"],
+    };
+    return providerPlanResponse(blueprint);
+  }, () => worker.fetch(previewRequest(input), env));
+  const body = await response.json();
+  const actions = body.preview.firstWeekSchedule.flatMap((day) => day.items)
+    .filter((item) => item.type === "ACTION");
+
+  assert.equal(response.status, 200);
+  assert.equal(actions.length, 0);
+  assert.equal(body.preview.scheduleContract.exactDatesServerDerived, true);
+  assert.equal(body.preview.scheduleContract.requiresAdjustmentBeforeClaim, true);
 });
 
 test("서로 다른 Worker isolate의 동시 최초 요청도 같은 actor와 input을 한 Durable Object로 모은다", async () => {
@@ -625,10 +887,29 @@ test("revision은 자료·요일·시간·범위를 새 schedule에 함께 반�
   const revised = await response.json();
   const stored = await env.GUEST_PLAN_DRAFTS.storages.get(original.draftPlanId).get("draft");
   const actionDays = stored.activePlan.firstWeekSchedule.filter((day) => day.items.some((item) => item.type === "ACTION"));
-  assert.deepEqual(actionDays.map((day) => day.dayLabel), ["수", "토"]);
+  const scheduledActions = stored.activePlan.scheduleOccurrences
+    .flatMap((day) => day.items)
+    .filter((item) => item.type === "ACTION");
+  const scheduledRanges = scheduledActions.map((item) => {
+    const match = item.quantityOrRange.match(/^장 (\d+)(?:~(\d+))?$/);
+    assert.ok(match, `unexpected material progression range: ${item.quantityOrRange}`);
+    return {
+      start: Number(match[1]),
+      end: Number(match[2] || match[1]),
+    };
+  });
+  const coveredChapters = [...new Set(scheduledRanges.flatMap(({ start, end }) => (
+    Array.from({ length: end - start + 1 }, (_, index) => start + index)
+  )))];
+  assert.deepEqual(actionDays.map((day) => day.dayLabel).sort(), ["수", "토"]);
   assert.ok(actionDays.flatMap((day) => day.items).every((item) => item.sourceReference === "영어 원서 A"));
-  assert.ok(actionDays.flatMap((day) => day.items).every((item) => item.quantityOrRange === "1장~6장"));
   assert.ok(actionDays.flatMap((day) => day.items).every((item) => item.durationMinutes === 25));
+  assert.ok(scheduledActions.every((item) => item.sourceReference === "영어 원서 A"));
+  assert.ok(scheduledRanges.every(({ start, end }) => start >= 1 && start <= end && end <= 6));
+  assert.ok(scheduledRanges.every((range, index) => (
+    index === 0 || range.start >= scheduledRanges[index - 1].start
+  )));
+  assert.deepEqual(coveredChapters, [1, 2, 3, 4, 5, 6]);
   assert.equal(stored.activeInputHash, revised.activeInputHash);
   assert.equal(stored.activePlanInputHash, revised.activeInputHash);
 });

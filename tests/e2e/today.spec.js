@@ -3,6 +3,105 @@ const { captureAcceptance, expectNoDuplicateIds, expectNoHorizontalOverflow, mon
 
 test.beforeEach(async ({ page }) => prepareApp(page));
 
+test("날짜가 바뀌면 Today는 실제 계획 일차로 이동하고 Plan의 선택일은 보존한다", async ({ page }) => {
+  const diagnostics = monitorPage(page);
+  await page.goto("/app.html");
+  await waitForAppReady(page);
+  const fixture = await page.evaluate(() => {
+    const current = new Date();
+    const start = new Date(current.getFullYear(), current.getMonth(), current.getDate() - 1);
+    const startDate = getLocalDateKey(start);
+    const planId = "today-rollover-plan";
+    const scheduleOccurrences = Array.from({ length: 7 }, (_, index) => {
+      const date = new Date(start.getFullYear(), start.getMonth(), start.getDate() + index);
+      const dateKey = getLocalDateKey(date);
+      return {
+        dayNumber: index + 1,
+        date: dateKey,
+        dayLabel: ["일", "월", "화", "수", "목", "금", "토"][date.getDay()],
+        isRestDay: false,
+        items: [{
+          id: `today-rollover-action-${index + 1}`,
+          planId,
+          type: "ACTION",
+          title: `날짜 경과 행동 ${index + 1}`,
+          sourceReference: "",
+          quantityOrRange: "",
+          durationMinutes: 15,
+          completionRule: `${index + 1}일차 행동 완료`,
+          time: "07:00",
+          scheduledAt: `${dateKey}T07:00:00+09:00`,
+          status: "pending",
+          recurrenceGroupId: `today-rollover-group-${index + 1}`,
+        }],
+      };
+    });
+    const plan = {
+      ...readExecutionPlan(),
+      planId,
+      goal: "날짜 경과에도 오늘 일정 유지",
+      period: 7,
+      planStartDate: startDate,
+      firstAction: "날짜 경과 행동 1",
+      scheduleStartPreference: "as-is",
+      aiPreview: {
+        firstWeekSchedule: scheduleOccurrences,
+        scheduleOccurrences,
+      },
+    };
+    localStorage.setItem("omwExecutionPlan", JSON.stringify(plan));
+    localStorage.removeItem("omwExecutionState");
+    const bundle = getPlanBundle({ reset: true });
+    bundle.state.selectedDay = 1;
+    bundle.state.lastSeenDate = startDate;
+    bundle.state.planStartDate = startDate;
+    savePlanBundleState(bundle.state);
+    return { expectedTodayDay: 2, expectedRolloverDay: 1, selectedDay: 1, startDate };
+  });
+
+  await page.reload();
+  await waitForAppReady(page);
+  await expect(page.locator("#focusTaskTitle")).toHaveText("날짜 경과 행동 2");
+  const stateAfterRollover = await page.evaluate(() => getExecutionState());
+  expect(stateAfterRollover.selectedDay).toBe(fixture.selectedDay);
+  const migratedRollover = await page.evaluate((startDate) => {
+    const plan = readExecutionPlan();
+    const state = getExecutionState();
+    const migrated = migrateExecutionState({
+      ...state,
+      selectedDay: 5,
+      lastSeenDate: startDate,
+    }, plan);
+    return migrated.rolloverNotice;
+  }, fixture.startDate);
+  expect(migratedRollover?.day).toBe(fixture.expectedRolloverDay);
+
+  const completedBeforeStaleClick = await page.evaluate(() => {
+    const bundle = getPlanBundle();
+    const todayDay = resolveTodayPlanDay(bundle);
+    return getDayCompletion(bundle.schedule[todayDay - 1], bundle.state.checkedByDay).completed;
+  });
+  await page.locator("#executionChecklist").evaluate((checklist) => {
+    checklist.dataset.planDay = "1";
+  });
+  await page.locator("#executionChecklist .execution-check").first().click();
+  await expect(page.locator("#executionChecklist")).toHaveAttribute("data-plan-day", String(fixture.expectedTodayDay));
+  const completedAfterStaleClick = await page.evaluate(() => {
+    const bundle = getPlanBundle();
+    const todayDay = resolveTodayPlanDay(bundle);
+    return getDayCompletion(bundle.schedule[todayDay - 1], bundle.state.checkedByDay).completed;
+  });
+  expect(completedAfterStaleClick).toBe(completedBeforeStaleClick);
+
+  await page.locator("#tab-plan").click();
+  await page.locator("#planOpenDetailButton").click();
+  await expect(page.locator(".calendar-day.selected")).toHaveAttribute("data-day", String(fixture.selectedDay));
+  await page.locator("#tab-today").click();
+  await page.locator("#openPlanAdjustButton").click();
+  expect(await page.evaluate(() => activePlanAdjustAnchorDay)).toBe(fixture.expectedTodayDay);
+  diagnostics.expectClean();
+});
+
 test("일정을 검증하고 한 번만 추가해 새로고침 후 유지한다", async ({ page }) => {
   const diagnostics = monitorPage(page);
   await page.goto("/app.html");
@@ -33,7 +132,7 @@ test("일정을 검증하고 한 번만 추가해 새로고침 후 유지한다"
   await page.reload();
   await expect(page.locator("#executionChecklist").getByText("특수 일정 !@#$%^&*()", { exact: true })).toHaveCount(1);
   await expectNoDuplicateIds(page);
-  const state = await readStored(page, "omwExecutionState");
+  const state = await page.evaluate(() => getExecutionState());
   expect(state.customTasksByDay["1"]).toHaveLength(1);
   diagnostics.expectClean();
 });
@@ -45,7 +144,7 @@ test("완료, 해제, 재완료에도 XP와 완료 기록이 중복되지 않는
   await page.locator("#todayTools summary").click();
   await page.locator("#completeTodayButton").click();
   const rewarded = await readStored(page, "omwCompanionState");
-  const firstState = await readStored(page, "omwExecutionState");
+  const firstState = await page.evaluate(() => getExecutionState());
   const firstLogCount = firstState.completedLog.length;
   expect(Number.isFinite(rewarded.xp)).toBeTruthy();
   expect(rewarded.xp).toBeGreaterThanOrEqual(0);
@@ -54,7 +153,7 @@ test("완료, 해제, 재완료에도 XP와 완료 기록이 중복되지 않는
   await firstCheckbox.uncheck();
   await firstCheckbox.check();
   const repeated = await readStored(page, "omwCompanionState");
-  const repeatedState = await readStored(page, "omwExecutionState");
+  const repeatedState = await page.evaluate(() => getExecutionState());
   expect(repeated.xp).toBe(rewarded.xp);
   expect(repeatedState.completedLog).toHaveLength(firstLogCount);
   expect(new Set(repeatedState.completedLog.map((entry) => entry.taskKey)).size).toBe(firstLogCount);
@@ -79,7 +178,7 @@ test("올리와 첫 행동을 완료하면 기본 기록과 성장 상태를 먼
   await expect(page.locator("#completionReflectionTask")).toContainText(actionTitle);
   await captureAcceptance(page, testInfo, "reflection", { fullPage: false });
 
-  let state = await readStored(page, "omwExecutionState");
+  let state = await page.evaluate(() => getExecutionState());
   expect(state.dailyMemories).toHaveLength(1);
   expect(state.dailyMemories[0]).toMatchObject({
     title: actionTitle,
@@ -99,7 +198,7 @@ test("올리와 첫 행동을 완료하면 기본 기록과 성장 상태를 먼
   await expect(page.locator("#completionReflectionSheet")).toBeHidden();
   await expect(page.locator("#startFocusButton")).toBeFocused();
 
-  state = await readStored(page, "omwExecutionState");
+  state = await page.evaluate(() => getExecutionState());
   expect(state.dailyMemories[0]).toMatchObject({
     difficulty: "hard",
     mood: "tired",
@@ -117,7 +216,7 @@ test("올리와 첫 행동을 완료하면 기본 기록과 성장 상태를 먼
 
   await page.reload();
   await waitForAppReady(page);
-  state = await readStored(page, "omwExecutionState");
+  state = await page.evaluate(() => getExecutionState());
   expect(state.dailyMemories).toHaveLength(1);
   expect(state.ollieGrowthState.firstLeafAt).toBeTruthy();
   diagnostics.expectClean();
@@ -148,7 +247,7 @@ test("놓친 날 회복은 위협 문구나 AI 호출 없이 5분 행동·기록
   await captureAcceptance(page, testInfo, "recovery", { fullPage: false });
   await recovery.getByRole("button", { name: "5분짜리 한 걸음으로 줄이기" }).click();
 
-  const state = await readStored(page, "omwExecutionState");
+  const state = await page.evaluate(() => getExecutionState());
   expect(Object.values(state.taskEditsByDay).flatMap((value) => Object.values(value))).toEqual(
     expect.arrayContaining([expect.objectContaining({ durationMinutes: 5 })]),
   );
@@ -231,7 +330,7 @@ test("같은 제목·시각·legacy id 일정도 stable task key와 완료 상�
   await expect(rows.nth(1).locator(".execution-check")).not.toBeChecked();
   await rows.first().locator(".execution-check").uncheck();
   await rows.first().locator(".execution-check").check();
-  const migratedState = await readStored(page, "omwExecutionState");
+  const migratedState = await page.evaluate(() => getExecutionState());
   expect(migratedState.completedLog).toHaveLength(1);
   expect(migratedState.completedLog[0].taskKey).toBe(`1:${keys[0]}`);
   await page.reload();
@@ -341,7 +440,7 @@ test("미완료 일정 직접 편집은 크레딧 없이 반영되고 한 번 �
   await captureAcceptance(page, testInfo, "today-first-action");
 
   const originalTitle = await page.locator("#focusTaskTitle").textContent();
-  const originalState = await readStored(page, "omwExecutionState");
+  const originalState = await page.evaluate(() => getExecutionState());
   const editButton = page.locator("#executionChecklist .task-edit-button").first();
   const editButtonBounds = await editButton.boundingBox();
   expect(editButtonBounds.width).toBeGreaterThanOrEqual(44);
@@ -360,7 +459,7 @@ test("미완료 일정 직접 편집은 크레딧 없이 반영되고 한 번 �
   await expect(page.locator("#taskEditSheet")).toBeHidden();
   await expect(page.locator("#focusTaskTitle")).toHaveText("직접 수정한 첫 일정");
   await expect(page.locator("#planUndoBanner")).toBeVisible();
-  const editedState = await readStored(page, "omwExecutionState");
+  const editedState = await page.evaluate(() => getExecutionState());
   expect(Object.keys(editedState.taskEditsByDay["1"] || {})).toHaveLength(1);
   expect(editedState.completedLog).toEqual(originalState?.completedLog || []);
   expect(aiRequestCount).toBe(0);
@@ -368,7 +467,7 @@ test("미완료 일정 직접 편집은 크레딧 없이 반영되고 한 번 �
   await page.locator("#planUndoButton").click();
   await expect(page.locator("#planUndoBanner")).toBeHidden();
   await expect(page.locator("#focusTaskTitle")).toHaveText(originalTitle);
-  const restoredState = await readStored(page, "omwExecutionState");
+  const restoredState = await page.evaluate(() => getExecutionState());
   expect(restoredState.taskEditsByDay).toEqual(originalState?.taskEditsByDay || {});
   expect(restoredState.completedLog).toEqual(originalState?.completedLog || []);
   expect(aiRequestCount).toBe(0);
@@ -378,7 +477,7 @@ test("일정 날짜 이동과 오늘만 건너뛰기는 완료 기록을 바꾸�
   await page.goto("/app.html");
   await waitForAppReady(page);
 
-  const originalState = await readStored(page, "omwExecutionState");
+  const originalState = await page.evaluate(() => getExecutionState());
   await page.locator("#executionChecklist .task-edit-button").first().click();
   await page.locator("#taskEditName").fill("내일로 옮긴 일정");
   await page.locator("#taskEditTargetDay").selectOption("2");
@@ -388,7 +487,7 @@ test("일정 날짜 이동과 오늘만 건너뛰기는 완료 기록을 바꾸�
   });
 
   await expect(page.locator("#taskEditSheet")).toBeHidden();
-  const movedState = await readStored(page, "omwExecutionState");
+  const movedState = await page.evaluate(() => getExecutionState());
   expect(movedState.hiddenTaskKeysByDay["1"]).toHaveLength(1);
   expect(movedState.customTasksByDay["2"]).toHaveLength(1);
   expect(movedState.customTasksByDay["2"]).toEqual(expect.arrayContaining([
@@ -397,18 +496,18 @@ test("일정 날짜 이동과 오늘만 건너뛰기는 완료 기록을 바꾸�
   expect(movedState.completedLog).toEqual(originalState?.completedLog || []);
 
   await page.locator("#planUndoButton").click();
-  const restoredAfterMove = await readStored(page, "omwExecutionState");
+  const restoredAfterMove = await page.evaluate(() => getExecutionState());
   expect(restoredAfterMove.hiddenTaskKeysByDay).toEqual(originalState?.hiddenTaskKeysByDay || {});
   expect(restoredAfterMove.customTasksByDay).toEqual(originalState?.customTasksByDay || {});
 
   await page.locator("#executionChecklist .task-edit-button").first().click();
   await page.locator("#skipTaskButton").click();
   await expect(page.locator("#taskEditSheet")).toBeHidden();
-  const skippedState = await readStored(page, "omwExecutionState");
+  const skippedState = await page.evaluate(() => getExecutionState());
   expect(skippedState.hiddenTaskKeysByDay["1"]).toHaveLength(1);
   expect(skippedState.completedLog).toEqual(originalState?.completedLog || []);
   await page.locator("#planUndoButton").click();
-  const restoredAfterSkip = await readStored(page, "omwExecutionState");
+  const restoredAfterSkip = await page.evaluate(() => getExecutionState());
   expect(restoredAfterSkip.hiddenTaskKeysByDay).toEqual(originalState?.hiddenTaskKeysByDay || {});
   expect(restoredAfterSkip.completedLog).toEqual(originalState?.completedLog || []);
 });
@@ -417,7 +516,7 @@ test("반복 일정 범위 편집은 변경 개수를 미리 보여준 뒤에만
   await page.goto("/app.html");
   await waitForAppReady(page);
 
-  const originalState = await readStored(page, "omwExecutionState");
+  const originalState = await page.evaluate(() => getExecutionState());
   await page.locator("#executionChecklist .task-edit-button").first().click();
   await page.locator("input[name='taskEditScope'][value='recurrence']").check();
   await page.locator("#taskEditName").fill("남은 회차에 적용할 일정");
@@ -427,12 +526,12 @@ test("반복 일정 범위 편집은 변경 개수를 미리 보여준 뒤에만
   await expect(page.locator("#taskEditPreview")).toBeVisible();
   await expect(page.locator("#taskEditPreviewMessage")).toContainText(/반복 일정 \d+개/);
   await expect(page.locator("#taskEditSubmitButton")).toHaveText("확인한 변경 적용");
-  const previewState = await readStored(page, "omwExecutionState");
+  const previewState = await page.evaluate(() => getExecutionState());
   expect(previewState).toEqual(originalState);
 
   await page.locator("#taskEditSubmitButton").click();
   await expect(page.locator("#taskEditSheet")).toBeHidden();
-  const appliedState = await readStored(page, "omwExecutionState");
+  const appliedState = await page.evaluate(() => getExecutionState());
   expect(Object.values(appliedState.taskEditsByDay).flatMap((edits) => Object.values(edits)))
     .toEqual(expect.arrayContaining([expect.objectContaining({ text: "남은 회차에 적용할 일정" })]));
   expect(appliedState.completedLog).toEqual(originalState?.completedLog || []);

@@ -81,13 +81,38 @@ function input(goal = "90일 안에 첫 유료 고객 10명 만들기") {
   };
 }
 
+test("malformed exclusion dates fail before the AI provider is called", async () => {
+  const invalidInput = input();
+  invalidInput.availability.scheduleStartDate = "2026-07-24";
+  invalidInput.availability.excludedDates = ["8/12", "휴가 때"];
+  let calls = 0;
+
+  await assert.rejects(
+    createAiGoalPlan(invalidInput, {
+      apiKey: "fixture-key",
+      model: "fixture-model",
+      fetchImpl: async () => {
+        calls += 1;
+        return responseFor(validBlueprint());
+      },
+    }),
+    (error) => error.status === 400 && /제외 날짜/.test(error.message),
+  );
+  assert.equal(calls, 0);
+});
+
 function validBlueprint(overrides = {}) {
   return {
     personalitySummary: "작은 실행을 반복할 때 강점이 살아나요.",
     planningStyle: "유연 조정형: 하루 컨디션에 따라 세 단계로 조절하는 긴 설명",
     weekTitle: "첫 고객 문제를 확인하는 주",
     coachMessage: "평일 한 시간 안에서 고객 대화부터 시작해요.",
-    feasibility: "첫 주 고객 문제 확인 중",
+    feasibility: {
+      status: "feasible",
+      summary: "첫 주 고객 문제 확인 중",
+      recommendedOption: "keep_current_plan",
+      adjustmentOptions: ["keep_current_plan"],
+    },
     phases: [
       { phase: "탐색", days: "1–7일", focus: "고객 문제 확인", successMetric: "인터뷰 3회" },
       { phase: "제안", days: "8–30일", focus: "첫 제안 검증", successMetric: "제안 10회" },
@@ -146,7 +171,8 @@ test("목표·현재 상태·가능 시간·기존 루틴을 OpenAI 요청에 �
   assert.match(outbound.body.input, /아이디어만 있고 평일 1시간, 주말 3시간 가능/);
   assert.match(outbound.body.input, /저녁 식사 후 노트북 열기/);
   assert.match(outbound.body.instructions, /다른 목표 분야의 예시나 템플릿 문구를 재사용하지 마세요/);
-  assert.match(outbound.body.instructions, /현실적으로 어렵다면 요청을 거부하지 마세요/);
+  assert.match(outbound.body.instructions, /feasibility\.status.*constrained.*infeasible_as_requested/s);
+  assert.match(outbound.body.instructions, /정확한 달력 날짜가 아닌 재사용 가능한 상대적 주간 패턴/);
   assert.match(outbound.body.instructions, /검증 가능한 중간 목표/);
   assert.equal(outbound.body.max_output_tokens, GOAL_PLAN_MAX_OUTPUT_TOKENS);
   assert.equal(outbound.body.reasoning.effort, "none");
@@ -199,9 +225,9 @@ test("첫 7일 검증은 휴식일 ACTION, 가능 시간 초과, 자료 미반�
   plan.firstWeekSchedule.forEach((day) => { day.items[0].sourceReference = ""; });
 
   const errors = validateGeneratedPlan(normalizedInput, plan);
-  assert.ok(errors.some((message) => message.includes("휴식일에 ACTION")));
-  assert.ok(errors.some((message) => message.includes("회당 가능 시간을 초과")));
-  assert.ok(errors.some((message) => message.includes("자료와 범위")));
+  assert.ok(errors.includes("REST_PERIOD_ACTION"));
+  assert.ok(errors.includes("AVAILABILITY_OVER_CAPACITY"));
+  assert.ok(errors.includes("SOURCE_REFERENCE_MISSING"));
 });
 
 test("첫 7일 ACTION의 stable id 충돌과 현재 draft planId 불일치를 거부한다", () => {
@@ -213,8 +239,8 @@ test("첫 7일 ACTION의 stable id 충돌과 현재 draft planId 불일치를 �
   plan.firstWeekSchedule[2].items[0].planId = "other-plan";
 
   const errors = validateGeneratedPlan(normalizedInput, plan);
-  assert.ok(errors.some((message) => message.includes("식별자가 중복")));
-  assert.ok(errors.some((message) => message.includes("현재 계획 ID와 일치하지 않아요")));
+  assert.ok(errors.includes("ACTION_IDENTITY_DUPLICATE"));
+  assert.ok(errors.includes("ACTION_PLAN_ID_MISMATCH"));
 });
 
 test("제외 날짜와 완료 기준 누락은 계획 활성화 전에 거부한다", () => {
@@ -224,8 +250,8 @@ test("제외 날짜와 완료 기준 누락은 계획 활성화 전에 거부한
   plan.firstWeekSchedule[1].items[0].completionRule = "";
 
   const errors = validateGeneratedPlan(normalizedInput, plan);
-  assert.ok(errors.some((message) => message.includes("제외 날짜")));
-  assert.ok(errors.some((message) => message.includes("완료 기준")));
+  assert.ok(errors.includes("EXCLUDED_DATE_ACTION"));
+  assert.ok(errors.includes("ACTION_COMPLETION_RULE_MISSING"));
 });
 
 test("잘못된 JSON과 필드가 빠진 AI 계획은 성공으로 처리하지 않는다", async () => {
@@ -268,4 +294,132 @@ test("generation은 incomplete max tokens를 JSON parse error와 구분한다", 
       && error.providerCalled === true
     ),
   );
+});
+
+test("infeasible roadmap is a valid result with explicit options and a claim lock", async () => {
+  const blueprint = validBlueprint({
+    feasibility: {
+      status: "infeasible_as_requested",
+      summary: "The requested scope exceeds the available time.",
+      recommendedOption: "reduce_scope",
+      adjustmentOptions: ["reduce_scope", "extend_duration"],
+    },
+  });
+  const result = await createAiGoalPlan(input(), {
+    apiKey: "fixture-key",
+    now: Date.parse("2026-07-18T15:00:00Z"),
+    fetchImpl: async () => responseFor(blueprint),
+  });
+  assert.equal(result.plan.feasibility.status, "infeasible_as_requested");
+  assert.equal(result.plan.scheduleContract.requiresAdjustmentBeforeClaim, true);
+  assert.deepEqual(result.plan.feasibility.adjustmentOptions, ["reduce_scope", "extend_duration"]);
+  assert.equal(result.plan.scheduleContract.startDate, "2026-07-19");
+});
+
+test("material range hard failures stop before provider and provider ranges outside the target fail closed", async () => {
+  let calls = 0;
+  const invalidInput = input();
+  invalidInput.material = {
+    hasMaterial: true,
+    name: "Fixture Book",
+    currentProgress: "Unit 12까지 완료",
+    targetRange: "Unit 10~3",
+  };
+  await assert.rejects(
+    createAiGoalPlan(invalidInput, {
+      apiKey: "fixture-key",
+      fetchImpl: async () => {
+        calls += 1;
+        return responseFor(validBlueprint());
+      },
+    }),
+    (error) => (
+      error.code === "MATERIAL_RANGE_INVALID"
+      && error.status === 400
+      && error.providerCalled === false
+      && error.ruleIds.includes("MATERIAL_RANGE_REVERSED")
+    ),
+  );
+  assert.equal(calls, 0);
+
+  const exactInput = input();
+  exactInput.material = {
+    hasMaterial: true,
+    name: "Fixture Book",
+    currentProgress: "Unit 12까지 완료",
+    targetRange: "Unit 13~30",
+  };
+  await assert.rejects(
+    createAiGoalPlan(exactInput, {
+      apiKey: "fixture-key",
+      fetchImpl: async () => {
+        calls += 1;
+        const blueprint = validBlueprint();
+        blueprint.taskTemplates
+          .filter((item) => item.type === "ACTION")
+          .forEach((item) => {
+            item.sourceReference = "Fixture Book";
+            item.quantityOrRange = "Unit 1~5";
+          });
+        return responseFor(blueprint);
+      },
+    }),
+    (error) => (
+      error.code === "AI_OUTPUT_DOMAIN_INVALID"
+      && error.diagnostics.domainRuleIds.includes("MATERIAL_ACTION_RANGE_OUTSIDE_TARGET")
+      && error.providerCalled === true
+    ),
+  );
+  assert.equal(calls, 1);
+});
+
+test("ambiguous material range remains non-terminal and is surfaced as an assumption", async () => {
+  const ambiguousInput = input();
+  ambiguousInput.material = {
+    hasMaterial: true,
+    name: "Fixture Book",
+    currentProgress: "중간쯤",
+    targetRange: "가능한 만큼",
+    unit: "교재 구간",
+  };
+  let calls = 0;
+  const result = await createAiGoalPlan(ambiguousInput, {
+    apiKey: "fixture-key",
+    fetchImpl: async () => {
+      calls += 1;
+      const blueprint = validBlueprint();
+      blueprint.taskTemplates
+        .filter((item) => item.type === "ACTION")
+        .forEach((item) => {
+          item.sourceReference = "Fixture Book";
+          item.quantityOrRange = "첫 구간";
+        });
+      return responseFor(blueprint);
+    },
+  });
+  assert.equal(calls, 1);
+  assert.ok(result.plan.assumptions.some((entry) => entry.includes("모호")));
+  assert.ok(result.plan.firstWeekSchedule.flatMap((day) => day.items)
+    .filter((item) => item.type === "ACTION")
+    .every((item) => item.sourceReference === "Fixture Book"));
+});
+
+test("final validation checks excluded ACTIONs beyond the preview week", () => {
+  const normalizedInput = input();
+  normalizedInput.availability.excludedDates = ["2026-07-27"];
+  const plan = validPlan();
+  plan.scheduleOccurrences = [
+    ...plan.firstWeekSchedule,
+    {
+      dayNumber: 8,
+      dayLabel: "월",
+      isRestDay: false,
+      items: [{
+        ...plan.firstWeekSchedule[0].items[0],
+        id: "fixture-action-8",
+        scheduledAt: "2026-07-27T19:00:00+09:00",
+      }],
+    },
+  ];
+  assert.ok(validateGeneratedPlan(normalizedInput, plan).includes("EXCLUDED_DATE_ACTION"));
 });

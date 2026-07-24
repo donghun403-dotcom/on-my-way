@@ -25,7 +25,12 @@ function message(content) {
   return {
     status: "completed",
     output: [{ type: "message", role: "assistant", content }],
-    usage: { output_tokens: 27 },
+    usage: {
+      input_tokens: 123,
+      input_tokens_details: { cached_tokens: 45 },
+      output_tokens: 27,
+      output_tokens_details: { reasoning_tokens: 3 },
+    },
   };
 }
 
@@ -174,11 +179,27 @@ test("safe diagnostics include metadata but exclude raw input and response field
   caught.providerRequestId = "req_fixture";
   const diagnostics = safeAiDiagnostics(caught, {
     correlationId: "correlation-fixture",
+    environment: "staging",
     model: "gpt-fixture",
+    operation: "goal_generation",
     latencyMs: 123.4,
+    maxOutputTokens: 100,
   });
   assert.equal(diagnostics.errorCategory, "AI_OUTPUT_PARSE_FAILED");
+  assert.equal(diagnostics.environment, "staging");
+  assert.equal(diagnostics.operation, "goal_generation");
+  assert.equal(diagnostics.configuredMaxOutputTokens, 100);
+  assert.equal(diagnostics.inputTokens, 123);
+  assert.equal(diagnostics.cachedInputTokens, 45);
+  assert.equal(diagnostics.outputTokens, 27);
+  assert.equal(diagnostics.reasoningTokens, 3);
+  assert.equal(diagnostics.headroomPercent, 73);
+  assert.equal(diagnostics.schemaResult, "not_run");
+  assert.equal(diagnostics.domainResult, "not_run");
+  assert.equal(diagnostics.providerCalled, true);
+  assert.equal(diagnostics.cached, false);
   assert.equal(diagnostics.outputTextLength, 7);
+  assert.equal(diagnostics.outputBytes, 7);
   assert.deepEqual(diagnostics.contentItemTypes, ["output_text"]);
   assert.equal(JSON.stringify(diagnostics).includes("{broken"), false);
   assert.equal(Object.hasOwn(diagnostics, "responseBody"), false);
@@ -189,23 +210,145 @@ test("success diagnostics expose only bounded metadata and mark absent usage as 
     requestId: "req_success",
     diagnostics: {
       responseStatus: "completed",
+      schemaResult: "pass",
+      domainResult: "pass",
       outputTokens: 123,
       reasoningTokens: null,
       outputTextLength: 456,
+      outputBytes: 700,
       parsedPayloadBytes: 789,
       parsedItemCount: 12,
+    },
+    usage: {
+      input_tokens: 321,
+      input_tokens_details: { cached_tokens: 210 },
+      output_tokens: 123,
     },
     contract: { maxOutputTokens: 6000 },
     plan: { rawGoal: "로그에 나오면 안 되는 목표" },
   }, {
     correlationId: "correlation-success",
+    environment: "staging",
     model: "gpt-fixture",
+    operation: "goal_generation",
     latencyMs: 45,
   });
+  assert.equal(diagnostics.configuredMaxOutputTokens, 6000);
   assert.equal(diagnostics.maxOutputTokens, 6000);
+  assert.equal(diagnostics.inputTokens, 321);
+  assert.equal(diagnostics.cachedInputTokens, 210);
   assert.equal(diagnostics.outputTokens, 123);
   assert.equal(diagnostics.reasoningTokens, "unknown");
+  assert.equal(diagnostics.headroomPercent, 97.95);
+  assert.equal(diagnostics.schemaResult, "pass");
+  assert.equal(diagnostics.domainResult, "pass");
+  assert.equal(diagnostics.providerCalled, true);
+  assert.equal(diagnostics.cached, false);
+  assert.equal(diagnostics.outputBytes, 700);
   assert.equal(diagnostics.parsedItemCount, 12);
   assert.equal(JSON.stringify(diagnostics).includes("로그에 나오면 안 되는 목표"), false);
   assert.equal(Object.hasOwn(diagnostics, "plan"), false);
+});
+
+test("domain failures expose only stable rule IDs and measured usage", () => {
+  let caught;
+  try {
+    parseStructuredResponse(message(textContent({ name: "task", durationMinutes: 20 })), {
+      schema,
+      domainValidate: () => [
+        "EXCLUDED_WEEKDAY_ACTION",
+        { ruleId: "AVAILABILITY_OVER_CAPACITY", rawValue: "RAW-DOMAIN-SENTINEL" },
+        "not safe raw detail",
+      ],
+    });
+  } catch (error) {
+    caught = error;
+  }
+  const diagnostics = safeAiDiagnostics(caught, {
+    correlationId: "correlation-domain",
+    environment: "staging",
+    operation: "goal_generation",
+    model: "gpt-fixture",
+    maxOutputTokens: 6000,
+  });
+  assert.deepEqual(diagnostics.domainRuleIds, [
+    "EXCLUDED_WEEKDAY_ACTION",
+    "AVAILABILITY_OVER_CAPACITY",
+  ]);
+  assert.equal(diagnostics.domainValidationCode, "EXCLUDED_WEEKDAY_ACTION");
+  assert.equal(diagnostics.schemaResult, "pass");
+  assert.equal(diagnostics.domainResult, "fail");
+  assert.equal(diagnostics.inputTokens, 123);
+  assert.equal(diagnostics.cachedInputTokens, 45);
+  assert.equal(diagnostics.outputTokens, 27);
+  assert.equal(diagnostics.headroomPercent, 99.55);
+  assert.equal(JSON.stringify(diagnostics).includes("RAW-DOMAIN-SENTINEL"), false);
+  assert.equal(JSON.stringify(diagnostics).includes("not safe raw detail"), false);
+});
+
+test("safe telemetry never spreads raw PII or accepts unsafe labels", () => {
+  const sentinel = "RAW-PII user@example.test Authorization=Bearer-secret";
+  const error = new Error(sentinel);
+  error.code = "AI_OUTPUT_DOMAIN_INVALID";
+  error.providerCalled = false;
+  error.cached = true;
+  error.providerRequestId = sentinel;
+  error.diagnostics = {
+    responseStatus: sentinel,
+    incompleteReason: sentinel,
+    outputItemTypes: ["message", sentinel],
+    contentItemTypes: ["output_text", sentinel],
+    inputTokens: null,
+    cachedInputTokens: null,
+    outputTokens: null,
+    reasoningTokens: null,
+    outputTextLength: null,
+    outputBytes: null,
+    parsedPayloadBytes: null,
+    parsedItemCount: null,
+    schemaResult: "not_run",
+    domainResult: "fail",
+    schemaErrorPath: `$/properties/${sentinel}`,
+    schemaErrorRule: sentinel,
+    domainValidationCode: sentinel,
+    domainRuleIds: [sentinel, "SOURCE_REFERENCE_MISSING"],
+    retryCount: 0,
+    rawInput: sentinel,
+    rawResponse: sentinel,
+  };
+  const diagnostics = safeAiDiagnostics(error, {
+    correlationId: sentinel,
+    environment: sentinel,
+    operation: sentinel,
+    model: sentinel,
+    maxOutputTokens: 6000,
+  });
+  const serialized = JSON.stringify(diagnostics);
+  assert.equal(serialized.includes(sentinel), false);
+  assert.deepEqual(diagnostics.outputItemTypes, ["message"]);
+  assert.deepEqual(diagnostics.contentItemTypes, ["output_text"]);
+  assert.deepEqual(diagnostics.domainRuleIds, ["SOURCE_REFERENCE_MISSING"]);
+  assert.equal(diagnostics.providerCalled, false);
+  assert.equal(diagnostics.cached, true);
+  assert.equal(diagnostics.inputTokens, "unknown");
+  assert.equal(diagnostics.headroomPercent, "unknown");
+  assert.equal(Object.hasOwn(diagnostics, "rawInput"), false);
+  assert.equal(Object.hasOwn(diagnostics, "rawResponse"), false);
+});
+
+test("headroom is unknown without real provider output usage", () => {
+  const diagnostics = safeAiSuccessDiagnostics({
+    requestId: "req_no_usage",
+    diagnostics: {
+      responseStatus: "completed",
+      schemaResult: "pass",
+      domainResult: "pass",
+    },
+    contract: { maxOutputTokens: 4500 },
+  }, {
+    environment: "staging",
+    operation: "plan_revision",
+  });
+  assert.equal(diagnostics.outputTokens, "unknown");
+  assert.equal(diagnostics.headroomPercent, "unknown");
 });

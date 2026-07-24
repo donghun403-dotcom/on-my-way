@@ -179,6 +179,12 @@ test("revision은 CAS와 idempotency key를 검사하고 성공 전에는 active
   assert.equal(retry.status, 200);
   assert.equal(retry.body.cached, true);
   assert.equal(retry.body.idempotent, true);
+  assert.deepEqual(retry.body.generationResult, {
+    outcome: "success",
+    code: "",
+    retryable: false,
+    status: 200,
+  });
   assert.equal(retry.body.activeRevision, 2);
 });
 
@@ -215,6 +221,190 @@ test("revision AI 실패는 기존 active input과 plan을 보존하고 stale cl
   assert.equal(staleClaim.body.code, "DRAFT_REVISION_CONFLICT");
 });
 
+test("initial terminal contract failure는 같은 fingerprint에 재생되고 새 key만 provider path를 연다", async () => {
+  const namespace = memoryDurableObjectNamespace();
+  const { stub, storage } = namespace.newIsolate(DRAFT_ID);
+  const now = 70_000;
+  const key = "initial:terminal-contract-key";
+  const begin = await jsonCommand(stub, "begin-initial", {
+    now,
+    draftPlanId: DRAFT_ID,
+    anonymousActorHash: "owner-hash",
+    capabilityHash: CAPABILITY_HASH,
+    input: input(),
+    inputHash: INPUT_HASH,
+    generationToken: "terminal-contract-token",
+    idempotencyKey: key,
+  });
+  const originalExpiry = begin.body.expiresAt;
+  const failed = await jsonCommand(stub, "fail-generation", {
+    now: now + 1,
+    generationToken: "terminal-contract-token",
+    outcome: "terminal_contract_failure",
+    code: "AI_OUTPUT_DOMAIN_INVALID",
+    message: "must-not-be-persisted",
+    details: { raw: "must-not-be-persisted" },
+  });
+  assert.equal(failed.status, 200);
+  assert.deepEqual(failed.body.generationResult, {
+    outcome: "terminal_contract_failure",
+    code: "AI_OUTPUT_DOMAIN_INVALID",
+    retryable: false,
+    status: 502,
+  });
+  const failedState = await storage.get("draft");
+  assert.equal(failedState.status, "FAILED");
+  assert.equal(failedState.expiresAt, originalExpiry);
+  assert.equal(JSON.stringify(failedState).includes("must-not-be-persisted"), false);
+
+  const denied = await jsonCommand(stub, "begin-initial", {
+    now: now + 2,
+    draftPlanId: DRAFT_ID,
+    anonymousActorHash: "owner-hash",
+    capabilityHash: "f".repeat(64),
+    input: input(),
+    inputHash: INPUT_HASH,
+    generationToken: "denied-token",
+    idempotencyKey: key,
+  });
+  assert.equal(denied.status, 403);
+  assert.equal("generationResult" in denied.body, false);
+
+  const replay = await jsonCommand(stub, "begin-initial", {
+    now: now + 3,
+    draftPlanId: DRAFT_ID,
+    anonymousActorHash: "owner-hash",
+    capabilityHash: CAPABILITY_HASH,
+    input: input(),
+    inputHash: INPUT_HASH,
+    generationToken: "same-key-token",
+    idempotencyKey: key,
+  });
+  assert.equal(replay.status, 200);
+  assert.equal(replay.body.ok, false);
+  assert.equal(replay.body.cached, true);
+  assert.equal(replay.body.shouldGenerate, false);
+  assert.deepEqual(replay.body.generationResult, failed.body.generationResult);
+
+  const conflictingFingerprint = await jsonCommand(stub, "begin-initial", {
+    now: now + 4,
+    draftPlanId: DRAFT_ID,
+    anonymousActorHash: "owner-hash",
+    capabilityHash: CAPABILITY_HASH,
+    input: input("different input"),
+    inputHash: "7".repeat(64),
+    generationToken: "conflict-token",
+    idempotencyKey: key,
+  });
+  assert.equal(conflictingFingerprint.status, 409);
+  assert.equal(conflictingFingerprint.body.code, "DRAFT_IDEMPOTENCY_KEY_CONFLICT");
+
+  const retry = await jsonCommand(stub, "begin-initial", {
+    now: now + 5,
+    draftPlanId: DRAFT_ID,
+    anonymousActorHash: "owner-hash",
+    capabilityHash: CAPABILITY_HASH,
+    input: input(),
+    inputHash: INPUT_HASH,
+    generationToken: "new-key-token",
+    idempotencyKey: "initial:terminal-contract-key:retry",
+  });
+  assert.equal(retry.status, 200);
+  assert.equal(retry.body.shouldGenerate, true);
+  assert.equal(retry.body.expiresAt, originalExpiry);
+});
+
+test("revision terminal failure replay는 active plan을 바꾸지 않고 새 key만 재시도를 연다", async () => {
+  const namespace = memoryDurableObjectNamespace();
+  const { stub, storage } = namespace.newIsolate(DRAFT_ID);
+  const seeded = await seedReady(stub, { now: 80_000 });
+  const nextHash = "8".repeat(64);
+  const revisionBody = {
+    capabilityHash: CAPABILITY_HASH,
+    expectedRevision: 1,
+    expectedInputHash: INPUT_HASH,
+    input: input("revised goal"),
+    inputHash: nextHash,
+    idempotencyKey: "revision:terminal-contract-key",
+  };
+  await jsonCommand(stub, "begin-revision", {
+    now: 80_010,
+    ...revisionBody,
+    generationToken: "revision-terminal-token",
+  });
+  await jsonCommand(stub, "fail-generation", {
+    now: 80_011,
+    generationToken: "revision-terminal-token",
+    resultCategory: "terminal_contract_failure",
+    code: "AI_OUTPUT_DOMAIN_INVALID",
+  });
+  const state = await storage.get("draft");
+  assert.equal(state.status, "READY");
+  assert.equal(state.activeRevision, 1);
+  assert.equal(state.activeInputHash, INPUT_HASH);
+  assert.equal(state.activePlan.goal, input().goal);
+  assert.equal(state.expiresAt, seeded.expiresAt);
+
+  const deniedReplay = await jsonCommand(stub, "begin-revision", {
+    now: 80_012,
+    ...revisionBody,
+    capabilityHash: "f".repeat(64),
+    generationToken: "denied-revision-replay-token",
+  });
+  assert.equal(deniedReplay.status, 403);
+  assert.equal("generationResult" in deniedReplay.body, false);
+
+  const replay = await jsonCommand(stub, "begin-revision", {
+    now: 80_013,
+    ...revisionBody,
+    generationToken: "revision-replay-token",
+  });
+  assert.equal(replay.status, 200);
+  assert.equal(replay.body.cached, true);
+  assert.equal(replay.body.shouldGenerate, false);
+  assert.deepEqual(replay.body.generationResult, {
+    outcome: "terminal_contract_failure",
+    code: "AI_OUTPUT_DOMAIN_INVALID",
+    retryable: false,
+    status: 502,
+  });
+  assert.equal("plan" in replay.body, false);
+
+  const retry = await jsonCommand(stub, "begin-revision", {
+    now: 80_014,
+    ...revisionBody,
+    generationToken: "revision-new-key-token",
+    idempotencyKey: "revision:terminal-contract-key:retry",
+  });
+  assert.equal(retry.status, 200);
+  assert.equal(retry.body.shouldGenerate, true);
+  await jsonCommand(stub, "fail-generation", {
+    now: 80_015,
+    generationToken: "revision-new-key-token",
+    resultCategory: "retryable_provider_failure",
+    code: "AI_PROVIDER_TIMEOUT",
+  });
+  const retryableReplay = await jsonCommand(stub, "begin-revision", {
+    now: 80_016,
+    ...revisionBody,
+    generationToken: "retryable-replay-token",
+    idempotencyKey: "revision:terminal-contract-key:retry",
+  });
+  assert.equal(retryableReplay.status, 200);
+  assert.equal(retryableReplay.body.shouldGenerate, false);
+  assert.deepEqual(retryableReplay.body.generationResult, {
+    outcome: "retryable_provider_failure",
+    code: "AI_PROVIDER_TIMEOUT",
+    retryable: true,
+    status: 503,
+  });
+  const retryState = await storage.get("draft");
+  assert.equal(retryState.activeRevision, 1);
+  assert.equal(retryState.activeInputHash, INPUT_HASH);
+  assert.equal(retryState.activePlan.goal, input().goal);
+  assert.equal(retryState.expiresAt, seeded.expiresAt);
+});
+
 test("중단된 generation lease는 active revision을 보존하고 새 revision을 다시 시작할 수 있다", async () => {
   const namespace = memoryDurableObjectNamespace();
   const { stub, storage } = namespace.newIsolate(DRAFT_ID);
@@ -239,9 +429,30 @@ test("중단된 generation lease는 active revision을 보존하고 새 revision
   assert.equal(inspected.body.activeInputHash, INPUT_HASH);
   assert.equal((await storage.get("draft")).activePlan.goal, "첫 고객 10명 만들기");
 
+  const oldKeyReplay = await jsonCommand(stub, "begin-revision", {
+    now: recoveredAt + 1,
+    capabilityHash: CAPABILITY_HASH,
+    expectedRevision: 1,
+    expectedInputHash: INPUT_HASH,
+    input: input("중단된 수정"),
+    inputHash: abandonedHash,
+    generationToken: "old-key-replay-token",
+    idempotencyKey: "revision:abandoned-key",
+  });
+  assert.equal(oldKeyReplay.status, 200);
+  assert.equal(oldKeyReplay.body.cached, true);
+  assert.equal(oldKeyReplay.body.shouldGenerate, false);
+  assert.deepEqual(oldKeyReplay.body.generationResult, {
+    outcome: "retryable_provider_failure",
+    code: "AI_GENERATION_LEASE_EXPIRED",
+    error: "AI 응답을 확인하지 못했어요. 다시 시도해 주세요.",
+    retryable: true,
+    status: 504,
+  });
+
   const replacementHash = "6".repeat(64);
   const replacement = await jsonCommand(stub, "begin-revision", {
-    now: recoveredAt + 1,
+    now: recoveredAt + 2,
     capabilityHash: CAPABILITY_HASH,
     expectedRevision: 1,
     expectedInputHash: INPUT_HASH,
@@ -254,7 +465,7 @@ test("중단된 generation lease는 active revision을 보존하고 새 revision
   assert.equal(replacement.body.shouldGenerate, true);
 });
 
-test("중단된 최초 generation은 lease 뒤 삭제되어 동일 draft에서 안전하게 다시 시작한다", async () => {
+test("중단된 최초 generation은 lease 뒤 retryable 결과로 고정되고 새 key로 다시 시작한다", async () => {
   const namespace = memoryDurableObjectNamespace();
   const { stub } = namespace.newIsolate(DRAFT_ID);
   const first = await jsonCommand(stub, "begin-initial", {
@@ -269,7 +480,7 @@ test("중단된 최초 generation은 lease 뒤 삭제되어 동일 draft에서 �
   });
   assert.equal(first.status, 200);
 
-  const replacement = await jsonCommand(stub, "begin-initial", {
+  const expiredLeaseReplay = await jsonCommand(stub, "begin-initial", {
     now: 40_000 + GUEST_DRAFT_GENERATION_LEASE_MS,
     draftPlanId: DRAFT_ID,
     anonymousActorHash: "owner-hash",
@@ -278,6 +489,27 @@ test("중단된 최초 generation은 lease 뒤 삭제되어 동일 draft에서 �
     inputHash: INPUT_HASH,
     generationToken: "replacement-initial-token",
     idempotencyKey: `initial:${INPUT_HASH}`,
+  });
+  assert.equal(expiredLeaseReplay.status, 200);
+  assert.equal(expiredLeaseReplay.body.cached, true);
+  assert.equal(expiredLeaseReplay.body.shouldGenerate, false);
+  assert.deepEqual(expiredLeaseReplay.body.generationResult, {
+    outcome: "retryable_provider_failure",
+    code: "AI_GENERATION_LEASE_EXPIRED",
+    error: "AI 응답을 확인하지 못했어요. 다시 시도해 주세요.",
+    retryable: true,
+    status: 504,
+  });
+
+  const replacement = await jsonCommand(stub, "begin-initial", {
+    now: 40_000 + GUEST_DRAFT_GENERATION_LEASE_MS + 1,
+    draftPlanId: DRAFT_ID,
+    anonymousActorHash: "owner-hash",
+    capabilityHash: CAPABILITY_HASH,
+    input: input(),
+    inputHash: INPUT_HASH,
+    generationToken: "replacement-initial-token",
+    idempotencyKey: `initial:${INPUT_HASH}:retry`,
   });
   assert.equal(replacement.status, 200);
   assert.equal(replacement.body.shouldGenerate, true);
@@ -424,4 +656,147 @@ test("24시간 절대 TTL은 revision과 claim 재시도로 연장되지 않는�
   assert.equal(retryAfterExpiry.status, 410);
   assert.equal(retryAfterExpiry.body.status, "EXPIRED");
   assert.equal(await storage.get("draft"), undefined);
+});
+
+test("historical success replay returns the original revision snapshot without current metadata", async () => {
+  const namespace = memoryDurableObjectNamespace();
+  const { stub, storage } = namespace.newIsolate(DRAFT_ID);
+  await seedReady(stub, { now: 200_000 });
+  const revisionHash = "5".repeat(64);
+  await jsonCommand(stub, "begin-revision", {
+    now: 200_002,
+    capabilityHash: CAPABILITY_HASH,
+    expectedRevision: 1,
+    expectedInputHash: INPUT_HASH,
+    input: input("revision two"),
+    inputHash: revisionHash,
+    generationToken: "historical-revision-token",
+    idempotencyKey: "revision:historical-key",
+  });
+  await jsonCommand(stub, "commit-generation", {
+    now: 200_003,
+    generationToken: "historical-revision-token",
+    idempotencyKey: "revision:historical-key",
+    inputHash: revisionHash,
+    plan: plan("revision two"),
+    preview: { firstAction: "revision two action" },
+  });
+
+  const replay = await jsonCommand(stub, "begin-initial", {
+    now: 200_004,
+    draftPlanId: DRAFT_ID,
+    anonymousActorHash: "owner-hash",
+    capabilityHash: CAPABILITY_HASH,
+    input: input(),
+    inputHash: INPUT_HASH,
+    generationToken: "unused-token",
+    idempotencyKey: `initial:${INPUT_HASH}`,
+  });
+  assert.equal(replay.status, 200);
+  assert.equal(replay.body.cached, true);
+  assert.equal(replay.body.activeRevision, 1);
+  assert.equal(replay.body.activeInputHash, INPUT_HASH);
+  assert.equal(replay.body.preview.firstAction, "고객 한 명에게 연락하기");
+  assert.equal((await storage.get("draft")).activeRevision, 2);
+  assert.equal((await storage.get("draft")).activeInputHash, revisionHash);
+});
+
+test("infeasible drafts stay READY and unclaimed until a successful adjustment revision", async () => {
+  const namespace = memoryDurableObjectNamespace();
+  const { stub, storage } = namespace.newIsolate(DRAFT_ID);
+  await seedReady(stub, { now: 210_000 });
+  const blockedState = await storage.get("draft");
+  blockedState.activePlan = {
+    ...blockedState.activePlan,
+    scheduleContract: { requiresAdjustmentBeforeClaim: true },
+  };
+  await storage.put("draft", blockedState);
+  const originalExpiry = blockedState.expiresAt;
+
+  const blocked = await jsonCommand(stub, "claim", {
+    now: 210_002,
+    capabilityHash: CAPABILITY_HASH,
+    userId: "adjustment-owner",
+    expectedRevision: 1,
+    expectedInputHash: INPUT_HASH,
+    scheduleStartPreference: "change-days",
+  });
+  assert.equal(blocked.status, 409);
+  assert.equal(blocked.body.code, "DRAFT_ADJUSTMENT_REQUIRED");
+  assert.equal((await storage.get("draft")).status, "READY");
+  assert.equal((await storage.get("draft")).claimedBy, undefined);
+  assert.equal((await storage.get("draft")).expiresAt, originalExpiry);
+
+  const adjustedHash = "6".repeat(64);
+  await jsonCommand(stub, "begin-revision", {
+    now: 210_003,
+    capabilityHash: CAPABILITY_HASH,
+    expectedRevision: 1,
+    expectedInputHash: INPUT_HASH,
+    input: input("adjusted scope"),
+    inputHash: adjustedHash,
+    generationToken: "adjusted-token",
+    idempotencyKey: "revision:adjusted-key",
+  });
+  await jsonCommand(stub, "commit-generation", {
+    now: 210_004,
+    generationToken: "adjusted-token",
+    idempotencyKey: "revision:adjusted-key",
+    inputHash: adjustedHash,
+    plan: { ...plan("adjusted scope"), scheduleContract: { requiresAdjustmentBeforeClaim: false } },
+    preview: { firstAction: "adjusted action" },
+  });
+  const claimed = await jsonCommand(stub, "claim", {
+    now: 210_005,
+    capabilityHash: CAPABILITY_HASH,
+    userId: "adjustment-owner",
+    expectedRevision: 2,
+    expectedInputHash: adjustedHash,
+    scheduleStartPreference: "change-days",
+  });
+  assert.equal(claimed.status, 200);
+  assert.equal(claimed.body.claimScheduleStartPreference, "change-days");
+});
+
+test("claim retries preserve the first schedule preference and reject plan hash corruption", async () => {
+  const namespace = memoryDurableObjectNamespace();
+  const { stub, storage } = namespace.newIsolate(DRAFT_ID);
+  await seedReady(stub, { now: 220_000 });
+  const corrupted = await storage.get("draft");
+  corrupted.activePlanInputHash = "f".repeat(64);
+  await storage.put("draft", corrupted);
+  const mismatch = await jsonCommand(stub, "claim", {
+    now: 220_002,
+    capabilityHash: CAPABILITY_HASH,
+    userId: "preference-owner",
+    expectedRevision: 1,
+    expectedInputHash: INPUT_HASH,
+  });
+  assert.equal(mismatch.status, 409);
+  assert.equal(mismatch.body.code, "DRAFT_PLAN_INPUT_MISMATCH");
+  assert.equal((await storage.get("draft")).status, "READY");
+
+  corrupted.activePlanInputHash = INPUT_HASH;
+  await storage.put("draft", corrupted);
+  const first = await jsonCommand(stub, "claim", {
+    now: 220_003,
+    capabilityHash: CAPABILITY_HASH,
+    userId: "preference-owner",
+    expectedRevision: 1,
+    expectedInputHash: INPUT_HASH,
+    scheduleStartPreference: "shorter",
+  });
+  const retry = await jsonCommand(stub, "claim", {
+    now: 220_004,
+    capabilityHash: CAPABILITY_HASH,
+    userId: "preference-owner",
+    expectedRevision: 1,
+    expectedInputHash: INPUT_HASH,
+    scheduleStartPreference: "change-days",
+  });
+  assert.equal(first.status, 200);
+  assert.equal(retry.status, 200);
+  assert.equal(first.body.claimScheduleStartPreference, "shorter");
+  assert.equal(retry.body.claimScheduleStartPreference, "shorter");
+  assert.equal((await storage.get("draft")).claimScheduleStartPreference, "shorter");
 });

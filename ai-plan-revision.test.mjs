@@ -31,7 +31,7 @@ const revisionOutput = {
 };
 
 function revisionBlueprint(overrides = {}) {
-  return {
+  const blueprint = {
     revisionSummary: structuredClone(revisionOutput.revisionSummary),
     taskTemplates: [
       { time: "저녁", durationMinutes: 40, task: "단어 40개 암기", completionRule: "테스트 90% 이상" },
@@ -52,6 +52,12 @@ function revisionBlueprint(overrides = {}) {
     ollieMessage: revisionOutput.ollieMessage,
     ...overrides,
   };
+  blueprint.taskTemplates = blueprint.taskTemplates.map((task) => ({
+    sourceReference: "",
+    quantityOrRange: "",
+    ...task,
+  }));
+  return blueprint;
 }
 
 function responseForRevision(value, { requestId = "", parsed = true } = {}) {
@@ -217,10 +223,10 @@ test("변경안은 요일·가능 시간·완료 기록·목표 분야 계약을
   ];
 
   const errors = validateRevisionOutput(normalizedLikeInput, invalid);
-  assert.ok(errors.some((message) => message.includes("가능 시간을 초과")));
-  assert.ok(errors.some((message) => message.includes("완료한 일정을 다시 포함")));
-  assert.ok(errors.some((message) => message.includes("실행 가능 요일이 아니에요")));
-  assert.ok(errors.some((message) => message.includes("다른 목표 분야")));
+  assert.ok(errors.includes("AVAILABILITY_OVER_CAPACITY"));
+  assert.ok(errors.includes("COMPLETED_ACTION_REINTRODUCED"));
+  assert.ok(errors.includes("EXCLUDED_WEEKDAY_ACTION"));
+  assert.ok(errors.includes("GOAL_FIELD_MISMATCH"));
 });
 
 test("필드가 빠진 AI 변경안은 해석 성공으로 처리하지 않는다", async () => {
@@ -247,5 +253,410 @@ test("revision은 generation과 같은 parser로 refusal을 별도 처리한다"
       },
     ),
     (error) => error.code === "AI_OUTPUT_REFUSED" && error.providerCalled === true,
+  );
+});
+
+test("material-only revision preserves current availability and rejects an out-of-bounds final schedule", async () => {
+  let requestBody;
+  const completedTask = "완료한 교재 1쪽 복습";
+  const blueprint = revisionBlueprint({
+    taskTemplates: [
+      { time: "아침", durationMinutes: 40, task: "교재 2쪽 핵심 문장 읽기", completionRule: "핵심 문장 3개를 표시하면 완료" },
+      { time: "아침", durationMinutes: 35, task: "교재 3쪽 예문 따라 쓰기", completionRule: "예문 3개를 쓰면 완료" },
+      { time: "아침", durationMinutes: 30, task: "교재 4쪽 단어 확인", completionRule: "단어 5개 뜻을 말하면 완료" },
+      { time: "아침", durationMinutes: 30, task: "교재 5쪽 한 문단 요약", completionRule: "한 문단을 두 문장으로 요약하면 완료" },
+    ],
+    days: [
+      { isRestDay: false, taskIndexes: [0] },
+      { isRestDay: false, taskIndexes: [1] },
+      { isRestDay: false, taskIndexes: [2] },
+      { isRestDay: false, taskIndexes: [3] },
+      { isRestDay: true, taskIndexes: [] },
+      { isRestDay: true, taskIndexes: [] },
+      { isRestDay: true, taskIndexes: [] },
+    ],
+  });
+
+  const result = await createAiPlanRevision(
+    {
+      goal: "영어 교재 한 권 완독",
+      currentPlanText: "- 월요일 교재 읽기\n- 수요일 예문 복습",
+      currentAvailability: {
+        availableDays: ["월", "수"],
+        sessionMinutes: 25,
+        preferredTime: "아침",
+        excludedDates: ["8/12", "8/15–8/18"],
+      },
+      completedTasks: [completedTask],
+      revisionDetails: {
+        goalType: "study",
+        resources: "새 영어 교재로 변경",
+      },
+    },
+    {
+      apiKey: "test-key",
+      fetchImpl: async (_url, options) => {
+        requestBody = JSON.parse(options.body);
+        return responseForRevision(blueprint);
+      },
+    },
+  );
+
+  const normalizedInput = JSON.parse(requestBody.input.slice(requestBody.input.indexOf("{")));
+  assert.deepEqual(normalizedInput.revisionDetails.schedule.availableDays, ["월", "수"]);
+  assert.equal(normalizedInput.revisionDetails.schedule.weekdayMinutes, 25);
+  assert.equal(normalizedInput.revisionDetails.schedule.weekendMinutes, 25);
+  assert.equal(normalizedInput.revisionDetails.schedule.preferredTime, "아침");
+  assert.deepEqual(normalizedInput.revisionDetails.schedule.excludedDates, ["8/12", "8/15–8/18"]);
+
+  const actionDays = result.revision.weeklySchedule.filter((day) => day.tasks.length);
+  assert.deepEqual(actionDays.map((day) => day.day), ["월", "수"]);
+  assert.ok(actionDays.every((day) => day.tasks.reduce((sum, task) => sum + task.durationMinutes, 0) <= 25));
+  assert.ok(actionDays.every((day) => day.tasks.every((task) => task.time === "아침")));
+  assert.doesNotMatch(JSON.stringify(result.revision), new RegExp(completedTask));
+
+  const invalidFinalRevision = structuredClone(result.revision);
+  invalidFinalRevision.weeklySchedule[0].tasks[0].durationMinutes = 30;
+  invalidFinalRevision.weeklySchedule[1] = {
+    day: "화",
+    isRestDay: false,
+    tasks: [{
+      time: "아침",
+      durationMinutes: 10,
+      task: completedTask,
+      completionRule: "복습 기록을 남기면 완료",
+    }],
+  };
+  const errors = validateRevisionOutput(normalizedInput, invalidFinalRevision);
+  assert.ok(errors.includes("AVAILABILITY_OVER_CAPACITY"));
+  assert.ok(errors.includes("EXCLUDED_WEEKDAY_ACTION"));
+  assert.ok(errors.includes("COMPLETED_ACTION_REINTRODUCED"));
+});
+
+test("completed Unit 12 continues at Unit 13 and server-derives the full Unit 13~30 revision allocation", async () => {
+  const providerBlueprint = revisionBlueprint();
+  providerBlueprint.taskTemplates.forEach((task) => {
+    task.sourceReference = "provider supplied wrong source";
+    task.quantityOrRange = "Page 900~999";
+  });
+
+  const result = await createAiPlanRevision({
+    goal: "영어 교재 완독",
+    currentPlanText: "- Unit 1~12 완료",
+    revisionRequest: "남은 범위를 현재 일정에 맞게 다시 배치해 줘.",
+    currentMaterial: {
+      hasMaterial: true,
+      name: "English Textbook A",
+      currentProgress: "Unit 12까지 완료",
+      targetRange: "Unit 13~30",
+      unit: "Unit",
+      completionRule: "각 Unit 연습문제를 끝내면 완료",
+    },
+  }, {
+    apiKey: "test-key",
+    fetchImpl: async () => responseForRevision(providerBlueprint),
+  });
+
+  const tasks = result.revision.weeklySchedule.flatMap((day) => day.tasks);
+  assert.ok(tasks.length > 0);
+  assert.ok(tasks.every((task) => task.sourceReference === "English Textbook A"));
+  assert.match(tasks[0].quantityOrRange, /^Unit 13(?:~\d+)?$/);
+  assert.match(tasks.at(-1).quantityOrRange, /30$/);
+  assert.equal(tasks.some((task) => /Page|wrong source/.test(`${task.sourceReference} ${task.quantityOrRange}`)), false);
+  assert.equal(result.revision.updatedMaterial.semanticRange.currentPosition, 12);
+  assert.equal(result.revision.updatedMaterial.semanticRange.targetStart, 13);
+  assert.equal(result.revision.updatedMaterial.semanticRange.targetEnd, 30);
+  assert.equal(result.revision.scheduleOccurrences.length, 30);
+  assert.deepEqual(result.revision.scheduleContract, {
+    scope: "remaining",
+    timezone: "Asia/Seoul",
+    startDate: result.revision.scheduleOccurrences[0].date,
+    generatedDays: 30,
+    exactDatesServerDerived: true,
+    materialAllocationServerDerived: true,
+  });
+  const exactItems = result.revision.scheduleOccurrences.flatMap((day) => day.items);
+  const exactActions = exactItems.filter((item) => item.type === "ACTION");
+  const exactReviews = exactItems.filter((item) => item.type === "REVIEW");
+  assert.deepEqual(
+    exactActions.map((item) => item.quantityOrRange),
+    Array.from({ length: 18 }, (_, index) => `Unit ${index + 13}`),
+  );
+  assert.ok(exactReviews.length > 0);
+  assert.ok(exactItems.every((item) => item.sourceReference === "English Textbook A"));
+  assert.ok(exactItems.every((item) => /^Unit \d+(?:~\d+)?$/.test(item.quantityOrRange)));
+  assert.ok(exactActions.every((item) => item.durationMinutes >= 5));
+  assert.ok(exactReviews.every((item) => item.durationMinutes === 0 && item.title.endsWith("· 복습")));
+  const weekSignature = (days) => days.flatMap((day) => day.items)
+    .map((item) => `${item.type}:${item.quantityOrRange}`);
+  assert.notDeepEqual(
+    weekSignature(result.revision.scheduleOccurrences.slice(0, 7)),
+    weekSignature(result.revision.scheduleOccurrences.slice(7, 14)),
+  );
+  const validationInput = {
+    goal: "영어 교재 완독",
+    periodDays: 30,
+    currentPlanText: "- Unit 1~12 완료",
+    completedTasks: [],
+    pendingMaterial: result.revision.updatedMaterial,
+    revisionDetails: {
+      adjustmentScope: "remaining",
+      schedule: {
+        availableDays: [],
+        weekdayMinutes: null,
+        weekendMinutes: null,
+        preferredTime: "",
+        excludedDates: [],
+        scheduleStartDate: result.revision.scheduleContract.startDate,
+      },
+    },
+  };
+  assert.deepEqual(validateRevisionOutput(validationInput, result.revision), []);
+
+  const wrongUnit = structuredClone(result.revision);
+  wrongUnit.weeklySchedule[0].tasks[0].quantityOrRange = "Page 13";
+  const wrongUnitRules = validateRevisionOutput(validationInput, wrongUnit);
+  assert.ok(wrongUnitRules.includes("MATERIAL_ACTION_UNIT_MISMATCH"));
+  assert.ok(wrongUnitRules.includes("MATERIAL_SCHEDULE_SEQUENCE_INVALID"));
+
+  const tamperedExact = structuredClone(result.revision);
+  const firstExactAction = tamperedExact.scheduleOccurrences
+    .flatMap((day) => day.items)
+    .find((item) => item.type === "ACTION");
+  firstExactAction.quantityOrRange = "Page 13";
+  const tamperedExactRules = validateRevisionOutput(validationInput, tamperedExact);
+  assert.ok(tamperedExactRules.includes("REVISION_EXACT_SCHEDULE_TASK_MISMATCH"));
+  assert.ok(tamperedExactRules.includes("MATERIAL_ACTION_UNIT_MISMATCH"));
+  assert.ok(tamperedExactRules.includes("MATERIAL_SCHEDULE_SEQUENCE_INVALID"));
+
+  const missingExactDay = structuredClone(result.revision);
+  missingExactDay.scheduleOccurrences.pop();
+  assert.ok(
+    validateRevisionOutput(validationInput, missingExactDay)
+      .includes("REVISION_EXACT_SCHEDULE_DAY_COUNT_INVALID"),
+  );
+});
+
+test("changing to a new named textbook resets implicit progress and binds the revision to Unit 1~20", async () => {
+  let requestBody;
+  const result = await createAiPlanRevision({
+    goal: "영어 교재 완독",
+    currentPlanText: "- English Textbook A Unit 1~12 완료",
+    currentMaterial: {
+      hasMaterial: true,
+      name: "English Textbook A",
+      currentProgress: "Unit 12까지 완료",
+      targetRange: "Unit 13~30",
+      unit: "Unit",
+    },
+    pendingMaterial: {
+      hasMaterial: true,
+      name: "English Textbook B",
+      targetRange: "Unit 20",
+      unit: "Unit",
+    },
+  }, {
+    apiKey: "test-key",
+    fetchImpl: async (_url, options) => {
+      requestBody = JSON.parse(options.body);
+      return responseForRevision(revisionBlueprint());
+    },
+  });
+
+  const normalizedInput = JSON.parse(requestBody.input.slice(requestBody.input.indexOf("{")));
+  assert.equal(normalizedInput.currentMaterial.sourceDisplayText, "English Textbook A");
+  assert.equal(normalizedInput.currentMaterial.semanticRange.currentPosition, 12);
+  assert.equal(normalizedInput.pendingMaterial.sourceDisplayText, "English Textbook B");
+  assert.equal(normalizedInput.pendingMaterial.semanticRange.currentState, "not_started");
+  assert.equal(normalizedInput.pendingMaterial.semanticRange.targetStart, 1);
+  assert.equal(normalizedInput.pendingMaterial.semanticRange.targetEnd, 20);
+
+  const tasks = result.revision.weeklySchedule.flatMap((day) => day.tasks);
+  assert.ok(tasks.every((task) => task.sourceReference === "English Textbook B"));
+  assert.match(tasks[0].quantityOrRange, /^Unit 1(?:~\d+)?$/);
+  assert.match(tasks.at(-1).quantityOrRange, /20$/);
+  assert.equal(result.revision.updatedMaterial.sourceDisplayText, "English Textbook B");
+});
+
+test("reversed, before-current, and mismatched-unit material revisions fail before the provider call", async () => {
+  const cases = [
+    {
+      pendingMaterial: { hasMaterial: true, name: "Book", targetRange: "Unit 30~13", unit: "Unit" },
+      expectedRule: "MATERIAL_RANGE_REVERSED",
+    },
+    {
+      pendingMaterial: { hasMaterial: true, name: "Book", targetRange: "Unit 1~10", unit: "Unit" },
+      expectedRule: "MATERIAL_TARGET_BEFORE_CURRENT",
+    },
+    {
+      currentMaterial: {
+        hasMaterial: true,
+        name: "Book",
+        currentProgress: "Page 12까지 완료",
+        targetRange: "Page 13~30",
+        unit: "Page",
+      },
+      pendingMaterial: { hasMaterial: true, name: "Book", targetRange: "Unit 13~30", unit: "Unit" },
+      expectedRule: "MATERIAL_UNIT_MISMATCH",
+    },
+  ];
+
+  for (const fixture of cases) {
+    let providerCalls = 0;
+    const currentMaterial = fixture.currentMaterial || {
+      hasMaterial: true,
+      name: "Book",
+      currentProgress: "Unit 12까지 완료",
+      targetRange: "Unit 13~30",
+      unit: "Unit",
+    };
+    await assert.rejects(
+      createAiPlanRevision({
+        goal: "교재 완독",
+        currentPlanText: "- 현재 교재 계획",
+        currentMaterial,
+        pendingMaterial: fixture.pendingMaterial,
+      }, {
+        apiKey: "test-key",
+        fetchImpl: async () => {
+          providerCalls += 1;
+          return responseForRevision(revisionBlueprint());
+        },
+      }),
+      (error) => (
+        error.status === 400
+        && error.code === "MATERIAL_CONTRACT_INVALID"
+        && error.providerCalled === false
+        && error.domainRuleIds.includes(fixture.expectedRule)
+      ),
+    );
+    assert.equal(providerCalls, 0);
+  }
+});
+
+test("non-material revisions retain empty material fields and a disabled updatedMaterial contract", async () => {
+  const result = await createAiPlanRevision({
+    goal: "토익 900점",
+    currentPlanText: "- 월수금 20분 영어 공부",
+    revisionRequest: "금요일 학습을 토요일로 옮겨 줘.",
+  }, {
+    apiKey: "test-key",
+    fetchImpl: async () => responseForRevision(revisionBlueprint()),
+  });
+
+  const tasks = result.revision.weeklySchedule.flatMap((day) => day.tasks);
+  const exactTasks = result.revision.scheduleOccurrences.flatMap((day) => day.items);
+  assert.equal(result.revision.updatedMaterial.hasMaterial, false);
+  assert.ok(tasks.every((task) => task.sourceReference === "" && task.quantityOrRange === ""));
+  assert.equal(result.revision.scheduleOccurrences.length, 30);
+  assert.equal(result.revision.scheduleContract.materialAllocationServerDerived, false);
+  assert.ok(exactTasks.every((task) => (
+    task.type === "ACTION"
+    && task.sourceReference === ""
+    && task.quantityOrRange === ""
+  )));
+});
+
+test("exact remaining occurrences honor start date, available weekdays, exclusions, and daily limits", async () => {
+  const result = await createAiPlanRevision({
+    goal: "영어 교재 완독",
+    periodDays: 21,
+    currentPlanText: "- Unit 1~12 완료",
+    revisionRequest: "남은 범위를 가능한 날에 다시 배치해 줘.",
+    currentMaterial: {
+      hasMaterial: true,
+      name: "English Textbook A",
+      currentProgress: "Unit 12까지 완료",
+      targetRange: "Unit 13~30",
+      unit: "Unit",
+    },
+    currentAvailability: {
+      availableDays: ["월", "수", "금"],
+      sessionMinutes: 25,
+      preferredTime: "아침",
+      scheduleStartDate: "2026-07-20",
+      excludedDates: ["2026-07-22"],
+    },
+    revisionDetails: { adjustmentScope: "remaining" },
+  }, {
+    apiKey: "test-key",
+    fetchImpl: async () => responseForRevision(revisionBlueprint()),
+  });
+
+  assert.equal(result.revision.scheduleOccurrences.length, 21);
+  assert.equal(result.revision.scheduleContract.startDate, "2026-07-20");
+  const allowedDays = new Set(["월", "수", "금"]);
+  result.revision.scheduleOccurrences.forEach((day) => {
+    const hasItems = day.items.length > 0;
+    if (!allowedDays.has(day.dayLabel) || day.date === "2026-07-22") {
+      assert.equal(hasItems, false, day.date);
+    }
+    const actionMinutes = day.items
+      .filter((item) => item.type === "ACTION")
+      .reduce((total, item) => total + item.durationMinutes, 0);
+    assert.ok(actionMinutes <= 25, `${day.date}: ${actionMinutes}`);
+    assert.ok(day.items.every((item) => item.scheduledAt.includes("T07:00:00+09:00")));
+  });
+  assert.equal(
+    result.revision.scheduleOccurrences.find((day) => day.date === "2026-07-22").items.length,
+    0,
+  );
+  const items = result.revision.scheduleOccurrences.flatMap((day) => day.items);
+  assert.ok(items.every((item) => item.sourceReference === "English Textbook A"));
+  assert.ok(items.every((item) => /^Unit \d+(?:~\d+)?$/.test(item.quantityOrRange)));
+  assert.equal(new Set(items.filter((item) => item.type === "ACTION").map((item) => item.quantityOrRange)).size, 8);
+});
+
+test("a three-day remaining revision stops exact occurrences at the plan end", async () => {
+  let requestBody;
+  const result = await createAiPlanRevision({
+    goal: "토익 900점",
+    periodDays: 3,
+    currentPlanText: "- Study vocabulary for 20 minutes",
+    revisionRequest: "Redistribute only the remaining three days",
+    revisionDetails: {
+      adjustmentScope: "remaining",
+      schedule: {
+        scheduleStartDate: "2026-07-20",
+      },
+    },
+  }, {
+    apiKey: "test-key",
+    fetchImpl: async (_url, options) => {
+      requestBody = JSON.parse(options.body);
+      return responseForRevision(revisionBlueprint());
+    },
+  });
+
+  const normalizedInput = JSON.parse(requestBody.input.slice(requestBody.input.indexOf("{")));
+  assert.equal(normalizedInput.periodDays, 3);
+  assert.equal(result.revision.scheduleContract.generatedDays, 3);
+  assert.deepEqual(
+    result.revision.scheduleOccurrences.map((day) => day.date),
+    ["2026-07-20", "2026-07-21", "2026-07-22"],
+  );
+  assert.ok(result.revision.scheduleOccurrences.every((day) => day.date <= "2026-07-22"));
+});
+
+test("missing revision material fields remain a schema-invalid provider output, not a domain fallback", async () => {
+  const malformed = revisionBlueprint();
+  delete malformed.taskTemplates[0].quantityOrRange;
+  await assert.rejects(
+    createAiPlanRevision({
+      goal: "영어 교재 완독",
+      currentPlanText: "- Unit 1~12 완료",
+      revisionRequest: "남은 범위를 다시 배치해 줘.",
+      currentMaterial: {
+        hasMaterial: true,
+        name: "English Textbook A",
+        currentProgress: "Unit 12까지 완료",
+        targetRange: "Unit 13~30",
+        unit: "Unit",
+      },
+    }, {
+      apiKey: "test-key",
+      fetchImpl: async () => responseForRevision(malformed),
+    }),
+    (error) => error.code === "AI_OUTPUT_SCHEMA_INVALID" && error.status === 502,
   );
 });
