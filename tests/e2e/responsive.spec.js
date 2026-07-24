@@ -1,5 +1,5 @@
 const { test, expect } = require("@playwright/test");
-const { expectNoHorizontalOverflow, mockAccountExperience, monitorPage, prepareApp, waitForBootstrap } = require("./helpers");
+const { captureAcceptance, expectNoHorizontalOverflow, mockAccountExperience, monitorPage, prepareApp, waitForAppReady, waitForBootstrap } = require("./helpers");
 
 const viewports = [
   [320, 568],
@@ -44,7 +44,13 @@ for (const [width, height] of viewports) {
     await page.setViewportSize({ width, height });
     await prepareApp(page);
     const diagnostics = monitorPage(page);
-    const capture = async (name) => page.screenshot({ path: testInfo.outputPath(`${width}x${height}-${name}.png`), fullPage: true });
+    const capture = async (name) => {
+      if (process.env.ACCEPTANCE_CAPTURE_DIR) {
+        await captureAcceptance(page, testInfo, `${height}-${name}`);
+        return;
+      }
+      await page.screenshot({ path: testInfo.outputPath(`${width}x${height}-${name}.png`), fullPage: true });
+    };
 
     diagnostics.mark("before-index-navigation");
     await page.goto("/index.html");
@@ -77,6 +83,41 @@ for (const [width, height] of viewports) {
       expect(analyticsSummary.completedStatuses.every((status) => status === 204)).toBe(true);
       expect(analyticsSummary.cspFailureCount).toBe(0);
       console.log(`[production-analytics] ${JSON.stringify({ viewport: `${width}x${height}`, ...analyticsSummary })}`);
+    }
+  });
+}
+
+for (const [width, height] of [[320, 568], [390, 844], [430, 932], [768, 1024], [1440, 900]]) {
+  test(`${width}x${height} 실제 앱 콘텐츠는 하단 탐색 위에서 끝난다`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    await prepareApp(page);
+    await page.goto("/app.html");
+    await waitForAppReady(page);
+
+    for (const viewName of ["today", "plan", "mate", "memory"]) {
+      await page.locator(`#tab-${viewName}`).click();
+      const bounds = await page.evaluate(async (name) => {
+        const view = document.querySelector(`#view-${name}`);
+        const marker = document.createElement("span");
+        marker.dataset.testBottomMarker = name;
+        marker.style.cssText = "display:block;width:1px;height:1px;pointer-events:none";
+        view.append(marker);
+        const previousScrollBehavior = document.documentElement.style.scrollBehavior;
+        document.documentElement.style.scrollBehavior = "auto";
+        document.scrollingElement.scrollTop = document.scrollingElement.scrollHeight;
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        const markerBox = marker.getBoundingClientRect();
+        const tabbarBox = document.querySelector(".execution-tabbar").getBoundingClientRect();
+        marker.remove();
+        document.documentElement.style.scrollBehavior = previousScrollBehavior;
+        return {
+          markerBottom: markerBox.bottom,
+          tabbarTop: tabbarBox.top,
+          horizontalOverflow: Math.max(document.body.scrollWidth, document.documentElement.scrollWidth) - document.documentElement.clientWidth,
+        };
+      }, viewName);
+      expect(bounds.markerBottom, `${width}px ${viewName} bottom marker`).toBeLessThanOrEqual(bounds.tabbarTop - 23);
+      expect(bounds.horizontalOverflow, `${width}px ${viewName} horizontal overflow`).toBeLessThanOrEqual(1);
     }
   });
 }

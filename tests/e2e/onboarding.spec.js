@@ -58,6 +58,7 @@ function fullGoalPlan() {
 async function openGuestFullPlanAuthChooser(page) {
   const account = await mockAccountExperience(page);
   const calls = { preview: 0, claim: 0, full: 0 };
+  const claimBodies = [];
   await page.route("**/api/ai/goal-preview", (route) => {
     calls.preview += 1;
     return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
@@ -72,6 +73,7 @@ async function openGuestFullPlanAuthChooser(page) {
   });
   await page.route("**/api/ai/goal-draft/claim", (route) => {
     calls.claim += 1;
+    claimBodies.push(route.request().postDataJSON());
     return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
       ok: true,
       draftPlanId: "e2e-draft-plan",
@@ -94,14 +96,8 @@ async function openGuestFullPlanAuthChooser(page) {
   await waitForBootstrap(page);
   await page.getByRole("button", { name: "창업", exact: true }).click();
   await page.getByRole("button", { name: "90일 안에 첫 유료 고객 10명 만들기", exact: true }).click();
-  await page.locator("#diagnosisNextButton").click();
-  await expect(page.locator("#diagnosisStepCount")).toHaveText("2 / 3");
-  await expect(page.locator("#diagnosisNextButton")).toBeVisible();
-  await page.locator("#diagnosisNextButton").click();
-  await Promise.all([
-    page.waitForResponse((response) => new URL(response.url()).pathname === "/api/ai/goal-preview" && response.status() === 200),
-    page.locator("#aiPreviewButton").click(),
-  ]);
+  await page.locator("#aiPreviewButton").click();
+  await expect.poll(() => calls.preview).toBe(1);
   await expect(page.locator("#firstStep")).toHaveAttribute("data-preview-mode", "guest");
   await Promise.all([
     page.waitForURL(/\/app\.html/),
@@ -109,7 +105,7 @@ async function openGuestFullPlanAuthChooser(page) {
   ]);
   await waitForBootstrap(page);
   await expect(page.locator("#authSheet")).toBeVisible();
-  return { account, calls };
+  return { account, calls, claimBodies };
 }
 
 test("목표 카테고리는 예시만 제안하고 사용자의 명시적 확인 전에는 진행하지 않는다", async ({ page }) => {
@@ -123,39 +119,38 @@ test("목표 카테고리는 예시만 제안하고 사용자의 명시적 확�
   await page.goto("/index.html#designFlow");
   await waitForBootstrap(page);
   const goal = page.locator("#designGoal");
-  const next = page.locator("#diagnosisNextButton");
+  const createRoadmap = page.locator("#aiPreviewButton");
 
   await expect(goal).toHaveValue("");
-  await expect(next).toBeDisabled();
+  await expect(createRoadmap).toBeDisabled();
   await page.getByRole("button", { name: "시험", exact: true }).click();
   await expect(page.getByRole("button", { name: "시험", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(goal).toHaveValue("");
   await expect(goal).toHaveAttribute("placeholder", "예: 6개월 안에 공인중개사 1차 합격하기");
   await expect(page.locator("#goalExampleSuggestions button")).toHaveCount(3);
-  await expect(page.locator("#diagnosisStepCount")).toHaveText("1 / 3");
-  await expect(next).toBeDisabled();
+  await expect(page.locator("#diagnosisStepCount")).toHaveText("목표 · 기간");
+  await expect(createRoadmap).toBeDisabled();
 
   await page.getByRole("button", { name: "올해 한국사능력검정시험 1급 취득하기", exact: true }).click();
   await expect(goal).toHaveValue("올해 한국사능력검정시험 1급 취득하기");
-  await expect(page.locator("#diagnosisStepCount")).toHaveText("1 / 3");
-  await expect(next).toBeEnabled();
+  await expect(page.locator("#diagnosisStepCount")).toHaveText("목표 · 기간");
+  await expect(createRoadmap).toBeEnabled();
   await goal.fill("올해 한국사능력검정시험 1급을 여름까지 취득하기");
 
   for (const category of ["운동", "취업", "습관"]) {
     await page.getByRole("button", { name: category, exact: true }).click();
     await expect(goal).toHaveValue("올해 한국사능력검정시험 1급을 여름까지 취득하기");
-    await expect(page.locator("#diagnosisStepCount")).toHaveText("1 / 3");
+    await expect(page.locator("#diagnosisStepCount")).toHaveText("목표 · 기간");
   }
 
   await goal.fill("   ");
-  await expect(next).toBeDisabled();
+  await expect(createRoadmap).toBeDisabled();
   await expect(page.locator("#goalValidationMessage")).toHaveText("달성하고 싶은 결과를 입력해 주세요.");
   await goal.press("Enter");
-  await expect(page.locator("#diagnosisStepCount")).toHaveText("1 / 3");
+  await expect(page.locator("#diagnosisStepCount")).toHaveText("목표 · 기간");
 
   await goal.fill("30일 동안 매일 저녁 한 줄 일기 쓰기");
-  await next.click();
-  await expect(page.locator("#diagnosisStepCount")).toHaveText("2 / 3");
+  await expect(createRoadmap).toBeEnabled();
   expect(aiRequests).toHaveLength(0);
   diagnostics.expectClean();
 });
@@ -209,7 +204,7 @@ test("provider 화면에서 browser back으로 돌아오면 자동 재시작 없
 
 test("취소 뒤 다른 provider를 직접 선택하면 성공 복원 후 명시적 CTA에서만 전체 계획을 만든다", async ({ page }) => {
   const diagnostics = monitorPage(page);
-  const { account, calls } = await openGuestFullPlanAuthChooser(page);
+  const { account, calls, claimBodies } = await openGuestFullPlanAuthChooser(page);
   const providerStarts = [];
   await page.route("**/api/auth/kakao/start**", (route) => {
     providerStarts.push("kakao");
@@ -240,7 +235,10 @@ test("취소 뒤 다른 provider를 직접 선택하면 성공 복원 후 명시
   await expect(page.locator("#firstStep")).toBeVisible();
   await expect(page.locator("#designGoal")).toHaveValue("90일 안에 첫 유료 고객 10명 만들기");
   await expect(page.locator("#previewAction")).toHaveText("잠재 고객 한 명에게 문제 인터뷰를 요청하기");
-  await expect(page.locator("#previewConversionAction")).toHaveText("무료 체험으로 전체 계획 만들기");
+  await expect(page.locator("#previewConversionAction")).toHaveText("이 계획 고정하고 일정 만들기");
+  await page.locator("[data-schedule-start='shorter']").click();
+  await expect(page.locator("[data-schedule-start='shorter']")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("[data-schedule-start='as-is']")).toHaveAttribute("aria-pressed", "false");
   expect(providerStarts).toEqual(["kakao", "naver"]);
   expect(calls).toEqual({ preview: 1, claim: 0, full: 0 });
   expect(await page.evaluate(() => sessionStorage.getItem("onmyway:pending-auth-intent"))).toBeNull();
@@ -250,6 +248,7 @@ test("취소 뒤 다른 provider를 직접 선택하면 성공 복원 후 명시
     page.locator("#trialStartInlineLink").click(),
   ]);
   await expect.poll(() => calls.claim).toBe(1);
+  expect(claimBodies[0].scheduleStartPreference).toBe("shorter");
   expect(calls.full).toBe(0);
   expect(calls.preview).toBe(1);
   diagnostics.expectClean();
@@ -340,24 +339,20 @@ test("첫 진입부터 목표 생성과 새로고침까지 이어진다", async 
   await expect(page.locator("#designFlow")).toBeVisible();
 
   await page.locator("#designGoal").fill("   ");
-  await expect(page.locator("#diagnosisNextButton")).toBeDisabled();
-  await expect(page.locator("#diagnosisStepCount")).toHaveText("1 / 3");
+  const aiPreviewButton = page.locator("#aiPreviewButton");
+  await expect(aiPreviewButton).toBeDisabled();
+  await expect(page.locator("#diagnosisStepCount")).toHaveText("목표 · 기간");
 
   const longGoal = "아주 긴 목표 ".repeat(20);
   await page.locator("#designGoal").fill(longGoal);
   await expect(page.locator("#designGoal")).toHaveValue(longGoal);
   await page.getByRole("button", { name: "창업", exact: true }).click();
   await expect(page.locator("#designGoal")).toHaveValue(longGoal);
-  await expect(page.locator("#diagnosisStepCount")).toHaveText("1 / 3");
+  await expect(page.locator("#diagnosisStepCount")).toHaveText("목표 · 기간");
   await page.getByRole("button", { name: "90일 안에 첫 유료 고객 10명 만들기", exact: true }).click();
   await expect(page.locator("#designGoal")).toHaveValue("90일 안에 첫 유료 고객 10명 만들기");
-  await expect(page.locator("#diagnosisStepCount")).toHaveText("1 / 3");
-  await page.locator("#diagnosisNextButton").click();
-  await expect(page.locator("#diagnosisStepCount")).toHaveText("2 / 3");
-  await page.locator("#routineTime").selectOption({ label: "저녁" });
-  await page.locator("#diagnosisNextButton").click();
-  await expect(page.locator("#diagnosisStepCount")).toHaveText("3 / 3");
-  const aiPreviewButton = page.locator("#aiPreviewButton");
+  await expect(page.locator("#diagnosisStepCount")).toHaveText("목표 · 기간");
+  await page.locator("#currentContext").fill("아이디어만 있고 평일 1시간, 주말 3시간 가능");
   await expect(aiPreviewButton).toBeVisible();
   const goalPlanLoaded = page.waitForResponse((response) =>
     response.request().method() === "POST" && new URL(response.url()).pathname === "/api/ai/goal-plan" && response.status() === 200,
@@ -379,8 +374,8 @@ test("첫 진입부터 목표 생성과 새로고침까지 이어진다", async 
     currentState: "아이디어만 있고 평일 1시간, 주말 3시간 가능",
     routine: {
       readiness: "계획이 있으면 실행해요",
-      preferredTime: "저녁",
-      existingRoutine: "저녁 식사 후 노트북 열기",
+      preferredTime: "아침",
+      existingRoutine: "",
     },
   });
   await expect(page.locator("#planningStyle")).toHaveText("유연 조정형");
@@ -391,11 +386,17 @@ test("첫 진입부터 목표 생성과 새로고침까지 이어진다", async 
   await expect(planDetails).toHaveAttribute("open", "");
   await expect(planDetails.locator(".result-details-content")).toBeVisible();
   await expect(planDetails.locator("summary > b")).toHaveText("접기");
+  const accountStateSaved = page.waitForResponse((response) =>
+    response.request().method() === "PUT" &&
+    new URL(response.url()).pathname === "/api/account/state" &&
+    response.status() === 200,
+  );
   await Promise.all([
     page.waitForURL(/app\.html/, { waitUntil: "commit" }),
     page.locator("#trialStartInlineLink").press("Enter"),
   ]);
   await waitForAppReady(page);
+  await accountStateSaved;
   await expect(page.locator("#view-today")).toBeVisible();
   await expect(page.locator("#ollieEnergyBalance")).toHaveText("11 / 15");
   await page.reload();
@@ -438,30 +439,27 @@ test("익명 사용자는 실제 AI 계획 일부를 본 뒤 로그인·회원�
   await waitForBootstrap(page);
   await page.getByRole("button", { name: "창업", exact: true }).click();
   await expect(page.locator("#designGoal")).toHaveValue("");
-  await expect(page.locator("#diagnosisStepCount")).toHaveText("1 / 3");
+  await expect(page.locator("#diagnosisStepCount")).toHaveText("목표 · 기간");
   await page.getByRole("button", { name: "90일 안에 첫 유료 고객 10명 만들기", exact: true }).click();
-  await captureAcceptance(page, testInfo, "goal-input");
-  await page.locator("#diagnosisNextButton").click();
-  await expect(page.locator("#diagnosisStepCount")).toHaveText("2 / 3");
-  await page.locator("#routineTime").selectOption({ label: "저녁" });
-  await captureAcceptance(page, testInfo, "resources-schedule-input");
-  await page.locator("#diagnosisNextButton").click();
-  await expect(page.locator("#diagnosisStepCount")).toHaveText("3 / 3");
+  await page.locator("#currentContext").fill("아이디어만 있고 평일 1시간, 주말 3시간 가능");
+  await captureAcceptance(page, testInfo, "goal-input", { fullPage: false });
+  await captureAcceptance(page, testInfo, "optional-context-input", { fullPage: false });
+  expect(await page.locator("#personalityForm").evaluate((form) =>
+    [...form.elements].filter((field) => typeof field.checkValidity === "function" && !field.checkValidity()).map((field) => field.id || field.name),
+  )).toEqual([]);
 
-  await Promise.all([
-    page.waitForResponse((response) => new URL(response.url()).pathname === "/api/ai/goal-preview" && response.status() === 200),
-    page.locator("#aiPreviewButton").click(),
-  ]);
+  await page.locator("#aiPreviewButton").click();
+  await expect.poll(() => previewRequestBody).not.toBeNull();
   await expect(page).toHaveURL(/#firstStep$/);
   await expect(page.locator("#aiPreviewStatus")).toHaveText("현재 계획과 조건이 일치해요.");
   await expect(page.locator("#previewAction")).toHaveText("잠재 고객 한 명에게 문제 인터뷰를 요청하기");
   await expect(page.locator(".result-details-disclosure")).toBeHidden();
-  await expect(page.locator("#previewConversionAction")).toHaveText("로그인·회원가입하고 전체 계획 보기");
-  await captureAcceptance(page, testInfo, "plan-draft");
+  await expect(page.locator("#previewConversionAction")).toHaveText("이 계획 고정하고 일정 만들기");
+  await captureAcceptance(page, testInfo, "plan-draft", { fullPage: false });
   expect(previewRequestBody).toMatchObject({
     goal: "90일 안에 첫 유료 고객 10명 만들기",
     currentState: "아이디어만 있고 평일 1시간, 주말 3시간 가능",
-    routine: { preferredTime: "저녁", existingRoutine: "저녁 식사 후 노트북 열기" },
+    routine: { preferredTime: "아침", existingRoutine: "" },
   });
   expect(await page.evaluate(() => localStorage.getItem("omwExecutionPlan"))).toBeNull();
 
@@ -479,7 +477,7 @@ test("익명 사용자는 실제 AI 계획 일부를 본 뒤 로그인·회원�
   await expect(page.locator("#firstStep")).toBeVisible();
   await expect(page.locator("#designGoal")).toHaveValue("90일 안에 첫 유료 고객 10명 만들기");
   await expect(page.locator("#previewAction")).toHaveText("잠재 고객 한 명에게 문제 인터뷰를 요청하기");
-  await expect(page.locator("#previewConversionAction")).toHaveText("무료 체험으로 전체 계획 만들기");
+  await expect(page.locator("#previewConversionAction")).toHaveText("이 계획 고정하고 일정 만들기");
 
   await Promise.all([
     page.waitForResponse((response) => new URL(response.url()).pathname === "/api/ai/goal-draft/claim" && response.status() === 200),
@@ -490,7 +488,7 @@ test("익명 사용자는 실제 AI 계획 일부를 본 뒤 로그인·회원�
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem("omwExecutionPlan") || "null")?.planSource)).toBe("ai-reviewed-draft");
 });
 
-test("익명 초안 수정은 기존 AI 일정을 보존하고 명시적 재생성 뒤에만 active revision을 교체한다", async ({ page }) => {
+test("익명 초안 수정은 기존 AI 일정을 보존하고 명시적 재생성 뒤에만 active revision을 교체한다", async ({ page }, testInfo) => {
   await mockAccountExperience(page);
   let previewCalls = 0;
   let revisionCalls = 0;
@@ -504,7 +502,7 @@ test("익명 초안 수정은 기존 AI 일정을 보존하고 명시적 재생�
         cached: false,
         draftPlanId: "e2e-active-pending-draft",
         preview: guestPreviewPlan(),
-        activeInput: { goal: "90일 안에 첫 유료 고객 10명 만들기", availability: { sessionMinutes: 25 } },
+        activeInput: { goal: "90일 안에 첫 유료 고객 10명 만들기", currentState: "평일 25분 가능" },
         activeInputHash: "c".repeat(64),
         activeRevision: 1,
       }),
@@ -515,7 +513,7 @@ test("익명 초안 수정은 기존 AI 일정을 보존하고 명시적 재생�
     const body = route.request().postDataJSON();
     expect(body.draftPlanId).toBe("e2e-active-pending-draft");
     expect(body.idempotencyKey).toMatch(/^revision:/);
-    if (body.input.availability.sessionMinutes === 60) {
+    if (body.input.currentState === "평일 60분 가능") {
       expect(body).toMatchObject({ expectedRevision: 2, expectedInputHash: "d".repeat(64) });
       return route.fulfill({
         status: 502,
@@ -524,7 +522,7 @@ test("익명 초안 수정은 기존 AI 일정을 보존하고 명시적 재생�
       });
     }
     expect(body).toMatchObject({ expectedRevision: 1, expectedInputHash: "c".repeat(64) });
-    expect(body.input.availability.sessionMinutes).toBe(45);
+    expect(body.input.currentState).toBe("평일 45분 가능");
     const revised = { ...guestPreviewPlan(), firstAction: "고객 인터뷰 질문 3개를 45분 안에 정리하기" };
     return route.fulfill({
       status: 200,
@@ -534,7 +532,7 @@ test("익명 초안 수정은 기존 AI 일정을 보존하고 명시적 재생�
         cached: false,
         draftPlanId: "e2e-active-pending-draft",
         preview: revised,
-        activeInput: { goal: "90일 안에 첫 유료 고객 10명 만들기", availability: { sessionMinutes: 45 } },
+        activeInput: { goal: "90일 안에 첫 유료 고객 10명 만들기", currentState: "평일 45분 가능" },
         activeInputHash: "d".repeat(64),
         activeRevision: 2,
       }),
@@ -545,34 +543,39 @@ test("익명 초안 수정은 기존 AI 일정을 보존하고 명시적 재생�
   await waitForBootstrap(page);
   await page.getByRole("button", { name: "창업", exact: true }).click();
   await page.getByRole("button", { name: "90일 안에 첫 유료 고객 10명 만들기", exact: true }).click();
-  await page.locator("#diagnosisNextButton").click();
-  await page.locator("#diagnosisNextButton").click();
-  await Promise.all([
-    page.waitForResponse((response) => new URL(response.url()).pathname === "/api/ai/goal-preview"),
-    page.locator("#aiPreviewButton").click(),
-  ]);
+  await page.locator("#currentContext").fill("평일 25분 가능");
+  expect(await page.locator("#personalityForm").evaluate((form) =>
+    [...form.elements].filter((field) => typeof field.checkValidity === "function" && !field.checkValidity()).map((field) => field.id || field.name),
+  )).toEqual([]);
+  await page.locator("#aiPreviewButton").click();
+  await expect.poll(() => previewCalls).toBe(1);
   await expect(page.locator("#previewAction")).toHaveText("잠재 고객 한 명에게 문제 인터뷰를 요청하기");
 
   await page.locator("#draftAdjustButton").click();
-  await expect(page.locator("#diagnosisStepCount")).toHaveText("2 / 3");
-  await page.locator("#sessionMinutes").fill("45");
-  await page.locator("#sessionMinutes").blur();
+  await expect(page.locator("#diagnosisStepCount")).toHaveText("목표 · 기간");
+  await page.getByRole("button", { name: "첫 달 가볍게" }).click();
+  await expect(page.locator("#currentContext")).toHaveValue(/첫 달은 더 가볍게 시작하고 싶어요\./);
+  expect(revisionCalls).toBe(0);
+  await page.locator("#currentContext").fill("평일 45분 가능");
+  await page.locator("#currentContext").blur();
   expect(revisionCalls).toBe(0);
   const pending = await page.evaluate(() => JSON.parse(sessionStorage.getItem("onmyway:pending-goal-preview") || "null"));
   expect(pending.preview.firstAction).toBe("잠재 고객 한 명에게 문제 인터뷰를 요청하기");
   expect(pending.activeRevision).toBe(1);
-  expect(pending.pendingDraftInput.availability.sessionMinutes).toBe(45);
+  expect(pending.pendingDraftInput.currentContext).toBe("평일 45분 가능");
   await page.evaluate(() => { location.hash = "firstStep"; });
   await expect(page.locator("#trialStartInlineLink")).toHaveAttribute("aria-disabled", "true");
   await page.locator("#draftAdjustButton").click();
 
-  await page.locator("#diagnosisNextButton").click();
-  await expect(page.locator("#aiPreviewButton")).toContainText("수정한 조건으로 계획 다시 만들기");
-  await Promise.all([
-    page.waitForResponse((response) => new URL(response.url()).pathname === "/api/ai/goal-draft/revise"),
-    page.locator("#aiPreviewButton").click(),
-  ]);
+  await expect(page.locator("#aiPreviewButton")).toContainText("말한 내용으로 큰 길 다시 그리기");
+  await page.locator("#aiPreviewButton").click();
+  await expect.poll(() => revisionCalls).toBe(1);
   await expect(page.locator("#previewAction")).toHaveText("고객 인터뷰 질문 3개를 45분 안에 정리하기");
+  await expect(page.locator("#roadmapRevisionSummary")).toBeVisible();
+  await expect(page.locator("#roadmapRevisionBefore")).toContainText("잠재 고객");
+  await expect(page.locator("#roadmapRevisionAfter")).toContainText("고객 인터뷰");
+  await expect(page.locator("#roadmapRevisionConditions")).toHaveText("평일 45분 가능");
+  await captureAcceptance(page, testInfo, "roadmap-revision", { fullPage: false });
   expect(previewCalls).toBe(1);
   expect(revisionCalls).toBe(1);
   const active = await page.evaluate(() => JSON.parse(sessionStorage.getItem("onmyway:pending-goal-preview") || "null"));
@@ -585,28 +588,26 @@ test("익명 초안 수정은 기존 AI 일정을 보존하고 명시적 재생�
   await waitForBootstrap(page);
   await expect(page.locator("#firstStep")).toBeVisible();
   await expect(page.locator("#previewAction")).toHaveText("고객 인터뷰 질문 3개를 45분 안에 정리하기");
-  await expect(page.locator("#sessionMinutes")).toHaveValue("45");
+  await expect(page.locator("#currentContext")).toHaveValue("평일 45분 가능");
+  await expect(page.locator("#roadmapRevisionSummary")).toBeVisible();
   expect((await page.evaluate(() => JSON.parse(sessionStorage.getItem("onmyway:pending-goal-preview") || "null"))).activeRevision).toBe(2);
 
   await page.locator("#draftAdjustButton").click();
-  await page.locator("#sessionMinutes").fill("60");
-  await page.locator("#sessionMinutes").blur();
+  await page.locator("#currentContext").fill("평일 60분 가능");
+  await page.locator("#currentContext").blur();
   expect(revisionCalls).toBe(1);
-  await page.locator("#diagnosisNextButton").click();
-  await Promise.all([
-    page.waitForResponse((response) => new URL(response.url()).pathname === "/api/ai/goal-draft/revise" && response.status() === 502),
-    page.locator("#aiPreviewButton").click(),
-  ]);
+  await page.locator("#aiPreviewButton").click();
+  await expect.poll(() => revisionCalls).toBe(2);
   await expect(page.locator("#aiPreviewStatus")).toHaveText("수정한 조건으로 계획을 다시 만들지 못했어요. 기존 계획은 그대로 유지했어요.");
   const afterFailure = await page.evaluate(() => JSON.parse(sessionStorage.getItem("onmyway:pending-goal-preview") || "null"));
   expect(afterFailure.activeRevision).toBe(2);
   expect(afterFailure.preview.firstAction).toBe("고객 인터뷰 질문 3개를 45분 안에 정리하기");
-  expect(afterFailure.pendingDraftInput.availability.sessionMinutes).toBe(60);
+  expect(afterFailure.pendingDraftInput.currentContext).toBe("평일 60분 가능");
   expect(revisionCalls).toBe(2);
   await page.evaluate(() => { location.hash = "firstStep"; });
   await expect(page.locator("#discardDraftChangesButton")).toBeVisible();
   await page.locator("#discardDraftChangesButton").click();
-  await expect(page.locator("#sessionMinutes")).toHaveValue("45");
+  await expect(page.locator("#currentContext")).toHaveValue("평일 45분 가능");
   await expect(page.locator("#previewAction")).toHaveText("고객 인터뷰 질문 3개를 45분 안에 정리하기");
   expect(revisionCalls).toBe(2);
   const discarded = await page.evaluate(() => JSON.parse(sessionStorage.getItem("onmyway:pending-goal-preview") || "null"));

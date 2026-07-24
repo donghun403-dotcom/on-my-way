@@ -250,12 +250,12 @@ async function createAuthenticatedFixture(kv, id) {
   return { user, sessionToken };
 }
 
-function claimRequest({ draft = null, draftPlanId = draft?.draftPlanId, activeRevision = draft?.activeRevision, activeInputHash = draft?.activeInputHash, sessionToken = "", draftCookie = "" }) {
+function claimRequest({ draft = null, draftPlanId = draft?.draftPlanId, activeRevision = draft?.activeRevision, activeInputHash = draft?.activeInputHash, sessionToken = "", draftCookie = "", scheduleStartPreference = "as-is" }) {
   const cookies = [sessionToken && `omw_session=${sessionToken}`, draftCookie].filter(Boolean).join("; ");
   return new Request("https://preview.example/api/ai/goal-draft/claim", {
     method: "POST",
     headers: { "Content-Type": "application/json", ...(cookies ? { Cookie: cookies } : {}) },
-    body: JSON.stringify({ draftPlanId, expectedRevision: activeRevision, expectedInputHash: activeInputHash }),
+    body: JSON.stringify({ draftPlanId, expectedRevision: activeRevision, expectedInputHash: activeInputHash, scheduleStartPreference }),
   });
 }
 
@@ -429,13 +429,14 @@ test("로그인 뒤 같은 익명 초안을 추가 AI 호출과 크레딧 차감
   const env = testEnv({ USERS_KV: kv });
   const { body: draft, draftCookie, providerCalls } = await createGuestDraft(env);
   const { user, sessionToken } = await createAuthenticatedFixture(kv, "guest-claim-user");
-  const request = () => claimRequest({ draft, sessionToken, draftCookie });
+  const request = () => claimRequest({ draft, sessionToken, draftCookie, scheduleStartPreference: "shorter" });
 
   const firstResponse = await worker.fetch(request(), env);
   const first = await firstResponse.json();
   assert.equal(firstResponse.status, 200);
   assert.equal(first.chargedCredits, 0);
   assert.equal(first.plan.firstWeekSchedule.length, 7);
+  assert.equal(first.activatedPlan.scheduleStartPreference, "shorter");
   const secondResponse = await worker.fetch(request(), env);
   assert.equal(secondResponse.status, 200);
   assert.equal((await secondResponse.json()).chargedCredits, 0);
@@ -446,6 +447,7 @@ test("로그인 뒤 같은 익명 초안을 추가 AI 호출과 크레딧 차감
   assert.equal(storedDraft.status, "CLAIMED");
   const appState = await kv.get(`appstate:${user.id}`, "json");
   assert.equal(JSON.parse(appState.state.omwExecutionPlan).planId, draft.draftPlanId);
+  assert.equal(JSON.parse(appState.state.omwExecutionPlan).scheduleStartPreference, "shorter");
 });
 
 test("익명 전체 초안은 인증과 원래 브라우저의 HttpOnly capability가 모두 있어야 조회된다", async () => {

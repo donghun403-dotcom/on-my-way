@@ -59,6 +59,77 @@ test("계획 홈은 7일 요약과 AI·직접 편집 진입을 구분한다", as
   await expect(page.locator("#view-plan")).not.toHaveCSS("overflow-x", "scroll");
 });
 
+test("Roadmap 고정 선택은 AI 재호출 없이 시간 축소와 화·목·토 시작을 결정적으로 적용한다", async ({ page }) => {
+  const aiRequests = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname.startsWith("/api/ai/")) aiRequests.push(request.url());
+  });
+  await page.goto("/app.html");
+  await waitForAppReady(page);
+  await page.evaluate(() => {
+    const planId = "schedule-start-preference-plan";
+    const firstWeekSchedule = Array.from({ length: 7 }, (_, index) => ({
+      dayNumber: index + 1,
+      dayLabel: ["월", "화", "수", "목", "금", "토", "일"][index],
+      isRestDay: index % 2 === 1,
+      items: index % 2 === 0 ? [{
+        id: `preference-action-${index}`,
+        planId,
+        type: "ACTION",
+        title: `선택 보존 행동 ${index + 1}`,
+        durationMinutes: 25,
+        completionRule: "정한 행동을 끝내면 완료",
+        status: "pending",
+        recurrenceGroupId: `preference-${index}`,
+      }] : [{
+        id: `preference-tip-${index}`,
+        planId,
+        type: "TIP",
+        title: "올리의 실행 팁",
+        durationMinutes: 0,
+        completionRule: "",
+        status: "pending",
+        recurrenceGroupId: `preference-tip-${index}`,
+      }],
+    }));
+    localStorage.setItem("omwExecutionPlan", JSON.stringify({
+      goal: "첫 주 시작 선택 검증",
+      period: 14,
+      planId,
+      firstAction: "선택 보존 행동 1",
+      scheduleStartPreference: "shorter",
+      planSource: "ai-reviewed-draft",
+      createdAt: new Date().toISOString(),
+      aiPreview: { firstWeekSchedule },
+    }));
+    localStorage.removeItem("omwExecutionState");
+  });
+  await page.reload();
+  await waitForAppReady(page);
+  await expect(page.locator("#focusTaskMeta")).toContainText("15분");
+
+  await page.evaluate(() => {
+    const plan = JSON.parse(localStorage.getItem("omwExecutionPlan"));
+    plan.scheduleStartPreference = "change-days";
+    localStorage.setItem("omwExecutionPlan", JSON.stringify(plan));
+    localStorage.removeItem("omwExecutionState");
+  });
+  await page.reload();
+  await waitForAppReady(page);
+  await page.locator("#tab-plan").click();
+  await page.getByRole("button", { name: "전체 일정", exact: true }).click();
+  const scheduledDays = await page.locator("#planScheduleList [data-edit-task]").evaluateAll((buttons) =>
+    buttons.map((button) => ({
+      day: button.closest("section")?.querySelector("h3")?.textContent || "",
+      taskKey: button.dataset.editTask || "",
+    })),
+  );
+  expect(scheduledDays).toHaveLength(6);
+  expect(scheduledDays.every(({ day }) => /\((화|목|토)\)/.test(day))).toBe(true);
+  expect(scheduledDays.every(({ taskKey }) => taskKey.startsWith("preference-action-"))).toBe(true);
+  expect(aiRequests).toEqual([]);
+});
+
 test("주간 날짜에서 상세 시트로 이동하고 Escape로 닫으면 초점이 복원된다", async ({ page, isMobile }) => {
   test.skip(!isMobile, "모바일 시트 동작");
   await page.goto("/app.html");

@@ -1,4 +1,5 @@
 const { test, expect } = require("@playwright/test");
+const { prepareApp, waitForAppReady, waitForBootstrap } = require("./helpers");
 
 const prototypeUrl = "/core-loop-v2.html?experience=core-loop-v2";
 
@@ -11,6 +12,45 @@ async function resetPrototype(page, screen = "") {
 async function prototypeState(page) {
   return page.evaluate(() => window.__coreLoopPrototype.getState());
 }
+
+test("actual Goal and Today paths load the local brand font without applying it to user text or numbers", async ({ page }) => {
+  await prepareApp(page);
+  const fontResponse = page.waitForResponse((response) =>
+    response.url().endsWith("/assets/fonts/yeogieottae-jalnan2.woff2"),
+  );
+  await page.goto("/index.html#designFlow");
+  await waitForBootstrap(page);
+  await expect(page.locator("body")).toHaveAttribute("data-brand-font-state", "loaded");
+  const response = await fontResponse;
+  expect(response.status()).toBe(200);
+  expect(response.headers()["content-type"]).toContain("font/woff2");
+  const goalStyles = await page.evaluate(() => ({
+    ready: document.fonts.check('32px "여기어때 잘난체"', "올리가 함께 걸어요"),
+    heading: getComputedStyle(document.querySelector("#diagnosisStepTitle")).fontFamily,
+    cta: getComputedStyle(document.querySelector("#aiPreviewButton")).fontFamily,
+    input: getComputedStyle(document.querySelector("#designGoal")).fontFamily,
+    synthesis: getComputedStyle(document.querySelector("#aiPreviewButton")).fontSynthesis,
+  }));
+  expect(goalStyles.ready).toBe(true);
+  expect(goalStyles.heading).toContain("여기어때 잘난체");
+  expect(goalStyles.cta).toContain("여기어때 잘난체");
+  expect(goalStyles.input).not.toContain("여기어때 잘난체");
+  expect(goalStyles.synthesis).toBe("none");
+
+  await page.goto("/app.html");
+  await waitForAppReady(page);
+  await expect(page.locator("body")).toHaveAttribute("data-brand-font-state", "loaded");
+  const appStyles = await page.evaluate(() => ({
+    heading: getComputedStyle(document.querySelector(".today-welcome h1")).fontFamily,
+    action: getComputedStyle(document.querySelector(".today-next-action h2")).fontFamily,
+    tab: getComputedStyle(document.querySelector(".execution-tabbar .tab-label")).fontFamily,
+    date: getComputedStyle(document.querySelector("#todayDateLabel")).fontFamily,
+  }));
+  expect(appStyles.heading).toContain("여기어때 잘난체");
+  expect(appStyles.action).toContain("여기어때 잘난체");
+  expect(appStyles.tab).toContain("여기어때 잘난체");
+  expect(appStyles.date).not.toContain("여기어때 잘난체");
+});
 
 test("local brand font loads for display and short UI roles while body and numeric roles stay neutral", async ({ page }) => {
   const fontResponse = page.waitForResponse((response) =>
@@ -30,7 +70,7 @@ test("local brand font loads for display and short UI roles while body and numer
     secondary: getComputedStyle(document.querySelector(".secondary-action")).fontFamily,
     bottomNav: getComputedStyle(document.querySelector(".prototype-tabs button")).fontFamily,
     quickChip: getComputedStyle(document.querySelector(".quick-actions button")).fontFamily,
-    ollySpeech: getComputedStyle(document.querySelector(".olly-speech")).fontFamily,
+    ollieSpeech: getComputedStyle(document.querySelector(".ollie-speech")).fontFamily,
     diaryBody: getComputedStyle(document.querySelector(".diary-list p")).fontFamily,
     diaryDate: getComputedStyle(document.querySelector(".diary-list time")).fontFamily,
     duration: getComputedStyle(document.querySelector(".focus-orbit strong")).fontFamily,
@@ -64,7 +104,7 @@ test("local brand font loads for display and short UI roles while body and numer
   expect(styles.secondary).toContain("여기어때 잘난체");
   expect(styles.bottomNav).toContain("여기어때 잘난체");
   expect(styles.quickChip).toContain("여기어때 잘난체");
-  expect(styles.ollySpeech).toContain("여기어때 잘난체");
+  expect(styles.ollieSpeech).toContain("여기어때 잘난체");
   expect(styles.synthesis).toBe("none");
   expect(styles.diaryBody).not.toContain("여기어때 잘난체");
   expect(styles.diaryDate).not.toContain("여기어때 잘난체");
@@ -276,19 +316,16 @@ test("recovery remains non-punitive", async ({ page }) => {
 });
 
 for (const width of [320, 390, 430, 1440]) {
-  test(`${width}px core screens have no horizontal overflow or console errors`, async ({ page }) => {
-    const browserErrors = [];
-    let activeScreen = "";
-    page.on("console", (message) => {
-      if (message.type() === "error" || message.type() === "warning") {
-        browserErrors.push(`${activeScreen}: ${message.text()}`);
-      }
-    });
-    page.on("pageerror", (error) => browserErrors.push(`${activeScreen}: ${error.message}`));
-    await page.setViewportSize({ width, height: width === 1440 ? 900 : 844 });
-
-    for (const screen of ["goal", "roadmap", "today", "plan", "record"]) {
-      activeScreen = screen;
+  for (const screen of ["goal", "roadmap", "today", "plan", "record"]) {
+    test(`${width}px ${screen} screen has no horizontal overflow or console errors`, async ({ page }) => {
+      const browserErrors = [];
+      page.on("console", (message) => {
+        if (message.type() === "error" || message.type() === "warning") {
+          browserErrors.push(`${screen}: ${message.text()}`);
+        }
+      });
+      page.on("pageerror", (error) => browserErrors.push(`${screen}: ${error.message}`));
+      await page.setViewportSize({ width, height: width === 1440 ? 900 : 844 });
       await resetPrototype(page, screen);
       const dimensions = await page.evaluate(() => ({
         viewport: document.documentElement.clientWidth,
@@ -297,7 +334,7 @@ for (const width of [320, 390, 430, 1440]) {
       }));
       expect(dimensions.document, `${width}px ${screen}`).toBeLessThanOrEqual(dimensions.viewport);
       expect(dimensions.body, `${width}px ${screen}`).toBeLessThanOrEqual(dimensions.viewport);
-    }
-    expect(browserErrors).toEqual([]);
-  });
+      expect(browserErrors).toEqual([]);
+    });
+  }
 }

@@ -52,6 +52,7 @@ test("정상 v3 상태는 첫 읽기에 원문을 유지하고 명시적 변경 
       checkedTaskKeysByDay: { ...bundle.state.checkedTaskKeysByDay, "1": { [firstTask._taskKey]: true } },
       completedLog: [{ taskKey: firstTask._taskKey, day: 1, taskIndex: 0, text: firstTask.text, completedAt: "2026-07-20T00:00:00.000Z" }],
       dailyMemories: [{ id: "2026-07-20-memory", diaryDate: "2026-07-20", text: "기존 일기", createdAt: "2026-07-20T01:00:00.000Z" }],
+      [["ol", "lyGrowthState"].join("")]: { completedActionCount: 1, firstLeafAt: "2026-07-20T00:00:00.000Z" },
       legacyExtension: { keep: true },
     };
     const raw = JSON.stringify(legacyState);
@@ -74,6 +75,10 @@ test("정상 v3 상태는 첫 읽기에 원문을 유지하고 명시적 변경 
   expect(migrated.dailyMemories).toEqual([expect.objectContaining({ id: "2026-07-20-memory", text: "기존 일기" })]);
   expect(migrated.completedLog).toHaveLength(1);
   expect(migrated.completedLog[0].taskKey).toBe(`1:${seeded.firstTaskKey}`);
+  expect(migrated.ollieGrowthState).toMatchObject({
+    completedActionCount: 1,
+    firstLeafAt: "2026-07-20T00:00:00.000Z",
+  });
 
   await page.reload();
   await waitForAppReady(page);

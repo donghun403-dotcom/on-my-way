@@ -23,10 +23,10 @@ function activeTrialUser(overrides) {
 }
 
 async function waitForAccountScope(page, expectedScope) {
-  await expect(page.locator("html")).not.toHaveClass(/account-storage-pending/, { timeout: 15_000 });
   await waitForBootstrap(page);
+  await expect(page.locator("html")).not.toHaveClass(/account-storage-pending/, { timeout: 15_000 });
   await waitForAppReady(page);
-  await expect.poll(() => page.evaluate(() => localStorage.getItem("onmyway:active-scope"))).toBe(expectedScope);
+  expect(await page.evaluate(() => localStorage.getItem("onmyway:active-scope"))).toBe(expectedScope);
 }
 
 async function mockAccountApi(page, state = { user: null, configured: true }) {
@@ -191,26 +191,29 @@ test("Apple 노출 플래그가 true일 때만 버튼을 표시하며 Secret이 
   diagnostics.expectClean();
 });
 
-test("각 Provider는 allowlisted Worker OAuth 시작 URL로 이동한다", async ({ page }, testInfo) => {
-  testInfo.setTimeout(90_000);
-  const diagnostics = monitorPage(page);
-  await mockAccountApi(page);
-  const starts = [];
-  await page.route(/\/api\/auth\/(kakao|naver|google|apple)\/start/, (route) => {
-    starts.push(route.request().url());
-    return route.fulfill({ status: 200, contentType: "text/html", body: "<!doctype html><title>OAuth handoff</title>" });
-  });
+for (const provider of androidProviders) {
+  test(`${provider} Provider는 allowlisted Worker OAuth 시작 URL로 이동한다`, async ({ page }) => {
+    const diagnostics = monitorPage(page);
+    await mockAccountApi(page);
+    const starts = [];
+    await page.route(/\/api\/auth\/(kakao|naver|google|apple)\/start/, (route) => {
+      starts.push(route.request().url());
+      return route.fulfill({ status: 200, contentType: "text/html", body: "<!doctype html><title>OAuth handoff</title>" });
+    });
 
-  for (const provider of androidProviders) {
     await page.goto("/app.html?auth=login");
-    await page.getByRole("button", { name: providerNames[provider] }).click();
-    await expect.poll(() => starts.length).toBe(androidProviders.indexOf(provider) + 1);
-    const start = new URL(starts.at(-1));
+    await waitForBootstrap(page);
+    await expect(page.locator("#authSheet")).toBeVisible();
+    const providerButton = page.getByRole("button", { name: providerNames[provider] });
+    await expect(providerButton).toBeEnabled();
+    await providerButton.click();
+    await expect.poll(() => starts.length).toBe(1);
+    const start = new URL(starts[0]);
     expect(start.pathname).toBe(`/api/auth/${provider}/start`);
     expect(start.searchParams.get("redirect")).toBe("/app.html");
-  }
-  diagnostics.expectClean();
-});
+    diagnostics.expectClean();
+  });
+}
 
 test("로그인 중 연속 클릭은 OAuth 요청을 한 번만 시작한다", async ({ page }) => {
   const diagnostics = monitorPage(page);
@@ -261,12 +264,16 @@ test("callback 성공과 실패 query를 안내한 뒤 주소창에서 제거한
   diagnostics.expectClean();
 });
 
-test("첫 화면에서 연 로그인은 X, 배경, ESC로 취소하면 첫 화면으로 돌아간다", async ({ page }, testInfo) => {
-  testInfo.setTimeout(90_000);
-  const diagnostics = monitorPage(page);
-  await mockAccountApi(page);
+for (const cancellation of [
+  { label: "X", openFromLanding: true, cancel: (page) => page.locator("#closeAuthSheet").click() },
+  { label: "배경", cancel: (page) => page.locator("#accountSheetOverlay").click({ position: { x: 4, y: 4 } }) },
+  { label: "ESC", cancel: (page) => page.keyboard.press("Escape") },
+]) {
+  test(`첫 화면에서 연 로그인은 ${cancellation.label}로 취소하면 첫 화면으로 돌아간다`, async ({ page }) => {
+    const diagnostics = monitorPage(page);
+    await mockAccountApi(page);
 
-  const cancelLogin = async (cancel, { openFromLanding = false } = {}) => {
+    const openFromLanding = cancellation.openFromLanding === true;
     if (openFromLanding) {
       await page.goto("/");
       await waitForBootstrap(page);
@@ -280,17 +287,13 @@ test("첫 화면에서 연 로그인은 X, 배경, ESC로 취소하면 첫 화�
       await waitForBootstrap(page);
     }
     await expect(page.locator("#authSheet")).toBeVisible();
-    await cancel();
+    await cancellation.cancel(page);
     await expect(page).toHaveURL(/\/$/);
     await waitForBootstrap(page);
     await expect(page.locator("#top")).toBeVisible();
-  };
-
-  await cancelLogin(() => page.locator("#closeAuthSheet").click(), { openFromLanding: true });
-  await cancelLogin(() => page.locator("#accountSheetOverlay").click({ position: { x: 4, y: 4 } }));
-  await cancelLogin(() => page.keyboard.press("Escape"));
-  diagnostics.expectClean();
-});
+    diagnostics.expectClean();
+  });
+}
 
 test("세션 복원 후 로그아웃하면 회원 UI와 활성 데이터가 초기화된다", async ({ page }) => {
   const diagnostics = monitorPage(page);

@@ -346,7 +346,7 @@ function monitorPage(page, { allowedConsoleMessages = [], allowedResponseUrls = 
     }
     const isNavigationCancellation =
       errorText.includes("net::ERR_ABORTED") || /Load request cancel(?:l)?ed/i.test(errorText);
-    let isCanceledStaticImage = false;
+    let isCanceledStaticAsset = false;
     let isCanceledFunnelEvent = false;
     let isCanceledStartupRequest = false;
     let isExpectedFirefoxLogoAbort = false;
@@ -364,9 +364,9 @@ function monitorPage(page, { allowedConsoleMessages = [], allowedResponseUrls = 
         resourceType: request.resourceType(),
         sameOrigin: isSameOrigin,
       });
-      isCanceledStaticImage =
+      isCanceledStaticAsset =
         isNavigationCancellation &&
-        request.resourceType() === "image" &&
+        ["image", "font"].includes(request.resourceType()) &&
         isSameOrigin &&
         requestUrl.pathname.startsWith("/assets/");
       isCanceledFunnelEvent =
@@ -385,7 +385,7 @@ function monitorPage(page, { allowedConsoleMessages = [], allowedResponseUrls = 
       pendingRumNavigationAbort.pathname === "/cdn-cgi/rum" &&
       pendingRumNavigationAbort.resourceType === "ping" &&
       pendingRumNavigationAbort.errorText === "net::ERR_ABORTED") return;
-    if (isExpectedFirefoxLogoAbort || isCanceledStaticImage || isCanceledFunnelEvent || isCanceledStartupRequest) return;
+    if (isExpectedFirefoxLogoAbort || isCanceledStaticAsset || isCanceledFunnelEvent || isCanceledStartupRequest) return;
     issues.push(`requestfailed: ${request.method()} ${request.url()} ${errorText}`);
   });
   page.on("response", (response) => {
@@ -474,13 +474,13 @@ async function expectNoHorizontalOverflow(page) {
   expect(Math.max(dimensions.body, dimensions.document)).toBeLessThanOrEqual(dimensions.viewport + 1);
 }
 
-async function captureAcceptance(page, testInfo, name) {
+async function captureAcceptance(page, testInfo, name, { fullPage = true } = {}) {
   const outputDir = process.env.ACCEPTANCE_CAPTURE_DIR;
   if (!outputDir) return;
   const width = page.viewportSize()?.width || "auto";
   await page.screenshot({
     path: path.join(outputDir, `${testInfo.project.name}-${width}-${name}.png`),
-    fullPage: true,
+    fullPage,
   });
 }
 

@@ -65,6 +65,101 @@ test("완료, 해제, 재완료에도 XP와 완료 기록이 중복되지 않는
   diagnostics.expectClean();
 });
 
+test("올리와 첫 행동을 완료하면 기본 기록과 성장 상태를 먼저 저장하고 선택 회고를 덧붙인다", async ({ page }, testInfo) => {
+  const diagnostics = monitorPage(page);
+  await page.goto("/app.html");
+  await waitForAppReady(page);
+  const actionTitle = await page.locator("#focusTaskTitle").textContent();
+
+  await page.locator("#startFocusButton").click();
+  await expect(page.locator("#focusMode")).toBeVisible();
+  await captureAcceptance(page, testInfo, "focus", { fullPage: false });
+  await page.locator("#finishFocusButton").click();
+  await expect(page.locator("#completionReflectionSheet")).toBeVisible();
+  await expect(page.locator("#completionReflectionTask")).toContainText(actionTitle);
+  await captureAcceptance(page, testInfo, "reflection", { fullPage: false });
+
+  let state = await readStored(page, "omwExecutionState");
+  expect(state.dailyMemories).toHaveLength(1);
+  expect(state.dailyMemories[0]).toMatchObject({
+    title: actionTitle,
+    note: "",
+    mood: "",
+    autoCreated: true,
+    actualMinutes: 1,
+  });
+  expect(state.dailyMemories[0].actionReference).toBeTruthy();
+  expect(state.dailyMemories[0].autoSummary).toContain("완료");
+  expect(state.ollieGrowthState.completedActionCount).toBe(1);
+  expect(state.ollieGrowthState.firstLeafAt).toBeTruthy();
+
+  await page.getByRole("button", { name: "힘들었어요" }).click();
+  await page.locator("#completionReflectionNote").fill("시작 전에는 망설였지만 한 걸음을 마쳤어요.");
+  await page.locator("#saveCompletionReflection").click();
+  await expect(page.locator("#completionReflectionSheet")).toBeHidden();
+  await expect(page.locator("#startFocusButton")).toBeFocused();
+
+  state = await readStored(page, "omwExecutionState");
+  expect(state.dailyMemories[0]).toMatchObject({
+    difficulty: "hard",
+    mood: "tired",
+    note: "시작 전에는 망설였지만 한 걸음을 마쳤어요.",
+  });
+
+  await page.locator("#tab-memory").click();
+  await page.locator(".memory-history-disclosure > summary").click();
+  await expect(page.locator("#memoryList")).toContainText(actionTitle);
+  await expect(page.locator("#memoryList")).toContainText("시작 전에는 망설였지만 한 걸음을 마쳤어요.");
+  await captureAcceptance(page, testInfo, "record", { fullPage: false });
+  await page.locator("#tab-mate").click();
+  await expect(page.locator("[data-growth-count='1']")).toHaveClass(/is-grown/);
+  await captureAcceptance(page, testInfo, "ollie-growth", { fullPage: false });
+
+  await page.reload();
+  await waitForAppReady(page);
+  state = await readStored(page, "omwExecutionState");
+  expect(state.dailyMemories).toHaveLength(1);
+  expect(state.ollieGrowthState.firstLeafAt).toBeTruthy();
+  diagnostics.expectClean();
+});
+
+test("놓친 날 회복은 위협 문구나 AI 호출 없이 5분 행동·기록·다시 걷기 성장을 남긴다", async ({ page }, testInfo) => {
+  const diagnostics = monitorPage(page);
+  const aiRequests = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname.startsWith("/api/ai/")) aiRequests.push(request.url());
+  });
+  await page.goto("/app.html");
+  await waitForAppReady(page);
+  await page.evaluate(() => {
+    const bundle = getPlanBundle();
+    bundle.state.rolloverNotice = { day: bundle.state.selectedDay, missedCount: 1, date: "2026-07-23" };
+    localStorage.setItem("omwExecutionState", JSON.stringify(bundle.state));
+  });
+  await page.reload();
+  await waitForAppReady(page);
+
+  const recovery = page.locator("#recoveryCard");
+  await expect(recovery).toBeVisible();
+  const recoveryCopy = await recovery.innerText();
+  expect(recoveryCopy).toContain("원래 계획을 다 하지 않아도 괜찮아요");
+  expect(recoveryCopy).not.toMatch(/실패|연속 기록 종료|뒤처짐|진행률 0%/);
+  await expect(recovery.locator("[data-recovery-action]")).toHaveCount(3);
+  await captureAcceptance(page, testInfo, "recovery", { fullPage: false });
+  await recovery.getByRole("button", { name: "5분짜리 한 걸음으로 줄이기" }).click();
+
+  const state = await readStored(page, "omwExecutionState");
+  expect(Object.values(state.taskEditsByDay).flatMap((value) => Object.values(value))).toEqual(
+    expect.arrayContaining([expect.objectContaining({ durationMinutes: 5 })]),
+  );
+  expect(state.dailyMemories).toEqual(expect.arrayContaining([
+    expect.objectContaining({ title: "다시 걷기", recoveryAction: "five" }),
+  ]));
+  expect(state.ollieGrowthState.recoveredAt).toBeTruthy();
+  expect(aiRequests).toHaveLength(0);
+  diagnostics.expectClean();
+});
+
 test("같은 제목·시각·legacy id 일정도 stable task key와 완료 상태가 충돌하지 않는다", async ({ page }) => {
   const duplicatePlan = {
     goal: "같은 일정 구분 검증",

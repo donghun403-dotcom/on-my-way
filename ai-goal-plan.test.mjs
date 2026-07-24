@@ -146,6 +146,8 @@ test("목표·현재 상태·가능 시간·기존 루틴을 OpenAI 요청에 �
   assert.match(outbound.body.input, /아이디어만 있고 평일 1시간, 주말 3시간 가능/);
   assert.match(outbound.body.input, /저녁 식사 후 노트북 열기/);
   assert.match(outbound.body.instructions, /다른 목표 분야의 예시나 템플릿 문구를 재사용하지 마세요/);
+  assert.match(outbound.body.instructions, /현실적으로 어렵다면 요청을 거부하지 마세요/);
+  assert.match(outbound.body.instructions, /검증 가능한 중간 목표/);
   assert.equal(outbound.body.max_output_tokens, GOAL_PLAN_MAX_OUTPUT_TOKENS);
   assert.equal(outbound.body.reasoning.effort, "none");
   assert.equal(outbound.body.text.verbosity, "low");

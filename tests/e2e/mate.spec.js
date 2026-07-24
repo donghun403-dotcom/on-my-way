@@ -1,5 +1,5 @@
 const { test, expect } = require("@playwright/test");
-const { AI_CREDIT_COSTS, createUsageResponse, mockAccountExperience, monitorPage, prepareApp, readStored, waitForAppReady } = require("./helpers");
+const { AI_CREDIT_COSTS, createUsageResponse, mockAccountExperience, monitorPage, prepareApp, readStored, waitForAppReady, waitForBootstrap } = require("./helpers");
 
 async function prepareMate(page, usage = createUsageResponse({ plan: "free", dailyUsed: 0, monthlyUsed: 1, trialEligible: false })) {
   await prepareApp(page);
@@ -83,6 +83,7 @@ test("AI 크레딧 안내는 서버 제공량과 기능별 비용만 표시하�
 test("전체 성장 여정의 플랜 안내에서 올리 탭으로 돌아올 수 있다", async ({ page }) => {
   await prepareMate(page);
   await page.goto("/index.html?from=ollie#pricing");
+  await waitForBootstrap(page);
   await expect(page.locator("#pricing")).toBeVisible();
   const returnLink = page.getByRole("link", { name: "올리로 돌아가기" });
   await expect(returnLink).toBeVisible();
