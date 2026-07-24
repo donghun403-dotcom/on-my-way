@@ -12,7 +12,7 @@ async function prototypeState(page) {
   return page.evaluate(() => window.__coreLoopPrototype.getState());
 }
 
-test("local brand font loads and is used only by display roles", async ({ page }) => {
+test("local brand font loads for display and short UI roles while body and numeric roles stay neutral", async ({ page }) => {
   const fontResponse = page.waitForResponse((response) =>
     response.url().endsWith("/assets/fonts/yeogieottae-jalnan2.woff2"),
   );
@@ -24,17 +24,94 @@ test("local brand font loads and is used only by display roles", async ({ page }
   const styles = await page.evaluate(() => ({
     fontReady: document.fonts.check('32px "여기어때 잘난체"', "올리가 함께 걸어요"),
     title: getComputedStyle(document.querySelector("#goalTitle")).fontFamily,
+    roadmap: getComputedStyle(document.querySelector("#roadmapTitle")).fontFamily,
     milestone: getComputedStyle(document.querySelector(".journey-path h2")).fontFamily,
-    cta: getComputedStyle(document.querySelector(".primary-action")).fontFamily,
+    primary: getComputedStyle(document.querySelector(".primary-action")).fontFamily,
+    secondary: getComputedStyle(document.querySelector(".secondary-action")).fontFamily,
+    bottomNav: getComputedStyle(document.querySelector(".prototype-tabs button")).fontFamily,
+    quickChip: getComputedStyle(document.querySelector(".quick-actions button")).fontFamily,
+    ollySpeech: getComputedStyle(document.querySelector(".olly-speech")).fontFamily,
+    diaryBody: getComputedStyle(document.querySelector(".diary-list p")).fontFamily,
+    diaryDate: getComputedStyle(document.querySelector(".diary-list time")).fontFamily,
+    duration: getComputedStyle(document.querySelector(".focus-orbit strong")).fontFamily,
+    synthesis: getComputedStyle(document.querySelector(".secondary-action")).fontSynthesis,
     body: getComputedStyle(document.body).fontFamily,
+    brandViolations: [...document.querySelectorAll("body *")]
+      .filter((element) => element.textContent.trim())
+      .map((element) => ({ element, style: getComputedStyle(element) }))
+      .filter(({ style }) => style.fontFamily.includes("여기어때 잘난체"))
+      .filter(({ style }) => {
+        const letterSpacing = style.letterSpacing === "normal" ? 0 : Number.parseFloat(style.letterSpacing);
+        return (
+          Number.parseFloat(style.fontSize) < 12 ||
+          Number.parseInt(style.fontWeight, 10) > 400 ||
+          letterSpacing < -1
+        );
+      })
+      .map(({ element, style }) => ({
+        tag: element.tagName,
+        text: element.textContent.trim().slice(0, 40),
+        fontSize: style.fontSize,
+        fontWeight: style.fontWeight,
+        letterSpacing: style.letterSpacing,
+      })),
   }));
   expect(styles.fontReady).toBe(true);
   expect(styles.title).toContain("여기어때 잘난체");
+  expect(styles.roadmap).toContain("여기어때 잘난체");
   expect(styles.milestone).toContain("여기어때 잘난체");
-  expect(styles.cta).toContain("여기어때 잘난체");
+  expect(styles.primary).toContain("여기어때 잘난체");
+  expect(styles.secondary).toContain("여기어때 잘난체");
+  expect(styles.bottomNav).toContain("여기어때 잘난체");
+  expect(styles.quickChip).toContain("여기어때 잘난체");
+  expect(styles.ollySpeech).toContain("여기어때 잘난체");
+  expect(styles.synthesis).toBe("none");
+  expect(styles.diaryBody).not.toContain("여기어때 잘난체");
+  expect(styles.diaryDate).not.toContain("여기어때 잘난체");
+  expect(styles.duration).not.toContain("여기어때 잘난체");
   expect(styles.body).not.toContain("여기어때 잘난체");
   expect(styles.body).toContain("Pretendard");
+  expect(styles.brandViolations).toEqual([]);
 });
+
+for (const width of [320, 390, 430]) {
+  test(`${width}px key mobile titles and actions fit without clipping`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 });
+
+    for (const screen of ["goal", "roadmap", "today"]) {
+      await resetPrototype(page, screen);
+      const result = await page.evaluate(() => {
+        const title = document.querySelector(".prototype-screen.is-active h1");
+        const titleStyle = getComputedStyle(title);
+        const titleLines = Math.round(title.getBoundingClientRect().height / Number.parseFloat(titleStyle.lineHeight));
+        const clippedButtons = [...document.querySelectorAll(".prototype-screen.is-active button")]
+          .filter((button) => getComputedStyle(button).display !== "none")
+          .filter(
+            (button) =>
+              button.scrollWidth > button.clientWidth + 1 ||
+              button.scrollHeight > button.clientHeight + 1,
+          )
+          .map((button) => button.textContent.trim());
+        const primary = document.querySelector(".prototype-screen.is-active .primary-action");
+        const currentMarker = document.querySelector(".prototype-screen.is-active .milestone-marker");
+        return {
+          titleLines,
+          clippedButtons,
+          primaryBottom: primary?.getBoundingClientRect().bottom ?? 0,
+          currentMarkerTop: currentMarker?.getBoundingClientRect().top ?? 0,
+        };
+      });
+      expect(result.titleLines, `${width}px ${screen} title`).toBeLessThanOrEqual(2);
+      expect(result.clippedButtons, `${width}px ${screen} buttons`).toEqual([]);
+      if (width >= 390) {
+        expect(result.primaryBottom, `${width}px ${screen} primary CTA`).toBeLessThanOrEqual(844);
+      }
+      if (screen === "roadmap") {
+        expect(result.currentMarkerTop, `${width}px current Roadmap marker`).toBeLessThan(844);
+      }
+    }
+  });
+}
 
 test("goal entry exposes only two required decisions without native planning controls", async ({ page }) => {
   await resetPrototype(page);
@@ -176,23 +253,21 @@ test("ACTION completion writes Diary before optional reflection and survives rel
   await expect(page.locator("#diaryList")).toContainText("사용자 한 명의 불편");
 });
 
-test("recovery remains non-punitive and every state has one discoverable primary action", async ({ page }) => {
-  for (const screen of [
-    "goal",
-    "roadmap",
-    "adjust",
-    "changes",
-    "locked",
-    "today",
-    "focus",
-    "reflection",
-    "growth",
-    "recovery",
-  ]) {
-    await resetPrototype(page, screen);
-    await expect(page.locator(".prototype-screen.is-active .primary-action:visible")).toHaveCount(1);
-  }
+for (const screens of [
+  ["goal", "roadmap", "adjust"],
+  ["changes", "locked", "today"],
+  ["focus", "reflection", "growth"],
+  ["recovery"],
+]) {
+  test(`${screens.join(", ")} keep one discoverable primary action per screen`, async ({ page }) => {
+    for (const screen of screens) {
+      await resetPrototype(page, screen);
+      await expect(page.locator(".prototype-screen.is-active .primary-action:visible")).toHaveCount(1);
+    }
+  });
+}
 
+test("recovery remains non-punitive", async ({ page }) => {
   await resetPrototype(page, "recovery");
   const recoveryText = await page.locator('[data-screen="recovery"]').innerText();
   expect(recoveryText).not.toMatch(/실패|벌점|초기화|연속 기록이 끊/);
@@ -201,14 +276,19 @@ test("recovery remains non-punitive and every state has one discoverable primary
 });
 
 for (const width of [320, 390, 430, 1440]) {
-  for (const screen of ["goal", "roadmap", "today", "plan", "record"]) {
-    test(`${width}px ${screen} has no horizontal overflow or console errors`, async ({ page }) => {
-      const browserErrors = [];
-      page.on("console", (message) => {
-        if (message.type() === "error" || message.type() === "warning") browserErrors.push(message.text());
-      });
-      page.on("pageerror", (error) => browserErrors.push(error.message));
-      await page.setViewportSize({ width, height: width === 1440 ? 900 : 844 });
+  test(`${width}px core screens have no horizontal overflow or console errors`, async ({ page }) => {
+    const browserErrors = [];
+    let activeScreen = "";
+    page.on("console", (message) => {
+      if (message.type() === "error" || message.type() === "warning") {
+        browserErrors.push(`${activeScreen}: ${message.text()}`);
+      }
+    });
+    page.on("pageerror", (error) => browserErrors.push(`${activeScreen}: ${error.message}`));
+    await page.setViewportSize({ width, height: width === 1440 ? 900 : 844 });
+
+    for (const screen of ["goal", "roadmap", "today", "plan", "record"]) {
+      activeScreen = screen;
       await resetPrototype(page, screen);
       const dimensions = await page.evaluate(() => ({
         viewport: document.documentElement.clientWidth,
@@ -217,7 +297,7 @@ for (const width of [320, 390, 430, 1440]) {
       }));
       expect(dimensions.document, `${width}px ${screen}`).toBeLessThanOrEqual(dimensions.viewport);
       expect(dimensions.body, `${width}px ${screen}`).toBeLessThanOrEqual(dimensions.viewport);
-      expect(browserErrors).toEqual([]);
-    });
-  }
+    }
+    expect(browserErrors).toEqual([]);
+  });
 }

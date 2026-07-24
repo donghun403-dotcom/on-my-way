@@ -119,3 +119,15 @@ The Plan and Record tabs, `TaskEditSheet`, and `PlanAdjustSheet` are also intera
 ## Phase B boundary
 
 Phase B would map the approved route to existing strict blueprint fields, guest draft/revision endpoints, claim recovery, authenticated persistence, and real Today/Plan state. It would also replace the current default onboarding presentation and selectively apply the font tokens across production pages. No backend removal, binding, migration, OAuth, billing, route, or Production change is implied by this prototype. No migration is required for Phase A.
+
+## Phase A.1 typography and visual polish
+
+- `--font-brand-display` and `--font-brand-ui` both resolve to the same local `여기어때 잘난체` face, while body and numeric roles remain on the neutral Pretendard/system stack.
+- Display use covers H1/H2, Roadmap milestones, completion, growth, and recovery. Short UI use covers primary/secondary/text actions, bottom navigation, period and quick-action chips, mood/recovery choices, short form labels, status badges, Olly speech, and compact summary titles.
+- Paragraphs, user input, schedule details, Diary body copy, dates, times, and focus duration numbers remain body or numeric text. Brand roles use the actual 400 face with `font-synthesis: none`; no synthetic 800/900 weight is requested.
+- Mobile goal entry was compacted without removing a field so the goal, period, optional context, and primary CTA fit in the 390×844 first viewport. Roadmap and Today H1s render in at most two lines at 320, 390, and 430px.
+- The Roadmap understanding summary is one open grouped surface rather than three nested cards. The journey line has stronger visual continuity and varied milestone shapes. On mobile the single Roadmap primary action is kept reachable in the first viewport without adding a second CTA.
+- Desktop 1440 screenshots: goal, Roadmap, changes, Today, reflection, growth, recovery. Mobile 390 screenshots: goal, Roadmap, Today, reflection, growth. Mobile 430 screenshots: Roadmap, Plan, Record. iPhone WebKit screenshots: goal, Roadmap, Today. All 18 files are stored outside the repository in the Phase A.1 visualization folder.
+- Computed-style tests prove brand use for goal/Roadmap titles, milestone title, primary and secondary actions, bottom navigation, quick chips, and Olly speech. They separately prove neutral font use for Diary body, Diary date, and focus duration.
+- Final regression results: unit 211/211, JavaScript syntax 54/54, desktop Chromium 19/19, mobile Chromium 19/19, and iPhone WebKit 19/19. WebKit was split into bounded groups after concurrent WebKit workers exhausted local runner resources; no test timeout, retry, skip, or ignore setting was changed.
+- Default product routes, API integration, OpenAI, OAuth, claim, payment, Worker, binding, migration, and deployment remain untouched.

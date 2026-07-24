@@ -20,9 +20,12 @@ test("core loop prototype is isolated from the default product path and provider
 test("brand font is local, explicit, and separate from the body stack", () => {
   assert.match(css, /font-family:\s*"여기어때 잘난체"/);
   assert.match(css, /--font-brand-display:\s*"여기어때 잘난체"/);
+  assert.match(css, /--font-brand-ui:\s*"여기어때 잘난체"/);
   assert.match(css, /--font-body:\s*"Pretendard",\s*"Apple SD Gothic Neo",\s*"Malgun Gothic",\s*sans-serif/);
   assert.match(css, /assets\/fonts\/yeogieottae-jalnan2\.woff2/);
   assert.doesNotMatch(css, /https?:\/\//);
+  assert.match(css, /font-synthesis:\s*none/);
+  assert.match(css, /\.focus-orbit strong\s*\{[^}]*font-family:\s*var\(--font-numeric\)/s);
   assert.match(server, /\.woff2":\s*"font\/woff2"/);
 });
 

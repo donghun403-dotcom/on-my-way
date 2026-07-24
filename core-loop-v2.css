@@ -8,6 +8,7 @@
 
 :root {
   --font-brand-display: "여기어때 잘난체";
+  --font-brand-ui: "여기어때 잘난체";
   --font-body: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
   --font-numeric: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
   --ink: #354057;
@@ -82,8 +83,9 @@ textarea:focus-visible {
 .primary-action,
 .sheet-save {
   font-family: var(--font-brand-display);
+  font-synthesis: none;
   font-weight: 400;
-  letter-spacing: -0.018em;
+  letter-spacing: -0.012em;
 }
 
 .prototype-header {
@@ -287,7 +289,7 @@ textarea:focus-visible {
 
 .text-field small {
   color: #97a1b2;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 650;
 }
 
@@ -399,21 +401,23 @@ textarea:focus-visible {
 .goal-understanding {
   display: grid;
   grid-template-columns: 1.2fr 1fr 1fr;
-  gap: 1px;
-  padding: 6px;
+  gap: 0;
+  padding: 8px 12px;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.46);
+  background: rgba(255, 255, 255, 0.64);
 }
 
 .goal-understanding > div {
   display: grid;
   gap: 6px;
-  padding: 20px 22px;
-  background: rgba(255, 255, 255, 0.66);
+  padding: 16px 20px;
+  background: transparent;
 }
 
-.goal-understanding > div:first-child { border-radius: 24px 10px 10px 24px; }
-.goal-understanding > div:last-child { border-radius: 10px 24px 24px 10px; }
+.goal-understanding > div + div {
+  border-left: 1px solid rgba(113, 132, 166, 0.14);
+}
+
 .goal-understanding span,
 .support-card span,
 .week-peek span,
@@ -423,7 +427,7 @@ textarea:focus-visible {
 .auto-entry > span,
 .record-summary > span {
   color: #7e8da4;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 850;
   letter-spacing: 0.05em;
 }
@@ -448,15 +452,17 @@ textarea:focus-visible {
   top: 35px;
   right: 8%;
   left: 8%;
-  z-index: -1;
+  z-index: 0;
   height: 5px;
   content: "";
   background: linear-gradient(90deg, #8eb8ba, #9eadd0, #c3a8cc, #ddb2bd);
   border-radius: 999px;
-  opacity: 0.66;
+  opacity: 0.82;
 }
 
 .journey-path li {
+  position: relative;
+  z-index: 1;
   display: grid;
   align-content: start;
   justify-items: center;
@@ -490,13 +496,24 @@ textarea:focus-visible {
   box-shadow: var(--small-shadow);
 }
 
-.journey-path li:nth-child(2) article { background: rgba(236, 246, 242, 0.86); }
-.journey-path li:nth-child(3) article { background: rgba(241, 237, 249, 0.86); }
-.journey-path li:nth-child(4) article { background: rgba(250, 237, 242, 0.88); }
+.journey-path li:nth-child(2) article {
+  background: rgba(236, 246, 242, 0.86);
+  border-radius: 18px 30px 20px 28px;
+}
+
+.journey-path li:nth-child(3) article {
+  background: rgba(241, 237, 249, 0.86);
+  border-radius: 30px 18px 28px 20px;
+}
+
+.journey-path li:nth-child(4) article {
+  background: rgba(250, 237, 242, 0.88);
+  border-radius: 20px 28px 18px 30px;
+}
 
 .journey-path small {
   color: #8190a6;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 850;
 }
 
@@ -919,7 +936,7 @@ textarea:focus-visible {
   justify-content: space-between;
   gap: 10px;
   color: #7589a4;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 850;
   letter-spacing: 0.08em;
 }
@@ -1028,9 +1045,9 @@ textarea:focus-visible {
 }
 
 .focus-orbit strong {
-  font-family: var(--font-brand-display);
+  font-family: var(--font-numeric);
   font-size: 84px;
-  font-weight: 400;
+  font-weight: 850;
   line-height: 1;
 }
 
@@ -1305,7 +1322,7 @@ textarea:focus-visible {
   color: #8691a5;
   background: transparent;
   border-radius: 18px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
 }
 
@@ -1394,6 +1411,43 @@ textarea:focus-visible {
   transform: translateX(50%);
 }
 
+/* Brand UI is deliberately limited to short, actionable labels. */
+.secondary-action,
+.text-action,
+.choice-chips span,
+.quick-actions button,
+.schedule-options button,
+.mood-picker button,
+.prototype-tabs button,
+.recovery-options button,
+.text-field > span,
+.text-field > span small,
+.period-picker legend,
+.action-label span,
+.action-label b,
+.goal-understanding span,
+.goal-understanding strong,
+.journey-path small,
+.support-card span,
+.support-card strong,
+.week-peek span,
+.week-peek strong,
+.roadmap-mini span,
+.roadmap-mini strong,
+.pending-changes > div > span,
+.comparison-grid strong,
+.applied-changes li,
+.schedule-suggestion > span,
+.auto-entry > span,
+.auto-entry > strong,
+.record-summary > span,
+.record-summary > strong {
+  font-family: var(--font-brand-ui);
+  font-synthesis: none;
+  font-weight: 400;
+  letter-spacing: -0.004em;
+}
+
 @media (max-width: 760px) {
   .prototype-header {
     width: calc(100% - 28px);
@@ -1410,7 +1464,7 @@ textarea:focus-visible {
 
   .prototype-main {
     width: calc(100% - 28px);
-    padding-top: 30px;
+    padding-top: 22px;
   }
 
   .goal-layout,
@@ -1421,74 +1475,112 @@ textarea:focus-visible {
   }
 
   .goal-layout {
-    gap: 18px;
+    gap: 4px;
+    margin-bottom: 14px;
   }
 
   .goal-copy h1,
-  .screen-heading h1,
-  .today-heading h1,
   .focus-heading h1,
   .growth-hero h1,
   .recovery-hero h1 {
-    font-size: clamp(34px, 10vw, 48px);
+    font-size: clamp(32px, 9vw, 43px);
     line-height: 1.12;
   }
 
   .goal-ollie {
-    min-height: 120px;
-    justify-items: end;
+    display: flex;
+    min-height: 88px;
+    align-items: center;
+    justify-content: flex-end;
+    margin-top: -8px;
   }
 
   .goal-ollie img {
-    width: 136px;
-    margin-right: 12px;
+    width: 104px;
+    margin-right: 4px;
   }
 
   .olly-speech {
-    top: 12px;
-    right: 118px;
-    max-width: 190px;
-    font-size: 13px;
+    position: static;
+    max-width: 176px;
+    margin-right: -2px;
+    padding: 10px 12px;
+    font-size: 12px;
   }
 
   .goal-form {
-    gap: 18px;
-    padding: 22px 18px;
+    gap: 12px;
+    padding: 16px;
     border-radius: 25px;
+  }
+
+  .text-field {
+    gap: 6px;
+  }
+
+  #prototypeGoal {
+    min-height: 76px;
+    height: 76px;
+  }
+
+  #prototypeContext {
+    min-height: 58px;
+    height: 58px;
   }
 
   .choice-chips {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
   }
 
   .choice-chips span {
     min-width: 0;
+    min-height: 40px;
   }
 
   .screen-heading {
-    gap: 10px;
+    position: relative;
+    display: block;
+    min-height: 210px;
+    margin-bottom: 18px;
+  }
+
+  .screen-heading h1 {
+    font-size: clamp(30px, 8.2vw, 38px);
+    line-height: 1.12;
+  }
+
+  .screen-heading .body-copy {
+    max-width: 230px;
+    margin-top: 10px;
   }
 
   .screen-heading > img {
-    justify-self: end;
-    width: 132px;
-    margin-top: -24px;
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 112px;
+    margin: 0;
   }
 
   .goal-understanding {
     grid-template-columns: 1fr;
-    gap: 6px;
-    padding: 0;
-    background: transparent;
-    border: 0;
-    box-shadow: none;
+    gap: 0;
+    padding: 7px 16px;
+    background: rgba(255, 255, 255, 0.68);
   }
 
   .goal-understanding > div,
   .goal-understanding > div:first-child,
   .goal-understanding > div:last-child {
-    border-radius: 18px;
+    padding: 11px 2px;
+    border-radius: 0;
+  }
+
+  .goal-understanding > div + div {
+    border-top: 1px solid rgba(113, 132, 166, 0.14);
+    border-left: 0;
   }
 
   .journey-path {
@@ -1526,7 +1618,7 @@ textarea:focus-visible {
 
   .journey-path article {
     min-height: 0;
-    padding: 19px 18px 16px;
+    padding: 17px 17px 14px;
   }
 
   .journey-path h2,
@@ -1574,17 +1666,22 @@ textarea:focus-visible {
     align-items: end;
   }
 
+  .today-heading h1 {
+    font-size: clamp(26px, 7.4vw, 32px);
+    line-height: 1.12;
+  }
+
   .today-heading img {
-    width: 112px;
+    width: 100px;
   }
 
   .today-action {
-    padding: 23px 19px;
+    padding: 21px 19px;
     border-radius: 26px;
   }
 
   .today-action h2 {
-    font-size: 30px;
+    font-size: 28px;
   }
 
   .action-buttons {
@@ -1639,6 +1736,28 @@ textarea:focus-visible {
 
   .diary-list article > span {
     grid-column: 2;
+  }
+
+  body[data-prototype-screen="roadmap"] .prototype-main {
+    padding-bottom: 110px;
+  }
+
+  body[data-prototype-screen="roadmap"] .roadmap-screen {
+    animation: none;
+    transform: none;
+  }
+
+  body[data-prototype-screen="roadmap"] .roadmap-screen > .primary-action {
+    position: fixed;
+    bottom: max(14px, env(safe-area-inset-bottom));
+    left: 50%;
+    z-index: 34;
+    width: min(calc(100% - 28px), 520px);
+    transform: translateX(-50%);
+  }
+
+  body[data-prototype-screen="roadmap"] .roadmap-screen > .primary-action:hover {
+    transform: translateX(-50%) translateY(-1px);
   }
 }
 

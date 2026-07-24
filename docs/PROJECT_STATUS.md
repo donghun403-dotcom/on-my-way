@@ -560,3 +560,12 @@ PR #9 최신 head의 자동 검증과 diff·리뷰·충돌 상태를 최종 확�
 - font request 200과 `font/woff2`, `document.fonts` load/check, computed family, 실패 warning, fieldset 0px, custom radio, 화면당 primary CTA 1개, AI call map, 실패 시 Roadmap 보존, stable typed item, TaskEditSheet focus return, Diary refresh 복원, punishment 없는 recovery, 320/390/430/1440 overflow와 console 오류를 테스트했다.
 - 세 엔진의 기능 E2E는 desktop Chromium 8/8, mobile Chromium 8/8, iPhone WebKit 8/8이 통과했다. 한 테스트에 20개 navigation을 묶었을 때 WebKit의 60초 test timeout이 발생해 assertion을 줄이지 않고 폭·화면별 한 navigation 사례로 분리했고, overflow·console 검증은 각 엔진 20/20으로 통과했다. 기존 모바일 전용 날짜 sheet도 1/1 통과했다. 전체 unit은 기존 기술 계약을 포함해 211/211 통과했다. 승인 검토용 desktop 10장, 390px 8장, 430px 4장, iPhone WebKit 4장을 저장소 밖에 캡처했다.
 - Phase A는 시각 승인 요청 단계다. 기본 경로 통합, 실제 strict blueprint/API 연결, backend 상태 연결, push, PR, deploy, migration은 수행하지 않는다. 후속 요청에 `CORE_LOOP_VISUAL_REVIEW_APPROVED`가 정확히 포함되기 전에는 Phase B를 시작하지 않는다.
+
+## P0.5 Phase A.1 — Brand typography and visual polish (2026-07-24)
+
+- 로컬 `core-loop-v2` 프로토타입에 `--font-brand-ui` 역할을 추가했다. display와 UI는 실제 여기어때 잘난체 400 face와 `font-synthesis: none`을 사용하고, 본문·입력·일정 상세·Diary 문장·날짜·시간·집중 숫자는 Pretendard/system 또는 numeric stack을 유지한다.
+- Primary·Secondary·주요 text action, 기간·빠른 수정·기분·회복 선택, 하단 탭, 짧은 form label·status badge·요약 제목·올리 대사까지 브랜드 인상을 확장했다. 12px 미만 브랜드 UI, synthetic 800/900, 장문 본문 적용은 두지 않았다.
+- 모바일 목표 입력 밀도를 줄여 390×844 첫 viewport에 필수 핵심과 CTA가 함께 보이게 했다. Roadmap·Today 핵심 H1은 320/390/430px에서 최대 2줄이며 버튼 잘림과 수평 overflow가 없다. Roadmap 요약은 하나의 열린 surface로 단순화하고, journey line과 현재 올리를 앞세웠으며 단일 Primary CTA를 첫 viewport에서도 발견할 수 있게 했다.
+- 저장소 밖 Phase A.1 폴더에 desktop 7장, mobile 390 5장, mobile 430 3장, iPhone WebKit 3장 등 총 18장 캡처를 생성했다. 캡처 중 console warning/error는 0건이었다.
+- 전체 unit 211/211, JavaScript syntax 54/54, desktop Chromium 19/19, mobile Chromium 19/19, iPhone WebKit 19/19가 통과했다. WebKit 동시 실행 자원 경합은 worker를 격리해 원인을 확인했으며 timeout·retry·skip·ignore 설정은 변경하지 않았다.
+- 기본 제품 경로, 실제 AI/OAuth/claim, Worker/DO/migration, 결제와 배포 설정은 변경하지 않았다. commit은 새 로컬 commit으로만 생성하며 push, PR, Staging/Preview/Production deploy는 `NOT RUN`이다.
