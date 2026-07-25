@@ -888,7 +888,13 @@ async function activateReviewedGoalDraft() {
 trialStartInlineLink?.addEventListener("click", async (event) => {
   event.preventDefault();
   if (trialStartInlineLink.getAttribute("aria-disabled") === "true") {
-    // 고정이 막힌 이유(조정안 미선택)를 토스트로만 알리지 않고, 조정안 카드로 직접 안내한다.
+    // 조정안을 이미 고른 상태라면 다시 고르라고 되돌려보내지 말고, 그 조건으로 바로 계획을 다시 만든다.
+    if (selectedFeasibilityAdjustment && personalityForm) {
+      showToast("고른 조정안으로 계획을 다시 만들고 있어요.");
+      personalityForm.requestSubmit();
+      return;
+    }
+    // 아직 고르지 않았을 때만 조정안 카드로 안내한다.
     const firstOption = draftFeasibilityOptions?.querySelector("[data-feasibility-adjustment]");
     const target = firstOption || draftFeasibilityOptions?.closest(".draft-feasibility-card") || draftFeasibilityOptions;
     if (target) {
