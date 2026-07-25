@@ -1,0 +1,16 @@
+diff --git a/docs/PROJECT_STATUS.md b/docs/PROJECT_STATUS.md
+index 69d890c..bb04a31 100644
+--- a/docs/PROJECT_STATUS.md
++++ b/docs/PROJECT_STATUS.md
+@@ -512,3 +512,11 @@ PR #9 최신 head의 자동 검증과 diff·리뷰·충돌 상태를 최종 확
+ - Staging workflow는 exact 40자리 입력 SHA와 checkout 결과를 비교한다. generated config 검증 뒤 Wrangler `4.81.0 deploy --dry-run`으로 bundle을 만들고 `GUEST_PLAN_DRAFTS`와 `AI_RATE_LIMITER` 인식을 확인한 뒤에만 원격 D1 migration과 Worker deploy로 진행한다. 로컬 fixture generated config dry-run은 두 binding과 안전 flag를 인식해 성공했으며 실제 원격 mutation은 없었다.
+ - 로컬 검증은 전체 unit 198/198, 현재 변경을 포함한 JavaScript syntax 49/49, Structured Outputs·credit/idempotency·Durable Object·workflow fixture와 desktop/mobile Chromium·iPhone WebKit의 revision 실패 보존 시나리오 3/3을 통과했다. Playwright 내장 webServer 종료 정체는 별도 PID server와 `E2E_BASE_URL`로 분리해 테스트 결과와 구분했다. retry·sleep·skip·fixme·오류 ignore는 추가하지 않았다.
+ - 이번 단계에서 실제 OpenAI 재호출, OAuth A/B, 64개 원격 동시 claim, Staging 재배포, Preview/Production 배포는 모두 `NOT RUN`이다. OAuth·원격 동시성·실기기 mobile은 미완료이며 새 release candidate의 Staging 재인수가 성공할 때까지 Production은 `NO-GO`다.
++
++## P0.3 Staging revalidation (2026-07-23)
++
++- Release candidate `a1fe5c50ffba70236fe49fd3e0d5de4f5d365354`를 feature branch에 일반 fast-forward push하고 새 `Staging Deploy` run `30003740625`로 배포했다. exact checkout, generated config 검증, Wrangler 4.81.0 dry-run과 필수 Durable Object/rate-limit binding 확인이 원격 D1 migration과 Worker deploy보다 먼저 성공했다.
++- 배포 후 health는 `environment=staging`, `payments=false`, `accountStorage=true`, `ai=true`였고 Google은 configured, developer login은 disabled, Apple은 hidden 상태였다. Production workflow/config와 Production resource는 변경하거나 조회하지 않았다.
++- 첫 실제 provider generation은 1회만 실행했으며 HTTP 502와 `AI_OUTPUT_INCOMPLETE_MAX_TOKENS`로 종료됐다. 일반 parse failure로 합쳐지지 않고 `incomplete_details.reason=max_output_tokens` taxonomy로 분리됐지만 실제 generation 성공 조건을 충족하지 못했으므로 Staging은 `NO-GO`다.
++- 실패를 재시도나 다른 시나리오로 덮지 않았다. 나머지 OpenAI 시나리오, OAuth A/B, 403/409/412, 64개 동시 claim, desktop/mobile 인수는 `NOT RUN`이다. 공개 API는 성공 응답의 provider request ID·output token 수를 노출하지 않으므로 해당 성공 telemetry도 이번 실행에서 확인하지 않았다.
++- 오류 후 Worker health는 계속 정상이고 `payments=false`가 유지됐다. rollback은 수행하지 않았으며, Preview·Production 배포와 PR 생성도 수행하지 않았다. 다음 RC는 실제 schema를 완결할 수 있는 출력 예산 또는 더 작은 structured contract를 근거 기반으로 조정한 뒤 같은 단일-call 정책으로 재검증해야 한다.

@@ -5,11 +5,18 @@ node_modules/
 .claude/
 docs/
 tmp/
+tests/
+test-results/
+playwright-report/
+blob-report/
 On My Way 로고/
 .gitignore
 .assetsignore
 *.mjs
 *.cjs
-wrangler.jsonc
+wrangler*.jsonc
+package*.json
+playwright.config.js
+debug.log
 *.pdf
 *.md

@@ -183,7 +183,70 @@ const TRIAL_LEAD_KEY = "omwTrialLead";
 const TRIAL_DURATION_MS = 24 * 60 * 60 * 1000;
 const OLLIE_ENERGY_KEY = "omwOllieEnergy";
 const FREE_PLAN_GENERATED_KEY = "omwFreePlanGenerated";
+const ACCOUNT_STORAGE_SCOPE_KEY = "omwAccountStorageScope";
+const ACCOUNT_STORAGE_SNAPSHOT_PREFIX = "omwAccountStorageSnapshot:";
+const ACCOUNT_SCOPED_STORAGE_KEYS = [
+  TRIAL_ACCESS_KEY,
+  TRIAL_LEAD_KEY,
+  OLLIE_ENERGY_KEY,
+  FREE_PLAN_GENERATED_KEY,
+  "omwTrialReminderDismissed",
+  "omwPersonalityProfile",
+  "omwPersonalityNudgeDismissed",
+  "omwExecutionPlan",
+  "omwExecutionState",
+  "omwCompanionState",
+  "omwCompanionEvents",
+  "omwFocusSession",
+  "omwExecutionTheme",
+];
 let activePlanScreen = "home";
+
+function getAccountStorageScope(user) {
+  return user?.id ? `user:${user.id}` : "guest";
+}
+
+function captureAccountStorage() {
+  return Object.fromEntries(
+    ACCOUNT_SCOPED_STORAGE_KEYS.map((key) => [key, localStorage.getItem(key)]).filter(([, value]) => value !== null),
+  );
+}
+
+function switchAccountStorageScope(targetScope, { clearTarget = false } = {}) {
+  try {
+    const currentScope = localStorage.getItem(ACCOUNT_STORAGE_SCOPE_KEY);
+    if (!currentScope) {
+      localStorage.setItem(ACCOUNT_STORAGE_SCOPE_KEY, targetScope);
+      return false;
+    }
+    if (currentScope === targetScope && !clearTarget) return false;
+
+    localStorage.setItem(`${ACCOUNT_STORAGE_SNAPSHOT_PREFIX}${currentScope}`, JSON.stringify(captureAccountStorage()));
+    ACCOUNT_SCOPED_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
+
+    const targetSnapshotKey = `${ACCOUNT_STORAGE_SNAPSHOT_PREFIX}${targetScope}`;
+    if (clearTarget) {
+      localStorage.removeItem(targetSnapshotKey);
+    } else {
+      const snapshot = JSON.parse(localStorage.getItem(targetSnapshotKey) || "{}");
+      if (snapshot && typeof snapshot === "object" && !Array.isArray(snapshot)) {
+        Object.entries(snapshot).forEach(([key, value]) => {
+          if (ACCOUNT_SCOPED_STORAGE_KEYS.includes(key) && typeof value === "string") localStorage.setItem(key, value);
+        });
+      }
+    }
+    localStorage.setItem(ACCOUNT_STORAGE_SCOPE_KEY, targetScope);
+    return true;
+  } catch (error) {
+    console.warn("Unable to isolate account storage", error);
+    ACCOUNT_SCOPED_STORAGE_KEYS.forEach((key) => {
+      try {
+        localStorage.removeItem(key);
+      } catch {}
+    });
+    return true;
+  }
+}
 
 function setPlanScreen(screen, { scroll = true, focus = true } = {}) {
   const nextScreen = ["home", "detail", "editor"].includes(screen) ? screen : "home";
@@ -748,6 +811,7 @@ async function logoutAccount() {
       localStorage.removeItem(TRIAL_ACCESS_KEY);
     } catch {}
   }
+  switchAccountStorageScope("guest", { clearTarget: true });
   location.href = location.pathname;
 }
 
@@ -808,11 +872,20 @@ async function initAccountExperience() {
     initialParams.get("redirect") === "admin" ||
     initialParams.get("admin") === "denied" ||
     ["login", "my"].includes(initialParams.get("auth"));
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 10_000);
   try {
-    const data = await accountRequest("/api/auth/me");
+    const data = await accountRequest("/api/auth/me", { signal: controller.signal });
     authUiState.user = data.user || null;
   } catch {
     authUiState.user = null;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+
+  if (switchAccountStorageScope(getAccountStorageScope(authUiState.user))) {
+    location.reload();
+    return;
   }
   authUiState.loaded = true;
 
@@ -822,6 +895,7 @@ async function initAccountExperience() {
   await handleBillingQueryParams();
   handleAuthQueryParams();
   if (!accountOnlyRoute) initializeTrialAccess();
+  document.documentElement.classList.remove("account-storage-pending");
 }
 
 menuToggle?.addEventListener("click", () => setDrawerOpen(appMenuDrawer?.hidden !== false));
@@ -2111,6 +2185,10 @@ function getLocalDateKey(value = new Date()) {
 
 function getTodayKey() {
   return getLocalDateKey();
+}
+
+function setImageSource(image, source) {
+  if (image && source && image.getAttribute("src") !== source) image.setAttribute("src", source);
 }
 
 function readStorageObject(key, fallback = {}) {
@@ -3595,9 +3673,9 @@ function renderCalendar(schedule, state, plan) {
     planLabel.textContent = isSameCalendarDate(actualDate, today) ? "오늘" : dayPlan ? `D${dayPlan.day}` : "";
     percent.textContent = dayPlan ? `${completion.percent}%` : planDayNumber < 1 ? "올리 기다림" : "올리 쉬는 날";
     ollie.className = "calendar-ollie";
-    ollie.src = completion.percent === 100 ? "assets/ollie-celebrate.png" : "assets/ollie-thinking.png";
     ollie.alt = "";
     ollie.hidden = !dayPlan || (completion.percent !== 100 && dayPlan.day !== state.selectedDay);
+    if (!ollie.hidden) setImageSource(ollie, completion.percent === 100 ? "assets/ollie-celebrate.png" : "assets/ollie-thinking.png");
     button.setAttribute(
       "aria-label",
       dayPlan
@@ -4274,8 +4352,8 @@ function renderCompanionExperience({ plan, selectedCompletion, remainingTasks, c
           : "assets/ollie-thinking.png";
 
   if (companionName) companionName.textContent = companionState.name || "올리";
-  if (companionHomeImage) companionHomeImage.src = ollieMoodImage;
-  if (executionCompanion) executionCompanion.src = ollieMoodImage;
+  setImageSource(companionHomeImage, ollieMoodImage);
+  setImageSource(executionCompanion, ollieMoodImage);
   if (companionMoodLine) {
     companionMoodLine.textContent =
       companionState.energy === "tired" ? "오늘은 작게 줄이는 것도 실행이에요." : copy.line;
@@ -4441,7 +4519,7 @@ function renderDailyCoach(state, selectedCompletion, dayPlan) {
   if (dailyCoachKicker) dailyCoachKicker.textContent = kicker;
   dailyCoachTitle.textContent = copy.title;
   dailyCoachMessage.textContent = copy.message;
-  if (dailyCoachImage) dailyCoachImage.src = copy.image;
+  setImageSource(dailyCoachImage, copy.image);
 }
 
 function renderExecutionPage(bundle) {
@@ -4551,7 +4629,7 @@ function applyExecutionTheme(themeName) {
   });
 
   if (executionCompanion) {
-    executionCompanion.src = theme.image;
+    setImageSource(executionCompanion, theme.image);
     executionCompanion.alt = theme.alt;
   }
   if (executionCompanionTitle) executionCompanionTitle.textContent = theme.title;

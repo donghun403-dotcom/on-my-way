@@ -7,7 +7,7 @@ import {
   parseCookies,
   renewDueSubscriptions,
 } from "./auth-service.mjs";
-import { createGoalPlanForUser } from "./worker.mjs";
+import worker, { createGoalPlanForUser } from "./worker.mjs";
 
 function memoryStore(seed = []) {
   const users = new Map(seed.map((user) => [user.id, user]));
@@ -183,4 +183,36 @@ test("해지된 구독은 결제 기간 종료 후 체험 상태로 내려간다
   const result = await renewDueSubscriptions({ env: {}, store });
   assert.equal(result.processed, 1);
   assert.equal(store.users.get(user.id).plan, "trial");
+});
+
+test("AI endpoints reject unauthenticated requests before invoking providers", async () => {
+  const kv = { async get() { return null; }, async put() {}, async list() { return { keys: [] }; } };
+  const assets = { async fetch() { return new Response("asset"); } };
+  for (const path of ["/api/ai/goal-plan", "/api/ai/companion-chat", "/api/ai/plan-revision"]) {
+    const response = await worker.fetch(new Request(`https://preview.example${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    }), { USERS_KV: kv, ASSETS: assets });
+    assert.equal(response.status, 401, path);
+  }
+});
+
+test("API requests from arbitrary origins are rejected", async () => {
+  const response = await worker.fetch(new Request("https://preview.example/api/auth/me", {
+    headers: { Origin: "https://attacker.example" },
+  }), { ASSETS: { async fetch() { return new Response("asset"); } } });
+  assert.equal(response.status, 403);
+  assert.equal(response.headers.get("access-control-allow-origin"), null);
+});
+
+test("Worker responses include release security headers", async () => {
+  const response = await worker.fetch(new Request("https://preview.example/app.html"), {
+    ASSETS: { async fetch() { return new Response("<!doctype html>", { headers: { "Content-Type": "text/html" } }); } },
+  });
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("content-security-policy"), /frame-ancestors 'none'/);
+  assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+  assert.equal(response.headers.get("x-frame-options"), "DENY");
+  assert.match(response.headers.get("cache-control"), /no-store/);
 });

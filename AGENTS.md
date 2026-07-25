@@ -1,7 +1,11 @@
-# Repository workflow
+# 작업 규칙
 
-- After completing user-requested code or design changes and running the relevant checks, automatically stage only the files that belong to the current request, create a concise commit, and push the current branch to `origin`.
-- If the branch already has a pull request, update that pull request. Otherwise, open a draft pull request against the repository's default branch.
-- Never include unrelated working-tree changes, generated local data, credentials, secrets, or environment files in a commit.
-- If validation fails, fix the failure before publishing when it is within scope. Report genuine blockers instead of pushing a knowingly broken change.
-- An explicit user instruction not to commit, push, or open a pull request overrides this default workflow.
+- 한 Codex 대화에서는 하나의 단계와 하나의 완료 목표만 수행한다.
+- 요청 범위 밖의 리팩터링을 하지 않는다.
+- 완료된 기능을 근거 없이 다시 구현하지 않는다.
+- 관련 파일만 확인하고 관련 최소 테스트만 실행한다.
+- 패키지와 기술 스택을 임의로 변경하지 않는다.
+- 외부에서 확인할 사항을 코드로 우회하지 않는다.
+- 완료 조건을 충족하면 다음 작업을 임의로 시작하지 않는다.
+- 작업 종료 시 `docs/PROJECT_STATUS.md`를 업데이트한다.
+- 비밀정보를 코드, 로그, 문서에 기록하지 않는다.

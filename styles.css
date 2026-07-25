@@ -1555,6 +1555,10 @@ footer p {
   padding: 18px 12px 28px;
 }
 
+.account-storage-pending body {
+  visibility: hidden;
+}
+
 .home-page [data-page-view][hidden] {
   display: none !important;
 }
@@ -4210,6 +4214,7 @@ body.sheet-open {
   left: 50%;
   bottom: 110px;
   z-index: 110;
+  pointer-events: none;
   width: min(360px, calc(100vw - 28px));
   padding: 12px 14px;
   color: #ffffff;
@@ -7035,6 +7040,15 @@ body.sheet-open {
   border-radius: 999px;
   font-size: 9px;
   text-align: center;
+  pointer-events: none;
+}
+
+.execution-page {
+  scroll-padding-block: 80px 100px;
+}
+
+.task-row {
+  scroll-margin-block: 80px 100px;
 }
 
 .result-details-disclosure[open] > summary > b::before {
