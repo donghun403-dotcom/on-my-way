@@ -1,6 +1,7 @@
 import { createAiGoalPlan, goalInputForHash, normalizeGoalInput } from "./ai-goal-plan.mjs";
 import { GuestPlanDraftObject } from "./guest-plan-draft-object.mjs";
 import { createCompanionReply } from "./ai-companion-chat.mjs";
+import { createGoalAnalysis } from "./ai-goal-analysis.mjs";
 import { createAiPlanRevision } from "./ai-plan-revision.mjs";
 import {
   AI_CONTRACT_VERSIONS,
@@ -156,6 +157,8 @@ export async function createGoalPlanForUser({ input, env, userStore, user, gener
 }
 
 const AI_GENERATION_ROUTES = Object.freeze({
+  // 온보딩 1단계 자연어 → 이해 정리(저비용). 계획 생성은 2단계 확인 뒤 create_plan에서만 한다.
+  "/api/ai/goal-analyze": { action: "analyze_goal", kind: "analyze", maxBytes: 5_000 },
   "/api/ai/goal-plan": { action: "create_plan", kind: "goal", maxBytes: 50_000 },
   "/api/ai/companion-chat": { action: "companion_chat", kind: "companion", maxBytes: 5_000 },
   "/api/ai/plan-revision": { action: "revise_plan", kind: "revision", maxBytes: 20_000 },
@@ -1082,6 +1085,8 @@ async function handleAiGenerationRequest({ request, env, accountContext, route }
       // Reload after the reservation write so the goal-limit write cannot overwrite credit state.
       const creditAwareUser = await userStore.getUser(user.id);
       result = await createGoalPlanForUser({ input, env, userStore, user: creditAwareUser });
+    } else if (route.kind === "analyze") {
+      result = await createGoalAnalysis(input, { apiKey: env.OPENAI_API_KEY, model });
     } else if (route.kind === "companion") {
       result = await createCompanionReply(input, {
         apiKey: env.OPENAI_API_KEY,

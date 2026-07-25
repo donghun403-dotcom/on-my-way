@@ -6,6 +6,7 @@ const port = Number(process.env.PORT || 8765);
 const host = "127.0.0.1";
 const root = path.resolve(__dirname);
 const aiCompanionChatModule = import("./ai-companion-chat.mjs");
+const aiGoalAnalysisModule = import("./ai-goal-analysis.mjs");
 const aiPlanRevisionModule = import("./ai-plan-revision.mjs");
 const aiCreditsServiceModule = import("./ai-credits-service.mjs");
 const authServiceModule = import("./auth-service.mjs");
@@ -177,6 +178,8 @@ const contentTypes = {
 };
 
 const AI_GENERATION_ROUTES = Object.freeze({
+  // 온보딩 1단계 자연어 → 이해 정리(저비용). 계획 생성은 2단계 확인 뒤 create_plan에서만 한다.
+  "/api/ai/goal-analyze": { action: "analyze_goal", kind: "analyze", maxBytes: 5_000 },
   "/api/ai/goal-plan": { action: "create_plan", kind: "goal", maxBytes: 50_000 },
   "/api/ai/companion-chat": { action: "companion_chat", kind: "companion", maxBytes: 5_000 },
   "/api/ai/plan-revision": { action: "revise_plan", kind: "revision", maxBytes: 20_000 },
@@ -294,6 +297,9 @@ async function handleLocalAiGenerationRequest({ request, response, route }) {
         userStore: localUserStore,
         user: creditAwareUser,
       });
+    } else if (route.kind === "analyze") {
+      const { createGoalAnalysis } = await aiGoalAnalysisModule;
+      result = await createGoalAnalysis(input, { apiKey: localEnv.OPENAI_API_KEY, model });
     } else if (route.kind === "companion") {
       const { createCompanionReply } = await aiCompanionChatModule;
       result = await createCompanionReply(input, {

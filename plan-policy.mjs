@@ -51,6 +51,7 @@ export const PLAN_CONFIG = deepFreeze({
 });
 
 export const AI_CREDIT_COSTS = deepFreeze({
+  analyze_goal: 1,
   companion_chat: 1,
   create_daily_step: 2,
   revise_plan: 2,
@@ -60,6 +61,7 @@ export const AI_CREDIT_COSTS = deepFreeze({
 });
 
 export const AI_ACTION_LABELS = deepFreeze({
+  analyze_goal: "목표 이해 정리",
   companion_chat: "올리와 지금 대화",
   create_daily_step: "오늘의 한 걸음 생성",
   revise_plan: "계획 일부 수정",

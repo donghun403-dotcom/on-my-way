@@ -56,6 +56,7 @@ test("Free and Pro policy values have one authoritative definition", () => {
 
 test("every AI action has the exact server-side cost and a user-facing label", () => {
   assert.deepEqual(AI_CREDIT_COSTS, {
+    analyze_goal: 1,
     companion_chat: 1,
     create_daily_step: 2,
     revise_plan: 2,
@@ -64,6 +65,7 @@ test("every AI action has the exact server-side cost and a user-facing label", (
     reschedule_plan: 4,
   });
   assert.deepEqual(AI_ACTION_LABELS, {
+    analyze_goal: "목표 이해 정리",
     companion_chat: "올리와 지금 대화",
     create_daily_step: "오늘의 한 걸음 생성",
     revise_plan: "계획 일부 수정",
