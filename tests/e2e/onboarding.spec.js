@@ -1,5 +1,5 @@
 const { test, expect } = require("@playwright/test");
-const { captureAcceptance, createUsageResponse, mockAccountExperience, monitorPage, waitForAppReady, waitForBootstrap } = require("./helpers");
+const { captureAcceptance, createUsageResponse, mockAccountExperience, monitorPage, submitGoalStory, waitForAppReady, waitForBootstrap } = require("./helpers");
 
 test.setTimeout(90_000);
 
@@ -96,6 +96,8 @@ async function openGuestFullPlanAuthChooser(page) {
   await waitForBootstrap(page);
   await page.getByRole("button", { name: "창업", exact: true }).click();
   await page.getByRole("button", { name: "90일 안에 첫 유료 고객 10명 만들기", exact: true }).click();
+  await page.locator("#goalAnalyzeButton").click();
+  await page.locator("#aiPreviewButton").waitFor({ state: "visible" });
   await page.locator("#aiPreviewButton").click();
   await expect.poll(() => calls.preview).toBe(1);
   await expect(page.locator("#firstStep")).toHaveAttribute("data-preview-mode", "guest");
@@ -227,7 +229,7 @@ test("infeasible roadmap requires an explicit adjustment before claim", async ({
 
   await page.goto("/index.html#designFlow");
   await waitForBootstrap(page);
-  await page.locator("#designGoal").fill(goal);
+  await submitGoalStory(page, goal);
   await page.locator("#goalPeriod").selectOption("30");
   await page.locator("#aiPreviewButton").click();
   await expect.poll(() => previewCalls).toBe(1);
@@ -351,7 +353,7 @@ test("guest generation keeps its request key after transport loss and rotates it
 
   await page.goto("/index.html#designFlow");
   await waitForBootstrap(page);
-  await page.locator("#designGoal").fill("Prepare a launch roadmap");
+  await submitGoalStory(page, "Prepare a launch roadmap");
   await page.locator("#goalPeriod").selectOption("90");
   await page.locator("#currentContext").fill("Keep the first week light");
 
@@ -399,7 +401,7 @@ test("guest generation fails closed before the provider request when its attempt
 
   await page.goto("/index.html#designFlow");
   await waitForBootstrap(page);
-  await page.locator("#designGoal").fill("Prepare a launch roadmap");
+  await submitGoalStory(page, "Prepare a launch roadmap");
   await page.locator("#goalPeriod").selectOption("90");
   await page.locator("#currentContext").fill("Keep the first week light");
   await page.evaluate(() => {
@@ -444,7 +446,7 @@ test("a failed initial attempt-key cleanup blocks another request instead of sil
 
   await page.goto("/index.html#designFlow");
   await waitForBootstrap(page);
-  await page.locator("#designGoal").fill("Prepare a launch roadmap");
+  await submitGoalStory(page, "Prepare a launch roadmap");
   await page.locator("#goalPeriod").selectOption("90");
   await page.locator("#currentContext").fill("Keep the first week light");
   await page.evaluate(() => {
@@ -505,7 +507,7 @@ test("a failed revision attempt-key cleanup preserves the active roadmap and blo
 
   await page.goto("/index.html#designFlow");
   await waitForBootstrap(page);
-  await page.locator("#designGoal").fill("Prepare a launch roadmap");
+  await submitGoalStory(page, "Prepare a launch roadmap");
   await page.locator("#goalPeriod").selectOption("90");
   await page.locator("#currentContext").fill("Keep the first week light");
   await page.locator("#aiPreviewButton").click();
@@ -553,7 +555,7 @@ test("목표 카테고리는 예시만 제안하고 사용자의 명시적 확�
   await page.goto("/index.html#designFlow");
   await waitForBootstrap(page);
   const goal = page.locator("#designGoal");
-  const createRoadmap = page.locator("#aiPreviewButton");
+  const createRoadmap = page.locator("#goalAnalyzeButton");
 
   await expect(goal).toHaveValue("");
   await expect(createRoadmap).toBeDisabled();
@@ -562,26 +564,26 @@ test("목표 카테고리는 예시만 제안하고 사용자의 명시적 확�
   await expect(goal).toHaveValue("");
   await expect(goal).toHaveAttribute("placeholder", "예: 6개월 안에 공인중개사 1차 합격하기");
   await expect(page.locator("#goalExampleSuggestions button")).toHaveCount(3);
-  await expect(page.locator("#diagnosisStepCount")).toHaveText("목표 · 기간");
+  await expect(page.locator("#diagnosisStepCount")).toHaveText("1/3");
   await expect(createRoadmap).toBeDisabled();
 
   await page.getByRole("button", { name: "올해 한국사능력검정시험 1급 취득하기", exact: true }).click();
   await expect(goal).toHaveValue("올해 한국사능력검정시험 1급 취득하기");
-  await expect(page.locator("#diagnosisStepCount")).toHaveText("목표 · 기간");
+  await expect(page.locator("#diagnosisStepCount")).toHaveText("1/3");
   await expect(createRoadmap).toBeEnabled();
   await goal.fill("올해 한국사능력검정시험 1급을 여름까지 취득하기");
 
   for (const category of ["운동", "취업", "습관"]) {
     await page.getByRole("button", { name: category, exact: true }).click();
     await expect(goal).toHaveValue("올해 한국사능력검정시험 1급을 여름까지 취득하기");
-    await expect(page.locator("#diagnosisStepCount")).toHaveText("목표 · 기간");
+    await expect(page.locator("#diagnosisStepCount")).toHaveText("1/3");
   }
 
   await goal.fill("   ");
   await expect(createRoadmap).toBeDisabled();
   await expect(page.locator("#goalValidationMessage")).toHaveText("달성하고 싶은 결과를 입력해 주세요.");
   await goal.press("Enter");
-  await expect(page.locator("#diagnosisStepCount")).toHaveText("목표 · 기간");
+  await expect(page.locator("#diagnosisStepCount")).toHaveText("1/3");
 
   await goal.fill("30일 동안 매일 저녁 한 줄 일기 쓰기");
   await expect(createRoadmap).toBeEnabled();
@@ -774,18 +776,20 @@ test("첫 진입부터 목표 생성과 새로고침까지 이어진다", async 
 
   await page.locator("#designGoal").fill("   ");
   const aiPreviewButton = page.locator("#aiPreviewButton");
-  await expect(aiPreviewButton).toBeDisabled();
-  await expect(page.locator("#diagnosisStepCount")).toHaveText("목표 · 기간");
+  await expect(page.locator("#goalAnalyzeButton")).toBeDisabled();
+  await expect(page.locator("#diagnosisStepCount")).toHaveText("1/3");
 
   const longGoal = "아주 긴 목표 ".repeat(20);
   await page.locator("#designGoal").fill(longGoal);
   await expect(page.locator("#designGoal")).toHaveValue(longGoal);
   await page.getByRole("button", { name: "창업", exact: true }).click();
   await expect(page.locator("#designGoal")).toHaveValue(longGoal);
-  await expect(page.locator("#diagnosisStepCount")).toHaveText("목표 · 기간");
+  await expect(page.locator("#diagnosisStepCount")).toHaveText("1/3");
   await page.getByRole("button", { name: "90일 안에 첫 유료 고객 10명 만들기", exact: true }).click();
   await expect(page.locator("#designGoal")).toHaveValue("90일 안에 첫 유료 고객 10명 만들기");
-  await expect(page.locator("#diagnosisStepCount")).toHaveText("목표 · 기간");
+  await expect(page.locator("#diagnosisStepCount")).toHaveText("1/3");
+  await page.locator("#goalAnalyzeButton").click();
+  await expect(page.locator("#diagnosisStepCount")).toHaveText("2/3");
   await page.locator("#currentContext").fill("아이디어만 있고 평일 1시간, 주말 3시간 가능");
   await expect(aiPreviewButton).toBeVisible();
   const goalPlanLoaded = page.waitForResponse((response) =>
@@ -873,8 +877,10 @@ test("익명 사용자는 실제 AI 계획 일부를 본 뒤 로그인·회원�
   await waitForBootstrap(page);
   await page.getByRole("button", { name: "창업", exact: true }).click();
   await expect(page.locator("#designGoal")).toHaveValue("");
-  await expect(page.locator("#diagnosisStepCount")).toHaveText("목표 · 기간");
+  await expect(page.locator("#diagnosisStepCount")).toHaveText("1/3");
   await page.getByRole("button", { name: "90일 안에 첫 유료 고객 10명 만들기", exact: true }).click();
+  await page.locator("#goalAnalyzeButton").click();
+  await page.locator("#aiPreviewButton").waitFor({ state: "visible" });
   await page.locator("#currentContext").fill("아이디어만 있고 평일 1시간, 주말 3시간 가능");
   await captureAcceptance(page, testInfo, "goal-input", { fullPage: false });
   await captureAcceptance(page, testInfo, "optional-context-input", { fullPage: false });
@@ -1003,6 +1009,8 @@ test("익명 초안 수정은 기존 AI 일정을 보존하고 명시적 재생�
   await waitForBootstrap(page);
   await page.getByRole("button", { name: "창업", exact: true }).click();
   await page.getByRole("button", { name: "90일 안에 첫 유료 고객 10명 만들기", exact: true }).click();
+  await page.locator("#goalAnalyzeButton").click();
+  await page.locator("#aiPreviewButton").waitFor({ state: "visible" });
   await page.locator("#currentContext").fill("평일 25분 가능");
   expect(await page.locator("#personalityForm").evaluate((form) =>
     [...form.elements].filter((field) => typeof field.checkValidity === "function" && !field.checkValidity()).map((field) => field.id || field.name),
@@ -1012,7 +1020,8 @@ test("익명 초안 수정은 기존 AI 일정을 보존하고 명시적 재생�
   await expect(page.locator("#previewAction")).toHaveText("잠재 고객 한 명에게 문제 인터뷰를 요청하기");
 
   await page.locator("#draftAdjustButton").click();
-  await expect(page.locator("#diagnosisStepCount")).toHaveText("목표 · 기간");
+  // 계획 조정은 조건을 확인·수정하는 2단계로 돌아간다.
+  await expect(page.locator("#diagnosisStepCount")).toHaveText("2/3");
   await page.getByRole("button", { name: "첫 달 가볍게" }).click();
   await expect(page.locator("#currentContext")).toHaveValue(/첫 달은 더 가볍게 시작하고 싶어요\./);
   expect(revisionCalls).toBe(0);

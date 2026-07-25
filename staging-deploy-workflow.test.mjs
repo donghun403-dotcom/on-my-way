@@ -213,7 +213,8 @@ test("readiness requires Staging AI while keeping storage and payments safety ga
   const worker = readFileSync(new URL("./worker.mjs", import.meta.url), "utf8");
   assert.match(worker, /const guestAi = getGuestAiReadiness\(env\)/);
   assert.match(worker, /ai: guestAi\.ready/);
-  assert.equal((worker.match(/if \(!getGuestAiReadiness\(env\)\.ready\)/g) || []).length, 2);
+  // 비회원 AI 경로(목표 분석·미리보기·수정)는 모두 같은 준비 상태 가드를 통과해야 한다.
+  assert.equal((worker.match(/if \(!getGuestAiReadiness\(env\)\.ready\)/g) || []).length, 3);
 });
 
 test("exact 40-character deployment input must equal the checked-out SHA", () => {
