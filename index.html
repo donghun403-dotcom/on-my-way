@@ -263,10 +263,15 @@
                   </div>
                   <strong id="planningStyle">진행에 따라 매주 조정</strong>
                 </div>
-                <article class="draft-understanding-card roadmap-understanding-card" aria-labelledby="draftUnderstandingTitle">
-                  <div class="result-card-head"><strong class="brand-display" id="draftUnderstandingTitle">올리가 이해한 큰 길</strong><a href="#designFlow">입력 수정</a></div>
+                <details class="draft-understanding-card roadmap-understanding-card understanding-disclosure" aria-labelledby="draftUnderstandingTitle">
+                  <summary class="understanding-summary">
+                    <span>
+                      <strong class="brand-display" id="draftUnderstandingTitle">올리가 이해한 큰 길</strong>
+                      <span id="understoodGoal">입력한 목표</span>
+                    </span>
+                    <b aria-hidden="true"></b>
+                  </summary>
                   <dl id="draftUnderstandingList">
-                    <div><dt>목표</dt><dd id="understoodGoal">입력한 목표</dd></div>
                     <div><dt>성공 기준</dt><dd id="roadmapSuccessCriterion">마지막 단계의 완료 기준</dd></div>
                     <div><dt>현실성</dt><dd id="roadmapReality">현재 조건에서 시작할 수 있는 길로 정리했어요.</dd></div>
                     <div hidden><dt>사용 자료</dt><dd id="understoodMaterial">사용 자료 없음 · 일반 계획으로 구성</dd></div>
@@ -276,7 +281,8 @@
                     <div><dt>임시 가정</dt><dd id="understoodAssumptions">입력하지 않은 정보는 임의로 단정하지 않아요.</dd></div>
                     <div><dt>다음에 알려주면 좋은 정보</dt><dd id="roadmapNextInfo">현재 위치 · 쉬어야 하는 날 · 꼭 쓰고 싶은 자료</dd></div>
                   </dl>
-                </article>
+                  <a class="understanding-edit-link" href="#designFlow">입력 수정</a>
+                </details>
                 <article class="draft-feasibility-card" aria-labelledby="draftFeasibilityTitle">
                   <span>달성 가능성 점검</span><strong id="draftFeasibilityTitle">현재 조건으로 시작할 수 있어요</strong><p id="draftFeasibilityCopy">주 3회, 회당 25분 기준으로 첫 주 실행 리듬을 만듭니다.</p><ul id="draftFeasibilityOptions"></ul>
                 </article>

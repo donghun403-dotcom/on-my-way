@@ -13599,6 +13599,53 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .home-page .draft-understanding-card dl div { display: grid; grid-template-columns: 92px minmax(0,1fr); gap: 10px; }
 .home-page .draft-understanding-card dt { color: #7d899e; font-size: 12px; font-weight: 800; }
 .home-page .draft-understanding-card dd { margin: 0; color: #35435b; font-size: 13px; font-weight: 800; overflow-wrap: anywhere; }
+/* 결과 화면은 계획 자체를 먼저 보여주고, 이해·가정 같은 근거는 접어 둔다. */
+.home-page .understanding-disclosure > summary {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
+  cursor: pointer;
+  list-style: none;
+}
+.home-page .understanding-disclosure > summary::-webkit-details-marker { display: none; }
+.home-page .understanding-summary > span {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.home-page .understanding-summary #understoodGoal {
+  color: #46536b;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.home-page .understanding-disclosure > summary > b {
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  color: #5b6ca8;
+  background: #edf1fb;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+}
+.home-page .understanding-disclosure[open] > summary > b::after { content: "접기"; }
+.home-page .understanding-disclosure:not([open]) > summary > b::after { content: "보기"; }
+.home-page .understanding-disclosure > summary:focus-visible {
+  outline: 3px solid #6c89ba;
+  outline-offset: 3px;
+  border-radius: 12px;
+}
+.home-page .understanding-edit-link {
+  display: inline-block;
+  margin-top: 10px;
+  color: #5b6ca8;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .home-page .draft-feasibility-card { transition: box-shadow .25s ease, transform .25s ease; }
 .home-page .draft-feasibility-card.is-attention {
   box-shadow: 0 0 0 2px #8eafa7, 0 18px 40px rgba(91,106,151,.18);
