@@ -241,6 +241,28 @@ async function handleLocalAiGenerationRequest({ request, response, route }) {
 
   const user = await currentLocalUser(request).catch(() => null);
   if (!user) {
+    // 온보딩 1단계 분석은 로그인 전에도 거치므로 비회원에게도 열어 둔다(크레딧 차감 없음).
+    if (route.kind === "analyze") {
+      let input;
+      try {
+        input = await readJsonBody(request, route.maxBytes);
+      } catch (error) {
+        sendJson(response, error.status || 400, { ok: false, error: error.message || "요청 형식이 올바르지 않아요.", code: "INVALID_JSON" });
+        return;
+      }
+      try {
+        const { createGoalAnalysis } = await aiGoalAnalysisModule;
+        const result = await createGoalAnalysis(input, {
+          apiKey: localEnv.OPENAI_API_KEY,
+          model: localEnv.OPENAI_MODEL || "gpt-5.4-mini",
+        });
+        sendJson(response, 200, { ok: true, ...publicAiResult(result) });
+      } catch (error) {
+        console.error("Guest goal analysis failed", error);
+        sendJson(response, error?.status || 502, aiErrorBody(error));
+      }
+      return;
+    }
     sendJson(response, 401, { ok: false, error: "로그인 후 AI 기능을 이용할 수 있어요.", code: "AUTH_REQUIRED" });
     return;
   }

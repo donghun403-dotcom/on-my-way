@@ -166,6 +166,7 @@ const AI_GENERATION_ROUTES = Object.freeze({
   "/api/ai/reschedule-plan": { action: "reschedule_plan", kind: "revision", maxBytes: 20_000 },
 });
 
+const GUEST_GOAL_ANALYZE_PATH = "/api/ai/goal-analyze";
 const GUEST_GOAL_PREVIEW_PATH = "/api/ai/goal-preview";
 const GUEST_GOAL_DRAFT_REVISE_PATH = "/api/ai/goal-draft/revise";
 const GUEST_GOAL_DRAFT_CLAIM_PATH = "/api/ai/goal-draft/claim";
@@ -453,6 +454,57 @@ export function getGuestAiReadiness(env = {}) {
     missingDependencies,
     invalidDependencies,
   };
+}
+
+// 온보딩 1단계는 로그인 전에도 거치므로, 계획 생성과 달리 비회원에게도 열되
+// IP 해시 기준 레이트리밋으로만 보호한다(초안 저장·크레딧 차감 없음).
+async function handleGuestGoalAnalysis({ request, env }) {
+  if (request.method !== "POST") return json({ ok: false, error: "POST 요청만 사용할 수 있어요.", code: "METHOD_NOT_ALLOWED" }, 405);
+  if (!getGuestAiReadiness(env).ready) {
+    return json({ ok: false, error: "올리의 목표 정리가 아직 준비되지 않았어요.", code: "GUEST_PREVIEW_UNAVAILABLE" }, 503);
+  }
+
+  let requestBody;
+  try {
+    requestBody = await readBoundedJson(request, 5_000);
+  } catch (error) {
+    return json(aiErrorBody(error), error.status || 400);
+  }
+
+  const identity = await guestPreviewIdentity(request, env);
+  if (!identity) {
+    return json({
+      ok: false,
+      error: "안전한 요청 정보를 확인하지 못했어요.",
+      code: "GUEST_PREVIEW_IDENTITY_REQUIRED",
+    }, 400);
+  }
+
+  if (env.AI_RATE_LIMITER) {
+    const { success } = await env.AI_RATE_LIMITER.limit({ key: `ai:guest-goal-analyze:${identity.ipHash}` });
+    if (!success) {
+      return json({ ok: false, error: "요청이 잠시 많아요. 1분 뒤 다시 시도해 주세요.", code: "AI_RATE_LIMITED" }, 429);
+    }
+  }
+
+  const model = env.OPENAI_MODEL || "gpt-5.4-mini";
+  const aiStartedAt = Date.now();
+  try {
+    const { analysis } = await createGoalAnalysis({ goalText: requestBody?.goalText }, {
+      apiKey: env.OPENAI_API_KEY,
+      model,
+    });
+    return json({ ok: true, analysis });
+  } catch (error) {
+    console.error("Guest goal analysis failed", safeAiDiagnostics(error, {
+      correlationId: crypto.randomUUID(),
+      environment: env.APP_ENV || "unknown",
+      model,
+      operation: "guest_goal_analysis",
+      latencyMs: Date.now() - aiStartedAt,
+    }));
+    return json(aiErrorBody(error), error.status || 502);
+  }
 }
 
 async function handleGuestGoalPreview({ request, env, accountContext }) {
@@ -1281,6 +1333,11 @@ async function handleFetch(request, env) {
         const usage = await getAiCreditUsage({ store: accountContext.store, userId: user.id }).catch(() => null);
         return json(aiErrorBody(error, usage), error?.status || 500);
       }
+    }
+
+    // 비회원은 레이트리밋만 적용한 무료 분석으로, 회원은 아래 크레딧 경로로 보낸다.
+    if (url.pathname === GUEST_GOAL_ANALYZE_PATH && !(await currentSessionUser(accountContext))) {
+      return handleGuestGoalAnalysis({ request, env });
     }
 
     if (url.pathname === GUEST_GOAL_PREVIEW_PATH) {
