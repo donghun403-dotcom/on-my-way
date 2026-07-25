@@ -7030,10 +7030,14 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .home-page .story-flow.showing-first-step .goal-builder-shell {
   grid-template-columns: minmax(0, 1fr);
   width: 100%;
-  height: calc(100dvh - 116px);
   max-width: 960px;
-  min-height: 640px;
-  max-height: 880px;
+  /* 고정 뷰포트 높이 + 내부 스크롤 대신 자연 흐름으로 전환한다.
+     기존 height:calc(100dvh-116px)/max-height:880px + 쉘 overflow:hidden 조합이
+     데스크톱에서 조정 옵션·고정 CTA를 잘라 스크롤로 닿지 못하게 하던 문제 해결. */
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  overflow: visible;
 }
 
 .home-page .story-flow.showing-first-step .app-plan-preview {
@@ -13806,6 +13810,25 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   gap: 18px;
   overflow: visible;
   padding: 0 0 28px;
+}
+
+/* 로드맵 결과(showing-first-step)는 고정 높이 내부 스크롤 대신 페이지 전체가 자연 스크롤되게 한다.
+   내부 스크롤 영역은 이미 overflow:visible로 바뀌었지만 쉘이 고정 높이+overflow:hidden으로 남아
+   데스크톱에서 조정 옵션·고정 CTA가 잘려 닿지 못하던 문제를 해결한다. */
+.home-page .story-flow.showing-first-step .goal-builder-shell {
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  overflow: visible;
+}
+.home-page .story-flow.showing-first-step .app-plan-preview,
+.home-page .story-flow.showing-first-step .app-plan-preview.is-ready,
+.home-page .story-flow.showing-first-step .preview-result-content {
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  grid-template-rows: auto;
+  overflow: visible;
 }
 
 .home-page .roadmap-understanding-card {
