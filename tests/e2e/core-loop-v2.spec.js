@@ -45,11 +45,24 @@ test("actual Goal and Today paths load the local brand font without applying it 
     action: getComputedStyle(document.querySelector(".today-next-action h2")).fontFamily,
     tab: getComputedStyle(document.querySelector(".execution-tabbar .tab-label")).fontFamily,
     date: getComputedStyle(document.querySelector("#todayDateLabel")).fontFamily,
+    body: getComputedStyle(document.body).fontFamily,
+    bodyToken: getComputedStyle(document.body).getPropertyValue("--font-body").trim(),
+    paragraph: getComputedStyle(document.querySelector(".today-next-action p, .today-card p")).fontFamily,
   }));
   expect(appStyles.heading).toContain("여기어때 잘난체");
   expect(appStyles.action).toContain("여기어때 잘난체");
   expect(appStyles.tab).toContain("여기어때 잘난체");
   expect(appStyles.date).not.toContain("여기어때 잘난체");
+
+  // Regression guard: `.execution-page` once redeclared --font-body as a size
+  // (15px). Since <body> carries that class, `font-family: var(--font-body)`
+  // became `font-family: 15px`, was dropped as invalid at computed-value time,
+  // and the whole app silently inherited the browser's default Korean face.
+  // The prototype-only body assertion below did not cover app.html.
+  expect(appStyles.bodyToken).toContain("Pretendard");
+  expect(appStyles.bodyToken).not.toMatch(/^\d+px$/);
+  expect(appStyles.body).toContain("Pretendard");
+  expect(appStyles.paragraph).toContain("Pretendard");
 });
 
 test("local brand font loads for display and short UI roles while body and numeric roles stay neutral", async ({ page }) => {
