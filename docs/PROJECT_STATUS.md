@@ -8,6 +8,15 @@
 
 ## 최신 검증
 
+### 조건 추출 안정화 — 교정기 도입과 프로브 인코딩 사건 (2026-07-27)
+
+- 기준 worktree: `.worktrees/plan-experience-overhaul`, 브랜치 `codex/ollie-core-loop-production`
+- `reconcileConditionsWithGoalText()` 추가: 원문에 명시된 요일·시간·기간은 모델 출력과 무관하게 원문이 최종 결정한다. 요일을 콕 집어 말했으면 그 집합으로 **대체**(모델이 지어낸 요일 제거), 부정 표현("수요일은 안 돼요")은 절 단위 창으로 인식해 제외, 원문에 없는 조건은 건드리지 않는다.
+- **프로브 인코딩 사건**: "mini가 흔들린다"는 관측 대부분이 잘못된 계측이었다. Git Bash(Windows)의 curl이 한글 본문을 CP949로 보내 서버가 U+FFFD 범벅을 받았고, 모델이 그걸 애써 복원하며 노이즈가 생겼다. 임시 diag 필드로 수신 원문을 찍어 확정했다. **한글 본문 프로브는 반드시 node fetch로 할 것** — curl argv는 코드페이지 변환을 탄다.
+- 이 사건 때문에 gpt-5.4 전환(24~44초 실측, 45초 타임아웃 임박)까지 갔다가 mini로 복귀했다. `OPENAI_ANALYZE_MODEL` 탈출구 변수는 worker에 남아 있고 어떤 환경도 설정하지 않는다. effort는 medium, `max_output_tokens` 8000(잘림 방지 여유) 유지.
+- 실제 방어 추가: goalText에 U+FFFD가 있으면 400 `INVALID_TEXT_ENCODING`으로 명확히 거절한다(브라우저 fetch는 항상 UTF-8이라 영향 없음).
+- 최종 실측(UTF-8, Staging, mini+medium+교정기): 같은 문장 6/6 정확(화·목/60분/주2회/60일), 2.5~3.2초.
+
 ### goal-analyze가 구조화된 조건을 반환 (2026-07-26)
 
 - 기준 worktree: `.worktrees/plan-experience-overhaul`, 브랜치 `codex/ollie-core-loop-production`

@@ -494,13 +494,17 @@ async function handleGuestGoalAnalysis({ request, env }) {
   const model = env.OPENAI_ANALYZE_MODEL || env.OPENAI_MODEL || "gpt-5.4-mini";
   const aiStartedAt = Date.now();
   try {
+    // UTF-8이 아닌 본문은 디코딩 단계에서 U+FFFD로 뭉개진 채 도착한다(비UTF-8
+    // 클라이언트로 실측). 그대로 모델에 넘기면 그럴듯하지만 틀린 분석이 나오므로
+    // 여기서 명확하게 거절한다. 브라우저 fetch는 항상 UTF-8이라 영향이 없다.
+    if (String(requestBody?.goalText || "").includes("�")) {
+      return json({ ok: false, error: "목표 텍스트의 인코딩이 깨졌어요. UTF-8로 다시 보내 주세요.", code: "INVALID_TEXT_ENCODING" }, 400);
+    }
     const { analysis } = await createGoalAnalysis({ goalText: requestBody?.goalText }, {
       apiKey: env.OPENAI_API_KEY,
       model,
     });
-    // TEMP DIAG(2026-07-27): Staging에서 같은 입력에 교정 결과가 요청마다 달라
-    // 배포 버전과 수신 원문을 응답에 새긴다. 원인 확정 후 제거할 것.
-    return json({ ok: true, analysis, diag: { rev: "6c8713d+diag", goalHead: String(requestBody?.goalText || "").slice(0, 40) } });
+    return json({ ok: true, analysis });
   } catch (error) {
     console.error("Guest goal analysis failed", safeAiDiagnostics(error, {
       correlationId: crypto.randomUUID(),
