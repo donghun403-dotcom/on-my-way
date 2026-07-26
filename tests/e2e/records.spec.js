@@ -1,5 +1,5 @@
 const { test, expect } = require("@playwright/test");
-const { monitorPage, prepareApp, readStored } = require("./helpers");
+const { monitorPage, prepareApp } = require("./helpers");
 
 test.beforeEach(async ({ page }) => prepareApp(page));
 
@@ -12,10 +12,17 @@ test("빈 상태와 완료 기록이 저장 상태와 일치한다", async ({ pa
   await page.locator("#tab-today").click();
   await page.locator("#todayTools summary").click();
   await page.locator("#completeTodayButton").click();
-  const state = await readStored(page, "omwExecutionState");
-  const checks = state.checkedByDay[String(state.selectedDay)];
+  const { checks, completedLogLength } = await page.evaluate(() => {
+    const bundle = getPlanBundle();
+    const state = getExecutionState();
+    return {
+      checks: bundle.state.checkedByDay[String(bundle.state.selectedDay)] || [],
+      completedLogLength: state.completedLog.length,
+    };
+  });
+  expect(checks.length).toBeGreaterThan(0);
   expect(checks.every(Boolean)).toBeTruthy();
-  expect(state.completedLog.length).toBe(checks.length);
+  expect(completedLogLength).toBe(checks.length);
 
   await page.locator("#tab-memory").click();
   const completion = Number((await page.locator("#memoryCompletion").innerText()).match(/\d+/)?.[0]);

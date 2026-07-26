@@ -6,6 +6,7 @@ const {
   mockAccountExperience,
   monitorPage,
   waitForBootstrap,
+  waitForAppReady,
 } = require("./helpers");
 
 test("비로그인 가격표는 확정 정책과 체험 조건을 표시하고 결제로 오인시키지 않는다", async ({ page }) => {
@@ -13,6 +14,7 @@ test("비로그인 가격표는 확정 정책과 체험 조건을 표시하고 �
   await page.setViewportSize({ width: 320, height: 800 });
   await mockAccountExperience(page);
   await page.goto("/index.html#pricing");
+  await waitForBootstrap(page);
 
   const pricing = page.locator("#pricing");
   const freeCard = page.locator("#pricingFreeCard");
@@ -40,6 +42,7 @@ test("비로그인 가격표는 확정 정책과 체험 조건을 표시하고 �
 
   await page.locator("#pricingProCta").click();
   await expect(page).toHaveURL(/app\.html/);
+  await waitForAppReady(page);
   await expect(page.locator("#authSheet")).toBeVisible();
   await expect(page).not.toHaveURL(/[?&]auth=/);
   diagnostics.expectClean();
@@ -60,6 +63,7 @@ test("로그인 Free 사용자는 서버 사용량 progress와 결제 비활성 
     if (url.hostname === "js.tosspayments.com") tossSdkRequests.push(request.url());
   });
   await page.goto("/index.html#pricing");
+  await waitForBootstrap(page);
 
   const usagePanel = page.locator("#pricingUsagePanel");
   await expect(usagePanel).toBeVisible();
@@ -133,6 +137,7 @@ test("Free 회원은 무료 체험을 한 번 시작한 뒤 같은 CTA로 Pro �
   });
 
   await page.goto("/index.html#pricing");
+  await waitForBootstrap(page);
 
   const proCta = page.locator("#pricingProCta");
   await expect(page.locator("#pricingUsagePlan")).toHaveText("Free");
@@ -188,6 +193,7 @@ test("무료 체험 중 결제가 비활성이면 체험은 유지하고 Pro 결
   });
 
   await page.goto("/index.html#pricing");
+  await waitForBootstrap(page);
 
   const proCta = page.locator("#pricingProCta");
   await expect(page.locator("#pricingUsagePlan")).toHaveText("무료 체험 중");
@@ -313,6 +319,7 @@ test("FAQ는 명확한 레이블과 네이티브 키보드 토글을 제공한�
   const diagnostics = monitorPage(page);
   await mockAccountExperience(page);
   await page.goto("/index.html#pricing");
+  await waitForBootstrap(page);
 
   const faq = page.locator(".pricing-faq");
   await expect(faq).toHaveAttribute("aria-labelledby", "pricingFaqTitle");

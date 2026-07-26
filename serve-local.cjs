@@ -6,6 +6,7 @@ const port = Number(process.env.PORT || 8765);
 const host = "127.0.0.1";
 const root = path.resolve(__dirname);
 const aiCompanionChatModule = import("./ai-companion-chat.mjs");
+const aiGoalAnalysisModule = import("./ai-goal-analysis.mjs");
 const aiPlanRevisionModule = import("./ai-plan-revision.mjs");
 const aiCreditsServiceModule = import("./ai-credits-service.mjs");
 const authServiceModule = import("./auth-service.mjs");
@@ -173,9 +174,12 @@ const contentTypes = {
   ".mjs": "text/javascript; charset=utf-8",
   ".svg": "image/svg+xml",
   ".png": "image/png",
+  ".woff2": "font/woff2",
 };
 
 const AI_GENERATION_ROUTES = Object.freeze({
+  // 온보딩 1단계 자연어 → 이해 정리(저비용). 계획 생성은 2단계 확인 뒤 create_plan에서만 한다.
+  "/api/ai/goal-analyze": { action: "analyze_goal", kind: "analyze", maxBytes: 5_000 },
   "/api/ai/goal-plan": { action: "create_plan", kind: "goal", maxBytes: 50_000 },
   "/api/ai/companion-chat": { action: "companion_chat", kind: "companion", maxBytes: 5_000 },
   "/api/ai/plan-revision": { action: "revise_plan", kind: "revision", maxBytes: 20_000 },
@@ -215,6 +219,7 @@ function publicAiResult(result) {
   const payload = { ...result };
   delete payload.usage;
   delete payload.requestId;
+  delete payload.diagnostics;
   return payload;
 }
 
@@ -236,6 +241,28 @@ async function handleLocalAiGenerationRequest({ request, response, route }) {
 
   const user = await currentLocalUser(request).catch(() => null);
   if (!user) {
+    // 온보딩 1단계 분석은 로그인 전에도 거치므로 비회원에게도 열어 둔다(크레딧 차감 없음).
+    if (route.kind === "analyze") {
+      let input;
+      try {
+        input = await readJsonBody(request, route.maxBytes);
+      } catch (error) {
+        sendJson(response, error.status || 400, { ok: false, error: error.message || "요청 형식이 올바르지 않아요.", code: "INVALID_JSON" });
+        return;
+      }
+      try {
+        const { createGoalAnalysis } = await aiGoalAnalysisModule;
+        const result = await createGoalAnalysis(input, {
+          apiKey: localEnv.OPENAI_API_KEY,
+          model: localEnv.OPENAI_MODEL || "gpt-5.4-mini",
+        });
+        sendJson(response, 200, { ok: true, ...publicAiResult(result) });
+      } catch (error) {
+        console.error("Guest goal analysis failed", error);
+        sendJson(response, error?.status || 502, aiErrorBody(error));
+      }
+      return;
+    }
     sendJson(response, 401, { ok: false, error: "로그인 후 AI 기능을 이용할 수 있어요.", code: "AUTH_REQUIRED" });
     return;
   }
@@ -292,6 +319,9 @@ async function handleLocalAiGenerationRequest({ request, response, route }) {
         userStore: localUserStore,
         user: creditAwareUser,
       });
+    } else if (route.kind === "analyze") {
+      const { createGoalAnalysis } = await aiGoalAnalysisModule;
+      result = await createGoalAnalysis(input, { apiKey: localEnv.OPENAI_API_KEY, model });
     } else if (route.kind === "companion") {
       const { createCompanionReply } = await aiCompanionChatModule;
       result = await createCompanionReply(input, {

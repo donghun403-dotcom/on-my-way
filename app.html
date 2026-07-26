@@ -44,7 +44,6 @@
           <div class="ollie-energy-track" id="ollieEnergyProgress" role="progressbar" aria-label="이번 기간 AI 크레딧 사용량" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><span id="ollieEnergyBar" style="width: 0%"></span></div>
           <button class="energy-charge-button" id="openEnergyCharge" type="button" aria-label="AI 크레딧 이용 안내" title="AI 크레딧 이용 안내"><span aria-hidden="true">＋</span><em>안내</em></button>
         </div>
-        <a class="ghost-link" href="index.html#designFlow">설계 수정</a>
         <button class="menu-toggle" id="menuToggle" type="button" aria-label="메뉴 열기" aria-expanded="false" aria-controls="appMenuDrawer">
           <span class="menu-toggle-icon" aria-hidden="true">☰</span><em>메뉴</em>
         </button>
@@ -222,6 +221,7 @@
             <h1 id="todayGreeting">오늘</h1>
             <p class="today-summary-line"><strong id="todaySummaryGoal">현재 목표</strong><span id="todaySummaryRemaining">남은 일정 0개</span></p>
           </div>
+          <button class="today-plan-adjust-button" id="openPlanAdjustButton" type="button">전체 계획 조정</button>
           <button class="today-alert-button" id="todayNotificationButton" type="button" aria-label="오늘의 알림 확인">
             <span aria-hidden="true">♢</span><i aria-hidden="true"></i>
           </button>
@@ -229,7 +229,7 @@
 
         <section class="execution-hero today-goal-card" aria-labelledby="executionGoal">
           <div class="today-goal-copy">
-            <p class="eyebrow">오늘의 목표</p>
+            <p class="eyebrow">진행 중인 목표</p>
             <h2 id="executionGoal">3개월 안에 토익 900점 달성하기</h2>
             <p>
               <span id="executionStyle">루틴 점검형</span> ·
@@ -266,7 +266,7 @@
               <span id="selectedScheduleMeta">순서대로 하나씩 체크해 보세요</span>
             </div>
             <button class="today-add-button" id="addTodayScheduleButton" type="button" aria-label="오늘에 새 일정 추가">
-              <span aria-hidden="true">＋</span><strong>새 일정 추가</strong>
+              <span aria-hidden="true">＋</span><strong>일정 추가</strong>
             </button>
           </div>
           <div class="today-empty-state" id="todayEmptyState" hidden>
@@ -305,17 +305,16 @@
         <section class="execution-card recovery-card" id="recoveryCard" hidden>
           <div class="card-title compact">
             <div>
-              <h2>놓친 일정이 있어요</h2>
-              <span id="recoverySummary">실패로 두지 않고 다시 시작할 수 있게 바꿉니다</span>
+              <h2>오늘은 구름이 조금 무거워 보여요</h2>
+              <span id="recoverySummary">원래 계획을 다 하지 않아도 괜찮아요.</span>
             </div>
           </div>
           <div class="recovery-actions" aria-label="미완료 일정 회복">
-            <button type="button" data-recovery-action="tomorrow">내일로 옮기기</button>
-            <button type="button" data-recovery-action="five">5분으로 줄이기</button>
-            <button type="button" data-recovery-action="skip">이번 주에서 제외하기</button>
-            <button type="button" data-recovery-action="time">다른 시간으로 이동하기</button>
+            <button type="button" data-recovery-action="five">5분짜리 한 걸음으로 줄이기</button>
+            <button type="button" data-recovery-action="tomorrow">오늘은 쉬고 내일 다시 시작하기</button>
+            <button type="button" data-recovery-action="talk">올리에게 지금 상태 말하기</button>
           </div>
-          <p class="recovery-credit-note">선택한 뒤 AI 회복 계획을 생성하면 <strong><b data-ai-credit-cost="recovery_plan">—</b>크레딧</strong>이 사용돼요. 확인 전에는 기존 계획이 바뀌지 않아요.</p>
+          <p class="recovery-credit-note">선택한 회복 방식은 바로 일정과 기록에 남고, AI 크레딧은 사용하지 않아요.</p>
         </section>
 
         <section class="execution-card progress-card" aria-labelledby="todayProgressTitle">
@@ -364,10 +363,31 @@
             <span class="plan-overview-status" id="planOverviewStatus">진행 중</span>
           </div>
 
+          <section class="plan-roadmap-summary" aria-labelledby="planRoadmapTitle">
+            <div>
+              <span>큰 길과 이번 주</span>
+              <h3 id="planRoadmapTitle">목표까지 가는 마일스톤</h3>
+            </div>
+            <ol id="planRoadmapList">
+              <li><b>지금 여기</b><strong>첫 실행 리듬 만들기</strong><small>현재 계획을 불러오는 중이에요.</small></li>
+            </ol>
+          </section>
+
           <div class="plan-overview-metrics" aria-label="현재 계획 핵심 정보">
             <div><span>전체 기간</span><strong id="planOverviewPeriod">30일</strong></div>
             <div><span>이번 주</span><strong id="planOverviewWeek">실행 5일</strong></div>
             <div><span>집중 시간</span><strong id="planOverviewRhythm">아침</strong></div>
+          </div>
+
+          <dl class="plan-criteria-card" id="planCriteriaCard" aria-label="계획 생성 기준">
+            <div><dt>사용 자료</dt><dd id="planCriteriaMaterial">정해진 자료 없음</dd></div>
+            <div><dt>가능 시간</dt><dd id="planCriteriaAvailability">일정 확인 중</dd></div>
+            <div><dt>진행 방식</dt><dd id="planCriteriaIntensity">균형 있게</dd></div>
+          </dl>
+
+          <div class="plan-home-actions">
+            <button id="planOpenEditorButton" type="button"><span><strong>AI로 조정</strong><small>변경안을 먼저 확인한 뒤 적용해요</small></span><b aria-hidden="true">›</b></button>
+            <button id="planOpenDetailButton" type="button"><span><strong>직접 편집</strong><small>날짜별 일정과 시간을 바로 바꿔요</small></span><b aria-hidden="true">›</b></button>
           </div>
 
           <div class="plan-week-strip" id="planWeekStrip" aria-label="이번 주 계획"></div>
@@ -382,10 +402,11 @@
             <li><span>수</span><strong>주간 점검</strong><p>완료한 계획을 가볍게 확인</p></li>
           </ol>
 
-          <div class="plan-home-actions">
-            <button id="planOpenDetailButton" type="button"><span><strong>전체 계획 보기</strong><small>달력에서 날짜별 일정을 확인해요</small></span><b aria-hidden="true">›</b></button>
-            <button id="planOpenEditorButton" type="button"><span><strong>계획 수정하기</strong><small>시간·요일·우선순위를 바꿔요</small></span><b aria-hidden="true">›</b></button>
+          <div class="plan-range-switch" role="group" aria-label="계획 일정 범위">
+            <button type="button" class="active" data-plan-range="week" aria-pressed="true">주간</button>
+            <button type="button" data-plan-range="all" aria-pressed="false">전체 일정</button>
           </div>
+          <div class="plan-schedule-list" id="planScheduleList" aria-live="polite"></div>
         </section>
 
         <header class="plan-subview-header" data-plan-screen="detail" tabindex="-1" hidden>
@@ -437,7 +458,7 @@
 
         <header class="plan-subview-header" data-plan-screen="editor" tabindex="-1" hidden>
           <button type="button" data-plan-back aria-label="내 계획으로 돌아가기">‹ <span>내 계획</span></button>
-          <div><span>EDIT PLAN</span><h1>계획 수정</h1><p>바꾸고 싶은 부분만 선택해서 알려주세요.</p></div>
+          <div><span>계획 조정</span><h1>계획 수정</h1><p>바꾸고 싶은 부분만 선택해서 알려주세요.</p></div>
         </header>
 
         <section class="execution-card plan-editor-card" id="journeyPlanEditor" data-plan-screen="editor" hidden>
@@ -583,7 +604,7 @@
       <!-- ============ 올리 (Mate) ============ -->
       <div class="app-view" id="view-mate" data-view="mate" role="tabpanel" aria-labelledby="tab-mate" hidden>
         <div class="view-head">
-          <div><span>GROW TOGETHER</span><h1>함께 자라는 올리</h1><p>오늘의 실행이 올리의 표정과 세상을 조금씩 바꿔요.</p></div>
+          <div><span>함께 성장하기</span><h1>함께 자라는 올리</h1><p>오늘의 실행이 올리의 표정과 세상을 조금씩 바꿔요.</p></div>
           <img src="assets/ollie-celebrate.png" alt="함께 성장해서 기뻐하는 올리" />
         </div>
 
@@ -616,6 +637,12 @@
             </dl>
             <div class="bond-xp-track" aria-label="다음 관계 단계 진행률"><span id="bondXpBar" style="width: 0%"></span></div>
           </section>
+          <ol class="ollie-growth-milestones" id="ollieGrowthMilestones" aria-label="올리 성장 단계">
+            <li data-growth-count="1"><span aria-hidden="true">🍃</span><strong>첫 잎</strong><small>첫 행동 완료</small></li>
+            <li data-growth-count="3"><span aria-hidden="true">🌱</span><strong>새순</strong><small>행동 3회</small></li>
+            <li data-growth-milestone><span aria-hidden="true">🫒</span><strong>첫 열매</strong><small>첫 마일스톤 완료</small></li>
+            <li data-growth-recovery><span aria-hidden="true">🌈</span><strong>다시 걷기</strong><small>놓친 뒤 다시 시작</small></li>
+          </ol>
           <div class="companion-xp companion-compatibility-meter" aria-hidden="true" hidden>
             <span id="companionXpBar" style="width: 0%"></span>
           </div>
@@ -675,14 +702,14 @@
       <!-- ============ 기록 (Memory) ============ -->
       <div class="app-view" id="view-memory" data-view="memory" role="tabpanel" aria-labelledby="tab-memory" hidden>
         <div class="view-head memory-view-head">
-          <div><span>DAILY MEMORY</span><h1>오늘의 한 장</h1><p>지금 마음과 기억하고 싶은 순간을 가볍게 남겨요.</p></div>
+          <div><span>나의 기록</span><h1>오늘의 한 장</h1><p>지금 마음과 기억하고 싶은 순간을 가볍게 남겨요.</p></div>
           <img src="assets/ollie-thinking.png" alt="오늘의 기록을 함께 정리하는 올리" loading="lazy" />
         </div>
 
         <section class="execution-card memory-card" id="recordsPanel">
           <div class="card-title compact memory-compose-heading" id="memoryComposeHeading" tabindex="-1">
             <div>
-              <small class="memory-kicker">TODAY REFLECTION</small>
+              <small class="memory-kicker">오늘 돌아보기</small>
               <h2>오늘의 한 장 남기기</h2>
               <span>마음 하나와 기억하고 싶은 순간만 적어도 충분해요</span>
             </div>
@@ -741,7 +768,7 @@
             <div class="memory-history-content">
               <div class="memory-list" id="memoryList"></div>
               <div class="memory-pattern-panel" id="memoryPatternPanel" data-plan-feature="detailedInsights">
-                <div class="memory-pattern-head"><span>OLLIE'S INSIGHT</span><h3>올리가 발견한 성공 단서</h3><p>기록이 쌓일수록 계획을 더 정확하게 조정할 수 있어요.</p></div>
+                <div class="memory-pattern-head"><span>올리의 발견</span><h3>올리가 발견한 성공 단서</h3><p>기록이 쌓일수록 계획을 더 정확하게 조정할 수 있어요.</p></div>
                 <p class="plan-feature-lock" id="memoryPatternLock" role="status" hidden>상세 기록·통계는 Pro 또는 무료 체험 중에 확인할 수 있어요. 기본 기록은 계속 저장됩니다.</p>
                 <div class="pattern-list" id="patternList" aria-label="올리가 발견한 패턴"></div>
               </div>
@@ -857,6 +884,71 @@
     </aside>
 
     <div class="sheet-overlay" id="focusModeOverlay" hidden></div>
+
+    <div class="sheet-overlay" id="completionReflectionOverlay" hidden></div>
+    <aside class="companion-chat-sheet completion-reflection-sheet" id="completionReflectionSheet" role="dialog" aria-modal="true" aria-labelledby="completionReflectionTitle" tabindex="-1" hidden>
+      <header>
+        <div><span>오늘 돌아보기</span><h2 id="completionReflectionTitle">방금 한 걸음은 어땠나요?</h2></div>
+        <button id="closeCompletionReflection" type="button" aria-label="완료 돌아보기 닫기">×</button>
+      </header>
+      <p id="completionReflectionTask">완료한 행동은 이미 기록에 저장됐어요. 느낌은 선택해서 덧붙일 수 있어요.</p>
+      <div class="completion-reflection-options" role="group" aria-label="실행 난이도">
+        <button type="button" data-completion-difficulty="easy" aria-pressed="false">쉬웠어요</button>
+        <button type="button" data-completion-difficulty="steady" aria-pressed="false">적당했어요</button>
+        <button type="button" data-completion-difficulty="hard" aria-pressed="false">힘들었어요</button>
+      </div>
+      <label for="completionReflectionNote"><span>한 줄 남기기 <small>선택</small></span><textarea id="completionReflectionNote" rows="3" maxlength="300" placeholder="예: 시작 전에는 망설였지만 5분 뒤에는 괜찮아졌어요."></textarea></label>
+      <button class="chat-send-button" id="saveCompletionReflection" type="button" disabled>느낌을 기록에 덧붙이기</button>
+      <button class="sheet-secondary-button" id="skipCompletionReflection" type="button">지금은 건너뛰기</button>
+    </aside>
+
+    <div class="sheet-overlay" id="taskEditOverlay" hidden></div>
+    <aside class="companion-chat-sheet task-edit-sheet" id="taskEditSheet" role="dialog" aria-modal="true" aria-labelledby="taskEditTitle" tabindex="-1" hidden>
+      <header><div><span>일정 직접 편집</span><h2 id="taskEditTitle">이 일정만 수정</h2></div><button id="closeTaskEdit" type="button" aria-label="일정 편집 닫기">×</button></header>
+      <form id="taskEditForm">
+        <input id="taskEditDay" type="hidden" />
+        <input id="taskEditKey" type="hidden" />
+        <label for="taskEditName"><span>할 일</span><input id="taskEditName" type="text" maxlength="120" required /></label>
+        <div class="task-edit-grid">
+          <label for="taskEditTargetDay"><span>날짜</span><select id="taskEditTargetDay" required></select></label>
+          <label for="taskEditTime"><span>시작 시간</span><input id="taskEditTime" type="time" /></label>
+          <label for="taskEditDuration"><span>예상 시간</span><input id="taskEditDuration" type="number" min="5" max="360" step="5" required /></label>
+        </div>
+        <label for="taskEditRange"><span>분량·범위</span><input id="taskEditRange" type="text" maxlength="160" placeholder="예: Unit 12–14" /></label>
+        <label for="taskEditRule"><span>완료 기준</span><textarea id="taskEditRule" rows="3" maxlength="240" required></textarea></label>
+        <fieldset class="task-edit-scope">
+          <legend>적용 범위</legend>
+          <label><input type="radio" name="taskEditScope" value="task" checked /><span>이 일정만</span></label>
+          <label><input type="radio" name="taskEditScope" value="recurrence" /><span>같은 일정의 다음 회차부터</span></label>
+          <label><input type="radio" name="taskEditScope" value="remaining" /><span>남은 계획 전체 조정으로 이동</span></label>
+        </fieldset>
+        <p class="task-edit-scope-hint" id="taskEditScopeHint">오늘 화면에서는 이 일정만 바뀌어요.</p>
+        <div class="task-edit-preview" id="taskEditPreview" role="status" hidden>
+          <strong>변경 내용 확인</strong>
+          <p id="taskEditPreviewMessage"></p>
+        </div>
+        <button class="chat-send-button" id="taskEditSubmitButton" type="submit">수정 내용 적용</button>
+        <button class="sheet-secondary-button" id="skipTaskButton" type="button">이 일정만 건너뛰기</button>
+      </form>
+    </aside>
+
+    <div class="sheet-overlay" id="planAdjustOverlay" hidden></div>
+    <aside class="companion-chat-sheet plan-adjust-sheet" id="planAdjustSheet" role="dialog" aria-modal="true" aria-labelledby="planAdjustTitle" tabindex="-1" hidden>
+      <header><div><span>계획 조정</span><h2 id="planAdjustTitle">어떻게 바꿀까요?</h2></div><button id="closePlanAdjust" type="button" aria-label="계획 조정 닫기">×</button></header>
+      <p>완료한 일정은 유지하고, 아직 하지 않은 일정만 바꿉니다.</p>
+      <div class="plan-adjust-scope" role="group" aria-label="계획 조정 범위">
+        <button type="button" data-plan-adjust-scope="today" aria-pressed="false">오늘만</button>
+        <button type="button" data-plan-adjust-scope="week" aria-pressed="false">이번 주만</button>
+        <button type="button" data-plan-adjust-scope="remaining" aria-pressed="true">남은 계획 전체</button>
+      </div>
+      <div class="plan-adjust-choice">
+        <button id="planAiAdjustButton" type="button"><strong>AI로 변경안 만들기</strong><span>크레딧 사용 · 적용 전 미리보기</span></button>
+        <button id="planDirectAdjustButton" type="button"><strong>직접 편집하기</strong><span>크레딧 없음 · 범위 안 일정을 하나씩 수정</span></button>
+      </div>
+    </aside>
+
+    <div class="plan-undo-banner" id="planUndoBanner" role="status" hidden><span id="planUndoMessage">변경을 적용했어요.</span><button id="planUndoButton" type="button">실행 취소</button></div>
+
     <section class="focus-mode" id="focusMode" role="dialog" aria-modal="true" aria-labelledby="focusModeTitle" tabindex="-1" hidden>
       <button id="closeFocusMode" type="button" aria-label="집중 모드 닫기">×</button>
       <img class="mascot-art" src="assets/ollie-action.png" alt="힘차게 시작을 응원하는 올리" />

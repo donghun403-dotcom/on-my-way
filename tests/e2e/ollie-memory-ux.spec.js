@@ -110,7 +110,7 @@ test("기록 저장은 status에 초점을 두고 대화 없는 빈 요약을 �
 
   await expect(page.locator("#memorySaveHint")).toContainText("저장 완료");
   await expect(page.locator("#memorySaveHint")).toBeFocused();
-  const state = await readStored(page, "omwExecutionState");
+  const state = await page.evaluate(() => getExecutionState());
   expect(state.dailyMemories).toHaveLength(1);
   expect(state.dailyMemories[0].note).toBe("합성 데이터로 기록한 작은 성공");
   expect(state.dailyMemories[0].hasDialogue).toBe(false);
@@ -172,7 +172,7 @@ test("대화 이벤트가 정리된 뒤 기록을 수정해도 기존 저장 대
   await page.locator("#memoryNote").fill("수정한 한 장면");
   await page.locator("#memorySaveButton").click();
 
-  const state = await readStored(page, "omwExecutionState");
+  const state = await page.evaluate(() => getExecutionState());
   expect(state.dailyMemories[0].conversation).toBe("보존되어야 하는 기존 대화");
   expect(state.dailyMemories[0].hasDialogue).toBe(true);
   await expect(page.locator("#memoryConversationSummary")).toBeHidden();

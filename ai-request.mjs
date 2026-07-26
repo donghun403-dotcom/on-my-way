@@ -5,7 +5,9 @@ export async function fetchAiResponse(url, options, { fetchImpl = fetch, timeout
   let timeoutId;
   const timeoutError = new Error("AI 응답 시간이 초과됐어요. 잠시 후 다시 시도해 주세요.");
   timeoutError.status = 504;
-  timeoutError.code = "AI_TIMEOUT";
+  timeoutError.code = "AI_PROVIDER_TIMEOUT";
+  timeoutError.retryable = true;
+  timeoutError.diagnostics = { retryCount: 0 };
 
   try {
     return await Promise.race([
@@ -22,7 +24,9 @@ export async function fetchAiResponse(url, options, { fetchImpl = fetch, timeout
     if (error?.status) throw error;
     const networkError = new Error("AI 서비스에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.");
     networkError.status = 502;
-    networkError.code = "AI_NETWORK_ERROR";
+    networkError.code = "AI_PROVIDER_UNAVAILABLE";
+    networkError.retryable = true;
+    networkError.diagnostics = { retryCount: 0 };
     throw networkError;
   } finally {
     clearTimeout(timeoutId);

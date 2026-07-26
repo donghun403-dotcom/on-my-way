@@ -97,10 +97,109 @@ function successfulOpenAiResponse(schemaName) {
   if (schemaName === "companion_reply") {
     return { headline: "좋은 출발이에요", reply: "지금 한 걸음부터 시작해 봐요." };
   }
-  if (schemaName === "personalized_goal_plan") {
-    return { goal: "테스트 목표", firstAction: "첫 행동" };
+  if (schemaName === "bounded_goal_plan_blueprint") {
+    return {
+      personalitySummary: "짧고 반복 가능한 실행에 강점이 있어요.",
+      planningStyle: "꾸준한 실행형",
+      weekTitle: "첫 주 실행 리듬 만들기",
+      coachMessage: "가능한 시간 안에서 한 번씩 실행해요.",
+      feasibility: {
+        status: "feasible",
+        summary: "첫 주 실행",
+        recommendedOption: "keep_current_plan",
+        adjustmentOptions: ["keep_current_plan"],
+      },
+      phases: [
+        { phase: "시작", days: "1~7일", focus: "첫 행동 반복", successMetric: "5회 실행" },
+        { phase: "확장", days: "8~21일", focus: "실행 범위 확장", successMetric: "주 5회 실행" },
+        { phase: "정착", days: "22~30일", focus: "루틴 정착", successMetric: "주간 검토 완료" },
+      ],
+      taskTemplates: [
+        { type: "ACTION", title: "목표에 맞는 첫 행동", sourceReference: "", quantityOrRange: "1회", durationMinutes: 20, completionRule: "한 번 실행하면 완료", time: "저녁" },
+        { type: "ACTION", title: "진행 상태 한 줄 기록", sourceReference: "", quantityOrRange: "한 줄", durationMinutes: 5, completionRule: "한 줄 기록하면 완료", time: "실행 직후" },
+        { type: "ACTION", title: "다음 행동 준비", sourceReference: "", quantityOrRange: "한 가지", durationMinutes: 5, completionRule: "준비물을 놓으면 완료", time: "실행 직후" },
+        { type: "REVIEW", title: "주간 결과 확인", sourceReference: "", quantityOrRange: "일주일", durationMinutes: 0, completionRule: "완료 횟수를 확인하면 완료", time: "주말" },
+        { type: "TIP", title: "막히면 5분으로 줄이기", sourceReference: "", quantityOrRange: "", durationMinutes: 0, completionRule: "", time: "" },
+      ],
+      days: [
+        { isRestDay: false, taskIndexes: [0, 2] },
+        { isRestDay: false, taskIndexes: [0, 1] },
+        { isRestDay: false, taskIndexes: [0] },
+        { isRestDay: false, taskIndexes: [0] },
+        { isRestDay: false, taskIndexes: [0] },
+        { isRestDay: false, taskIndexes: [3] },
+        { isRestDay: false, taskIndexes: [1, 4] },
+      ],
+      assumptions: ["자료가 지정되지 않아 일반 계획으로 구성했어요."],
+      checkInRules: ["실행 직후 기록해요.", "막히면 5분으로 줄여요.", "주말에 다음 주를 조정해요."],
+      fallbackPlan: "어려운 날에는 5분짜리 첫 행동만 실행해요.",
+    };
+  }
+  if (schemaName === "bounded_goal_plan_revision") {
+    return {
+      revisionSummary: {
+        goalAlignment: "테스트 목표의 실행을 이어갑니다.",
+        resourcePlan: "기존 자료와 진행 상태를 유지합니다.",
+        timePlan: "하루 20분 안에서 실행합니다.",
+        weeklyRule: "월요일부터 일요일까지 한 번씩 확인합니다.",
+        assumptions: [],
+      },
+      taskTemplates: [
+        { time: "저녁", durationMinutes: 20, task: "목표에 맞는 행동 실행", completionRule: "한 번 실행하면 완료", sourceReference: "", quantityOrRange: "" },
+        { time: "실행 직후", durationMinutes: 5, task: "진행 상태 한 줄 기록", completionRule: "한 줄 기록하면 완료", sourceReference: "", quantityOrRange: "" },
+        { time: "아침", durationMinutes: 5, task: "다음 행동 준비", completionRule: "준비물을 놓으면 완료", sourceReference: "", quantityOrRange: "" },
+        { time: "주말", durationMinutes: 20, task: "주간 결과 확인", completionRule: "완료 횟수를 확인하면 완료", sourceReference: "", quantityOrRange: "" },
+      ],
+      days: [
+        { isRestDay: false, taskIndexes: [0, 1] },
+        { isRestDay: false, taskIndexes: [0] },
+        { isRestDay: false, taskIndexes: [0] },
+        { isRestDay: false, taskIndexes: [0] },
+        { isRestDay: false, taskIndexes: [0] },
+        { isRestDay: false, taskIndexes: [2] },
+        { isRestDay: false, taskIndexes: [3] },
+      ],
+      changes: ["실행 시간을 20분으로 조정"],
+      ollieMessage: "요청한 조건으로 변경안을 준비했어요.",
+    };
   }
   return { summary: "수정안", changes: ["일정을 조정했어요."] };
+}
+
+function openAiFixtureResponse(schemaName) {
+  const value = successfulOpenAiResponse(schemaName);
+  const payload = schemaName === "companion_reply"
+    ? { output_text: JSON.stringify(value) }
+    : {
+        status: "completed",
+        output: [{
+          type: "message",
+          role: "assistant",
+          content: [{ type: "output_text", text: "{not-reparsed", parsed: value }],
+        }],
+      };
+  return new Response(JSON.stringify({
+    ...payload,
+    usage: { input_tokens: 5, output_tokens: 2, total_tokens: 7 },
+  }), {
+    status: 200,
+    headers: { "Content-Type": "application/json", "X-Request-ID": "openai-test-request" },
+  });
+}
+
+function goalPlanInput(goal = "테스트 목표") {
+  return {
+    goal,
+    routine: { readiness: "준비됨", preferredTime: "저녁" },
+    material: { hasMaterial: false },
+    availability: {
+      availableDays: ["월", "화", "수", "목", "금", "토", "일"],
+      sessionMinutes: 30,
+      difficultDays: [],
+      excludedDates: [],
+      weeklyFrequency: 7,
+    },
+  };
 }
 
 function openAiSuccessMock(onCall = () => {}) {
@@ -108,13 +207,7 @@ function openAiSuccessMock(onCall = () => {}) {
     const requestBody = JSON.parse(options.body || "{}");
     const schemaName = requestBody.text?.format?.name;
     onCall({ url: String(url), requestBody, schemaName });
-    return new Response(JSON.stringify({
-      output_text: JSON.stringify(successfulOpenAiResponse(schemaName)),
-      usage: { input_tokens: 5, output_tokens: 2, total_tokens: 7 },
-    }), {
-      status: 200,
-      headers: { "Content-Type": "application/json", "X-Request-ID": "openai-test-request" },
-    });
+    return openAiFixtureResponse(schemaName);
   };
 }
 
@@ -159,7 +252,7 @@ test("AI 경로는 고정 비용을 사용하고 클라이언트 plan·creditCos
   const calls = [];
   const routeCases = [
     ["/api/ai/companion-chat", 1, { message: "오늘 무엇부터 할까요?" }],
-    ["/api/ai/goal-plan", 4, { goal: "테스트 목표", routine: { readiness: "준비됨", preferredTime: "저녁" } }],
+    ["/api/ai/goal-plan", 4, goalPlanInput()],
     ["/api/ai/plan-revision", 2, { goal: "테스트 목표", currentPlanText: "기존 계획", revisionRequest: "시간을 줄여 주세요" }],
     ["/api/ai/recovery-plan", 3, { goal: "테스트 목표", currentPlanText: "기존 계획", revisionRequest: "회복 계획을 주세요" }],
     ["/api/ai/reschedule-plan", 4, { goal: "테스트 목표", currentPlanText: "기존 계획", revisionRequest: "전체 일정을 바꿔 주세요" }],
@@ -175,6 +268,15 @@ test("AI 경로는 고정 비용을 사용하고 클라이언트 plan·creditCos
       assert.equal(result.response.status, 200, path);
       assert.equal(result.body.ok, true, path);
       assert.equal(result.body.chargedCredits, expectedCost, path);
+      assert.equal(Object.hasOwn(result.body, "diagnostics"), false, path);
+      if (path === "/api/ai/goal-plan") {
+        const planIds = result.body.plan.firstWeekSchedule
+          .flatMap((day) => day.items)
+          .map((item) => item.planId);
+        assert.ok(planIds.length > 0);
+        assert.ok(planIds.every((planId) => /^[0-9a-f-]{36}$/i.test(planId)));
+        assert.equal(new Set(planIds).size, 1);
+      }
     }
 
     const freeContext = await authenticatedWorker({ plan: "free", userId: "spoofed-free-user" });
@@ -312,10 +414,7 @@ test("처리 중인 같은 X-Request-ID는 409로 거부하고 원래 예약을 
       await providerGate;
       const requestBody = JSON.parse(options.body || "{}");
       const schemaName = requestBody.text?.format?.name;
-      return new Response(JSON.stringify({
-        output_text: JSON.stringify(successfulOpenAiResponse(schemaName)),
-        usage: { input_tokens: 5, output_tokens: 2, total_tokens: 7 },
-      }), { status: 200, headers: { "Content-Type": "application/json" } });
+      return openAiFixtureResponse(schemaName);
     }, async () => {
       const request = {
         method: "POST",
@@ -355,19 +454,16 @@ test("목표 생성과 대화가 겹쳐도 사용자 기록과 총 5크레딧을
     await withMockFetch(async (url, options = {}) => {
       const requestBody = JSON.parse(options.body || "{}");
       const schemaName = requestBody.text?.format?.name;
-      if (schemaName === "personalized_goal_plan") {
+      if (schemaName === "bounded_goal_plan_blueprint") {
         markGoalStarted();
         await goalGate;
       }
-      return new Response(JSON.stringify({
-        output_text: JSON.stringify(successfulOpenAiResponse(schemaName)),
-        usage: { input_tokens: 5, output_tokens: 2, total_tokens: 7 },
-      }), { status: 200, headers: { "Content-Type": "application/json" } });
+      return openAiFixtureResponse(schemaName);
     }, async () => {
       const goalPromise = callApi(context, "/api/ai/goal-plan", {
         method: "POST",
         requestId: "race-goal",
-        body: { goal: "동시성 목표", routine: { readiness: "준비됨", preferredTime: "저녁" } },
+        body: goalPlanInput("동시성 목표"),
       });
       await goalStarted;
       const chat = await callApi(context, "/api/ai/companion-chat", {
@@ -433,16 +529,20 @@ test("AI 제공자 실패는 예약 크레딧을 환불한다", { concurrency: f
         headers: { "Content-Type": "application/json" },
       });
     }, async () => {
-      const failed = await callApi(context, "/api/ai/companion-chat", {
+      const request = {
         method: "POST",
         requestId: "provider-failure",
         body: { message: "실패해도 환불해 주세요" },
-      });
+      };
+      const failed = await callApi(context, "/api/ai/companion-chat", request);
       assert.equal(failed.response.status, 500);
       assert.equal(failed.body.ok, false);
       assert.equal(failed.body.usage.daily.used, 0);
       assert.equal(failed.body.usage.daily.reserved, 0);
       assert.equal(failed.body.usage.daily.remaining, 30);
+      const sameIdRetry = await callApi(context, "/api/ai/companion-chat", request);
+      assert.equal(sameIdRetry.response.status, 409);
+      assert.equal(sameIdRetry.body.code, "AI_REQUEST_PREVIOUSLY_RELEASED");
     });
   } finally {
     console.error = originalConsoleError;

@@ -1,4 +1,5 @@
 const { expect } = require("@playwright/test");
+const path = require("path");
 
 const testPlan = {
   goal: "E2E 목표 완주하기",
@@ -91,6 +92,32 @@ async function mockExternalAssets(page) {
     route.fulfill({ status: 204, contentType: "font/woff", body: "" }),
   );
   await page.route("**/api/funnel", (route) => route.fulfill({ status: 204, body: "" }));
+  await mockGoalAnalysis(page);
+}
+
+// 온보딩 1단계(자연어 이야기) → 2단계(올리가 정리한 이해) 전환용 기본 분석 응답.
+async function mockGoalAnalysis(page, analysis = {}) {
+  await page.route("**/api/ai/goal-analyze", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      ok: true,
+      analysis: {
+        goal: "정리한 목표",
+        currentState: [],
+        availableTime: [],
+        questions: [],
+        ...analysis,
+      },
+    }),
+  }));
+}
+
+// 1단계에서 목표 이야기를 적고 올리의 정리(2단계)까지 진행한다.
+async function submitGoalStory(page, goalText) {
+  await page.locator("#designGoal").fill(goalText);
+  await page.locator("#goalAnalyzeButton").click();
+  await page.locator("#aiPreviewButton").waitFor({ state: "visible" });
 }
 
 async function prepareApp(page, storage = {}) {
@@ -345,7 +372,7 @@ function monitorPage(page, { allowedConsoleMessages = [], allowedResponseUrls = 
     }
     const isNavigationCancellation =
       errorText.includes("net::ERR_ABORTED") || /Load request cancel(?:l)?ed/i.test(errorText);
-    let isCanceledStaticImage = false;
+    let isCanceledStaticAsset = false;
     let isCanceledFunnelEvent = false;
     let isCanceledStartupRequest = false;
     let isExpectedFirefoxLogoAbort = false;
@@ -363,9 +390,9 @@ function monitorPage(page, { allowedConsoleMessages = [], allowedResponseUrls = 
         resourceType: request.resourceType(),
         sameOrigin: isSameOrigin,
       });
-      isCanceledStaticImage =
+      isCanceledStaticAsset =
         isNavigationCancellation &&
-        request.resourceType() === "image" &&
+        ["image", "font"].includes(request.resourceType()) &&
         isSameOrigin &&
         requestUrl.pathname.startsWith("/assets/");
       isCanceledFunnelEvent =
@@ -384,7 +411,7 @@ function monitorPage(page, { allowedConsoleMessages = [], allowedResponseUrls = 
       pendingRumNavigationAbort.pathname === "/cdn-cgi/rum" &&
       pendingRumNavigationAbort.resourceType === "ping" &&
       pendingRumNavigationAbort.errorText === "net::ERR_ABORTED") return;
-    if (isExpectedFirefoxLogoAbort || isCanceledStaticImage || isCanceledFunnelEvent || isCanceledStartupRequest) return;
+    if (isExpectedFirefoxLogoAbort || isCanceledStaticAsset || isCanceledFunnelEvent || isCanceledStartupRequest) return;
     issues.push(`requestfailed: ${request.method()} ${request.url()} ${errorText}`);
   });
   page.on("response", (response) => {
@@ -473,6 +500,16 @@ async function expectNoHorizontalOverflow(page) {
   expect(Math.max(dimensions.body, dimensions.document)).toBeLessThanOrEqual(dimensions.viewport + 1);
 }
 
+async function captureAcceptance(page, testInfo, name, { fullPage = true } = {}) {
+  const outputDir = process.env.ACCEPTANCE_CAPTURE_DIR;
+  if (!outputDir) return;
+  const width = page.viewportSize()?.width || "auto";
+  await page.screenshot({
+    path: path.join(outputDir, `${testInfo.project.name}-${width}-${name}.png`),
+    fullPage,
+  });
+}
+
 async function readStored(page, key) {
   return page.evaluate((storageKey) => {
     const value = localStorage.getItem(storageKey);
@@ -482,12 +519,15 @@ async function readStored(page, key) {
 
 module.exports = {
   AI_CREDIT_COSTS,
+  captureAcceptance,
   createUsageResponse,
   expectNoDuplicateIds,
   expectNoHorizontalOverflow,
   isCompletedRumNavigationLifecycle,
   isExpectedFirefoxNavigationImageAbort,
   mockAccountExperience,
+  mockGoalAnalysis,
+  submitGoalStory,
   mockExternalAssets,
   monitorPage,
   prepareApp,
