@@ -13,7 +13,6 @@
   },
   "vars": {
     "OPENAI_MODEL": "gpt-5.4-mini",
-    "OPENAI_ANALYZE_MODEL": "gpt-5.4",
     "APPLE_LOGIN_VISIBLE": "false",
     "ALLOW_DEV_LOGIN": "false",
     "ALLOW_DEMO_BILLING": "false",

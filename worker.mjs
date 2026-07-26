@@ -487,8 +487,10 @@ async function handleGuestGoalAnalysis({ request, env }) {
     }
   }
 
-  // 분석 호출만 상위 모델을 쓴다. mini는 긴 자유 서술에서 조건 추출이 흔들렸고
-  // (Staging 프로브 5회 중 2회 오독·누락), conditions는 계획 입력으로 직결된다.
+  // OPENAI_ANALYZE_MODEL은 분석 호출만 다른 모델로 돌리는 탈출구다. gpt-5.4를
+  // 실측한 결과 24~44초(45초 타임아웃 임박)라 온보딩에는 부적합했고, 명시된
+  // 조건은 reconcileConditionsWithGoalText가 결정론적으로 보장하므로 기본은
+  // mini다. 현재 어떤 환경도 이 변수를 설정하지 않는다.
   const model = env.OPENAI_ANALYZE_MODEL || env.OPENAI_MODEL || "gpt-5.4-mini";
   const aiStartedAt = Date.now();
   try {
