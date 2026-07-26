@@ -71,8 +71,7 @@ const aiVisibleWeekPlan = document.querySelector("#aiVisibleWeekPlan");
 const weekPreviewToggle = document.querySelector("#weekPreviewToggle");
 const aiGoalRoadmap = document.querySelector("#aiGoalRoadmap");
 const roadmapDeadline = document.querySelector("#roadmapDeadline");
-const planAdjustToggle = document.querySelector("#planAdjustToggle");
-const planAdjustPanel = document.querySelector("#planAdjustPanel");
+const roadmapLockedNote = document.querySelector("#roadmapLockedNote");
 const aiCoachMessage = document.querySelector("#aiCoachMessage");
 const previewPersonality = document.querySelector("#previewPersonality");
 const previewStyle = document.querySelector("#previewStyle");
@@ -109,7 +108,6 @@ const appFeatureNext = document.querySelector("#appFeatureNext");
 const appFeatureTitle = document.querySelector("#appFeatureTitle");
 const appFeatureCounter = document.querySelector("#appFeatureCounter");
 const trialStartInlineLink = document.querySelector("#trialStartInlineLink");
-const scheduleStartButtons = document.querySelectorAll("[data-schedule-start]");
 const previewConversionKicker = document.querySelector("#previewConversionKicker");
 const previewConversionCopy = document.querySelector("#previewConversionCopy");
 const previewConversionAction = document.querySelector("#previewConversionAction");
@@ -784,23 +782,11 @@ function readScheduleStartPreference() {
   }
 }
 
-function setScheduleStartPreference(value) {
-  const preference = normalizeScheduleStartPreference(value);
-  try {
-    sessionStorage.setItem(SCHEDULE_START_PREFERENCE_KEY, preference);
-  } catch {
-    /* The selected value still remains reflected in the current document. */
-  }
-  scheduleStartButtons.forEach((button) => {
-    button.setAttribute("aria-pressed", String(button.dataset.scheduleStart === preference));
-  });
-  return preference;
-}
-
-scheduleStartButtons.forEach((button) => {
-  button.addEventListener("click", () => setScheduleStartPreference(button.dataset.scheduleStart));
-});
-setScheduleStartPreference(readScheduleStartPreference());
+/* 온보딩에서 "이대로 시작 / 요일 바꾸기 / 시간 줄이기" 버튼을 걷어냈다.
+   요일 이동과 15분 축약은 기계적인 변환이라 실제 사정("화요일은 야근이라
+   안 돼")을 담지 못했다. 일정 조정은 로그인 후 앱 안의 자연어 조정으로
+   일원화한다. claim 요청의 scheduleStartPreference 필드와 서버 계약은
+   그대로 두고, 온보딩에서는 항상 기본값 "as-is"가 전달된다. */
 
 function buildActivatedExecutionPlan(draftPlan, draftInput, scheduleStartPreference = "as-is") {
   const plan = draftPlan && typeof draftPlan === "object" ? draftPlan : {};
@@ -2907,9 +2893,66 @@ function applyTargetDateAnswer(value) {
   goalPeriodInput.value = String(option);
 }
 
+const WEEKDAY_LABELS = ["월", "화", "수", "목", "금", "토", "일"];
+
+// 3단계 위저드는 요일·회당 시간·주당 횟수·기간 입력을 보여주지 않는다. 그래서
+// 그 입력들의 기본값(월·수·금 / 25분 / 주 3회 / 90일)이 사용자가 실제로 쓴
+// 내용을 덮어쓰고 AI에게 전달되고 있었다. "매일 20분"이라고 적어도 월·수·금
+// 계획이 나오던 원인이다. 2단계에서 올리가 정리한 내용으로 이 값을 채운다.
+function deriveConditionsFromAnalysis(analysis) {
+  const goalText = String(analysis?.goal || "");
+  const context = [goalText, ...(analysis?.availableTime || []), ...(analysis?.currentState || [])]
+    .filter(Boolean)
+    .join(" ");
+
+  let days = null;
+  if (/매일|날마다|하루도|every ?day/i.test(context)) days = [...WEEKDAY_LABELS];
+  else if (/평일/.test(context)) days = ["월", "화", "수", "목", "금"];
+  else if (/주말/.test(context)) days = ["토", "일"];
+  else {
+    const named = WEEKDAY_LABELS.filter((day) => new RegExp(`${day}요일`).test(context));
+    if (named.length) days = named;
+  }
+
+  const frequencyMatch = context.match(/주\s*([1-7])\s*(?:회|번)/);
+  const frequency = frequencyMatch ? Number(frequencyMatch[1]) : (days?.length || 0);
+
+  const hours = Number(context.match(/([0-9]+)\s*시간/)?.[1] || 0);
+  const minutes = Number(context.match(/([0-9]+)\s*분/)?.[1] || 0);
+  const sessionMinutes = hours * 60 + minutes;
+
+  const months = Number(goalText.match(/([0-9]+)\s*개월/)?.[1] || 0);
+  const weeks = Number(goalText.match(/([0-9]+)\s*주(?!\s*[1-7]\s*(?:회|번))/)?.[1] || 0);
+  const bareDays = Number(goalText.match(/([0-9]+)\s*일(?:\s*동안)?/)?.[1] || 0);
+  const periodDays = months * 30 || weeks * 7 || bareDays;
+
+  return { days, frequency, sessionMinutes, periodDays };
+}
+
+function applyAnalysisToConditions(analysis) {
+  const derived = deriveConditionsFromAnalysis(analysis);
+  if (derived.days?.length && availableDayInputs?.length) {
+    availableDayInputs.forEach((input) => { input.checked = derived.days.includes(input.value); });
+  }
+  if (derived.frequency && weeklyFrequencyInput) {
+    const options = [...weeklyFrequencyInput.options].map((option) => Number(option.value)).filter(Boolean);
+    const match = options.find((value) => value >= derived.frequency) || options.at(-1);
+    if (match) weeklyFrequencyInput.value = String(match);
+  }
+  if (derived.sessionMinutes && sessionMinutesInput) {
+    sessionMinutesInput.value = String(Math.min(180, Math.max(5, derived.sessionMinutes)));
+  }
+  if (derived.periodDays && goalPeriodInput) {
+    const options = [...goalPeriodInput.options].map((option) => Number(option.value)).filter(Boolean);
+    const match = options.find((value) => value >= derived.periodDays) || options.at(-1);
+    if (match) goalPeriodInput.value = String(match);
+  }
+}
+
 function renderGoalAnalysis(analysis) {
   analysisAnswers.clear();
   analyzedGoalSummary = String(analysis.goal || "").trim();
+  applyAnalysisToConditions(analysis);
   if (analysisUnderstanding) {
     const rows = [
       ["목표", analysis.goal],
@@ -3776,6 +3819,12 @@ function renderDraftUnderstanding(preview) {
   const options = (feasibility?.adjustmentOptions || [])
     .map((option) => ({ option, text: optionLabels[option] }))
     .filter((entry) => entry.text);
+  // 계획이 멀쩡하면 조정 UI를 아예 띄우지 않는다. 조정안은 "지금 조건으로는
+  // 무리"일 때만 의미가 있고, 그때는 진행의 전제 조건이라 접어두지 않는다.
+  if (!constrained) {
+    draftFeasibilityOptions.replaceChildren();
+    return;
+  }
   if (!options.length && requested > days.length) options.push({ option: "", text: `주 ${requested}회 대신 가능한 ${days.length}회부터 시작하기` });
   if (!options.length && draft.availability.difficultDays.some((day) => days.includes(day))) options.push({ option: "", text: "어려운 요일에는 짧은 복습이나 휴식을 우선하기" });
   if (!options.length && draft.material.hasMaterial && !draft.material.currentProgress) options.push({ option: "", text: "현재 진도는 첫 실행 뒤 확인해 다음 주에 보정하기" });
@@ -3905,6 +3954,12 @@ function renderAiPreview(preview) {
       return row;
     });
     aiGoalRoadmap.replaceChildren(...items);
+    // 게스트 미리보기에는 fullSchedule이 없다(서버가 유료 경계로 제거). 단계를
+    // 지어내는 대신 카드를 잠금 상태로 둔다.
+    const locked = items.length === 0;
+    aiGoalRoadmap.hidden = locked;
+    aiGoalRoadmap.closest(".plan-roadmap-card")?.toggleAttribute("data-locked", locked);
+    if (roadmapLockedNote) roadmapLockedNote.hidden = !locked;
   }
   if (roadmapDeadline) roadmapDeadline.textContent = roadmapDeadlineLabel(roadmapPhases);
   if (preview.dashboard) {
@@ -3925,7 +3980,10 @@ function roadmapDeadlineLabel(roadmapPhases) {
     return `(${parsed.getMonth() + 1}월 ${parsed.getDate()}일까지)`;
   }
   const finalDays = roadmapPhases.at(-1)?.days || "";
-  return finalDays ? `(총 ${finalDays})` : "";
+  if (finalDays) return `(총 ${finalDays})`;
+  // 단계가 잠긴 게스트 화면에서도 기간만큼은 사실대로 보여준다.
+  const periodDays = Number(goalPeriodInput?.value) || 0;
+  return periodDays ? `(총 ${periodDays}일)` : "";
 }
 
 const WEEK_PREVIEW_VISIBLE_DAYS = 3;
@@ -3948,17 +4006,6 @@ weekPreviewToggle?.addEventListener("click", () => {
   if (!aiVisibleWeekPlan) return;
   aiVisibleWeekPlan.dataset.expanded = String(aiVisibleWeekPlan.dataset.expanded !== "true");
   syncWeekPreviewToggle(aiVisibleWeekPlan.children.length);
-});
-
-// 시안의 "조금 바꿀래요": 일정 조정 수단은 전부 이 패널 뒤로 접어 두고,
-// 기본 화면은 목표 · 로드맵 · 첫 7일 · 시작 버튼만 남깁니다.
-planAdjustToggle?.addEventListener("click", () => {
-  if (!planAdjustPanel) return;
-  const opening = planAdjustPanel.hidden;
-  planAdjustPanel.hidden = !opening;
-  planAdjustToggle.setAttribute("aria-expanded", String(opening));
-  planAdjustToggle.textContent = opening ? "조정 접기" : "조금 바꿀래요";
-  if (opening) planAdjustPanel.querySelector("button")?.focus({ preventScroll: true });
 });
 
 function roadmapLeadStep(preview) {

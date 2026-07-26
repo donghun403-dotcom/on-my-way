@@ -272,7 +272,9 @@
             </div>
             <div class="preview-result-content">
               <header class="wizard-header plan-result-header">
-                <a class="wizard-back first-step-back" href="#designFlow" aria-label="이전 단계로"><span aria-hidden="true">←</span></a>
+                <!-- 뒤로가기가 곧 "말로 고치기" 경로다. 2단계로 돌아가 조건을
+                     자연어로 고친 뒤 다시 그리면 되므로 별도 조정 버튼을 두지 않는다. -->
+                <button class="wizard-back" type="button" id="draftAdjustButton" aria-label="이전 단계로 돌아가 조건 고치기"><span aria-hidden="true">←</span></button>
                 <span class="wizard-step-badge">3/3</span>
                 <h3 class="brand-display">1차 계획 보기</h3>
               </header>
@@ -295,6 +297,9 @@
                     <small id="roadmapDeadline"></small>
                   </div>
                   <ol id="aiGoalRoadmap" class="plan-roadmap-stepper"></ol>
+                  <!-- 게스트 미리보기는 fullSchedule을 내려주지 않는다(서버가 의도적으로
+                       제거). 단계를 지어내지 않고 잠금 상태만 정직하게 알린다. -->
+                  <p class="plan-roadmap-locked" id="roadmapLockedNote" hidden><span aria-hidden="true">🔒</span> 시작하면 목표까지 가는 전체 단계가 열려요</p>
                 </section>
 
                 <section class="plan-week-card" aria-labelledby="weekPlanTitle">
@@ -310,6 +315,9 @@
                   <div>
                     <strong id="draftFeasibilityTitle">현재 조건으로 시작할 수 있어요</strong>
                     <p id="draftFeasibilityCopy">꾸준히 지키면 목표 달성이 가능해요!</p>
+                    <!-- 조정안은 "무리한 계획"일 때만 채워진다. 그때는 선택이 진행의
+                         전제 조건이라 접어두지 않고 바로 여기에 편다. -->
+                    <ul id="draftFeasibilityOptions" class="plan-feasibility-options"></ul>
                   </div>
                 </article>
 
@@ -326,25 +334,12 @@
 
                 <div class="plan-result-cta">
                   <a id="trialStartInlineLink" href="app.html" aria-label="이 계획으로 시작하기"><span id="previewConversionAction">이 계획으로 시작하기</span><b aria-hidden="true">🚀</b></a>
-                  <button class="plan-adjust-toggle" type="button" id="planAdjustToggle" aria-controls="planAdjustPanel" aria-expanded="false">조금 바꿀래요</button>
+                  <button class="plan-discard-changes" id="discardDraftChangesButton" type="button" hidden>수정 내용 버리기</button>
                 </div>
                 <p class="plan-result-fineprint">
                   <span id="previewConversionKicker">검토 후 결정</span>
                   <span id="previewConversionCopy">저장하기 전에는 현재 계획이나 회원 데이터가 바뀌지 않아요.</span>
                 </p>
-
-                <div class="plan-adjust-panel" id="planAdjustPanel" hidden>
-                  <div class="schedule-start-options" role="group" aria-labelledby="scheduleStartOptionsTitle">
-                    <strong class="brand-display" id="scheduleStartOptionsTitle">첫 주 일정은 어떻게 시작할까요?</strong>
-                    <div>
-                      <button type="button" data-schedule-start="as-is" aria-pressed="true">이대로 시작</button>
-                      <button type="button" data-schedule-start="change-days" aria-pressed="false">요일 바꾸기</button>
-                      <button type="button" data-schedule-start="shorter" aria-pressed="false">시간 줄이기</button>
-                    </div>
-                  </div>
-                  <ul id="draftFeasibilityOptions" class="plan-feasibility-options"></ul>
-                  <div class="draft-secondary-actions"><button id="draftAdjustButton" type="button">올리와 계획 조정하기</button><button id="discardDraftChangesButton" type="button" hidden>수정 내용 버리기</button><a href="#designFlow">목표 다시 보기</a></div>
-                </div>
 
                 <details class="result-details-disclosure">
                   <summary aria-controls="resultDetailsContent" aria-expanded="false">

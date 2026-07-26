@@ -3,14 +3,6 @@ const { captureAcceptance, createUsageResponse, mockAccountExperience, monitorPa
 
 test.setTimeout(90_000);
 
-// 3단계 기본 화면은 시안대로 목표·로드맵·첫 7일·시작 버튼만 보여준다.
-// 일정 조정 수단(시작 방식·현실성 조정안·올리와 조정)은 "조금 바꿀래요" 뒤에 있다.
-async function openPlanAdjust(page) {
-  const panel = page.locator("#planAdjustPanel");
-  if (await panel.isHidden()) await page.locator("#planAdjustToggle").click();
-  await expect(panel).toBeVisible();
-}
-
 function guestPreviewPlan() {
   const firstWeekSchedule = ["월", "화", "수", "목", "금", "토", "일"].map((dayLabel, index) => ({
     dayNumber: index + 1,
@@ -244,7 +236,6 @@ test("infeasible roadmap requires an explicit adjustment before claim", async ({
   await expect(page.locator("#aiPreviewStatus")).toHaveText("현재 계획과 조건이 일치해요.");
   await expect(page.locator("#draftFeasibilityTitle")).toContainText("조정안");
 
-  await openPlanAdjust(page);
   const adjustment = page.locator('[data-feasibility-adjustment="increase_frequency"]');
   await expect(adjustment).toHaveAttribute("aria-pressed", "false");
   await expect(page.locator("#trialStartInlineLink")).toHaveAttribute("aria-disabled", "true");
@@ -260,7 +251,6 @@ test("infeasible roadmap requires an explicit adjustment before claim", async ({
   expect(previewCalls).toBe(1);
   expect(await page.evaluate(() => localStorage.getItem("omwExecutionPlan"))).toBeNull();
 
-  await openPlanAdjust(page);
   await page.locator("#draftAdjustButton").click();
   await expect(page.locator("#designGoal")).toHaveValue(goal);
   await page.locator("#aiPreviewButton").click();
@@ -524,7 +514,6 @@ test("a failed revision attempt-key cleanup preserves the active roadmap and blo
   await expect.poll(() => previewRequests).toBe(1);
   await expect(page.locator("#previewAction")).toHaveText(guestPreviewPlan().firstAction);
 
-  await openPlanAdjust(page);
   await page.locator("#draftAdjustButton").click();
   await page.locator("#currentContext").fill("Use thirty minutes on weekdays");
   await page.locator("#currentContext").blur();
@@ -553,6 +542,53 @@ test("a failed revision attempt-key cleanup preserves the active roadmap and blo
   await page.locator("#aiPreviewButton").click();
   await expect(page.locator(".app-toast")).toContainText("브라우저 저장 공간을 사용할 수 없어");
   expect(revisionRequests).toBe(1);
+});
+
+// 3단계 위저드는 요일·회당 시간·주당 횟수·기간 입력을 화면에 두지 않는다.
+// 그 숨은 입력의 기본값(월·수·금 / 25분 / 주 3회 / 90일)이 사용자가 쓴 내용을
+// 덮어써서, "매일 20분"이라고 적어도 월·수·금 계획이 만들어지고 있었다.
+// AI는 이 모순을 알아채고 "무리한 계획"이라고 답했다 — 계획이 허술한 게 아니라
+// 우리가 잘못된 조건을 보낸 것이었다.
+test("2단계에서 정리한 조건이 숨은 기본값 대신 AI 요청에 실린다", async ({ page }) => {
+  await mockAccountExperience(page);
+  let previewBody = null;
+  await page.route("**/api/ai/goal-analyze", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ ok: true, analysis: {
+      goal: "30일 동안 매일 자기 전 20분 독서하기",
+      currentState: [],
+      availableTime: ["매일 자기 전 20분"],
+      questions: [{ id: "startDate", question: "언제부터 시작할까요?", type: "date", options: [], defaultValue: "" }],
+    } }),
+  }));
+  await page.route("**/api/ai/goal-preview", (route) => {
+    previewBody = route.request().postDataJSON();
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        cached: false,
+        draftPlanId: "e2e-derived-conditions",
+        preview: guestPreviewPlan(),
+        activeInput: { goal: "30일 동안 매일 자기 전 20분 독서하기" },
+        activeInputHash: "c".repeat(64),
+        activeRevision: 1,
+      }),
+    });
+  });
+
+  await page.goto("/index.html#designFlow");
+  await waitForBootstrap(page);
+  await submitGoalStory(page, "30일 동안 매일 자기 전 20분 독서하기");
+  await page.locator("#aiPreviewButton").click();
+  await expect.poll(() => previewBody).not.toBeNull();
+
+  expect(previewBody.availability.availableDays).toEqual(["월", "화", "수", "목", "금", "토", "일"]);
+  expect(previewBody.availability.weeklyFrequency).toBe(7);
+  expect(previewBody.availability.sessionMinutes).toBe(20);
+  expect(previewBody.periodDays).toBe(30);
 });
 
 test("목표 카테고리는 예시만 제안하고 사용자의 명시적 확인 전에는 진행하지 않는다", async ({ page }) => {
@@ -683,10 +719,9 @@ test("취소 뒤 다른 provider를 직접 선택하면 성공 복원 후 명시
   await expect(page.locator("#designGoal")).toHaveValue("90일 안에 첫 유료 고객 10명 만들기");
   await expect(page.locator("#previewAction")).toHaveText("잠재 고객 한 명에게 문제 인터뷰를 요청하기");
   await expect(page.locator("#previewConversionAction")).toHaveText("이 계획으로 시작하기");
-  await openPlanAdjust(page);
-  await page.locator("[data-schedule-start='shorter']").click();
-  await expect(page.locator("[data-schedule-start='shorter']")).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator("[data-schedule-start='as-is']")).toHaveAttribute("aria-pressed", "false");
+  // 온보딩에서 시작 방식 버튼을 걷어냈다. 조정은 로그인 후 앱의 자연어 조정으로,
+  // claim에는 항상 기본값이 전달된다.
+  await expect(page.locator("[data-schedule-start]")).toHaveCount(0);
   expect(providerStarts).toEqual(["kakao", "naver"]);
   expect(calls).toEqual({ preview: 1, claim: 0, full: 0 });
   expect(await page.evaluate(() => sessionStorage.getItem("onmyway:pending-auth-intent"))).toBeNull();
@@ -696,7 +731,7 @@ test("취소 뒤 다른 provider를 직접 선택하면 성공 복원 후 명시
     page.locator("#trialStartInlineLink").click(),
   ]);
   await expect.poll(() => calls.claim).toBe(1);
-  expect(claimBodies[0].scheduleStartPreference).toBe("shorter");
+  expect(claimBodies[0].scheduleStartPreference).toBe("as-is");
   expect(calls.full).toBe(0);
   expect(calls.preview).toBe(1);
   diagnostics.expectClean();
@@ -1031,7 +1066,6 @@ test("익명 초안 수정은 기존 AI 일정을 보존하고 명시적 재생�
   await expect.poll(() => previewCalls).toBe(1);
   await expect(page.locator("#previewAction")).toHaveText("잠재 고객 한 명에게 문제 인터뷰를 요청하기");
 
-  await openPlanAdjust(page);
   await page.locator("#draftAdjustButton").click();
   // 계획 조정은 조건을 확인·수정하는 2단계로 돌아간다.
   await expect(page.locator("#diagnosisStepCount")).toHaveText("2/3");
@@ -1047,7 +1081,6 @@ test("익명 초안 수정은 기존 AI 일정을 보존하고 명시적 재생�
   expect(pending.pendingDraftInput.currentContext).toBe("평일 45분 가능");
   await page.evaluate(() => { location.hash = "firstStep"; });
   await expect(page.locator("#trialStartInlineLink")).toHaveAttribute("aria-disabled", "true");
-  await openPlanAdjust(page);
   await page.locator("#draftAdjustButton").click();
 
   await expect(page.locator("#aiPreviewButton")).toContainText("말한 내용으로 큰 길 다시 그리기");
@@ -1075,7 +1108,6 @@ test("익명 초안 수정은 기존 AI 일정을 보존하고 명시적 재생�
   await expect(page.locator("#roadmapRevisionSummary")).toBeVisible();
   expect((await page.evaluate(() => JSON.parse(sessionStorage.getItem("onmyway:pending-goal-preview") || "null"))).activeRevision).toBe(2);
 
-  await openPlanAdjust(page);
   await page.locator("#draftAdjustButton").click();
   await page.locator("#currentContext").fill("평일 60분 가능");
   await page.locator("#currentContext").blur();

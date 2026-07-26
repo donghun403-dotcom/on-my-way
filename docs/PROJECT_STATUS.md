@@ -8,6 +8,17 @@
 
 ## 최신 검증
 
+### 온보딩 조건 전달 버그와 조정 경로 정리 (2026-07-26)
+
+- 기준 worktree: `.worktrees/plan-experience-overhaul`, 브랜치 `codex/ollie-core-loop-production`
+- **"매일 20분"이라고 써도 월/수/금 계획이 나오던 원인을 찾았다.** 3단계 위저드가 숨긴 고급 단계(요일·회당 시간·주당 횟수)의 기본값이 그대로 수집돼 AI에게 전달되고 있었다. Staging 실측 요청 본문: `availableDays: ["월","수","금"], sessionMinutes: 25, weeklyFrequency: 3, periodDays: 90`.
+- AI는 이 모순을 정확히 짚었다(`feasibility.status: "constrained"`, "가용 요일이 월/수/금이고 회당 25분이라 30일 연속 '매일' 목표를 그대로 충족하긴 어렵습니다"). 계획이 허술한 게 아니라 우리가 잘못된 조건을 보낸 것이었다. AI 호출은 정상 동작 중이다.
+- `applyAnalysisToConditions()`로 2단계 분석 결과(매일/평일/주말/주 N회, 회당 분, 목표 기간)를 조건 입력에 반영했다. 같은 목표로 재측정: `availableDays` 7일 전부, `sessionMinutes` 20, `weeklyFrequency` 7, `periodDays` 30.
+- 온보딩의 계획 조정 경로를 정리했다. 버튼식 시작 방식(이대로 시작/요일 바꾸기/시간 줄이기)은 실제 사정을 표현하지 못해 제거했고, 조정안은 AI가 "무리"라고 판단한 경우에만 ⭐ 카드 안에 인라인으로 편다. 계획이 현실적이면 3단계에 조정 UI가 하나도 없다. `scheduleStartPreference` 서버 계약은 유지되며 온보딩은 항상 `as-is`를 보낸다.
+- 게스트 미리보기는 서버가 `fullSchedule`을 의도적으로 제거하므로 전체 로드맵 카드가 비어 있었다. 단계를 지어내지 않고 잠금 상태 + 총 기간만 보여주도록 고쳤다.
+- 회귀 가드 추가: "2단계에서 정리한 조건이 숨은 기본값 대신 AI 요청에 실린다". 수정을 되돌려 **실패하는 것까지 확인**했다.
+- 검증: 유닛 278/278, desktop+responsive 148 passed / 1 skipped, iphone-webkit 13개 파일 132 passed / 0 failed / 0 flaky.
+
 ### 온보딩 3단계 시안 반영과 칩·CTA 비율 수정 (2026-07-26)
 
 - 기준 worktree: `.worktrees/plan-experience-overhaul`, 브랜치 `codex/ollie-core-loop-production`

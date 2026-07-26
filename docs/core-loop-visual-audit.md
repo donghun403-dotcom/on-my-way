@@ -37,25 +37,59 @@ and a guest's goal and plan survive authentication.
 
 ### Step 3 surface (rebuilt 2026-07-26)
 
-Step 3 is the mockup layout and nothing else. In default view it shows, in
-order: the goal card, the numbered roadmap stepper, the first three days of the
-first week with a "전체 7일 보기" expander, one feasibility sentence, the
-primary CTA, and "조금 바꿀래요".
+Step 3 is the mockup layout and nothing else: the goal card, the numbered
+roadmap stepper, the first three days with a "전체 7일 보기" expander, one
+feasibility sentence, and a single primary CTA. Everything that merely
+*explains* the plan sits behind the collapsed "내 계획 자세히 보기" disclosure.
 
-Everything that adjusts the plan sits behind "조금 바꿀래요" (`#planAdjustPanel`):
-the first-week start preference (`[data-schedule-start]`, still fed to
-`/api/ai/goal-draft/claim`), the feasibility adjustments, and "올리와 계획
-조정하기". Everything that merely explains the plan sits behind the collapsed
-"내 계획 자세히 보기" disclosure.
+`#roadmapRevisionSummary` and `#aiPreviewStatus` stay in the main flow because
+they are *results*, not controls, and must survive a reload.
 
-Two things deliberately stay in the main flow because they are *results*, not
-controls, and must survive a reload: `#roadmapRevisionSummary` (proof that a
-requested change was applied) and `#aiPreviewStatus` (error and freshness
-messages).
+Removed at the owner's request: the step-2 quick-context chips (평일 20분 /
+수요일 제외 / 첫 달 가볍게). The same edit is still available by typing into
+`#currentContext`, which is what those chips wrote to.
 
-Removed in the same pass, at the owner's request: the step-2 quick-context
-chips (평일 20분 / 수요일 제외 / 첫 달 가볍게). The same edit is still available
-by typing into `#currentContext`, which is what those chips wrote to.
+### Where a plan gets adjusted
+
+**Onboarding does not offer plan adjustment.** The back button in the step-3
+header (`#draftAdjustButton`) returns to step 2 so the user can restate their
+conditions in their own words; that is the only edit path before login.
+Detailed scheduling changes belong to the app's natural-language adjustment
+after login.
+
+The button-based start preference (이대로 시작 / 요일 바꾸기 / 시간 줄이기) was
+removed from onboarding on 2026-07-26. Moving weekdays mechanically and
+truncating sessions to 15 minutes could not express a real constraint like
+"화요일은 야근이라 안 돼". `scheduleStartPreference` remains in the
+`/api/ai/goal-draft/claim` contract and `buildActivatedExecutionPlan`; onboarding
+now always sends the default `as-is`, so the `change-days` and `shorter`
+branches are currently unreachable from this flow.
+
+The one exception is a plan the AI itself judges unworkable
+(`feasibility.status` of `constrained` or `infeasible_as_requested`). There the
+adjustment options render inline inside the ⭐ card, because choosing one is a
+precondition for proceeding — `requiresAdjustmentBeforeClaim` locks the CTA
+until then. When the plan is feasible, `#draftFeasibilityOptions` renders empty
+and no adjustment UI exists on the screen at all.
+
+### Conditions come from step 2, not from hidden defaults
+
+The wizard has two `data-advanced` sections (materials, weekdays, session
+length, frequency, notification time) that it never shows. Their **default
+values were still being collected and sent to the AI**: 월·수·금, 25분, 주 3회,
+90일. A user who wrote "30일 동안 매일 자기 전 20분 독서하기" got a 월/수/금
+plan across 90 days, and the AI correctly reported it as `constrained` —
+the plan was not sloppy, our input was wrong.
+
+`applyAnalysisToConditions()` now writes the step-2 analysis
+(`analysis.goal`, `analysis.availableTime`, `analysis.currentState`) into those
+inputs before the preview request: cadence (매일 / 평일 / 주말 / 주 N회 / named
+weekdays), session minutes, and the goal period. Anything it cannot derive is
+left at the form default rather than guessed.
+
+`tests/e2e/onboarding.spec.js` → "2단계에서 정리한 조건이 숨은 기본값 대신 AI
+요청에 실린다" asserts the outgoing request body. The guard was checked by
+removing the fix and confirming it fails.
 
 ### Why this is worth recording
 

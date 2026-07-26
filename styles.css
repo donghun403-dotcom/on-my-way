@@ -7191,10 +7191,6 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   display: none;
 }
 
-.first-step-back {
-  display: none;
-}
-
 #firstStep {
   scroll-margin-top: 72px;
 }
@@ -7234,27 +7230,6 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 
 .home-page .story-flow.showing-first-step .preview-result-content {
   height: auto;
-}
-
-.home-page .story-flow.showing-first-step .first-step-back {
-  display: inline-flex;
-  z-index: 1;
-  width: fit-content;
-  align-items: center;
-  gap: 7px;
-  margin: 18px 24px 0;
-  padding: 9px 12px;
-  color: var(--blue-700);
-  background: rgba(255, 255, 255, 0.78);
-  border: 1px solid rgba(221, 226, 235, 0.92);
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 800;
-}
-
-.home-page .story-flow.showing-first-step .first-step-back:hover {
-  color: var(--blue-700);
-  background: #ffffff;
 }
 
 .app-plan-preview.is-ready {
@@ -13876,9 +13851,6 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .home-page .draft-day-items article span { display: grid; gap: 3px; min-width: 0; }
 .home-page .draft-day-items article strong { color: var(--blue-900); font-size: 12px; overflow-wrap: anywhere; }
 .home-page .draft-day-items article small { color: var(--blue-700); font-size: var(--text-2xs); line-height: 1.45; overflow-wrap: anywhere; }
-.home-page .draft-secondary-actions { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; padding: 2px 0; }
-.home-page .draft-secondary-actions button,
-.home-page .draft-secondary-actions a { display: inline-flex; min-height: 44px; align-items: center; color: var(--blue-700); background: transparent; border: 1px solid rgba(107,122,166,.16); border-radius: var(--r-sm); padding: 8px 12px; font: inherit; font-size: 11px; font-weight: 800; text-decoration: none; }
 .home-page .result-details-disclosure:not([hidden]) { position: relative; display: block; min-height: 68px; flex: none; }
 .home-page .result-details-disclosure > summary { position: relative; z-index: 2; background: rgba(255,255,255,.9); }
 
@@ -17594,23 +17566,6 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   font-size: clamp(17px, 2.2vw, 21px);
 }
 
-/* 헤더 안으로 들어온 뒤로는 옛 떠 있는 알약 스타일이 필요 없습니다. */
-.home-page .story-flow.showing-first-step .first-step-back {
-  display: grid;
-  width: 44px;
-  height: 44px;
-  flex: 0 0 44px;
-  place-items: center;
-  margin: 0;
-  padding: 0;
-  color: var(--ink-brand);
-  background: var(--surface-translucent);
-  border: 1px solid var(--border-default);
-  border-radius: var(--r-sm);
-  font-size: var(--text-lg);
-  font-weight: 400;
-}
-
 .home-page .plan-result-status {
   display: flex;
   align-items: baseline;
@@ -17905,27 +17860,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 
 .plan-result-cta > a > b { font-size: 17px; font-weight: 400; }
 
-.plan-adjust-toggle {
-  min-height: 52px;
-  padding: 0 var(--space-4);
-  color: var(--ink-secondary);
-  background: var(--surface);
-  border: 1px solid var(--border-default);
-  border-radius: var(--r-lg);
-  font: inherit;
-  font-size: var(--text-md);
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.plan-adjust-toggle:hover {
-  color: var(--ink-brand);
-  background: var(--surface-brand-soft);
-  border-color: var(--border-brand);
-}
-
 .plan-result-cta > a:focus-visible,
-.plan-adjust-toggle:focus-visible,
 .plan-week-more:focus-visible {
   outline: 3px solid var(--brand-solid);
   outline-offset: 2px;
@@ -17939,90 +17874,6 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   font-size: var(--text-2xs);
   line-height: 1.5;
   text-align: center;
-}
-
-/* --- 조정 패널 --- */
-.plan-adjust-panel {
-  display: grid;
-  gap: var(--space-4);
-  padding: var(--space-4);
-  background: var(--surface-sunken);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--r-md);
-}
-
-.plan-adjust-panel[hidden] { display: none; }
-
-.plan-adjust-panel .schedule-start-options {
-  display: grid;
-  gap: var(--space-3);
-  margin: 0;
-  padding: 0;
-  background: none;
-  border: 0;
-}
-
-.plan-adjust-panel .schedule-start-options > strong {
-  color: var(--ink);
-  font-size: var(--text-sm);
-}
-
-.plan-adjust-panel .schedule-start-options > div {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.plan-adjust-panel .schedule-start-options button {
-  min-height: 44px;
-  flex: 1 1 auto;
-  padding: 0 var(--space-4);
-  color: var(--ink-secondary);
-  background: var(--surface);
-  border: 1px solid var(--border-default);
-  border-radius: var(--r-pill);
-  font: inherit;
-  font-size: var(--text-sm);
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.plan-adjust-panel .schedule-start-options button[aria-pressed="true"] {
-  color: var(--ink-brand);
-  background: var(--surface-brand-soft);
-  border-color: var(--border-brand);
-  font-weight: 800;
-}
-
-.plan-feasibility-options {
-  display: grid;
-  gap: var(--space-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.plan-feasibility-options:empty { display: none; }
-
-.plan-feasibility-options button {
-  width: 100%;
-  min-height: 44px;
-  padding: var(--space-2) var(--space-4);
-  color: var(--ink-secondary);
-  background: var(--surface);
-  border: 1px solid var(--border-default);
-  border-radius: var(--r-sm);
-  font: inherit;
-  font-size: var(--text-sm);
-  text-align: left;
-  cursor: pointer;
-}
-
-.plan-feasibility-options button[aria-pressed="true"] {
-  color: var(--ink-brand);
-  background: var(--surface-brand-soft);
-  border-color: var(--border-brand);
-  font-weight: 700;
 }
 
 @media (max-width: 360px) {
@@ -18076,11 +17927,6 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   line-height: 1.3;
 }
 
-.plan-feasibility-options > li {
-  color: var(--ink-secondary);
-  font-size: var(--text-sm);
-  line-height: 1.5;
-}
 
 /* ============================================================
    위저드 보조 컨트롤도 같은 포괄 규칙에 먹히고 있었습니다.
@@ -18143,3 +17989,95 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   .home-page .personality-form .analysis-question-controls > button { flex: 0 1 auto; }
   .home-page .personality-form .analysis-question-controls > input[type="date"] { flex: 1 1 100%; }
 }
+
+/* ============================================================
+   3단계 조정 경로 정리
+   기본(계획이 현실적인) 화면에는 조정 UI를 두지 않습니다. 뒤로가기가
+   곧 "말로 고치기" 경로이고, 세부 조정은 로그인 후 앱의 자연어 조정에
+   맡깁니다. 조정안은 AI가 "지금 조건으로는 무리"라고 판단한 경우에만
+   ⭐ 카드 안에 바로 펼쳐집니다 — 그때는 선택이 진행의 전제 조건이라
+   접어두면 안 됩니다.
+   ============================================================ */
+.plan-feasibility-options {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.plan-feasibility-options:empty { display: none; }
+
+.plan-feasibility-options > li {
+  color: var(--ink-secondary);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.plan-feasibility-options button {
+  width: 100%;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-4);
+  color: var(--ink-secondary);
+  background: var(--surface);
+  border: 1px solid var(--amber-300);
+  border-radius: var(--r-sm);
+  font: inherit;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  text-align: left;
+  cursor: pointer;
+}
+
+.plan-feasibility-options button:hover {
+  color: var(--ink-brand);
+  background: var(--surface-brand-soft);
+  border-color: var(--border-brand);
+}
+
+.plan-feasibility-options button[aria-pressed="true"] {
+  color: var(--ink-brand);
+  background: var(--surface-brand-soft);
+  border-color: var(--border-brand);
+  font-weight: 700;
+}
+
+.plan-feasibility-options button:focus-visible {
+  outline: 3px solid var(--brand-solid);
+  outline-offset: 2px;
+}
+
+/* --- 잠긴 로드맵 --- */
+.plan-roadmap-card[data-locked] { background: var(--surface-sunken); }
+
+.plan-roadmap-locked {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-5) var(--space-3);
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  text-align: center;
+}
+
+.plan-roadmap-locked[hidden] { display: none; }
+
+/* --- 수정 내용 버리기 --- */
+.plan-discard-changes {
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  color: var(--ink-muted);
+  background: none;
+  border: 0;
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.plan-discard-changes:hover { color: var(--ink-brand); text-decoration: underline; }
+
+.plan-discard-changes[hidden] { display: none; }
