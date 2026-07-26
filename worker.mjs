@@ -487,7 +487,9 @@ async function handleGuestGoalAnalysis({ request, env }) {
     }
   }
 
-  const model = env.OPENAI_MODEL || "gpt-5.4-mini";
+  // 분석 호출만 상위 모델을 쓴다. mini는 긴 자유 서술에서 조건 추출이 흔들렸고
+  // (Staging 프로브 5회 중 2회 오독·누락), conditions는 계획 입력으로 직결된다.
+  const model = env.OPENAI_ANALYZE_MODEL || env.OPENAI_MODEL || "gpt-5.4-mini";
   const aiStartedAt = Date.now();
   try {
     const { analysis } = await createGoalAnalysis({ goalText: requestBody?.goalText }, {
