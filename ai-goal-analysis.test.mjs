@@ -115,6 +115,42 @@ test("조건이 아예 없어도(구버전 응답) 빈 조건으로 계약을 �
   assert.deepEqual(withConditions.conditions, { availableDays: ["월", "수", "금"], sessionMinutes: 30, weeklyFrequency: 3, periodDays: 90 });
 });
 
+test("원문에 명시된 요일·시간·기간은 모델이 빠뜨려도 원문이 이긴다", async () => {
+  const { reconcileConditionsWithGoalText } = await import("./ai-goal-analysis.mjs");
+  // Staging에서 실제 관측된 실패: 목 누락, "두 달" → 30일
+  const repaired = reconcileConditionsWithGoalText(
+    { availableDays: ["화"], sessionMinutes: 30, weeklyFrequency: 1, periodDays: 30 },
+    "잠들기 전에 꾸준히 책 읽는 사람이 되고 싶어요. 화요일이랑 목요일 밤에 한 시간 정도는 낼 수 있을 것 같아요. 두 달 정도 해보고 싶습니다.",
+  );
+  assert.deepEqual(repaired.availableDays, ["화", "목"]);
+  assert.equal(repaired.sessionMinutes, 60);
+  assert.equal(repaired.weeklyFrequency, 2);
+  assert.equal(repaired.periodDays, 60);
+
+  // 부정 표현: 언급됐어도 "안 되는" 요일은 넣지 않고, 모델이 넣었으면 뺀다
+  const negated = reconcileConditionsWithGoalText(
+    { availableDays: ["월", "수"], sessionMinutes: 0, weeklyFrequency: 2, periodDays: 0 },
+    "월요일과 금요일에 할 수 있어요. 수요일은 안 돼요.",
+  );
+  assert.deepEqual(negated.availableDays, ["월", "금"]);
+
+  // 원문에 없는 조건은 건드리지 않는다
+  const untouched = reconcileConditionsWithGoalText(
+    { availableDays: [], sessionMinutes: 0, weeklyFrequency: 0, periodDays: 0 },
+    "그냥 꾸준히 하고 싶어요.",
+  );
+  assert.deepEqual(untouched, { availableDays: [], sessionMinutes: 0, weeklyFrequency: 0, periodDays: 0 });
+
+  // 매일 + 숫자 기간 + 분 단위
+  const daily = reconcileConditionsWithGoalText(
+    { availableDays: ["월", "수", "금"], sessionMinutes: 25, weeklyFrequency: 3, periodDays: 90 },
+    "30일 동안 매일 자기 전 20분 독서하기",
+  );
+  assert.equal(daily.availableDays.length, 7);
+  assert.equal(daily.sessionMinutes, 20);
+  assert.equal(daily.periodDays, 30);
+});
+
 test("목표를 이해하지 못하면 성공으로 처리하지 않는다", () => {
   assert.throws(() => normalizeGoalAnalysis({ goal: "  ", questions: [] }), /목표를 이해하지 못했어요/);
 });

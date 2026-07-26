@@ -128,6 +128,64 @@ export function normalizeConditions(raw) {
   };
 }
 
+const SPELLED_COUNTS = { "한": 1, "두": 2, "세": 3, "석": 3, "네": 4, "넉": 4, "다섯": 5, "여섯": 6, "일곱": 7 };
+const NEGATION_NEAR_DAY = /안\s|않|없|빼|제외|어렵|힘들|말고|불가|쉬/;
+
+function spelledOrNumber(token) {
+  return SPELLED_COUNTS[token] ?? (Number(token) || 0);
+}
+
+// 모델이 뽑은 조건을 사용자 원문과 대조해 결정론적으로 교정한다.
+// gpt-5.4로 올려도 "화요일이랑 목요일"에서 목을 빠뜨리거나 "두 달"을 30일로
+// 읽는 일이 관측됐다(Staging 프로브). 원문에 명시된 요일·시간·기간은 모델이
+// 아니라 이 함수가 최종 결정한다. 원문에 없는 것은 건드리지 않는다.
+export function reconcileConditionsWithGoalText(conditions, goalText) {
+  const text = String(goalText || "");
+  const result = { ...conditions, availableDays: [...(conditions.availableDays || [])] };
+
+  if (/매일|날마다|하루도\s*빠짐없이/.test(text)) {
+    result.availableDays = [...WEEKDAY_LABELS];
+  } else {
+    for (const day of WEEKDAY_LABELS) {
+      // 요일 언급 뒤 한 절(최대 12자) 안에 부정 표현이 있으면 "그 요일은 안 됨"으로 읽는다.
+      const mention = text.match(new RegExp(`${day}요일[^.。!?\n]{0,12}`));
+      if (!mention) continue;
+      const negated = NEGATION_NEAR_DAY.test(mention[0]);
+      const included = result.availableDays.includes(day);
+      if (!negated && !included) result.availableDays.push(day);
+      if (negated && included) result.availableDays = result.availableDays.filter((item) => item !== day);
+    }
+    result.availableDays = WEEKDAY_LABELS.filter((day) => result.availableDays.includes(day));
+  }
+
+  const hourMatch = text.match(/([0-9]+|한|두|세|네)\s*시간(\s*반)?/);
+  const minuteMatch = text.match(/([0-9]+)\s*분/);
+  if (hourMatch) {
+    const hours = spelledOrNumber(hourMatch[1]);
+    if (hours) result.sessionMinutes = hours * 60 + (hourMatch[2] ? 30 : 0);
+  } else if (minuteMatch) {
+    result.sessionMinutes = Number(minuteMatch[1]);
+  }
+
+  const frequencyMatch = text.match(/주(?:에)?\s*([0-9]|한|두|세|네|다섯|여섯|일곱)\s*(?:회|번)/);
+  if (frequencyMatch) {
+    result.weeklyFrequency = spelledOrNumber(frequencyMatch[1]);
+  } else if (result.availableDays.length && result.weeklyFrequency < result.availableDays.length) {
+    result.weeklyFrequency = result.availableDays.length;
+  }
+
+  const monthMatch = text.match(/([0-9]+|한|두|세|석|네|넉)\s*(?:개월|달)/);
+  const weekMatch = text.match(/([0-9]+|한|두|세|네)\s*주(?:일)?\s*(?:동안|간|안에|내|정도)/);
+  const dayCountMatch = text.match(/([0-9]+)\s*일\s*(?:동안|간|안에|내)/);
+  if (/반\s*년/.test(text)) result.periodDays = 180;
+  else if (/[1일한]\s*년/.test(text)) result.periodDays = 365;
+  else if (monthMatch) result.periodDays = spelledOrNumber(monthMatch[1]) * 30 || result.periodDays;
+  else if (weekMatch) result.periodDays = spelledOrNumber(weekMatch[1]) * 7 || result.periodDays;
+  else if (dayCountMatch) result.periodDays = Number(dayCountMatch[1]) || result.periodDays;
+
+  return result;
+}
+
 export function normalizeGoalAnalysis(parsed) {
   const goal = cleanText(parsed?.goal, 200);
   if (!goal) {
@@ -242,6 +300,8 @@ export async function createGoalAnalysis(input, { apiKey, model = "gpt-5.4-mini"
   let analysis;
   try {
     analysis = normalizeGoalAnalysis(JSON.parse(outputText));
+    // 원문에 명시된 조건은 모델 출력보다 원문이 이긴다. 교정 후 다시 클램프.
+    analysis.conditions = normalizeConditions(reconcileConditionsWithGoalText(analysis.conditions, goalText));
   } catch (error) {
     error.status = error.status || 502;
     error.providerUsage = providerUsage;
