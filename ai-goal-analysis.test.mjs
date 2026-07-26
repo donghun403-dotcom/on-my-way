@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   TARGET_DATE_QUESTION_ID,
   createGoalAnalysis,
+  normalizeConditions,
   normalizeGoalAnalysis,
 } from "./ai-goal-analysis.mjs";
 
@@ -72,6 +73,46 @@ test("확인 질문은 최대 3개까지만 남긴다", () => {
   }));
   const result = normalizeGoalAnalysis(analysisPayload({ questions: many }));
   assert.ok(result.questions.length <= 3);
+});
+
+test("구조화된 조건을 그대로 반환하고 범위를 벗어난 값은 자른다", () => {
+  const result = normalizeConditions({
+    availableDays: ["월", "화", "수", "목", "금", "토", "일"],
+    sessionMinutes: 20,
+    weeklyFrequency: 7,
+    periodDays: 30,
+  });
+  assert.deepEqual(result, {
+    availableDays: ["월", "화", "수", "목", "금", "토", "일"],
+    sessionMinutes: 20,
+    weeklyFrequency: 7,
+    periodDays: 30,
+  });
+
+  const clamped = normalizeConditions({ availableDays: ["화"], sessionMinutes: 999, weeklyFrequency: 12, periodDays: 9000 });
+  assert.equal(clamped.sessionMinutes, 180);
+  assert.equal(clamped.weeklyFrequency, 7);
+  assert.equal(clamped.periodDays, 730);
+});
+
+test("요일이 아닌 값은 버리고 순서는 월~일로 정규화한다", () => {
+  const result = normalizeConditions({ availableDays: ["일", "monday", "월", "밤", "수"], sessionMinutes: 0, weeklyFrequency: 0, periodDays: 0 });
+  assert.deepEqual(result.availableDays, ["월", "수", "일"]);
+});
+
+test("횟수를 말하지 않았으면 나열한 요일 수가 주당 횟수다", () => {
+  const result = normalizeConditions({ availableDays: ["화", "목"], sessionMinutes: 45, weeklyFrequency: 0, periodDays: 0 });
+  assert.equal(result.weeklyFrequency, 2);
+});
+
+test("조건이 아예 없어도(구버전 응답) 빈 조건으로 계약을 지킨다", () => {
+  const result = normalizeGoalAnalysis(analysisPayload());
+  assert.deepEqual(result.conditions, { availableDays: [], sessionMinutes: 0, weeklyFrequency: 0, periodDays: 0 });
+
+  const withConditions = normalizeGoalAnalysis(analysisPayload({
+    conditions: { availableDays: ["월", "수", "금"], sessionMinutes: 30, weeklyFrequency: 3, periodDays: 90 },
+  }));
+  assert.deepEqual(withConditions.conditions, { availableDays: ["월", "수", "금"], sessionMinutes: 30, weeklyFrequency: 3, periodDays: 90 });
 });
 
 test("목표를 이해하지 못하면 성공으로 처리하지 않는다", () => {

@@ -591,6 +591,51 @@ test("2단계에서 정리한 조건이 숨은 기본값 대신 AI 요청에 실
   expect(previewBody.periodDays).toBe(30);
 });
 
+// goal-analyze가 구조화한 conditions는 정규식 도출보다 우선한다. 목표 문장에
+// 패턴("매일", "N분")이 전혀 없어도 서버가 이해한 조건이 계획 요청에 실려야 한다.
+test("goal-analyze의 구조화된 conditions가 정규식 도출보다 우선한다", async ({ page }) => {
+  await mockAccountExperience(page);
+  let previewBody = null;
+  await page.route("**/api/ai/goal-analyze", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ ok: true, analysis: {
+      goal: "두 달 안에 밤에 책 읽는 습관 만들기",
+      currentState: [],
+      availableTime: ["화요일과 목요일 밤"],
+      conditions: { availableDays: ["화", "목"], sessionMinutes: 45, weeklyFrequency: 2, periodDays: 60 },
+      questions: [{ id: "startDate", question: "언제부터 시작할까요?", type: "date", options: [], defaultValue: "" }],
+    } }),
+  }));
+  await page.route("**/api/ai/goal-preview", (route) => {
+    previewBody = route.request().postDataJSON();
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        cached: false,
+        draftPlanId: "e2e-structured-conditions",
+        preview: guestPreviewPlan(),
+        activeInput: { goal: "두 달 안에 밤에 책 읽는 습관 만들기" },
+        activeInputHash: "b".repeat(64),
+        activeRevision: 1,
+      }),
+    });
+  });
+
+  await page.goto("/index.html#designFlow");
+  await waitForBootstrap(page);
+  await submitGoalStory(page, "잠들기 전에 꾸준히 책을 읽는 사람이 되고 싶어요");
+  await page.locator("#aiPreviewButton").click();
+  await expect.poll(() => previewBody).not.toBeNull();
+
+  expect(previewBody.availability.availableDays).toEqual(["화", "목"]);
+  expect(previewBody.availability.weeklyFrequency).toBe(2);
+  expect(previewBody.availability.sessionMinutes).toBe(45);
+  expect(previewBody.periodDays).toBe(90);
+});
+
 test("목표 카테고리는 예시만 제안하고 사용자의 명시적 확인 전에는 진행하지 않는다", async ({ page }) => {
   const diagnostics = monitorPage(page);
   await mockAccountExperience(page);

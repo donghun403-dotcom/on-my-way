@@ -81,15 +81,27 @@ values were still being collected and sent to the AI**: 월·수·금, 25분, �
 plan across 90 days, and the AI correctly reported it as `constrained` —
 the plan was not sloppy, our input was wrong.
 
-`applyAnalysisToConditions()` now writes the step-2 analysis
-(`analysis.goal`, `analysis.availableTime`, `analysis.currentState`) into those
-inputs before the preview request: cadence (매일 / 평일 / 주말 / 주 N회 / named
-weekdays), session minutes, and the goal period. Anything it cannot derive is
-left at the form default rather than guessed.
+`/api/ai/goal-analyze` now returns a structured `conditions` object alongside
+the prose summary: `{ availableDays, sessionMinutes, weeklyFrequency,
+periodDays }`. The model is instructed to leave anything the user did not say
+as 0 / empty — "not stated" is part of the contract, not a guess.
+`normalizeConditions()` (ai-goal-analysis.mjs) treats the model output as
+untrusted: only real weekday labels survive, numbers are clamped to the form's
+own limits (5–180분, 주 1–7회, 1–730일), and a missing `conditions` (older
+cached responses) degrades to all-empty instead of failing.
 
-`tests/e2e/onboarding.spec.js` → "2단계에서 정리한 조건이 숨은 기본값 대신 AI
-요청에 실린다" asserts the outgoing request body. The guard was checked by
-removing the fix and confirming it fails.
+`applyAnalysisToConditions()` (script.js) writes these into the hidden inputs
+before the preview request. Server conditions win; the regex derivation over
+`analysis.goal`/`availableTime` (매일 / 평일 / 주말 / 주 N회 / named weekdays /
+N분 / N일) remains only as a per-field fallback. Anything neither source can
+fill stays at the form default rather than being guessed.
+
+Two guards in `tests/e2e/onboarding.spec.js` assert the outgoing preview
+request body: "2단계에서 정리한 조건이 숨은 기본값 대신 AI 요청에 실린다"
+(regex fallback path) and "goal-analyze의 구조화된 conditions가 정규식 도출보다
+우선한다" (a goal with no derivable pattern at all, carried purely by the
+server's `conditions`). Both were checked by reverting their fix and confirming
+they fail.
 
 ### Why this is worth recording
 

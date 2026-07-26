@@ -6,15 +6,32 @@ import { fetchAiResponse } from "./ai-request.mjs";
 const MAX_GOAL_TEXT = 1000;
 const MAX_QUESTIONS = 3;
 const QUESTION_TYPES = ["date", "choice"];
+const WEEKDAY_LABELS = ["월", "화", "수", "목", "금", "토", "일"];
+
+// 사용자가 말한 실행 조건을 계획 입력이 바로 쓸 수 있는 형태로 받는다.
+// "말하지 않음"은 0/빈 배열 — 모델이 지어내지 못하게 하는 규약이다.
+// (클라이언트는 이 값을 availability 입력에 반영하고, 없으면 폼 기본값을 쓴다.)
+const CONDITIONS_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["availableDays", "sessionMinutes", "weeklyFrequency", "periodDays"],
+  properties: {
+    availableDays: { type: "array", items: { type: "string", enum: WEEKDAY_LABELS } },
+    sessionMinutes: { type: "integer" },
+    weeklyFrequency: { type: "integer" },
+    periodDays: { type: "integer" },
+  },
+};
 
 const ANALYSIS_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["goal", "currentState", "availableTime", "questions"],
+  required: ["goal", "currentState", "availableTime", "questions", "conditions"],
   properties: {
     goal: { type: "string" },
     currentState: { type: "array", items: { type: "string" } },
     availableTime: { type: "array", items: { type: "string" } },
+    conditions: CONDITIONS_SCHEMA,
     questions: {
       type: "array",
       items: {
@@ -88,6 +105,29 @@ function withTargetDateQuestion(questions) {
   ].slice(0, MAX_QUESTIONS);
 }
 
+function clampInt(value, min, max) {
+  const parsed = Math.round(Number(value));
+  if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+  return Math.min(max, Math.max(min, parsed));
+}
+
+// 모델 출력은 신뢰 경계 밖이다. 요일은 실제 요일만, 숫자는 실행 가능한
+// 범위로 자르고, 조건이 아예 없어도(구버전 응답·파싱 실패) 계약을 지킨다.
+export function normalizeConditions(raw) {
+  const days = Array.isArray(raw?.availableDays)
+    ? WEEKDAY_LABELS.filter((day) => raw.availableDays.includes(day))
+    : [];
+  const weeklyFrequency = clampInt(raw?.weeklyFrequency, 1, 7);
+  return {
+    availableDays: days,
+    // 폼 입력과 같은 한계(5~180분). 0은 "말하지 않음"으로 통과시킨다.
+    sessionMinutes: clampInt(raw?.sessionMinutes, 5, 180),
+    // 요일을 나열했는데 횟수를 안 말했으면 요일 수가 곧 주당 횟수다.
+    weeklyFrequency: weeklyFrequency || days.length,
+    periodDays: clampInt(raw?.periodDays, 1, 730),
+  };
+}
+
 export function normalizeGoalAnalysis(parsed) {
   const goal = cleanText(parsed?.goal, 200);
   if (!goal) {
@@ -103,6 +143,7 @@ export function normalizeGoalAnalysis(parsed) {
     goal,
     currentState: cleanList(parsed?.currentState, 4, 120),
     availableTime: cleanList(parsed?.availableTime, 4, 120),
+    conditions: normalizeConditions(parsed?.conditions),
     questions: withTargetDateQuestion(questions),
   };
 }
@@ -140,6 +181,11 @@ export async function createGoalAnalysis(input, { apiKey, model = "gpt-5.4-mini"
           "currentState: 사용자가 밝힌 현재 상황을 짧은 항목으로 최대 4개. 없으면 빈 배열.",
           "availableTime: 사용자가 밝힌 가능한 시간을 짧은 항목으로 최대 4개. 없으면 빈 배열.",
           "사용자가 적지 않은 내용을 지어내지 마세요. 추측은 currentState나 availableTime에 넣지 않습니다.",
+          "conditions: 사용자가 말한 실행 조건을 구조화해서 담으세요. 말하지 않은 항목은 0 또는 빈 배열로 두세요.",
+          "conditions.availableDays: 실행 가능한 요일. '매일'이면 7개 전부, '평일'이면 월~금, '주말'이면 토·일, 특정 요일을 말했으면 그 요일만. 말하지 않았으면 빈 배열.",
+          "conditions.sessionMinutes: 한 번에 실행할 분 단위 시간(예: '하루 20분' → 20, '1시간' → 60). 말하지 않았으면 0.",
+          "conditions.weeklyFrequency: 주당 실행 횟수(예: '주 3회' → 3, '매일' → 7). 말하지 않았으면 0.",
+          "conditions.periodDays: 목표 기간을 일수로(예: '30일 동안' → 30, '3개월' → 90, '10월 말까지'처럼 날짜만 있으면 0). 말하지 않았으면 0.",
           "questions: 계획을 만들기 위해 꼭 필요한데 아직 모르는 것만 최대 3개. 이미 답이 있으면 묻지 마세요.",
           "질문 type은 날짜가 필요하면 'date', 선택지가 있으면 'choice'입니다.",
           "choice 질문은 서로 겹치지 않는 선택지를 2~4개 제시하세요(예: 가능해요 / 어려워요 / 상황에 따라 달라요).",

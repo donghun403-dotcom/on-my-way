@@ -2930,21 +2930,32 @@ function deriveConditionsFromAnalysis(analysis) {
 }
 
 function applyAnalysisToConditions(analysis) {
+  // 서버(goal-analyze)가 구조화해 준 조건이 1순위다. 정규식 도출은 서버가
+  // 채우지 못한 필드(구버전 응답·모델이 놓친 표현)만 메우는 폴백이다.
   const derived = deriveConditionsFromAnalysis(analysis);
-  if (derived.days?.length && availableDayInputs?.length) {
-    availableDayInputs.forEach((input) => { input.checked = derived.days.includes(input.value); });
+  const server = analysis?.conditions && typeof analysis.conditions === "object" ? analysis.conditions : {};
+  const serverDays = Array.isArray(server.availableDays)
+    ? WEEKDAY_LABELS.filter((day) => server.availableDays.includes(day))
+    : [];
+  const days = serverDays.length ? serverDays : derived.days;
+  const frequency = Number(server.weeklyFrequency) || derived.frequency || (days?.length || 0);
+  const sessionMinutes = Number(server.sessionMinutes) || derived.sessionMinutes;
+  const periodDays = Number(server.periodDays) || derived.periodDays;
+
+  if (days?.length && availableDayInputs?.length) {
+    availableDayInputs.forEach((input) => { input.checked = days.includes(input.value); });
   }
-  if (derived.frequency && weeklyFrequencyInput) {
+  if (frequency && weeklyFrequencyInput) {
     const options = [...weeklyFrequencyInput.options].map((option) => Number(option.value)).filter(Boolean);
-    const match = options.find((value) => value >= derived.frequency) || options.at(-1);
+    const match = options.find((value) => value >= frequency) || options.at(-1);
     if (match) weeklyFrequencyInput.value = String(match);
   }
-  if (derived.sessionMinutes && sessionMinutesInput) {
-    sessionMinutesInput.value = String(Math.min(180, Math.max(5, derived.sessionMinutes)));
+  if (sessionMinutes && sessionMinutesInput) {
+    sessionMinutesInput.value = String(Math.min(180, Math.max(5, sessionMinutes)));
   }
-  if (derived.periodDays && goalPeriodInput) {
+  if (periodDays && goalPeriodInput) {
     const options = [...goalPeriodInput.options].map((option) => Number(option.value)).filter(Boolean);
-    const match = options.find((value) => value >= derived.periodDays) || options.at(-1);
+    const match = options.find((value) => value >= periodDays) || options.at(-1);
     if (match) goalPeriodInput.value = String(match);
   }
 }

@@ -8,6 +8,15 @@
 
 ## 최신 검증
 
+### goal-analyze가 구조화된 조건을 반환 (2026-07-26)
+
+- 기준 worktree: `.worktrees/plan-experience-overhaul`, 브랜치 `codex/ollie-core-loop-production`
+- `/api/ai/goal-analyze` 응답에 `conditions: { availableDays, sessionMinutes, weeklyFrequency, periodDays }`를 추가했다. 모델 지시: **말하지 않은 항목은 0/빈 배열** — "말하지 않음"이 계약의 일부다.
+- `normalizeConditions()`가 모델 출력을 신뢰 경계 밖으로 취급한다: 실제 요일만 통과(월~일 순서로 정규화), 폼 입력과 같은 한계로 클램프(5~180분·주 1~7회·1~730일), 요일만 나열하고 횟수를 안 말했으면 요일 수 = 주당 횟수, `conditions` 자체가 없으면(구버전 응답) 빈 조건으로 강등.
+- 클라이언트 우선순위: 서버 conditions > 정규식 도출(폴백) > 폼 기본값. 정규식이 못 잡는 자유 표현("잠들기 전에 꾸준히 책을 읽는 사람이 되고 싶어요" + 화·목 45분)도 이제 계획 요청에 실린다.
+- 회귀 가드 2종 모두 수정을 되돌려 **실패 확인**: 숨은 기본값 가드(기존), 서버 conditions 우선 가드(신규 — 목표 문장에 도출 가능한 패턴이 전혀 없는 케이스).
+- 검증: 유닛 282/282(신규 4), desktop+responsive 149 passed / 1 skipped, iphone-webkit 13개 파일 133 passed / 0 failed.
+
 ### 온보딩 조건 전달 버그와 조정 경로 정리 (2026-07-26)
 
 - 기준 worktree: `.worktrees/plan-experience-overhaul`, 브랜치 `codex/ollie-core-loop-production`
