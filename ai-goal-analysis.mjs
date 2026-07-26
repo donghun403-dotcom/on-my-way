@@ -173,7 +173,9 @@ export async function createGoalAnalysis(input, { apiKey, model = "gpt-5.4-mini"
       body: JSON.stringify({
         model,
         store: false,
-        reasoning: { effort: "low" },
+        // low에서는 긴 자유 서술의 조건 추출이 흔들렸다(화·목 → 평일 일반화,
+        // "1시간" → 30분 오독). conditions가 계획 입력으로 직결되므로 medium.
+        reasoning: { effort: "medium" },
         instructions: [
           "당신은 목표 실행을 돕는 다정한 목표 메이트 '올리'입니다.",
           "사용자가 자유롭게 적은 목표 이야기를 읽고, 계획을 만들기 전에 이해한 내용을 정리하세요.",
@@ -193,7 +195,9 @@ export async function createGoalAnalysis(input, { apiKey, model = "gpt-5.4-mini"
           "일정표나 주차별 계획은 이 단계에서 만들지 마세요.",
         ].join("\n"),
         input: `사용자가 적은 목표 이야기:\n${goalText}`,
-        max_output_tokens: 900,
+        // reasoning 토큰이 이 한도를 함께 쓴다. medium으로 올리면서 900이면
+        // 본문 JSON이 잘릴 수 있어 여유를 둔다.
+        max_output_tokens: 2000,
         text: {
           verbosity: "low",
           format: {
