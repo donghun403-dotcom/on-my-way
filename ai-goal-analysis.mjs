@@ -255,9 +255,10 @@ export async function createGoalAnalysis(input, { apiKey, model = "gpt-5.4-mini"
           "일정표나 주차별 계획은 이 단계에서 만들지 마세요.",
         ].join("\n"),
         input: `사용자가 적은 목표 이야기:\n${goalText}`,
-        // reasoning 토큰이 이 한도를 함께 쓴다. medium에서 2000으로도 출력이
-        // 비는 사례가 실측됐다(Staging 프로브 5회 중 1회).
-        max_output_tokens: 3000,
+        // reasoning 토큰이 이 한도를 함께 쓴다. gpt-5.4 medium은 3000에서도
+        // reasoning이 한도를 다 태워 본문이 빈 채 잘리는 사례가 연속 관측됐다
+        // (Staging 프로브 — "올리가 정리한 내용을 확인하지 못했어요" 4연속).
+        max_output_tokens: 8000,
         text: {
           verbosity: "low",
           format: {
