@@ -14,6 +14,12 @@ const diagnosisNextButton = document.querySelector("#diagnosisNextButton");
 const diagnosisStepTitle = document.querySelector("#diagnosisStepTitle");
 const diagnosisStepCount = document.querySelector("#diagnosisStepCount");
 const diagnosisProgressBar = document.querySelector("#diagnosisProgressBar");
+const goalAnalyzeButton = document.querySelector("#goalAnalyzeButton");
+const goalStoryCount = document.querySelector("#goalStoryCount");
+const analysisUnderstanding = document.querySelector("#analysisUnderstanding");
+const analysisQuestions = document.querySelector("#analysisQuestions");
+const analysisQuestionList = document.querySelector("#analysisQuestionList");
+const analysisEditGoalButton = document.querySelector("#analysisEditGoalButton");
 const wizardStepLabel = document.querySelector("#wizardStepLabel");
 const wizardProgressValue = document.querySelector("#wizardProgressValue");
 const wizardLiveGoal = document.querySelector("#wizardLiveGoal");
@@ -2644,6 +2650,8 @@ function updateGoalStepState() {
   const hasGoal = Boolean(designGoal.value.trim());
   if (diagnosisNextButton && diagnosisStepIndex === 0) diagnosisNextButton.disabled = !hasGoal;
   if (aiPreviewButton && diagnosisSteps.length === 1) aiPreviewButton.disabled = !hasGoal;
+  // 1단계 CTA도 목표 이야기를 적기 전에는 진행할 수 없다.
+  if (goalAnalyzeButton) goalAnalyzeButton.disabled = !hasGoal;
   if (goalValidationMessage) {
     goalValidationMessage.textContent = !hasGoal
       ? "달성하고 싶은 결과를 입력해 주세요."
@@ -2808,19 +2816,18 @@ function renderDiagnosisStep() {
   const activeStep = diagnosisSteps[diagnosisStepIndex];
   if (diagnosisStepTitle) diagnosisStepTitle.textContent = activeStep?.dataset.stepTitle || "목표를 설정해 주세요";
   if (diagnosisStepCount) {
-    diagnosisStepCount.textContent = diagnosisSteps.length === 1
-      ? "목표 · 기간"
-      : `${diagnosisStepIndex + 1} / ${diagnosisSteps.length}`;
+    // 온보딩은 입력 단계들 + 마지막 '1차 계획 보기' 화면으로 구성된다.
+    diagnosisStepCount.textContent = `${diagnosisStepIndex + 1}/${diagnosisSteps.length + 1}`;
   }
   if (diagnosisProgressBar) diagnosisProgressBar.style.width = `${progress}%`;
   if (wizardStepLabel) wizardStepLabel.textContent = wizardStepLabels[diagnosisStepIndex] || "설정 중";
   if (wizardProgressValue) wizardProgressValue.textContent = `${progress}%`;
 
   if (diagnosisBackButton) diagnosisBackButton.hidden = diagnosisStepIndex === 0;
-  if (diagnosisNextButton) diagnosisNextButton.hidden = diagnosisStepIndex === diagnosisSteps.length - 1;
-  if (diagnosisNextButton) diagnosisNextButton.textContent = diagnosisStepIndex === 0 ? "다음: 자료와 일정 알려주기" : "다음: 계획 초안 확인하기";
+  // 각 단계는 자기 CTA(1단계 분석 요청 / 2단계 계획 생성)로만 진행한다.
+  if (diagnosisNextButton) diagnosisNextButton.hidden = true;
+  if (goalAnalyzeButton) goalAnalyzeButton.hidden = diagnosisStepIndex !== 0;
   if (aiPreviewButton) aiPreviewButton.hidden = diagnosisStepIndex !== diagnosisSteps.length - 1;
-  if (diagnosisStepIndex !== 0 && diagnosisNextButton) diagnosisNextButton.disabled = false;
   updateGoalStepState();
   updateWizardSummary();
 }
@@ -2862,6 +2869,190 @@ function queueDiagnosisAutoAdvance(delay = 1100) {
   if (diagnosisStepIndex >= diagnosisSteps.length - 1) return;
   diagnosisAutoAdvanceTimer = window.setTimeout(() => advanceDiagnosisStep({ auto: true }), delay);
 }
+
+// ===== 온보딩 1단계(자연어 이야기) → 2단계(올리가 정리한 이해 확인) =====
+const ANALYSIS_NOTE_PREFIX = "확인한 조건:";
+const analysisAnswers = new Map();
+let goalAnalysisPending = false;
+
+function syncGoalStoryCounter() {
+  if (goalStoryCount && designGoal) goalStoryCount.textContent = String(designGoal.value.length);
+}
+
+// 확인 질문 답변은 사용자가 직접 적은 내용을 덮지 않도록 관리 블록으로만 유지한다.
+function syncAnalysisAnswerNote() {
+  if (!currentContextInput) return;
+  const answers = [...analysisAnswers.values()].filter(Boolean);
+  const kept = currentContextInput.value
+    .split("\n")
+    .filter((line) => !line.startsWith(ANALYSIS_NOTE_PREFIX))
+    .join("\n")
+    .trim();
+  const note = answers.length ? `${ANALYSIS_NOTE_PREFIX} ${answers.join(" · ")}` : "";
+  currentContextInput.value = [kept, note].filter(Boolean).join("\n");
+}
+
+function applyTargetDateAnswer(value) {
+  const targetDateInput = document.querySelector("#targetDate");
+  if (targetDateInput) targetDateInput.value = value || "";
+  if (!value || !goalPeriodInput) return;
+  const days = Math.ceil((new Date(`${value}T00:00:00`).getTime() - Date.now()) / 86_400_000);
+  if (!Number.isFinite(days) || days <= 0) return;
+  const option = [30, 90, 180, 365].find((candidate) => candidate >= days) || 365;
+  goalPeriodInput.value = String(option);
+}
+
+function renderGoalAnalysis(analysis) {
+  analysisAnswers.clear();
+  if (analysisUnderstanding) {
+    const rows = [
+      ["목표", analysis.goal],
+      ["현재 상황", analysis.currentState.join(" · ")],
+      ["가능한 시간", analysis.availableTime.join(" · ")],
+    ].filter(([, value]) => value);
+    analysisUnderstanding.replaceChildren(...rows.flatMap(([term, value]) => {
+      const wrap = document.createElement("div");
+      const dt = document.createElement("dt");
+      dt.textContent = term;
+      const dd = document.createElement("dd");
+      dd.textContent = value;
+      wrap.append(dt, dd);
+      return [wrap];
+    }));
+  }
+
+  const questions = Array.isArray(analysis.questions) ? analysis.questions : [];
+  if (analysisQuestions) analysisQuestions.hidden = questions.length === 0;
+  if (!analysisQuestionList) return;
+  analysisQuestionList.replaceChildren(...questions.map((question, index) => {
+    const item = document.createElement("li");
+    const label = document.createElement("p");
+    label.className = "analysis-question-label";
+    label.textContent = `${index + 1}. ${question.question}`;
+    item.append(label);
+
+    if (question.type === "date") {
+      const field = document.createElement("div");
+      field.className = "analysis-question-controls";
+      const input = document.createElement("input");
+      input.type = "date";
+      input.id = `analysisAnswer-${question.id}`;
+      input.setAttribute("aria-label", question.question);
+      if (question.defaultValue) {
+        input.value = question.defaultValue;
+        analysisAnswers.set(question.id, `${question.question} ${question.defaultValue}`);
+        applyTargetDateAnswer(question.defaultValue);
+      }
+      const unknown = document.createElement("button");
+      unknown.type = "button";
+      unknown.dataset.analysisAnswer = question.id;
+      unknown.setAttribute("aria-pressed", "false");
+      unknown.textContent = "아직 미정";
+      input.addEventListener("change", () => {
+        unknown.setAttribute("aria-pressed", "false");
+        analysisAnswers.set(question.id, input.value ? `${question.question} ${input.value}` : "");
+        applyTargetDateAnswer(input.value);
+        syncAnalysisAnswerNote();
+      });
+      unknown.addEventListener("click", () => {
+        input.value = "";
+        unknown.setAttribute("aria-pressed", "true");
+        analysisAnswers.set(question.id, `${question.question} 아직 미정`);
+        applyTargetDateAnswer("");
+        syncAnalysisAnswerNote();
+      });
+      field.append(input, unknown);
+      item.append(field);
+    } else {
+      const options = document.createElement("div");
+      options.className = "analysis-question-controls";
+      question.options.forEach((option) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.dataset.analysisAnswer = question.id;
+        button.setAttribute("aria-pressed", String(question.defaultValue === option));
+        button.textContent = option;
+        if (question.defaultValue === option) analysisAnswers.set(question.id, `${question.question} ${option}`);
+        button.addEventListener("click", () => {
+          options.querySelectorAll("[data-analysis-answer]").forEach((control) => {
+            control.setAttribute("aria-pressed", String(control === button));
+          });
+          analysisAnswers.set(question.id, `${question.question} ${option}`);
+          syncAnalysisAnswerNote();
+        });
+        options.append(button);
+      });
+      item.append(options);
+    }
+    return item;
+  }));
+  syncAnalysisAnswerNote();
+}
+
+async function requestGoalAnalysis(goalText) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 45_000);
+  try {
+    const response = await fetch("/api/ai/goal-analyze", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        "X-Request-ID": `analyze_goal:${crypto.randomUUID()}`,
+      },
+      credentials: "same-origin",
+      body: JSON.stringify({ goalText }),
+      signal: controller.signal,
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.analysis) {
+      throw new Error(result.error || "올리가 목표를 정리하지 못했어요. 잠시 후 다시 시도해 주세요.");
+    }
+    return result.analysis;
+  } catch (error) {
+    if (error.name === "AbortError") throw new Error("응답이 늦어지고 있어요. 잠시 후 다시 시도해 주세요.");
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+goalAnalyzeButton?.addEventListener("click", async () => {
+  if (goalAnalysisPending) return;
+  const goalText = designGoal?.value.trim() || "";
+  if (!goalText) {
+    updateGoalStepState();
+    designGoal?.focus();
+    return;
+  }
+  goalAnalysisPending = true;
+  goalAnalyzeButton.disabled = true;
+  goalAnalyzeButton.setAttribute("aria-busy", "true");
+  try {
+    const analysis = await requestGoalAnalysis(goalText);
+    renderGoalAnalysis(analysis);
+    diagnosisStepIndex = Math.min(diagnosisSteps.length - 1, 1);
+    renderDiagnosisStep();
+    revealActiveDiagnosisStep();
+    trackCompanionEvent("goal_analyzed", { questions: analysis.questions?.length || 0 });
+  } catch (error) {
+    showToast(error.message || "올리가 목표를 정리하지 못했어요.");
+  } finally {
+    goalAnalysisPending = false;
+    goalAnalyzeButton.disabled = false;
+    goalAnalyzeButton.removeAttribute("aria-busy");
+  }
+});
+
+analysisEditGoalButton?.addEventListener("click", () => {
+  diagnosisStepIndex = 0;
+  renderDiagnosisStep();
+  revealActiveDiagnosisStep();
+  designGoal?.focus();
+});
+
+designGoal?.addEventListener("input", syncGoalStoryCounter);
+syncGoalStoryCounter();
 
 diagnosisBackButton?.addEventListener("click", () => {
   cancelDiagnosisAutoAdvance();

@@ -17282,3 +17282,206 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   display: flex;
   align-items: center;
 }
+
+/* ============================================================
+   Onboarding: 3-step goal-story wizard
+   (목표 이야기하기 -> 올리가 정리했어요 -> 1차 계획 보기)
+
+   Restored from 04b6138 and rewritten against the token layer — the
+   original carried the sage palette and hardcoded greys that the token
+   work removed. Ollie stays the existing cloud mascot.
+   ============================================================ */
+.home-page .wizard-header {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  margin-bottom: var(--space-2);
+}
+
+.home-page .wizard-back {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  place-items: center;
+  color: var(--ink-brand);
+  background: var(--surface-translucent);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-sm);
+  font-size: var(--text-lg);
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.home-page .wizard-back:hover {
+  background: var(--surface-brand-soft);
+  border-color: var(--border-brand);
+}
+
+.home-page .wizard-step-badge {
+  padding: var(--space-1) var(--space-3);
+  color: var(--ink-brand);
+  background: var(--surface-brand-soft);
+  border-radius: var(--r-pill);
+  font-size: var(--text-xs);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.home-page .wizard-header h3 {
+  margin: 0;
+  font-size: clamp(17px, 2.2vw, 21px);
+}
+
+/* --- step 1: tell Ollie the goal --- */
+.home-page .goal-story-field textarea {
+  min-height: 148px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.home-page .goal-story-counter {
+  margin: var(--space-2) 2px 0;
+  color: var(--ink-muted);
+  font-size: var(--text-xs);
+  text-align: right;
+}
+
+/* --- step 2: what Ollie understood --- */
+.home-page .analysis-understanding-card { margin-top: var(--space-1); }
+
+.home-page .analysis-understanding-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: var(--space-3) 0 0;
+}
+
+.home-page .analysis-understanding-list > div {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: start;
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-brand-soft);
+  border-radius: var(--r-md);
+}
+
+.home-page .analysis-understanding-list dt {
+  color: var(--ink-muted);
+  font-size: var(--text-xs);
+  font-weight: 800;
+}
+
+.home-page .analysis-understanding-list dd {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.home-page .analysis-questions { margin-top: var(--space-4); }
+
+.home-page .analysis-questions-title {
+  margin: 0 0 var(--space-3);
+  color: var(--ink-secondary);
+  font-size: var(--text-sm);
+  font-weight: 800;
+}
+
+.home-page .analysis-question-list {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.home-page .analysis-question-label {
+  margin: 0 0 var(--space-2);
+  color: var(--ink-secondary);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.home-page .analysis-question-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.home-page .analysis-question-controls input[type="date"] {
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-sm);
+  font: inherit;
+}
+
+.home-page .analysis-question-controls button {
+  min-height: 44px;
+  padding: var(--space-2) var(--space-4);
+  color: var(--ink-secondary);
+  background: var(--surface-translucent);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-sm);
+  font: inherit;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.home-page .analysis-question-controls button:hover {
+  background: var(--surface-brand-soft);
+}
+
+.home-page .analysis-question-controls button[aria-pressed="true"] {
+  color: var(--ink-brand);
+  background: var(--surface-brand-soft);
+  border-color: var(--border-brand);
+  font-weight: 800;
+}
+
+/* --- shared wizard actions --- */
+.home-page .wizard-actions { display: grid; gap: var(--space-3); }
+
+.home-page #goalAnalyzeButton {
+  min-height: 58px;
+  /* same primary treatment as the other onboarding CTAs: pastel brand
+     gradient carrying navy, never white */
+  color: var(--ink-on-brand);
+  background: var(--brand-gradient);
+  border: 0;
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-md);
+  font-family: var(--font-brand-ui);
+  font-synthesis: none;
+  font-size: clamp(16px, 2vw, 20px);
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.home-page #goalAnalyzeButton[disabled] { opacity: 0.6; cursor: progress; }
+
+.home-page .wizard-back:focus-visible,
+.home-page .analysis-question-controls button:focus-visible,
+.home-page #goalAnalyzeButton:focus-visible {
+  outline: 3px solid var(--brand-solid);
+  outline-offset: 2px;
+}
+
+@media (max-width: 430px) {
+  .home-page .analysis-understanding-list > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-1);
+  }
+  .home-page .analysis-question-controls > * { flex: 1 1 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-page .wizard-back,
+  .home-page .analysis-question-controls button { transition: none; }
+}

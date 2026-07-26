@@ -15,7 +15,44 @@ The proposed primary loop is:
 
 > 길 만들기 → 오늘 한 걸음 → 올리와 실행 → 짧게 기록 → 함께 성장 → 놓쳐도 다시 시작 → 다음 한 걸음
 
-Only two decisions are required before the first result: a natural-language goal and a period. Optional context can be empty. The first result is a Roadmap, not a dated schedule. Quick actions and typing collect pending changes without AI. A single explicit apply action represents one revision call. Locking the Roadmap and later schedule edits are deterministic and represent zero AI calls.
+Optional context can be empty. The first result is a Roadmap, not a dated schedule. Quick actions and typing collect pending changes without AI. A single explicit apply action represents one revision call. Locking the Roadmap and later schedule edits are deterministic and represent zero AI calls.
+
+> **Superseded 2026-07-26.** This section previously read "Only two decisions
+> are required before the first result: a natural-language goal and a period."
+> The onboarding entry is now a three-step wizard, so that sentence no longer
+> describes the product. See "Onboarding entry flow" below.
+
+## Onboarding entry flow
+
+The goal entry is a three-step wizard:
+
+| Step | Screen | What it does |
+| --- | --- | --- |
+| 1/3 | 목표 이야기하기 | One natural-language textarea (0/1000) plus category examples. |
+| 2/3 | 올리가 정리했어요 | Renders `/api/ai/goal-analyze` output — the goal, current situation and available time Ollie understood — plus confirmation questions (target date, weekend availability). |
+| 3/3 | 1차 계획 보기 | Roadmap and the first seven days, then "이 계획으로 시작하기". |
+
+Login is still requested only when the user presses "이 계획으로 시작하기",
+and a guest's goal and plan survive authentication.
+
+### Why this is worth recording
+
+This flow has been added, removed and added again. Do not revert it a third
+time without checking with the product owner first.
+
+- `04b6138` built the three-step wizard.
+- `cc05990` reverted it, on the grounds that the middle confirmation step
+  "화면을 복잡하게 만들고 승인된 로그인 흐름에도 없어" — it complicated the
+  screen and was absent from the approved login flow. That revert deliberately
+  left the `/api/ai/goal-analyze` route on the server.
+- 2026-07-26: restored at the product owner's explicit request, working from a
+  supplied mockup. The conflict with the older two-step contract was raised
+  before the work started and the owner chose to update the contract, which is
+  what this section does.
+
+Ollie remains the existing cloud mascot (`assets/ollie-*.png`). The supplied
+mockup used a different purple character; the owner chose to keep the shipped
+brand asset and take only the layout from the mockup.
 
 ## Font investigation
 

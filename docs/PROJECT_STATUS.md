@@ -8,6 +8,22 @@
 
 ## 최신 검증
 
+### 디자인 토큰 통합과 온보딩 3단계 복원 (2026-07-26)
+
+- 기준 worktree: `.worktrees/plan-experience-overhaul`, 브랜치 `codex/ollie-core-loop-production`
+- `styles.css`에 공존하던 토큰 세트 7개를 `:root` 한 곳으로 통합했다. 하드코딩 색 827종 → 5종, `var()` 참조 595 → 2,317.
+- 실제 결함 수정:
+  - `.execution-page`가 `--font-body: 15px`로 전역 글꼴 패밀리 토큰을 가려, `<body>`의 `font-family`가 무효 처리되고 앱 전체 146개 요소가 Pretendard가 아닌 OS 기본 한글 글꼴로 렌더링되던 문제.
+  - 대비 미달 18건(하단 탭 2.54:1, 온보딩 CTA 2.06:1 포함).
+  - 11px 미만 텍스트 314개 선언(최소 7px) — 버튼 라벨·폼 legend 등 실제 콘텐츠.
+  - 색상 마이그레이션 정규식이 `linear-gradient` 값을 잘못 잘라 배경이 통째로 삭제된 규칙 7개. 흰 글씨만 남아 랜딩 내비게이션이 흰 배경에 흰 글씨로 보이던 문제를 Staging에서 발견해 수정했다.
+- 탭 타깃: 독립 컨트롤 전부 44×44. 문장 안 인라인 링크(WCAG 2.5.8 면제)와 `.plan-week-day`(320px에서 7열 × 44px 불가, 실측 266px 가용 / 344px 필요)는 근거와 함께 제외했다.
+- 온보딩을 3단계 위저드(목표 이야기하기 → 올리가 정리했어요 → 1차 계획 보기)로 복원했다. `04b6138`을 되살리고 CSS만 토큰 기준으로 다시 썼다. 되돌렸던 이력과 이번 복원 사유는 `docs/core-loop-visual-audit.md`에 기록했다.
+- 토큰 체계 문서: `docs/design-tokens.md` 신규.
+- 회귀 가드 2종을 추가했고 결함을 되살려 **실패하는 것까지 확인**했다: `app.html` body 글꼴(`core-loop-v2.spec.js`), 탭 타깃 전수 검사(`tap-targets.spec.js`, WebKit 포함).
+- 검증: 유닛 278/278, desktop+responsive 147 passed / 1 skipped, iphone-webkit 131 passed / 0 failed.
+- Staging 배포 완료. Production은 미배포이며 OAuth A/B 검증과 main PR 리뷰가 남아 있다.
+
 ### OMW-02 최초 정기결제 원장 구현
 
 - 기준 worktree: `feat/omw-toss-billing`, 최신 `origin/main` `6c027bd4b5eae68dcae73875d7f39a4bfee0b8cc` 기준

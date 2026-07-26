@@ -80,7 +80,7 @@
         <div class="section-heading">
           <p class="eyebrow">올리와 길 만들기</p>
           <h2 class="brand-display">무엇을 이루고 싶나요?</h2>
-          <p>목표와 기간만 알려주면 올리가 일정에 앞서 목표까지 갈 큰 길을 그려드려요.</p>
+          <p>편하게 이야기만 들려주면 올리가 정리하고, 확인한 조건으로 목표까지 갈 큰 길을 그려드려요.</p>
           <ul class="trial-trust-list" aria-label="무료 체험 안내">
             <li><span aria-hidden="true">✓</span> 카드 등록 없음</li>
             <li><span aria-hidden="true">✓</span> 자동 결제 없음</li>
@@ -89,27 +89,28 @@
         </div>
         <div class="design-panel first-meeting-panel goal-builder-shell">
           <form class="personality-form ollie-goal-card" id="personalityForm">
-            <header class="builder-header">
-              <div>
-                <p class="builder-kicker">필수 입력은 두 가지뿐이에요</p>
-                <h3 class="brand-display" id="diagnosisStepTitle" aria-live="polite">이루고 싶은 목표를 들려주세요</h3>
-              </div>
-              <span id="diagnosisStepCount">목표 · 기간</span>
+            <header class="builder-header wizard-header">
+              <button class="wizard-back" type="button" id="diagnosisBackButton" aria-label="이전 단계로" hidden>
+                <span aria-hidden="true">←</span>
+              </button>
+              <span class="wizard-step-badge" id="diagnosisStepCount">1/3</span>
+              <h3 class="brand-display" id="diagnosisStepTitle" aria-live="polite">목표 이야기하기</h3>
             </header>
             <div class="builder-progress" aria-hidden="true"><span id="diagnosisProgressBar" style="width: 100%"></span></div>
             <p class="builder-reassurance"><span aria-hidden="true">✓</span> 지금 입력은 초안이에요. 큰 길을 본 뒤 올리와 편하게 조정할 수 있어요.</p>
 
-            <section class="diagnosis-step active" data-step-title="이루고 싶은 목표를 들려주세요">
+            <section class="diagnosis-step active wizard-step" data-step-title="목표 이야기하기">
               <div class="ollie-message compact-ollie-message">
                 <img class="mascot-art mascot-avatar" src="assets/ollie-thinking.png" alt="" />
                 <div>
-                  <span>올리가 함께 정해볼게요</span>
-                  <p>구체적인 결과와 기간, 범위를 한 문장으로 적어 주세요.</p>
+                  <span>올리</span>
+                  <p>이루고 싶은 일을 편하게 이야기해 주세요. 목표만 적어도 괜찮아요.</p>
                 </div>
               </div>
-              <label class="builder-field builder-field-large" for="designGoal">
-                <span>만들고 싶은 결과</span>
-                <input id="designGoal" type="text" placeholder="예: 8주 동안 Grammar in Use Unit 1부터 60까지 끝내고 싶어요" aria-describedby="goalCategoryHelp goalValidationMessage" required />
+              <label class="builder-field builder-field-large goal-story-field" for="designGoal">
+                <span>이루고 싶은 목표</span>
+                <textarea id="designGoal" rows="5" maxlength="1000" placeholder="예) 10월까지 토익 900점을 받고 싶어요.&#10;현재 650점 정도이고 평일에는 퇴근 후 30분 정도 가능합니다." aria-describedby="goalCategoryHelp goalValidationMessage goalStoryCounter" required></textarea>
+                <p class="goal-story-counter" id="goalStoryCounter"><span id="goalStoryCount">0</span>/1000</p>
               </label>
               <div class="goal-suggestions" aria-label="목표 카테고리">
                 <button type="button" data-goal-category="exam" aria-pressed="false">시험</button>
@@ -123,8 +124,30 @@
               <p class="goal-category-help" id="goalCategoryHelp">빠른 시작 버튼을 누르면 수정 가능한 예시를 보여드려요. 선택하지 않고 바로 적어도 됩니다.</p>
               <div class="goal-example-suggestions" id="goalExampleSuggestions" aria-label="선택한 카테고리의 추천 목표" hidden></div>
               <p class="goal-validation-message" id="goalValidationMessage" role="status" aria-live="polite">달성하고 싶은 결과를 입력해 주세요.</p>
+              <p class="quiet-note">기간·가능한 시간 같은 세부 조건은 올리가 정리한 뒤 다음 단계에서 확인해요.</p>
+            </section>
+
+            <section class="diagnosis-step wizard-step wizard-step-review" data-step-title="올리가 정리했어요" hidden>
+              <div class="ollie-message compact-ollie-message">
+                <img class="mascot-art mascot-avatar" src="assets/ollie-celebrate.png" alt="" />
+                <div>
+                  <span>올리</span>
+                  <p>내용을 이렇게 이해했어요! 맞는지 확인해 주세요.</p>
+                </div>
+              </div>
+              <article class="draft-understanding-card analysis-understanding-card" aria-labelledby="analysisUnderstandingTitle">
+                <div class="result-card-head">
+                  <strong class="brand-display" id="analysisUnderstandingTitle">올리가 이해한 내용</strong>
+                  <button type="button" id="analysisEditGoalButton">이야기 수정</button>
+                </div>
+                <dl id="analysisUnderstanding" class="analysis-understanding-list"></dl>
+              </article>
+              <div class="analysis-questions" id="analysisQuestions" hidden>
+                <p class="analysis-questions-title">몇 가지만 더 확인할게요!</p>
+                <ol id="analysisQuestionList" class="analysis-question-list"></ol>
+              </div>
               <label class="builder-field roadmap-period-field" for="goalPeriod">
-                <span>기간</span>
+                <span>목표 기간</span>
                 <select id="goalPeriod" required>
                   <option value="30">1개월</option>
                   <option value="90" selected>3개월</option>
@@ -133,7 +156,7 @@
                 </select>
               </label>
               <label class="builder-field roadmap-context-field" for="currentContext">
-                <span>지금 상황도 함께 적기 <small>선택</small></span>
+                <span>더 알려주고 싶은 내용 <small>선택</small></span>
                 <textarea id="currentContext" rows="3" maxlength="500" placeholder="예: 아이디어는 있지만 어디서 시작할지 모르겠어요."></textarea>
               </label>
               <div class="roadmap-quick-context" aria-label="빠르게 덧붙일 조건">
@@ -232,10 +255,10 @@
               <div class="trial-terms-note"><span aria-hidden="true">✓</span> 초안을 확인한 뒤 저장 여부를 직접 결정해요. 로그인 전에는 회원 계획으로 저장되지 않아요.</div>
             </section>
 
-            <footer class="builder-actions">
-              <button class="builder-back" type="button" id="diagnosisBackButton" hidden>이전</button>
+            <footer class="builder-actions wizard-actions">
               <button class="builder-next" type="button" id="diagnosisNextButton" hidden>다음</button>
-              <button type="submit" id="aiPreviewButton">AI로 큰 계획 보기</button>
+              <button type="button" id="goalAnalyzeButton">올리에게 계획 부탁하기 <span aria-hidden="true">✨</span></button>
+              <button type="submit" id="aiPreviewButton" hidden>1차 계획 보기</button>
             </footer>
           </form>
 
