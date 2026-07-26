@@ -146,14 +146,20 @@ export function reconcileConditionsWithGoalText(conditions, goalText) {
   if (/매일|날마다|하루도\s*빠짐없이/.test(text)) {
     result.availableDays = [...WEEKDAY_LABELS];
   } else {
+    const affirmed = [];
+    const negatedDays = [];
     for (const day of WEEKDAY_LABELS) {
       // 요일 언급 뒤 한 절(최대 12자) 안에 부정 표현이 있으면 "그 요일은 안 됨"으로 읽는다.
       const mention = text.match(new RegExp(`${day}요일[^.。!?\n]{0,12}`));
       if (!mention) continue;
-      const negated = NEGATION_NEAR_DAY.test(mention[0]);
-      const included = result.availableDays.includes(day);
-      if (!negated && !included) result.availableDays.push(day);
-      if (negated && included) result.availableDays = result.availableDays.filter((item) => item !== day);
+      (NEGATION_NEAR_DAY.test(mention[0]) ? negatedDays : affirmed).push(day);
+    }
+    if (affirmed.length) {
+      // 사용자가 요일을 콕 집어 말했다면 그 집합이 전부다. 모델이 지어낸,
+      // 원문에 없는 요일(few-shot 예시에서 새어 들어온 "금" 등)은 버린다.
+      result.availableDays = affirmed;
+    } else if (negatedDays.length) {
+      result.availableDays = result.availableDays.filter((day) => !negatedDays.includes(day));
     }
     result.availableDays = WEEKDAY_LABELS.filter((day) => result.availableDays.includes(day));
   }

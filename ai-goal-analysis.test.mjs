@@ -127,6 +127,13 @@ test("원문에 명시된 요일·시간·기간은 모델이 빠뜨려도 원�
   assert.equal(repaired.weeklyFrequency, 2);
   assert.equal(repaired.periodDays, 60);
 
+  // 원문에 없는 요일을 모델이 지어냈다면(프롬프트 예시에서 샌 "금" 등) 버린다
+  const hallucinated = reconcileConditionsWithGoalText(
+    { availableDays: ["화", "금"], sessionMinutes: 60, weeklyFrequency: 2, periodDays: 60 },
+    "화요일이랑 목요일 밤에 한 시간 정도는 낼 수 있을 것 같아요. 두 달 정도 해보고 싶습니다.",
+  );
+  assert.deepEqual(hallucinated.availableDays, ["화", "목"]);
+
   // 부정 표현: 언급됐어도 "안 되는" 요일은 넣지 않고, 모델이 넣었으면 뺀다
   const negated = reconcileConditionsWithGoalText(
     { availableDays: ["월", "수"], sessionMinutes: 0, weeklyFrequency: 2, periodDays: 0 },
