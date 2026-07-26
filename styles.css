@@ -17267,6 +17267,13 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   min-height: 44px;
 }
 
+/* The inline start-time editors size themselves off their parent
+   (height: calc(100% + 10px)), which lands at 43px — a pixel short. */
+.execution-page #view-today .task-time input,
+.execution-page #view-plan .task-time input {
+  min-height: 44px;
+}
+
 /* summary elements are flex/grid rows in these cards; keep the label centred
    now that the row is taller */
 .execution-page #view-plan summary,
