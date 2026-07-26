@@ -2954,10 +2954,28 @@ function applyAnalysisToConditions(analysis) {
     sessionMinutesInput.value = String(Math.min(180, Math.max(5, sessionMinutes)));
   }
   if (periodDays && goalPeriodInput) {
-    const options = [...goalPeriodInput.options].map((option) => Number(option.value)).filter(Boolean);
-    const match = options.find((value) => value >= periodDays) || options.at(-1);
-    if (match) goalPeriodInput.value = String(match);
+    // "두 달"이라고 말했는데 화면·API가 90일로 올림되면 사용자의 말과 화면
+    // 숫자가 어긋난다. 기존 옵션에 없는 기간은 옵션을 만들어 그대로 쓴다.
+    // (서버는 periodDays를 1~365로 클램프해서 받는다.)
+    const exact = [...goalPeriodInput.options].some((option) => Number(option.value) === periodDays);
+    if (!exact) {
+      goalPeriodInput.querySelector("option[data-derived-period]")?.remove();
+      const option = document.createElement("option");
+      option.value = String(periodDays);
+      option.dataset.derivedPeriod = "true";
+      option.textContent = periodOptionLabel(periodDays);
+      const next = [...goalPeriodInput.options].find((item) => Number(item.value) > periodDays) || null;
+      goalPeriodInput.insertBefore(option, next);
+    }
+    goalPeriodInput.value = String(periodDays);
   }
+}
+
+function periodOptionLabel(days) {
+  if (days % 365 === 0) return `${days / 365}년`;
+  if (days % 30 === 0) return `${days / 30}개월`;
+  if (days < 30 && days % 7 === 0) return `${days / 7}주`;
+  return `${days}일`;
 }
 
 function renderGoalAnalysis(analysis) {
@@ -3943,6 +3961,18 @@ function renderAiPreview(preview) {
       row.append(dayLabel, title, duration);
       return row;
     });
+    // 접힌 상태에서는 실행일부터 3개를 보여준다. 주 초가 휴식일이면 미리보기
+    // 3줄이 전부 "계획된 휴식일"로 차서 계획이 비어 보이는 문제가 있었다.
+    let previewSlots = 0;
+    items.forEach((row) => {
+      if (row.dataset.rest !== "true" && previewSlots < WEEK_PREVIEW_VISIBLE_DAYS) {
+        row.dataset.collapsedVisible = "true";
+        previewSlots += 1;
+      }
+    });
+    if (!previewSlots) {
+      items.slice(0, WEEK_PREVIEW_VISIBLE_DAYS).forEach((row) => { row.dataset.collapsedVisible = "true"; });
+    }
     aiVisibleWeekPlan.replaceChildren(...items);
     syncWeekPreviewToggle(items.length);
   }

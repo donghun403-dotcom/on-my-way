@@ -17787,7 +17787,10 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   white-space: nowrap;
 }
 
-.plan-week-preview[data-expanded="false"] > li:nth-child(n + 4) { display: none; }
+/* 접힌 상태에서는 스크립트가 고른 실행일(data-collapsed-visible)만 보인다.
+   위치 기반(nth-child)이면 휴식일로 시작하는 주에 미리보기가 비어 보인다. */
+.plan-week-preview[data-expanded="false"] > li { display: none; }
+.plan-week-preview[data-expanded="false"] > li[data-collapsed-visible] { display: grid; }
 
 .plan-week-more {
   width: 100%;

@@ -633,7 +633,8 @@ test("goal-analyze의 구조화된 conditions가 정규식 도출보다 우선�
   expect(previewBody.availability.availableDays).toEqual(["화", "목"]);
   expect(previewBody.availability.weeklyFrequency).toBe(2);
   expect(previewBody.availability.sessionMinutes).toBe(45);
-  expect(previewBody.periodDays).toBe(90);
+  // "두 달"은 60일 그대로 간다 — 기간 select에 없는 값은 옵션을 만들어 쓴다.
+  expect(previewBody.periodDays).toBe(60);
 });
 
 test("목표 카테고리는 예시만 제안하고 사용자의 명시적 확인 전에는 진행하지 않는다", async ({ page }) => {
