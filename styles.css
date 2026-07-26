@@ -3337,7 +3337,7 @@ footer p {
 .home-page .main-nav a.active,
 .home-page .main-nav a[aria-current="page"] {
   color: #ffffff;
-  background: var(--brand-gradient-strong), var(--blue-500));
+  background: var(--brand-gradient-strong);
   box-shadow: var(--shadow-sm);
 }
 
@@ -3348,7 +3348,7 @@ footer p {
 .primary-action,
 .execution-theme-button.active {
   color: #ffffff;
-  background: var(--brand-gradient-strong), var(--blue-500));
+  background: var(--brand-gradient-strong);
   border-color: transparent;
   box-shadow: var(--shadow-md);
 }
@@ -8176,7 +8176,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 }
 
 .footer-brand-block span {
-  color: var(--lilac-600);
+  color: var(--lilac-700);
   font-size: 12px;
   font-weight: 900;
   letter-spacing: 0.14em;
@@ -8697,7 +8697,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .mini-schedule-row button {
   padding: 6px 11px;
   color: #ffffff;
-  background: var(--brand-gradient-strong), var(--lilac-500));
+  background: var(--brand-gradient-strong);
   border: 0;
   border-radius: var(--r-xs);
   font-size: var(--text-2xs);
@@ -8971,7 +8971,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   justify-content: center;
   gap: 10px;
   color: #ffffff;
-  background: var(--brand-gradient-strong), var(--lilac-500));
+  background: var(--brand-gradient-strong);
   border-radius: var(--r-md);
   box-shadow: var(--shadow-md);
   font-size: 13px;
@@ -9701,7 +9701,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   min-height: 164px;
   padding: var(--space-5);
   color: #ffffff;
-  background: var(--brand-gradient-strong), var(--blue-500) 62%, var(--lilac-500));
+  background: var(--brand-gradient-strong);
   border-radius: var(--r-xl);
   box-shadow: var(--shadow-md);
 }
@@ -9945,7 +9945,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   height: 58px;
   place-items: center;
   color: #ffffff;
-  background: var(--brand-gradient-strong), var(--blue-500));
+  background: var(--brand-gradient-strong);
   border-radius: var(--r-md);
   font-size: 13px;
   font-weight: 900;
@@ -10464,7 +10464,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 
 .energy-charge-button:hover {
   color: #ffffff;
-  background: var(--brand-gradient-strong), var(--blue-500));
+  background: var(--brand-gradient-strong);
   border-color: transparent;
 }
 
@@ -14927,7 +14927,8 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   min-height: 58px;
   padding: 16px var(--space-8);
   color: #ffffff !important;
-  background: linear-gradient(135deg, var(--blue), var(--blue-500));
+  /* the light stop of the pastel ramp only reaches 2.84:1 under white */
+  background: var(--brand-gradient-strong);
   border-radius: 999px;
   box-shadow: var(--shadow-lg);
   font-size: 18px;
