@@ -498,7 +498,9 @@ async function handleGuestGoalAnalysis({ request, env }) {
       apiKey: env.OPENAI_API_KEY,
       model,
     });
-    return json({ ok: true, analysis });
+    // TEMP DIAG(2026-07-27): Staging에서 같은 입력에 교정 결과가 요청마다 달라
+    // 배포 버전과 수신 원문을 응답에 새긴다. 원인 확정 후 제거할 것.
+    return json({ ok: true, analysis, diag: { rev: "6c8713d+diag", goalHead: String(requestBody?.goalText || "").slice(0, 40) } });
   } catch (error) {
     console.error("Guest goal analysis failed", safeAiDiagnostics(error, {
       correlationId: crypto.randomUUID(),
