@@ -35,6 +35,28 @@ The goal entry is a three-step wizard:
 Login is still requested only when the user presses "이 계획으로 시작하기",
 and a guest's goal and plan survive authentication.
 
+### Step 3 surface (rebuilt 2026-07-26)
+
+Step 3 is the mockup layout and nothing else. In default view it shows, in
+order: the goal card, the numbered roadmap stepper, the first three days of the
+first week with a "전체 7일 보기" expander, one feasibility sentence, the
+primary CTA, and "조금 바꿀래요".
+
+Everything that adjusts the plan sits behind "조금 바꿀래요" (`#planAdjustPanel`):
+the first-week start preference (`[data-schedule-start]`, still fed to
+`/api/ai/goal-draft/claim`), the feasibility adjustments, and "올리와 계획
+조정하기". Everything that merely explains the plan sits behind the collapsed
+"내 계획 자세히 보기" disclosure.
+
+Two things deliberately stay in the main flow because they are *results*, not
+controls, and must survive a reload: `#roadmapRevisionSummary` (proof that a
+requested change was applied) and `#aiPreviewStatus` (error and freshness
+messages).
+
+Removed in the same pass, at the owner's request: the step-2 quick-context
+chips (평일 20분 / 수요일 제외 / 첫 달 가볍게). The same edit is still available
+by typing into `#currentContext`, which is what those chips wrote to.
+
 ### Why this is worth recording
 
 This flow has been added, removed and added again. Do not revert it a third

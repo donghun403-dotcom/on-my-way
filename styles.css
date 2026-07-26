@@ -13878,7 +13878,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .home-page .draft-day-items article small { color: var(--blue-700); font-size: var(--text-2xs); line-height: 1.45; overflow-wrap: anywhere; }
 .home-page .draft-secondary-actions { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; padding: 2px 0; }
 .home-page .draft-secondary-actions button,
-.home-page .draft-secondary-actions a { min-height: 40px; color: var(--blue-700); background: transparent; border: 1px solid rgba(107,122,166,.16); border-radius: var(--r-sm); padding: 8px 12px; font: inherit; font-size: 11px; font-weight: 800; text-decoration: none; }
+.home-page .draft-secondary-actions a { display: inline-flex; min-height: 44px; align-items: center; color: var(--blue-700); background: transparent; border: 1px solid rgba(107,122,166,.16); border-radius: var(--r-sm); padding: 8px 12px; font: inherit; font-size: 11px; font-weight: 800; text-decoration: none; }
 .home-page .result-details-disclosure:not([hidden]) { position: relative; display: block; min-height: 68px; flex: none; }
 .home-page .result-details-disclosure > summary { position: relative; z-index: 2; background: rgba(255,255,255,.9); }
 
@@ -14257,30 +14257,6 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   padding-bottom: 120px;
 }
 
-.roadmap-quick-context {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.roadmap-quick-context button {
-  min-height: 44px;
-  padding: 9px 14px;
-  border: 1px solid rgba(84, 112, 152, 0.2);
-  border-radius: 999px;
-  color: var(--blue-700);
-  background: rgba(255, 255, 255, 0.78);
-  font-family: var(--font-brand-ui);
-  font-synthesis: none;
-  cursor: pointer;
-}
-
-.roadmap-quick-context button[aria-pressed="true"] {
-  color: var(--blue-800);
-  border-color: rgba(63, 99, 148, 0.38);
-  background: rgba(228, 238, 248, 0.82);
-}
-
 .roadmap-revision-summary {
   padding: var(--space-5);
   border: 1px solid rgba(83, 127, 183, 0.24);
@@ -14467,8 +14443,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   }
 
   .home-page #designFlow .section-heading h2,
-  .home-page #diagnosisStepTitle,
-  .home-page #roadmapTitle {
+  .home-page #diagnosisStepTitle {
     max-width: 100%;
     font-size: clamp(27px, 8vw, 36px);
     line-height: 1.18;
@@ -17114,9 +17089,10 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
     padding-bottom: calc(var(--mobile-tabbar-height) + 24px + env(safe-area-inset-bottom));
   }
 
+  /* #roadmapTitle은 더 이상 히어로 제목이 아니라 "전체 로드맵" 카드 머리글이라
+     디스플레이 크기(clamp 27~36px)에서 제외합니다. */
   .home-page #designFlow .section-heading h2,
-  .home-page #designFlow #diagnosisStepTitle,
-  .home-page #firstStep #roadmapTitle {
+  .home-page #designFlow #diagnosisStepTitle {
     max-width: 100%;
     font-size: clamp(27px, 8vw, 36px);
     line-height: 1.18;
@@ -17484,4 +17460,686 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 @media (prefers-reduced-motion: reduce) {
   .home-page .wizard-back,
   .home-page .analysis-question-controls button { transition: none; }
+}
+
+/* ============================================================
+   목표 카테고리 칩 + 위저드 CTA 비율
+   `.home-page .personality-form button`(0,3,0)이 폼 안의 *모든* 버튼에
+   brand-gradient-strong + 흰 글씨를 칠하고 있었습니다. 카테고리 칩 7개가
+   전부 진한 그라데이션 블록으로 렌더링돼 "화면당 Primary CTA 하나" 계약도
+   깨졌습니다. 아래 규칙은 (0,4,0)으로 칩만 되돌립니다.
+   ============================================================ */
+.home-page .personality-form .goal-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2);
+}
+
+.home-page .personality-form .goal-suggestions button {
+  display: inline-flex;
+  width: auto;
+  min-width: 0;
+  min-height: 44px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  padding: 0 var(--space-4);
+  color: var(--ink-brand);
+  background: var(--blue-50);
+  border: 1px solid var(--blue-100);
+  border-radius: var(--r-pill);
+  box-shadow: none;
+  font-family: var(--font-brand-ui);
+  font-synthesis: none;
+  font-size: var(--text-sm);
+  font-weight: 400;
+  letter-spacing: 0;
+  transition: color 160ms ease, background 160ms ease, border-color 160ms ease;
+}
+
+.home-page .personality-form .goal-suggestions .goal-chip-emoji {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.home-page .personality-form .goal-suggestions button:hover {
+  background: var(--blue-100);
+  border-color: var(--blue-200);
+  transform: none;
+}
+
+.home-page .personality-form .goal-suggestions button[aria-pressed="true"] {
+  color: var(--ink-on-brand);
+  background: var(--brand-gradient);
+  border-color: transparent;
+  box-shadow: var(--shadow-sm);
+  transform: none;
+}
+
+.home-page .personality-form .goal-suggestions button:focus-visible {
+  outline: 3px solid var(--brand-solid);
+  outline-offset: 2px;
+}
+
+/* 예시 목표는 칩 아래 세로로 쌓아서 3열 압축을 없앱니다. */
+.home-page .personality-form .goal-example-suggestions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+}
+
+.home-page .personality-form .goal-example-suggestions button {
+  width: 100%;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-4);
+  color: var(--ink-secondary);
+  background: var(--surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-sm);
+  box-shadow: none;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-align: left;
+}
+
+.home-page .personality-form .goal-example-suggestions button:hover {
+  color: var(--ink-brand);
+  background: var(--surface-brand-soft);
+  border-color: var(--border-brand);
+}
+
+/* CTA는 `.builder-actions`의 flex 프레임(패딩·테두리·space-between)을 상속해
+   332px 트랙 안에서 219px로 줄어들어 있었습니다. 프레임을 걷어내고
+   한 줄 폭을 전부 씁니다. */
+.home-page .story-flow .wizard-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  margin-top: var(--space-5);
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: 0;
+}
+
+.home-page .story-flow .wizard-actions > button {
+  width: 100%;
+  min-height: 56px;
+}
+
+.home-page #goalAnalyzeButton {
+  min-height: 56px;
+  padding: 0 var(--space-4);
+  font-size: clamp(17px, 4.4vw, 20px);
+}
+
+/* ============================================================
+   온보딩 3단계 — 1차 계획 보기
+   시안 그대로: 3/3 헤더 · 목표 카드 · 전체 로드맵 스텝퍼 ·
+   첫 7일 미리보기 · 가능성 한마디 · 시작 CTA + "조금 바꿀래요".
+   조정 수단(일정 시작 방식·현실성 옵션·올리와 조정)은 전부
+   "조금 바꿀래요" 패널 뒤로, 상세 데이터는 접힌 disclosure 뒤로 옮겼습니다.
+   ============================================================ */
+.app-plan-preview.is-ready .preview-result-content {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.home-page .plan-result-header {
+  margin: 0;
+  padding: var(--space-5) var(--space-5) 0;
+}
+
+.home-page .plan-result-header h3 {
+  margin: 0;
+  font-size: clamp(17px, 2.2vw, 21px);
+}
+
+/* 헤더 안으로 들어온 뒤로는 옛 떠 있는 알약 스타일이 필요 없습니다. */
+.home-page .story-flow.showing-first-step .first-step-back {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  place-items: center;
+  margin: 0;
+  padding: 0;
+  color: var(--ink-brand);
+  background: var(--surface-translucent);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-sm);
+  font-size: var(--text-lg);
+  font-weight: 400;
+}
+
+.home-page .plan-result-status {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: var(--space-2) 0 0;
+  padding: 0 var(--space-5);
+  color: var(--ink-muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.home-page .plan-result-status strong {
+  flex: 0 0 auto;
+  padding: var(--space-1) var(--space-3);
+  color: var(--ink-brand);
+  background: var(--surface-brand-soft);
+  border-radius: var(--r-pill);
+  font-size: var(--text-2xs);
+  font-weight: 800;
+}
+
+.home-page .app-plan-preview .result-scroll-area {
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5) var(--space-6);
+}
+
+/* --- 목표 카드 --- */
+.plan-goal-card {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-4);
+  background: var(--surface-brand-soft);
+  border: 1px solid var(--border-brand);
+  border-radius: var(--r-md);
+}
+
+.plan-goal-icon {
+  font-size: 22px;
+  line-height: 1;
+  text-align: center;
+}
+
+.plan-goal-card > div { display: grid; gap: 2px; min-width: 0; }
+
+.plan-goal-card span {
+  color: var(--ink-muted);
+  font-size: var(--text-2xs);
+  font-weight: 800;
+}
+
+.plan-goal-card strong {
+  color: var(--ink);
+  font-size: var(--text-md);
+  font-weight: 800;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+/* --- 카드 공통 --- */
+.plan-roadmap-card,
+.plan-week-card {
+  padding: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+}
+
+.plan-card-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.plan-card-head strong {
+  color: var(--ink);
+  font-size: var(--text-md);
+}
+
+.plan-card-head small {
+  color: var(--ink-muted);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+}
+
+/* --- 전체 로드맵 스텝퍼 --- */
+.plan-roadmap-stepper {
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.plan-roadmap-stepper > li {
+  position: relative;
+  display: grid;
+  gap: 3px;
+  align-content: start;
+  justify-items: center;
+  padding-top: 34px;
+  text-align: center;
+}
+
+/* 번호 사이를 잇는 선. 첫/마지막 칸은 바깥쪽 절반을 그리지 않습니다. */
+.plan-roadmap-stepper > li::before {
+  content: "";
+  position: absolute;
+  top: 12px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--border-default);
+}
+
+.plan-roadmap-stepper > li:first-child::before { left: 50%; }
+.plan-roadmap-stepper > li:last-child::before { right: 50%; }
+
+.plan-roadmap-stepper > li > b {
+  position: absolute;
+  top: 0;
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  color: var(--ink-muted);
+  background: var(--surface);
+  border: 2px solid var(--border-default);
+  border-radius: var(--r-circle);
+  font-size: var(--text-2xs);
+  font-weight: 800;
+}
+
+.plan-roadmap-stepper > li[data-current="true"] > b {
+  color: var(--ink-on-brand);
+  background: var(--brand-gradient);
+  border-color: transparent;
+}
+
+.plan-roadmap-stepper > li > strong {
+  color: var(--ink);
+  font-size: var(--text-2xs);
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.plan-roadmap-stepper > li > em {
+  color: var(--ink-muted);
+  font-size: var(--text-2xs);
+  font-style: normal;
+  font-weight: 700;
+}
+
+.plan-roadmap-stepper > li > small {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--ink-muted);
+  font-size: var(--text-2xs);
+  line-height: 1.4;
+}
+
+/* --- 첫 7일 미리보기 --- */
+.plan-week-preview {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.plan-week-preview > li {
+  display: grid;
+  grid-template-columns: 10px auto minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: center;
+  min-height: 40px;
+}
+
+.plan-week-preview > li::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  background: var(--brand-solid);
+  border-radius: var(--r-circle);
+}
+
+.plan-week-preview > li[data-rest="true"]::before { background: var(--border-default); }
+
+.plan-week-preview > li > b {
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 800;
+}
+
+.plan-week-preview > li > p {
+  margin: 0;
+  overflow: hidden;
+  color: var(--ink-secondary);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plan-week-preview > li > time {
+  padding: var(--space-1) var(--space-3);
+  color: var(--ink-muted);
+  background: var(--surface-sunken);
+  border-radius: var(--r-pill);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.plan-week-preview[data-expanded="false"] > li:nth-child(n + 4) { display: none; }
+
+.plan-week-more {
+  width: 100%;
+  min-height: 44px;
+  margin-top: var(--space-2);
+  padding: 0 var(--space-3);
+  color: var(--ink-brand);
+  background: none;
+  border: 0;
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.plan-week-more:hover { text-decoration: underline; }
+
+/* --- 가능성 한마디 --- */
+.plan-feasibility-note {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--amber-100);
+  border: 1px solid var(--amber-300);
+  border-radius: var(--r-md);
+}
+
+.plan-feasibility-icon { font-size: 17px; line-height: 1.35; }
+
+.plan-feasibility-note > div { display: grid; gap: 2px; min-width: 0; }
+
+.plan-feasibility-note strong {
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.plan-feasibility-note p {
+  margin: 0;
+  color: var(--ink-secondary);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+/* --- 시작 / 조금 바꿀래요 --- */
+.plan-result-cta {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+.plan-result-cta > a {
+  display: flex;
+  min-height: 56px;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-4);
+  color: var(--ink-on-brand);
+  background: var(--brand-gradient);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-md);
+  font-family: var(--font-brand-ui);
+  font-synthesis: none;
+  font-size: clamp(16px, 4.2vw, 19px);
+  text-decoration: none;
+}
+
+.plan-result-cta > a > b { font-size: 17px; font-weight: 400; }
+
+.plan-adjust-toggle {
+  min-height: 52px;
+  padding: 0 var(--space-4);
+  color: var(--ink-secondary);
+  background: var(--surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-lg);
+  font: inherit;
+  font-size: var(--text-md);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.plan-adjust-toggle:hover {
+  color: var(--ink-brand);
+  background: var(--surface-brand-soft);
+  border-color: var(--border-brand);
+}
+
+.plan-result-cta > a:focus-visible,
+.plan-adjust-toggle:focus-visible,
+.plan-week-more:focus-visible {
+  outline: 3px solid var(--brand-solid);
+  outline-offset: 2px;
+}
+
+.plan-result-fineprint {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: var(--text-2xs);
+  line-height: 1.5;
+  text-align: center;
+}
+
+/* --- 조정 패널 --- */
+.plan-adjust-panel {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+}
+
+.plan-adjust-panel[hidden] { display: none; }
+
+.plan-adjust-panel .schedule-start-options {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  background: none;
+  border: 0;
+}
+
+.plan-adjust-panel .schedule-start-options > strong {
+  color: var(--ink);
+  font-size: var(--text-sm);
+}
+
+.plan-adjust-panel .schedule-start-options > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.plan-adjust-panel .schedule-start-options button {
+  min-height: 44px;
+  flex: 1 1 auto;
+  padding: 0 var(--space-4);
+  color: var(--ink-secondary);
+  background: var(--surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-pill);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.plan-adjust-panel .schedule-start-options button[aria-pressed="true"] {
+  color: var(--ink-brand);
+  background: var(--surface-brand-soft);
+  border-color: var(--border-brand);
+  font-weight: 800;
+}
+
+.plan-feasibility-options {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.plan-feasibility-options:empty { display: none; }
+
+.plan-feasibility-options button {
+  width: 100%;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-4);
+  color: var(--ink-secondary);
+  background: var(--surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-sm);
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.plan-feasibility-options button[aria-pressed="true"] {
+  color: var(--ink-brand);
+  background: var(--surface-brand-soft);
+  border-color: var(--border-brand);
+  font-weight: 700;
+}
+
+@media (max-width: 360px) {
+  .plan-roadmap-stepper {
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
+  }
+  .plan-roadmap-stepper > li {
+    grid-template-columns: 26px minmax(0, 1fr);
+    justify-items: start;
+    padding-top: 0;
+    padding-left: var(--space-3);
+    text-align: left;
+  }
+  .plan-roadmap-stepper > li > b { position: static; grid-row: 1 / span 4; }
+  .plan-roadmap-stepper > li::before {
+    top: 26px;
+    bottom: -12px;
+    left: 12px;
+    right: auto;
+    width: 2px;
+    height: auto;
+  }
+  .plan-roadmap-stepper > li:first-child::before { left: 12px; top: 26px; }
+  .plan-roadmap-stepper > li:last-child::before { display: none; }
+}
+
+/* 한글은 어절 단위로 끊어야 읽힙니다. 좁은 스텝퍼 칸에서 특히 중요. */
+.plan-roadmap-stepper > li > strong,
+.plan-roadmap-stepper > li > em,
+.plan-roadmap-stepper > li > small,
+.plan-goal-card strong,
+.plan-feasibility-note strong,
+.plan-feasibility-note p {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+.plan-goal-card { align-items: start; }
+
+.plan-goal-card strong {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.home-page .plan-card-head strong {
+  max-width: none;
+  font-size: var(--text-lg);
+  line-height: 1.3;
+}
+
+.plan-feasibility-options > li {
+  color: var(--ink-secondary);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+/* ============================================================
+   위저드 보조 컨트롤도 같은 포괄 규칙에 먹히고 있었습니다.
+   `.home-page .personality-form button`(0,3,0)이 뒤로가기·"이야기 수정"·
+   확인 답변 버튼까지 진한 브랜드 그라데이션으로 칠해, 2단계 한 화면에
+   Primary CTA처럼 보이는 요소가 여섯 개였습니다. (0,4,0)으로 되돌립니다.
+   ============================================================ */
+.home-page .personality-form .wizard-back {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  flex: 0 0 44px;
+  grid-column: auto;
+  place-items: center;
+  padding: 0;
+  color: var(--ink-brand);
+  background: var(--surface-translucent);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-sm);
+  box-shadow: none;
+  font-size: var(--text-lg);
+  font-weight: 400;
+}
+
+.home-page .personality-form .wizard-back:hover {
+  background: var(--surface-brand-soft);
+  border-color: var(--border-brand);
+}
+
+.home-page .personality-form #analysisEditGoalButton {
+  min-height: 44px;
+  grid-column: auto;
+  padding: 0 var(--space-4);
+  color: var(--ink-brand);
+  background: var(--surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-pill);
+  box-shadow: none;
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.home-page .personality-form #analysisEditGoalButton:hover {
+  background: var(--surface-brand-soft);
+  border-color: var(--border-brand);
+}
+
+/* 확인 질문의 답변은 선택지라 알약으로 나란히 놓습니다. 전체 폭 버튼 3개가
+   쌓이면 어느 것이 다음 단계인지 읽히지 않습니다. */
+.home-page .personality-form .analysis-question-controls button {
+  grid-column: auto;
+  flex: 0 1 auto;
+  border-radius: var(--r-pill);
+  box-shadow: none;
+}
+
+@media (max-width: 430px) {
+  .home-page .personality-form .analysis-question-controls > button { flex: 0 1 auto; }
+  .home-page .personality-form .analysis-question-controls > input[type="date"] { flex: 1 1 100%; }
 }

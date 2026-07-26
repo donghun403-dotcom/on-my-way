@@ -113,18 +113,17 @@
                 <p class="goal-story-counter" id="goalStoryCounter"><span id="goalStoryCount">0</span>/1000</p>
               </label>
               <div class="goal-suggestions" aria-label="목표 카테고리">
-                <button type="button" data-goal-category="exam" aria-pressed="false">시험</button>
-                <button type="button" data-goal-category="fitness" aria-pressed="false">운동</button>
-                <button type="button" data-goal-category="career" aria-pressed="false">취업</button>
-                <button type="button" data-goal-category="english" aria-pressed="false">영어</button>
-                <button type="button" data-goal-category="reading" aria-pressed="false">독서</button>
-                <button type="button" data-goal-category="startup" aria-pressed="false">창업</button>
-                <button type="button" data-goal-category="habit" aria-pressed="false">습관</button>
+                <button type="button" data-goal-category="exam" aria-pressed="false"><span class="goal-chip-emoji" aria-hidden="true">📘</span>시험</button>
+                <button type="button" data-goal-category="fitness" aria-pressed="false"><span class="goal-chip-emoji" aria-hidden="true">💪</span>운동</button>
+                <button type="button" data-goal-category="career" aria-pressed="false"><span class="goal-chip-emoji" aria-hidden="true">💼</span>취업</button>
+                <button type="button" data-goal-category="english" aria-pressed="false"><span class="goal-chip-emoji" aria-hidden="true">🗣️</span>영어</button>
+                <button type="button" data-goal-category="reading" aria-pressed="false"><span class="goal-chip-emoji" aria-hidden="true">📚</span>독서</button>
+                <button type="button" data-goal-category="startup" aria-pressed="false"><span class="goal-chip-emoji" aria-hidden="true">🌱</span>창업</button>
+                <button type="button" data-goal-category="habit" aria-pressed="false"><span class="goal-chip-emoji" aria-hidden="true">☀️</span>습관</button>
               </div>
               <p class="goal-category-help" id="goalCategoryHelp">빠른 시작 버튼을 누르면 수정 가능한 예시를 보여드려요. 선택하지 않고 바로 적어도 됩니다.</p>
               <div class="goal-example-suggestions" id="goalExampleSuggestions" aria-label="선택한 카테고리의 추천 목표" hidden></div>
               <p class="goal-validation-message" id="goalValidationMessage" role="status" aria-live="polite">달성하고 싶은 결과를 입력해 주세요.</p>
-              <p class="quiet-note">기간·가능한 시간 같은 세부 조건은 올리가 정리한 뒤 다음 단계에서 확인해요.</p>
             </section>
 
             <section class="diagnosis-step wizard-step wizard-step-review" data-step-title="올리가 정리했어요" hidden>
@@ -159,11 +158,6 @@
                 <span>더 알려주고 싶은 내용 <small>선택</small></span>
                 <textarea id="currentContext" rows="3" maxlength="500" placeholder="예: 아이디어는 있지만 어디서 시작할지 모르겠어요."></textarea>
               </label>
-              <div class="roadmap-quick-context" aria-label="빠르게 덧붙일 조건">
-                <button type="button" data-roadmap-quick-change="평일에는 20분만 가능해요.">평일 20분</button>
-                <button type="button" data-roadmap-quick-change="수요일은 실행할 수 없어요.">수요일 제외</button>
-                <button type="button" data-roadmap-quick-change="첫 달은 더 가볍게 시작하고 싶어요.">첫 달 가볍게</button>
-              </div>
               <p class="quiet-note">자료·가능 요일·세부 시간은 큰 길을 본 뒤 자연어로 조정할 수 있어요.</p>
             </section>
 
@@ -276,49 +270,51 @@
               </dl>
               <div class="summary-progress"><span>설정 완성도</span><strong id="wizardProgressValue">25%</strong></div>
             </div>
-            <a class="first-step-back" href="#designFlow"><span aria-hidden="true">←</span> 목표와 조건 수정</a>
             <div class="preview-result-content">
+              <header class="wizard-header plan-result-header">
+                <a class="wizard-back first-step-back" href="#designFlow" aria-label="이전 단계로"><span aria-hidden="true">←</span></a>
+                <span class="wizard-step-badge">3/3</span>
+                <h3 class="brand-display">1차 계획 보기</h3>
+              </header>
+              <p class="plan-result-status">
+                <span id="aiPreviewStatus">목표까지 갈 큰 길을 확인해 주세요</span>
+                <strong id="planningStyle">진행에 따라 매주 조정</strong>
+              </p>
               <div class="result-scroll-area">
-                <div class="analysis-header result-analysis-header">
+                <article class="plan-goal-card">
+                  <span class="plan-goal-icon" aria-hidden="true">🎯</span>
                   <div>
-                    <small>올리가 만든 첫 번째 길</small>
-                    <span id="aiPreviewStatus">목표까지 갈 큰 길을 확인해 주세요</span>
-                  </div>
-                  <strong id="planningStyle">진행에 따라 매주 조정</strong>
-                </div>
-                <details class="draft-understanding-card roadmap-understanding-card understanding-disclosure" aria-labelledby="draftUnderstandingTitle">
-                  <summary class="understanding-summary">
-                    <span>
-                      <strong class="brand-display" id="draftUnderstandingTitle">올리가 이해한 큰 길</strong>
-                      <span id="understoodGoal">입력한 목표</span>
-                    </span>
-                    <b aria-hidden="true"></b>
-                  </summary>
-                  <dl id="draftUnderstandingList">
-                    <div><dt>성공 기준</dt><dd id="roadmapSuccessCriterion">마지막 단계의 완료 기준</dd></div>
-                    <div><dt>현실성</dt><dd id="roadmapReality">현재 조건에서 시작할 수 있는 길로 정리했어요.</dd></div>
-                    <div hidden><dt>사용 자료</dt><dd id="understoodMaterial">사용 자료 없음 · 일반 계획으로 구성</dd></div>
-                    <div hidden><dt>가능 시간</dt><dd id="understoodAvailability">월·수·금 · 회당 25분</dd></div>
-                    <div hidden><dt>제외 일정</dt><dd id="understoodExclusions">없음</dd></div>
-                    <div hidden><dt>진행 방식</dt><dd id="understoodIntensity">균형 있게</dd></div>
-                    <div><dt>임시 가정</dt><dd id="understoodAssumptions">입력하지 않은 정보는 임의로 단정하지 않아요.</dd></div>
-                    <div><dt>다음에 알려주면 좋은 정보</dt><dd id="roadmapNextInfo">현재 위치 · 쉬어야 하는 날 · 꼭 쓰고 싶은 자료</dd></div>
-                  </dl>
-                  <a class="understanding-edit-link" href="#designFlow">입력 수정</a>
-                </details>
-                <article class="draft-feasibility-card" aria-labelledby="draftFeasibilityTitle">
-                  <span>달성 가능성 점검</span><strong id="draftFeasibilityTitle">현재 조건으로 시작할 수 있어요</strong><p id="draftFeasibilityCopy">주 3회, 회당 25분 기준으로 첫 주 실행 리듬을 만듭니다.</p><ul id="draftFeasibilityOptions"></ul>
-                </article>
-                <article class="ollie-chat-preview result-ollie-card">
-                  <img src="assets/ollie-celebrate.png" alt="" />
-                  <div><span>올리의 한마디</span><p id="aiCoachMessage">목표를 작게 쪼개면 오늘 바로 시작할 수 있습니다.</p></div>
-                </article>
-                <article class="result-roadmap-card roadmap-journey-card" aria-labelledby="roadmapTitle">
-                  <div class="result-section-head"><span>목표까지 가는 큰 길</span><strong class="brand-display" id="roadmapTitle">큰 길과 마일스톤</strong></div>
-                  <div id="aiGoalRoadmap" class="result-roadmap-list journey-path">
-                    <div><b>지금 여기</b><span><strong>첫 실행 리듬 만들기</strong><small>작은 행동을 정해진 시간에 반복해요.</small></span></div>
+                    <span>목표</span>
+                    <strong id="understoodGoal">입력한 목표</strong>
                   </div>
                 </article>
+
+                <section class="plan-roadmap-card" aria-labelledby="roadmapTitle">
+                  <div class="plan-card-head">
+                    <strong class="brand-display" id="roadmapTitle">전체 로드맵</strong>
+                    <small id="roadmapDeadline"></small>
+                  </div>
+                  <ol id="aiGoalRoadmap" class="plan-roadmap-stepper"></ol>
+                </section>
+
+                <section class="plan-week-card" aria-labelledby="weekPlanTitle">
+                  <div class="plan-card-head">
+                    <strong class="brand-display" id="weekPlanTitle">첫 7일 미리보기</strong>
+                  </div>
+                  <ol id="aiVisibleWeekPlan" class="plan-week-preview" data-expanded="false"></ol>
+                  <button class="plan-week-more" type="button" id="weekPreviewToggle" aria-controls="aiVisibleWeekPlan" aria-expanded="false">전체 7일 보기 <span aria-hidden="true">→</span></button>
+                </section>
+
+                <article class="plan-feasibility-note" aria-labelledby="draftFeasibilityTitle">
+                  <span class="plan-feasibility-icon" aria-hidden="true">⭐</span>
+                  <div>
+                    <strong id="draftFeasibilityTitle">현재 조건으로 시작할 수 있어요</strong>
+                    <p id="draftFeasibilityCopy">꾸준히 지키면 목표 달성이 가능해요!</p>
+                  </div>
+                </article>
+
+                <!-- 조정 결과는 컨트롤이 아니라 피드백이라 조정 패널이 아니라
+                     본문에 남깁니다. 새로고침해도 바뀐 내용이 그대로 보여야 해요. -->
                 <article class="roadmap-revision-summary" id="roadmapRevisionSummary" aria-labelledby="roadmapRevisionSummaryTitle" hidden>
                   <div class="result-section-head"><span>계획 조정 완료</span><strong class="brand-display" id="roadmapRevisionSummaryTitle">바뀐 길을 확인해 주세요</strong></div>
                   <dl>
@@ -327,30 +323,32 @@
                     <div><dt>반영한 조건</dt><dd id="roadmapRevisionConditions"></dd></div>
                   </dl>
                 </article>
-                <details class="result-week-card draft-week-card first-week-disclosure">
-                  <summary><span>첫 7일 작은 미리보기</span><strong id="weekPlanTitle">큰 길을 고정한 뒤 일정이 확정돼요</strong></summary>
-                  <ol id="aiVisibleWeekPlan" class="result-week-list draft-week-list"><li>첫 7일 계획을 만드는 중이에요.</li></ol>
-                </details>
-                <article class="today-plan-card result-today-card" hidden>
-                  <div class="result-card-head"><span>첫 행동</span><b id="previewDuration">15분</b></div><strong id="previewAction">첫 행동</strong><p id="previewCompletionRule">완료 기준</p>
-                </article>
-                <fieldset class="schedule-start-options" aria-labelledby="scheduleStartOptionsTitle">
-                  <legend class="brand-display" id="scheduleStartOptionsTitle">첫 주 일정은 어떻게 시작할까요?</legend>
-                  <p>AI가 제안한 기본값을 그대로 쓰거나, 고정할 때 한 번만 가볍게 조정할 수 있어요.</p>
-                  <div>
-                    <button type="button" data-schedule-start="as-is" aria-pressed="true">이대로 시작</button>
-                    <button type="button" data-schedule-start="change-days" aria-pressed="false">요일 바꾸기</button>
-                    <button type="button" data-schedule-start="shorter" aria-pressed="false">시간 줄이기</button>
-                  </div>
-                </fieldset>
-                <div class="result-inline-start" role="region" aria-label="오늘 계획 시작하기">
-                  <div><span id="previewConversionKicker">검토 후 결정</span><strong id="previewConversionCopy">저장하기 전에는 현재 계획이나 회원 데이터가 바뀌지 않아요.</strong></div>
-                  <a id="trialStartInlineLink" href="app.html" aria-label="이 계획 고정하고 일정 만들기"><span id="previewConversionAction">이 계획 고정하고 일정 만들기</span><b aria-hidden="true">→</b></a>
+
+                <div class="plan-result-cta">
+                  <a id="trialStartInlineLink" href="app.html" aria-label="이 계획으로 시작하기"><span id="previewConversionAction">이 계획으로 시작하기</span><b aria-hidden="true">🚀</b></a>
+                  <button class="plan-adjust-toggle" type="button" id="planAdjustToggle" aria-controls="planAdjustPanel" aria-expanded="false">조금 바꿀래요</button>
                 </div>
-                <div class="draft-secondary-actions"><button id="draftAdjustButton" type="button">올리와 계획 조정하기</button><button id="discardDraftChangesButton" type="button" hidden>수정 내용 버리기</button><a href="#designFlow">목표 다시 보기</a></div>
+                <p class="plan-result-fineprint">
+                  <span id="previewConversionKicker">검토 후 결정</span>
+                  <span id="previewConversionCopy">저장하기 전에는 현재 계획이나 회원 데이터가 바뀌지 않아요.</span>
+                </p>
+
+                <div class="plan-adjust-panel" id="planAdjustPanel" hidden>
+                  <div class="schedule-start-options" role="group" aria-labelledby="scheduleStartOptionsTitle">
+                    <strong class="brand-display" id="scheduleStartOptionsTitle">첫 주 일정은 어떻게 시작할까요?</strong>
+                    <div>
+                      <button type="button" data-schedule-start="as-is" aria-pressed="true">이대로 시작</button>
+                      <button type="button" data-schedule-start="change-days" aria-pressed="false">요일 바꾸기</button>
+                      <button type="button" data-schedule-start="shorter" aria-pressed="false">시간 줄이기</button>
+                    </div>
+                  </div>
+                  <ul id="draftFeasibilityOptions" class="plan-feasibility-options"></ul>
+                  <div class="draft-secondary-actions"><button id="draftAdjustButton" type="button">올리와 계획 조정하기</button><button id="discardDraftChangesButton" type="button" hidden>수정 내용 버리기</button><a href="#designFlow">목표 다시 보기</a></div>
+                </div>
+
                 <details class="result-details-disclosure">
                   <summary aria-controls="resultDetailsContent" aria-expanded="false">
-                    <span><strong>내 계획 자세히 보기</strong><small>오늘 스케줄 · 첫 주 로드맵 · 맞춤 분석</small></span>
+                    <span><strong>내 계획 자세히 보기</strong><small>오늘 스케줄 · 올리가 이해한 내용 · 맞춤 분석</small></span>
                     <b aria-hidden="true">보기</b>
                   </summary>
                   <div class="result-details-content" id="resultDetailsContent">
@@ -359,6 +357,27 @@
                       <ol id="aiTodaySchedule" class="result-schedule-list">
                         <li><time>아침</time><div><strong>첫 행동 시작하기</strong><small>15분 · 완료 체크 남기기</small></div></li>
                       </ol>
+                    </article>
+                    <article class="today-plan-card result-today-card">
+                      <div class="result-card-head"><span>첫 행동</span><b id="previewDuration">15분</b></div><strong id="previewAction">첫 행동</strong><p id="previewCompletionRule">완료 기준</p>
+                    </article>
+                    <article class="ollie-chat-preview result-ollie-card">
+                      <img src="assets/ollie-celebrate.png" alt="" />
+                      <div><span>올리의 한마디</span><p id="aiCoachMessage">목표를 작게 쪼개면 오늘 바로 시작할 수 있습니다.</p></div>
+                    </article>
+                    <article class="draft-understanding-card roadmap-understanding-card" aria-labelledby="draftUnderstandingTitle">
+                      <div class="result-section-head"><span>올리가 이해한 내용</span><strong class="brand-display" id="draftUnderstandingTitle">올리가 이해한 큰 길</strong></div>
+                      <dl id="draftUnderstandingList">
+                        <div><dt>성공 기준</dt><dd id="roadmapSuccessCriterion">마지막 단계의 완료 기준</dd></div>
+                        <div><dt>현실성</dt><dd id="roadmapReality">현재 조건에서 시작할 수 있는 길로 정리했어요.</dd></div>
+                        <div hidden><dt>사용 자료</dt><dd id="understoodMaterial">사용 자료 없음 · 일반 계획으로 구성</dd></div>
+                        <div hidden><dt>가능 시간</dt><dd id="understoodAvailability">월·수·금 · 회당 25분</dd></div>
+                        <div hidden><dt>제외 일정</dt><dd id="understoodExclusions">없음</dd></div>
+                        <div hidden><dt>진행 방식</dt><dd id="understoodIntensity">균형 있게</dd></div>
+                        <div><dt>임시 가정</dt><dd id="understoodAssumptions">입력하지 않은 정보는 임의로 단정하지 않아요.</dd></div>
+                        <div><dt>다음에 알려주면 좋은 정보</dt><dd id="roadmapNextInfo">현재 위치 · 쉬어야 하는 날 · 꼭 쓰고 싶은 자료</dd></div>
+                      </dl>
+                      <a class="understanding-edit-link" href="#designFlow">입력 수정</a>
                     </article>
                     <article class="tomorrow-card result-tomorrow-card">
                       <span>다음 단계</span><strong id="aiPreviewTitle">이번 주에는 루틴을 고정합니다</strong>

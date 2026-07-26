@@ -3,6 +3,14 @@ const { captureAcceptance, createUsageResponse, mockAccountExperience, monitorPa
 
 test.setTimeout(90_000);
 
+// 3단계 기본 화면은 시안대로 목표·로드맵·첫 7일·시작 버튼만 보여준다.
+// 일정 조정 수단(시작 방식·현실성 조정안·올리와 조정)은 "조금 바꿀래요" 뒤에 있다.
+async function openPlanAdjust(page) {
+  const panel = page.locator("#planAdjustPanel");
+  if (await panel.isHidden()) await page.locator("#planAdjustToggle").click();
+  await expect(panel).toBeVisible();
+}
+
 function guestPreviewPlan() {
   const firstWeekSchedule = ["월", "화", "수", "목", "금", "토", "일"].map((dayLabel, index) => ({
     dayNumber: index + 1,
@@ -236,6 +244,7 @@ test("infeasible roadmap requires an explicit adjustment before claim", async ({
   await expect(page.locator("#aiPreviewStatus")).toHaveText("현재 계획과 조건이 일치해요.");
   await expect(page.locator("#draftFeasibilityTitle")).toContainText("조정안");
 
+  await openPlanAdjust(page);
   const adjustment = page.locator('[data-feasibility-adjustment="increase_frequency"]');
   await expect(adjustment).toHaveAttribute("aria-pressed", "false");
   await expect(page.locator("#trialStartInlineLink")).toHaveAttribute("aria-disabled", "true");
@@ -251,6 +260,7 @@ test("infeasible roadmap requires an explicit adjustment before claim", async ({
   expect(previewCalls).toBe(1);
   expect(await page.evaluate(() => localStorage.getItem("omwExecutionPlan"))).toBeNull();
 
+  await openPlanAdjust(page);
   await page.locator("#draftAdjustButton").click();
   await expect(page.locator("#designGoal")).toHaveValue(goal);
   await page.locator("#aiPreviewButton").click();
@@ -514,6 +524,7 @@ test("a failed revision attempt-key cleanup preserves the active roadmap and blo
   await expect.poll(() => previewRequests).toBe(1);
   await expect(page.locator("#previewAction")).toHaveText(guestPreviewPlan().firstAction);
 
+  await openPlanAdjust(page);
   await page.locator("#draftAdjustButton").click();
   await page.locator("#currentContext").fill("Use thirty minutes on weekdays");
   await page.locator("#currentContext").blur();
@@ -671,7 +682,8 @@ test("취소 뒤 다른 provider를 직접 선택하면 성공 복원 후 명시
   await expect(page.locator("#firstStep")).toBeVisible();
   await expect(page.locator("#designGoal")).toHaveValue("90일 안에 첫 유료 고객 10명 만들기");
   await expect(page.locator("#previewAction")).toHaveText("잠재 고객 한 명에게 문제 인터뷰를 요청하기");
-  await expect(page.locator("#previewConversionAction")).toHaveText("이 계획 고정하고 일정 만들기");
+  await expect(page.locator("#previewConversionAction")).toHaveText("이 계획으로 시작하기");
+  await openPlanAdjust(page);
   await page.locator("[data-schedule-start='shorter']").click();
   await expect(page.locator("[data-schedule-start='shorter']")).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("[data-schedule-start='as-is']")).toHaveAttribute("aria-pressed", "false");
@@ -894,7 +906,7 @@ test("익명 사용자는 실제 AI 계획 일부를 본 뒤 로그인·회원�
   await expect(page.locator("#aiPreviewStatus")).toHaveText("현재 계획과 조건이 일치해요.");
   await expect(page.locator("#previewAction")).toHaveText("잠재 고객 한 명에게 문제 인터뷰를 요청하기");
   await expect(page.locator(".result-details-disclosure")).toBeHidden();
-  await expect(page.locator("#previewConversionAction")).toHaveText("이 계획 고정하고 일정 만들기");
+  await expect(page.locator("#previewConversionAction")).toHaveText("이 계획으로 시작하기");
   await captureAcceptance(page, testInfo, "plan-draft", { fullPage: false });
   expect(previewRequestBody).toMatchObject({
     goal: "90일 안에 첫 유료 고객 10명 만들기",
@@ -917,7 +929,7 @@ test("익명 사용자는 실제 AI 계획 일부를 본 뒤 로그인·회원�
   await expect(page.locator("#firstStep")).toBeVisible();
   await expect(page.locator("#designGoal")).toHaveValue("90일 안에 첫 유료 고객 10명 만들기");
   await expect(page.locator("#previewAction")).toHaveText("잠재 고객 한 명에게 문제 인터뷰를 요청하기");
-  await expect(page.locator("#previewConversionAction")).toHaveText("이 계획 고정하고 일정 만들기");
+  await expect(page.locator("#previewConversionAction")).toHaveText("이 계획으로 시작하기");
 
   await Promise.all([
     page.waitForResponse((response) => new URL(response.url()).pathname === "/api/ai/goal-draft/claim" && response.status() === 200),
@@ -1019,10 +1031,11 @@ test("익명 초안 수정은 기존 AI 일정을 보존하고 명시적 재생�
   await expect.poll(() => previewCalls).toBe(1);
   await expect(page.locator("#previewAction")).toHaveText("잠재 고객 한 명에게 문제 인터뷰를 요청하기");
 
+  await openPlanAdjust(page);
   await page.locator("#draftAdjustButton").click();
   // 계획 조정은 조건을 확인·수정하는 2단계로 돌아간다.
   await expect(page.locator("#diagnosisStepCount")).toHaveText("2/3");
-  await page.getByRole("button", { name: "첫 달 가볍게" }).click();
+  await page.locator("#currentContext").fill("첫 달은 더 가볍게 시작하고 싶어요.");
   await expect(page.locator("#currentContext")).toHaveValue(/첫 달은 더 가볍게 시작하고 싶어요\./);
   expect(revisionCalls).toBe(0);
   await page.locator("#currentContext").fill("평일 45분 가능");
@@ -1034,6 +1047,7 @@ test("익명 초안 수정은 기존 AI 일정을 보존하고 명시적 재생�
   expect(pending.pendingDraftInput.currentContext).toBe("평일 45분 가능");
   await page.evaluate(() => { location.hash = "firstStep"; });
   await expect(page.locator("#trialStartInlineLink")).toHaveAttribute("aria-disabled", "true");
+  await openPlanAdjust(page);
   await page.locator("#draftAdjustButton").click();
 
   await expect(page.locator("#aiPreviewButton")).toContainText("말한 내용으로 큰 길 다시 그리기");
@@ -1061,6 +1075,7 @@ test("익명 초안 수정은 기존 AI 일정을 보존하고 명시적 재생�
   await expect(page.locator("#roadmapRevisionSummary")).toBeVisible();
   expect((await page.evaluate(() => JSON.parse(sessionStorage.getItem("onmyway:pending-goal-preview") || "null"))).activeRevision).toBe(2);
 
+  await openPlanAdjust(page);
   await page.locator("#draftAdjustButton").click();
   await page.locator("#currentContext").fill("평일 60분 가능");
   await page.locator("#currentContext").blur();

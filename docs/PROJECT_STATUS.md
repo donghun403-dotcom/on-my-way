@@ -8,6 +8,17 @@
 
 ## 최신 검증
 
+### 온보딩 3단계 시안 반영과 칩·CTA 비율 수정 (2026-07-26)
+
+- 기준 worktree: `.worktrees/plan-experience-overhaul`, 브랜치 `codex/ollie-core-loop-production`
+- 3단계(1차 계획 보기)를 시안 구조로 다시 만들었다: 3/3 헤더 · 목표 카드 · 번호 로드맵 스텝퍼 · 첫 7일 미리보기(3일 + 전체 보기) · 가능성 한마디 · "이 계획으로 시작하기" + "조금 바꿀래요". 기존에 기본 화면에 펼쳐져 있던 카드 9종을 조정 패널과 접힌 disclosure 뒤로 옮겼다.
+- 일정 시작 방식(`[data-schedule-start]`)은 **기능을 지우지 않고** "조금 바꿀래요" 뒤로만 옮겼다. `/api/ai/goal-draft/claim`에 그대로 전달된다.
+- `#roadmapRevisionSummary`는 조정 패널에 넣었다가 새로고침 후 보이지 않는 것을 E2E가 잡아내, 컨트롤이 아닌 결과라는 이유로 본문에 되돌렸다.
+- 카테고리 칩: `.home-page .personality-form button`(0,3,0)이 폼 안 모든 버튼에 진한 브랜드 그라데이션을 칠해 칩 7개가 Primary CTA처럼 보이던 문제를 수정했다. 파스텔 알약 + 이모지로 바꾸고 3열 격자를 flex-wrap으로 바꿔 "습관" 한 칸이 남던 것도 없앴다.
+- 1단계 CTA: `.builder-actions`의 `justify-content: space-between`을 상속해 332px 트랙 안에서 219px로 줄어 있었다. 프레임을 걷어내고 전체 폭 56px로 고정했다.
+- 2단계 빠른 조건 칩(평일 20분 / 수요일 제외 / 첫 달 가볍게)은 요청에 따라 마크업·CSS·스크립트에서 제거했다.
+- 검증: 유닛 278/278, desktop+responsive 147 passed / 1 skipped, iphone-webkit 13개 파일 131 passed / 0 failed / 0 flaky. 320/390/768/1440px에서 가로 오버플로 0, 11px 미만 텍스트 0, 44px 미만 탭 타깃 0, 콘솔 오류 0.
+
 ### 디자인 토큰 통합과 온보딩 3단계 복원 (2026-07-26)
 
 - 기준 worktree: `.worktrees/plan-experience-overhaul`, 브랜치 `codex/ollie-core-loop-production`

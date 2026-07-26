@@ -68,7 +68,11 @@ const aiPreviewTitle = document.querySelector("#aiPreviewTitle");
 const aiPreviewList = document.querySelector("#aiPreviewList");
 const aiTodaySchedule = document.querySelector("#aiTodaySchedule");
 const aiVisibleWeekPlan = document.querySelector("#aiVisibleWeekPlan");
+const weekPreviewToggle = document.querySelector("#weekPreviewToggle");
 const aiGoalRoadmap = document.querySelector("#aiGoalRoadmap");
+const roadmapDeadline = document.querySelector("#roadmapDeadline");
+const planAdjustToggle = document.querySelector("#planAdjustToggle");
+const planAdjustPanel = document.querySelector("#planAdjustPanel");
 const aiCoachMessage = document.querySelector("#aiCoachMessage");
 const previewPersonality = document.querySelector("#previewPersonality");
 const previewStyle = document.querySelector("#previewStyle");
@@ -87,7 +91,6 @@ const draftFeasibilityOptions = document.querySelector("#draftFeasibilityOptions
 const roadmapSuccessCriterion = document.querySelector("#roadmapSuccessCriterion");
 const roadmapReality = document.querySelector("#roadmapReality");
 const roadmapNextInfo = document.querySelector("#roadmapNextInfo");
-const roadmapQuickChangeButtons = document.querySelectorAll("[data-roadmap-quick-change]");
 const roadmapRevisionSummary = document.querySelector("#roadmapRevisionSummary");
 const roadmapRevisionBefore = document.querySelector("#roadmapRevisionBefore");
 const roadmapRevisionAfter = document.querySelector("#roadmapRevisionAfter");
@@ -2655,7 +2658,7 @@ function updateGoalStepState() {
   if (goalValidationMessage) {
     goalValidationMessage.textContent = !hasGoal
       ? "달성하고 싶은 결과를 입력해 주세요."
-      : "목표를 확인했어요. 기간을 고른 뒤 AI로 큰 계획 보기를 눌러주세요.";
+      : "목표를 확인했어요. 올리에게 계획을 부탁해 보세요.";
   }
 }
 
@@ -2873,6 +2876,8 @@ function queueDiagnosisAutoAdvance(delay = 1100) {
 // ===== 온보딩 1단계(자연어 이야기) → 2단계(올리가 정리한 이해 확인) =====
 const ANALYSIS_NOTE_PREFIX = "확인한 조건:";
 const analysisAnswers = new Map();
+// 2단계에서 올리가 한 줄로 정리한 목표. 3단계 목표 카드는 원문 대신 이 값을 씁니다.
+let analyzedGoalSummary = "";
 let goalAnalysisPending = false;
 
 function syncGoalStoryCounter() {
@@ -2904,6 +2909,7 @@ function applyTargetDateAnswer(value) {
 
 function renderGoalAnalysis(analysis) {
   analysisAnswers.clear();
+  analyzedGoalSummary = String(analysis.goal || "").trim();
   if (analysisUnderstanding) {
     const rows = [
       ["목표", analysis.goal],
@@ -3098,20 +3104,6 @@ goalSuggestionButtons.forEach((button) => {
 
 personalityForm?.addEventListener("input", () => {
   selectedFeasibilityAdjustment = "";
-});
-
-roadmapQuickChangeButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    if (!currentContextInput) return;
-    const addition = String(button.dataset.roadmapQuickChange || "").trim();
-    const entries = currentContextInput.value.split(/\n+/).map((item) => item.trim()).filter(Boolean);
-    if (addition && !entries.includes(addition)) entries.push(addition);
-    currentContextInput.value = entries.join("\n").slice(0, Number(currentContextInput.maxLength) || 500);
-    button.setAttribute("aria-pressed", entries.includes(addition) ? "true" : "false");
-    currentContextInput.dispatchEvent(new Event("input", { bubbles: true }));
-    currentContextInput.dispatchEvent(new Event("change", { bubbles: true }));
-    currentContextInput.focus({ preventScroll: true });
-  });
 });
 
 designGoal?.addEventListener("input", () => {
@@ -3745,7 +3737,7 @@ function applyFeasibilityAdjustment(option) {
 function renderDraftUnderstanding(preview) {
   const draft = collectGoalDraftInput();
   const days = draft.availability.availableDays;
-  if (understoodGoal) understoodGoal.textContent = designGoal?.value.trim() || "입력한 목표";
+  if (understoodGoal) understoodGoal.textContent = analyzedGoalSummary || designGoal?.value.trim() || "입력한 목표";
   if (understoodMaterial) {
     understoodMaterial.textContent = draft.material.hasMaterial
       ? `${draft.material.name || "자료 이름 미입력"} · ${draft.material.targetRange || "목표 범위 미입력"}`
@@ -3861,69 +3853,60 @@ function renderAiPreview(preview) {
     aiTodaySchedule.replaceChildren(...items);
   }
   if (aiVisibleWeekPlan) {
+    // 시안의 "첫 7일 미리보기": 하루 한 줄(Day N · 할 일 · 소요 시간)로만 보여주고,
+    // 항목별 완료 기준·출처는 "내 계획 자세히 보기"에서 확인합니다.
     const firstWeek = Array.isArray(preview.firstWeekSchedule) ? preview.firstWeekSchedule : [];
     const items = (firstWeek.length ? firstWeek : (preview.weekPlan || []).map((item, index) => ({
       dayNumber: index + 1,
       dayLabel: `Day ${index + 1}`,
       isRestDay: false,
-      items: [{ type: "ACTION", title: item, durationMinutes: 0, completionRule: "" }],
+      items: [{ type: "ACTION", title: item, durationMinutes: 0 }],
     }))).map((day, index) => {
       const row = document.createElement("li");
       row.dataset.day = String(index + 1);
-      const heading = document.createElement("div");
-      const dayLabel = document.createElement("strong");
-      const state = document.createElement("span");
-      dayLabel.textContent = day.dayLabel || `Day ${day.dayNumber || index + 1}`;
-      state.textContent = day.isRestDay ? "휴식" : "실행";
-      heading.append(dayLabel, state);
-      const list = document.createElement("div");
-      list.className = "draft-day-items";
+      const dayLabel = document.createElement("b");
+      const title = document.createElement("p");
+      const duration = document.createElement("time");
       const dayItems = Array.isArray(day.items) ? day.items.filter((item) => item?.type !== "SYSTEM_RULE") : [];
-      if (!dayItems.length) {
-        const empty = document.createElement("p");
-        empty.textContent = "계획된 휴식일";
-        list.append(empty);
+      const lead = dayItems[0];
+      dayLabel.textContent = day.dayLabel || `Day ${day.dayNumber || index + 1}`;
+      if (day.isRestDay || !lead) {
+        row.dataset.rest = "true";
+        title.textContent = "계획된 휴식일";
+        duration.textContent = "휴식";
       } else {
-        dayItems.forEach((item) => {
-          const itemRow = document.createElement("article");
-          const type = document.createElement("b");
-          const copy = document.createElement("span");
-          const title = document.createElement("strong");
-          const meta = document.createElement("small");
-          type.textContent = {
-            ACTION: "오늘 행동",
-            REVIEW: "점검",
-            TIP: "올리의 팁",
-          }[item.type] || "안내";
-          title.textContent = item.title || "실행 항목";
-          meta.textContent = [item.sourceReference, item.quantityOrRange, item.durationMinutes ? `${item.durationMinutes}분` : "", item.completionRule]
-            .filter(Boolean).join(" · ");
-          copy.append(title, meta);
-          itemRow.append(type, copy);
-          list.append(itemRow);
-        });
+        const extra = dayItems.length - 1;
+        title.textContent = extra > 0 ? `${lead.title || "실행 항목"} 외 ${extra}개` : (lead.title || "실행 항목");
+        const minutes = dayItems.reduce((total, item) => total + (Number(item.durationMinutes) || 0), 0);
+        duration.textContent = minutes ? `${minutes}분` : "—";
       }
-      row.append(heading, list);
+      row.append(dayLabel, title, duration);
       return row;
     });
     aiVisibleWeekPlan.replaceChildren(...items);
+    syncWeekPreviewToggle(items.length);
   }
   if (aiGoalRoadmap) {
+    // 시안의 "전체 로드맵": 번호가 붙은 가로 스텝퍼. 단계당 제목 · 기간 · 세부 두 줄.
     const items = roadmapPhases.map((item, index) => {
-      const row = document.createElement("div");
+      const row = document.createElement("li");
       const badge = document.createElement("b");
-      const copy = document.createElement("span");
       const title = document.createElement("strong");
-      const detail = document.createElement("small");
-      badge.textContent = index === 0 ? "지금 여기" : item.days || `${index + 1}단계`;
-      title.textContent = `${item.phase || `${index + 1}단계`} · ${item.focus || "실행 흐름 만들기"}`;
-      detail.textContent = item.successMetric || "완료 여부를 확인해요.";
-      copy.append(title, detail);
-      row.append(badge, copy);
+      const period = document.createElement("em");
+      const focus = document.createElement("small");
+      const metric = document.createElement("small");
+      badge.textContent = String(index + 1);
+      title.textContent = item.phase || `${index + 1}단계`;
+      period.textContent = item.days ? `(${item.days})` : "";
+      focus.textContent = item.focus || "실행 흐름 만들기";
+      metric.textContent = item.successMetric || "완료 여부 확인";
+      row.append(badge, title, period, focus, metric);
+      if (index === 0) row.dataset.current = "true";
       return row;
     });
     aiGoalRoadmap.replaceChildren(...items);
   }
+  if (roadmapDeadline) roadmapDeadline.textContent = roadmapDeadlineLabel(roadmapPhases);
   if (preview.dashboard) {
     if (dashboardGoalPreview) dashboardGoalPreview.textContent = preview.dashboard.goal;
     if (dashboardProgressValue) dashboardProgressValue.textContent = `${preview.dashboard.progress}%`;
@@ -3932,6 +3915,51 @@ function renderAiPreview(preview) {
   }
   renderDraftUnderstanding(preview);
 }
+
+// "전체 로드맵" 옆의 기한 표시. 완료 희망일이 있으면 날짜로, 없으면 마지막
+// 단계의 기간을 씁니다. 둘 다 없으면 아무것도 쓰지 않습니다 — 날짜를 지어내지 않아요.
+function roadmapDeadlineLabel(roadmapPhases) {
+  const targetDate = document.querySelector("#targetDate")?.value || "";
+  const parsed = targetDate ? new Date(`${targetDate}T00:00:00`) : null;
+  if (parsed && !Number.isNaN(parsed.getTime())) {
+    return `(${parsed.getMonth() + 1}월 ${parsed.getDate()}일까지)`;
+  }
+  const finalDays = roadmapPhases.at(-1)?.days || "";
+  return finalDays ? `(총 ${finalDays})` : "";
+}
+
+const WEEK_PREVIEW_VISIBLE_DAYS = 3;
+
+function syncWeekPreviewToggle(totalDays = 0) {
+  if (!weekPreviewToggle || !aiVisibleWeekPlan) return;
+  const expanded = aiVisibleWeekPlan.dataset.expanded === "true";
+  weekPreviewToggle.hidden = totalDays <= WEEK_PREVIEW_VISIBLE_DAYS;
+  weekPreviewToggle.setAttribute("aria-expanded", String(expanded));
+  const arrow = document.createElement("span");
+  arrow.setAttribute("aria-hidden", "true");
+  arrow.textContent = expanded ? "↑" : "→";
+  weekPreviewToggle.replaceChildren(
+    document.createTextNode(expanded ? `${WEEK_PREVIEW_VISIBLE_DAYS}일만 보기 ` : `전체 ${totalDays}일 보기 `),
+    arrow,
+  );
+}
+
+weekPreviewToggle?.addEventListener("click", () => {
+  if (!aiVisibleWeekPlan) return;
+  aiVisibleWeekPlan.dataset.expanded = String(aiVisibleWeekPlan.dataset.expanded !== "true");
+  syncWeekPreviewToggle(aiVisibleWeekPlan.children.length);
+});
+
+// 시안의 "조금 바꿀래요": 일정 조정 수단은 전부 이 패널 뒤로 접어 두고,
+// 기본 화면은 목표 · 로드맵 · 첫 7일 · 시작 버튼만 남깁니다.
+planAdjustToggle?.addEventListener("click", () => {
+  if (!planAdjustPanel) return;
+  const opening = planAdjustPanel.hidden;
+  planAdjustPanel.hidden = !opening;
+  planAdjustToggle.setAttribute("aria-expanded", String(opening));
+  planAdjustToggle.textContent = opening ? "조정 접기" : "조금 바꿀래요";
+  if (opening) planAdjustPanel.querySelector("button")?.focus({ preventScroll: true });
+});
 
 function roadmapLeadStep(preview) {
   const phase = Array.isArray(preview?.fullSchedule) ? preview.fullSchedule[0] : null;
@@ -3989,15 +4017,15 @@ function setResultPreviewMode(mode) {
         : "로그인·회원가입 후 이 큰 길을 그대로 고정하고 첫 7일 일정을 만들어요.";
     }
     if (previewConversionAction) {
-      previewConversionAction.textContent = "이 계획 고정하고 일정 만들기";
+      previewConversionAction.textContent = "이 계획으로 시작하기";
     }
     trialStartInlineLink?.setAttribute("aria-label", previewConversionAction?.textContent || "전체 계획 이어서 만들기");
     return;
   }
   if (previewConversionKicker) previewConversionKicker.textContent = "검토 후 결정";
   if (previewConversionCopy) previewConversionCopy.textContent = "저장하기 전에는 현재 계획이나 회원 데이터가 바뀌지 않아요.";
-  if (previewConversionAction) previewConversionAction.textContent = "이 계획 고정하고 일정 만들기";
-  trialStartInlineLink?.setAttribute("aria-label", "검토한 계획을 고정하고 일정 만들기");
+  if (previewConversionAction) previewConversionAction.textContent = "이 계획으로 시작하기";
+  trialStartInlineLink?.setAttribute("aria-label", "이 계획으로 시작하기");
 }
 
 async function runPersonalityAnalysis({ showLoading = false } = {}) {
