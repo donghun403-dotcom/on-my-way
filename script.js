@@ -59,6 +59,20 @@ const planIntensityInput = document.querySelector("#planIntensity");
 const bufferDaysInput = document.querySelector("#bufferDays");
 const excludedDatesInput = document.querySelector("#excludedDates");
 const notificationTimeInput = document.querySelector("#notificationTime");
+// 수동 계획 빌더(온보딩 STEP 1~4). AI 온보딩이 쓰던 [data-available-day]와는
+// 별도 셀렉터를 쓴다 — 저쪽은 도달 불가 상태로 남겨둔 레거시 입력이다.
+const designDayInputs = document.querySelectorAll("[data-design-day]");
+const designWeekdayMinutesInput = document.querySelector("#designWeekdayMinutes");
+const designWeekendMinutesInput = document.querySelector("#designWeekendMinutes");
+const designOutcomeInput = document.querySelector("#designOutcome");
+const designResourcesInput = document.querySelector("#designResources");
+const taskBuilderListElement = document.querySelector("#taskBuilderList");
+const taskBuilderEmptyElement = document.querySelector("#taskBuilderEmpty");
+const taskBudgetHintElement = document.querySelector("#taskBudgetHint");
+const addTaskButton = document.querySelector("#addTaskButton");
+const refillTemplateButton = document.querySelector("#refillTemplateButton");
+const minimalStartButton = document.querySelector("#minimalStartButton");
+const wizardLiveTasks = document.querySelector("#wizardLiveTasks");
 const manseProfile = document.querySelector("#manseProfile");
 const mbtiProfile = document.querySelector("#mbtiProfile");
 const planningStyle = document.querySelector("#planningStyle");
@@ -876,6 +890,141 @@ async function activateReviewedGoalDraft() {
   }
 }
 
+/* ===== 수동 계획의 가입 게이트 =====
+   계획은 saveManualPlan에서 이미 저장됐다. 여기서는 로그인 여부만 확인하고
+   main의 기존 핸드오프에 그대로 얹는다: 의도는 onmyway:pending-auth-intent에
+   담고, 체험 시작은 서버 권위(startTrialAccess → /api/ai/trial/start)를 쓰며,
+   게스트 데이터 승계는 switchAccountStorageScope의 allowAnonymousMerge가
+   맡는다. 이 함수들은 손대지 않는다. */
+const MANUAL_PLAN_AUTH_INTENT_RESUME = "manual-plan-continuation";
+
+function createManualPlanAuthIntent(planId) {
+  if (!planId) return null;
+  const intent = {
+    version: 1,
+    source: FULL_PLAN_AUTH_INTENT_SOURCE,
+    purpose: FULL_PLAN_AUTH_INTENT_PURPOSE,
+    returnTarget: "auth-provider-picker",
+    resumeTarget: MANUAL_PLAN_AUTH_INTENT_RESUME,
+    selectedProvider: null,
+    draftId: String(planId),
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+  try {
+    sessionStorage.setItem(PENDING_AUTH_INTENT_KEY, JSON.stringify(intent));
+    return intent;
+  } catch {
+    return null;
+  }
+}
+
+function readManualPlanAuthIntent() {
+  const intent = safeJsonParse(sessionStorage.getItem(PENDING_AUTH_INTENT_KEY), null);
+  const createdAt = Number(intent?.createdAt || 0);
+  const valid = intent?.source === FULL_PLAN_AUTH_INTENT_SOURCE
+    && intent?.purpose === FULL_PLAN_AUTH_INTENT_PURPOSE
+    && intent?.resumeTarget === MANUAL_PLAN_AUTH_INTENT_RESUME
+    && createdAt > 0
+    && createdAt <= Date.now()
+    && Date.now() - createdAt <= FULL_PLAN_AUTH_INTENT_TTL_MS;
+  return valid ? intent : null;
+}
+
+function savedManualPlan() {
+  try {
+    const plan = readExecutionPlan();
+    return plan?.planSource === "manual" ? plan : null;
+  } catch {
+    // 저장본이 깨졌거나 코덱이 아직 초기화되기 전이면 "없음"으로 다룬다.
+    return null;
+  }
+}
+
+/* 로그인 직후에는 계정 스토리지 스코프 전환과 서버 상태 동기화가 함께 일어나서
+   게스트가 만든 계획이 잠깐 보이지 않을 수 있다. 승계 순서에 기대지 않도록
+   로그인 전에 저장본을 세션에 그대로 복사해 두고, 돌아왔을 때 없으면 되돌린다.
+   sessionStorage는 계정 스코프 전환의 대상이 아니라서 영향을 받지 않는다. */
+const MANUAL_PLAN_HANDOFF_KEY = "onmyway:manual-plan-handoff";
+
+function stashManualPlanForHandoff() {
+  try {
+    const raw = localStorage.getItem("omwExecutionPlan");
+    if (raw) sessionStorage.setItem(MANUAL_PLAN_HANDOFF_KEY, raw);
+  } catch {
+    /* session storage unavailable — 승계는 allowAnonymousMerge에만 의존한다 */
+  }
+}
+
+function restoreManualPlanFromHandoff() {
+  try {
+    const raw = sessionStorage.getItem(MANUAL_PLAN_HANDOFF_KEY);
+    if (!raw) return null;
+    localStorage.setItem("omwExecutionPlan", raw);
+    return savedManualPlan();
+  } catch {
+    return null;
+  }
+}
+
+function clearManualPlanHandoff() {
+  try {
+    sessionStorage.removeItem(MANUAL_PLAN_HANDOFF_KEY);
+  } catch {
+    /* 정리 실패는 다음 계획 저장 때 덮어써진다 */
+  }
+}
+
+function pendingManualPlanHandoff() {
+  try {
+    return Boolean(sessionStorage.getItem(MANUAL_PLAN_HANDOFF_KEY));
+  } catch {
+    return false;
+  }
+}
+
+async function activateManualPlan() {
+  if (goalDraftActivationPending) return false;
+  goalDraftActivationPending = true;
+  trialStartInlineLink?.setAttribute("aria-busy", "true");
+  try {
+    await accountExperienceReady;
+    const plan = savedManualPlan() || restoreManualPlanFromHandoff();
+    if (!plan) throw new Error("저장된 계획을 찾지 못했어요. 계획을 다시 만들어 주세요.");
+
+    if (!authUiState.user) {
+      createManualPlanAuthIntent(plan.planId);
+      stashManualPlanForHandoff();
+      sendFunnelEvent("signup_gate_shown");
+      if (authSheet) openAuthSheet({ message: "간편 로그인하면 지금 만든 계획 그대로 무료 체험이 시작돼요." });
+      else location.assign(`app.html?auth=login&return=${encodeURIComponent("/?resumeGoal=1")}`);
+      return false;
+    }
+
+    // 체험 시작 시각은 서버가 가입 계정 기준으로 확정한다.
+    const usage = aiUsageState || await loadAiUsage().catch(() => null);
+    if (usage?.plan === "free" && usage.trial?.eligible) {
+      const started = await startTrialAccess();
+      if (!started) return false;
+    }
+
+    resetExecutionStateForActivatedPlan(plan);
+    trackCompanionEvent("schedule_created", { source: "manual_builder" });
+    clearPendingFullPlanAuthIntent();
+    clearManualPlanHandoff();
+    await saveAccountStateToServer();
+    sendFunnelEvent("trial_start");
+    location.assign("app.html?tab=today");
+    return true;
+  } catch (error) {
+    showToast(error.message || "계획을 시작하지 못했어요. 잠시 후 다시 시도해 주세요.");
+    return false;
+  } finally {
+    goalDraftActivationPending = false;
+    trialStartInlineLink?.removeAttribute("aria-busy");
+  }
+}
+
 function pendingGoalDraftReadyForActivation() {
   const draftInput = safeJsonParse(sessionStorage.getItem(PENDING_GOAL_DRAFT_KEY), null);
   const previewRecord = readPendingGoalPreview();
@@ -890,7 +1039,17 @@ function pendingGoalDraftReadyForActivation() {
 
 // 로그인·회원가입을 마치고 온보딩으로 돌아오면 저장 버튼을 다시 누르게 하지 않고 그대로 이어간다.
 async function resumeFullPlanActivationAfterAuth() {
-  if (!authUiState.user || !pendingGoalDraftReadyForActivation()) return;
+  if (!authUiState.user) return;
+  // 수동 빌더로 만든 계획이 대기 중이면 그쪽을 먼저 이어간다.
+  if (readManualPlanAuthIntent() && (savedManualPlan() || pendingManualPlanHandoff())) {
+    clearPendingFullPlanAuthIntent();
+    setTrialStartDisabled(true);
+    if (aiPreviewStatus) aiPreviewStatus.textContent = "로그인을 확인했어요. 무료 체험을 시작하고 오늘 화면으로 이동할게요.";
+    showToast("로그인했어요 · 무료 체험을 시작할게요.");
+    if (!(await activateManualPlan())) setTrialStartDisabled(false);
+    return;
+  }
+  if (!pendingGoalDraftReadyForActivation()) return;
   clearPendingFullPlanAuthIntent();
   setTrialStartDisabled(true);
   if (aiPreviewStatus) aiPreviewStatus.textContent = "로그인을 확인했어요. 계획을 저장하고 오늘 화면으로 이동할게요.";
@@ -900,6 +1059,11 @@ async function resumeFullPlanActivationAfterAuth() {
 
 trialStartInlineLink?.addEventListener("click", async (event) => {
   event.preventDefault();
+  // 수동 빌더로 저장한 계획이 있으면 AI 초안 활성화 대신 가입 게이트로 간다.
+  if (savedManualPlan()) {
+    await activateManualPlan();
+    return;
+  }
   if (trialStartInlineLink.getAttribute("aria-disabled") === "true") {
     // 조정안을 이미 고른 상태라면 다시 고르라고 되돌려보내지 말고, 그 조건으로 바로 계획을 다시 만든다.
     if (selectedFeasibilityAdjustment && personalityForm) {
@@ -2267,7 +2431,7 @@ goalInput?.addEventListener("input", () => {
 
 let diagnosisStepIndex = 0;
 
-const wizardStepLabels = ["목표 설정 중", "자료·일정 설정 중", "계획 초안 준비 중"];
+const wizardStepLabels = ["목표 정하는 중", "리듬 정하는 중", "할 일 담는 중", "마무리하는 중"];
 
 const goalTemplates = {
   exam: {
@@ -2519,6 +2683,10 @@ function savePendingGoalPreview(preview, {
 function readPendingFullPlanAuthIntent() {
   try {
     const intent = safeJsonParse(sessionStorage.getItem(PENDING_AUTH_INTENT_KEY), null);
+    /* 수동 계획 의도는 AI 초안 세션 키가 없어 아래 검증을 통과할 수 없다. 그대로
+       두면 무효로 판정돼 지워지므로, 여기서는 소유권이 없다고만 알리고 넘어간다.
+       판정과 정리는 readManualPlanAuthIntent / activateManualPlan이 맡는다. */
+    if (intent?.resumeTarget === MANUAL_PLAN_AUTH_INTENT_RESUME) return null;
     const draft = safeJsonParse(sessionStorage.getItem(PENDING_GOAL_DRAFT_KEY), null);
     const preview = safeJsonParse(sessionStorage.getItem(PENDING_GOAL_PREVIEW_KEY), null);
     const createdAt = Number(intent?.createdAt || 0);
@@ -2652,6 +2820,9 @@ function applyGoalDraftToForm(draft) {
 function restorePendingGoalDraft() {
   if (!personalityForm) return false;
   const resumeRequested = new URLSearchParams(location.search).get("resumeGoal") === "1";
+  /* 수동 빌더는 계획을 이미 localStorage에 저장해 두므로 AI 초안 세션 키가 없다.
+     복원할 폼 상태도 없으니 "이어갈 것이 있다"만 알리고 바로 통과시킨다. */
+  if (resumeRequested && readManualPlanAuthIntent() && pendingManualPlanHandoff()) return true;
   if (!resumeRequested && !readPendingGoalPreview()?.preview) return false;
   try {
     const restored = applyGoalDraftToForm(safeJsonParse(sessionStorage.getItem(PENDING_GOAL_DRAFT_KEY), null));
@@ -2661,14 +2832,395 @@ function restorePendingGoalDraft() {
   }
 }
 
+/* ===== 수동 계획 빌더 (온보딩 STEP 1~4, AI 호출 0회) =====
+   유저가 직접 담은 할 일을 main의 실행 계획 구조(scheduleOccurrences /
+   firstWeekSchedule)로 만들어 buildActivatedExecutionPlan seam에 그대로 넘긴다.
+   저장은 writeExecutionPlan을 거치므로 스케줄 코덱 왕복 검증을 통과해야 한다. */
+
+const STARTER_TASKS_BY_KIND = {
+  exam: [
+    { text: "기출문제 1세트 풀기", minutes: 30, rule: "채점과 오답 표시까지 하면 완료" },
+    { text: "오답 다시 보기", minutes: 15, rule: "틀린 문제를 다시 풀면 완료" },
+  ],
+  fitness: [
+    { text: "운동 30분", minutes: 30, rule: "정한 세트를 끝내면 완료" },
+    { text: "스트레칭", minutes: 10, rule: "전신을 한 바퀴 풀면 완료" },
+  ],
+  career: [
+    { text: "포트폴리오 한 조각 다듬기", minutes: 30, rule: "한 항목을 끝내면 완료" },
+    { text: "채용 공고 3건 확인", minutes: 10, rule: "지원할 곳을 정하면 완료" },
+  ],
+  habit: [
+    { text: "정한 습관 실행하기", minutes: 15, rule: "한 번이라도 하면 완료" },
+    { text: "오늘 기록 남기기", minutes: 5, rule: "한 줄이라도 적으면 완료" },
+  ],
+  money: [
+    { text: "지출 기록하기", minutes: 10, rule: "오늘 쓴 돈을 모두 적으면 완료" },
+    { text: "이번 주 예산 확인", minutes: 10, rule: "남은 예산을 확인하면 완료" },
+  ],
+  project: [
+    { text: "가장 작은 다음 산출물 만들기", minutes: 30, rule: "눈에 보이는 결과가 생기면 완료" },
+    { text: "진행 상황 정리", minutes: 10, rule: "다음 할 일을 정하면 완료" },
+  ],
+};
+
+const MANUAL_DAY_NAMES = ["일", "월", "화", "수", "목", "금", "토"];
+
+let builderTasks = [];
+let builderTasksTouched = false;
+let builderTemplateKind = "";
+
+function getDesignTimes() {
+  const timeSet = {
+    아침: ["07:00", "12:30", "21:00"],
+    점심: ["10:30", "13:00", "21:00"],
+    저녁: ["09:00", "18:30", "22:00"],
+    "자기 전": ["08:00", "20:30", "23:00"],
+  };
+  return timeSet[routineTimeInput?.value] || timeSet["아침"];
+}
+
+function getSelectedDesignDays() {
+  return checkedValues(designDayInputs);
+}
+
+function buildStarterTasks() {
+  const kind = getGoalKind(designGoal?.value.trim() || "");
+  const times = getDesignTimes();
+  const starters = STARTER_TASKS_BY_KIND[kind] || STARTER_TASKS_BY_KIND.project;
+  return starters.map((task, index) => ({
+    time: times[Math.min(index, times.length - 1)],
+    text: task.text,
+    minutes: task.minutes,
+    rule: task.rule,
+  }));
+}
+
+function ensureBuilderTasks({ force = false, refreshIfUntouched = false } = {}) {
+  if (!taskBuilderListElement) return;
+  const kind = getGoalKind(designGoal?.value.trim() || "");
+  const shouldFill =
+    force
+    || !builderTasks.length
+    || (refreshIfUntouched && !builderTasksTouched && kind !== builderTemplateKind);
+  if (!shouldFill) return;
+  builderTasks = buildStarterTasks();
+  builderTemplateKind = kind;
+  builderTasksTouched = false;
+  renderTaskBuilder();
+}
+
+function getBuilderTaskMinutesTotal() {
+  return builderTasks.reduce((sum, task) => sum + (Number(task.minutes) || 0), 0);
+}
+
+function updateTaskBudgetHint() {
+  if (!taskBudgetHintElement) return;
+  if (!builderTasks.length) {
+    taskBudgetHintElement.hidden = true;
+    return;
+  }
+  const total = getBuilderTaskMinutesTotal();
+  const weekdayLimit = Number(designWeekdayMinutesInput?.value) || 0;
+  taskBudgetHintElement.hidden = false;
+  if (weekdayLimit && total > weekdayLimit) {
+    taskBudgetHintElement.classList.add("is-over");
+    taskBudgetHintElement.textContent = `하루 합계 ${total}분 · 가능 시간(${weekdayLimit}분)을 넘어요. 조금 줄이면 지키기 쉬워져요.`;
+    return;
+  }
+  taskBudgetHintElement.classList.remove("is-over");
+  taskBudgetHintElement.textContent = `하루 합계 약 ${total}분 · 이 정도면 충분히 지킬 수 있어요.`;
+}
+
+function renderTaskBuilder() {
+  if (!taskBuilderListElement) return;
+  const rows = builderTasks.map((task, index) => {
+    const row = document.createElement("article");
+    row.className = "task-builder-item";
+    row.dataset.taskIndex = String(index);
+
+    const timeLabel = document.createElement("label");
+    timeLabel.className = "task-time-field";
+    timeLabel.innerHTML = "<span>시간</span>";
+    const timeInput = document.createElement("input");
+    timeInput.type = "time";
+    timeInput.value = /^\d{2}:\d{2}$/.test(task.time) ? task.time : "07:00";
+    timeInput.dataset.taskField = "time";
+    timeLabel.append(timeInput);
+
+    const textLabel = document.createElement("label");
+    textLabel.className = "task-title-field";
+    textLabel.innerHTML = "<span>할 일</span>";
+    const textInput = document.createElement("input");
+    textInput.type = "text";
+    textInput.maxLength = 80;
+    textInput.placeholder = "예: 단어 40개 외우기";
+    textInput.value = task.text || "";
+    textInput.dataset.taskField = "text";
+    textLabel.append(textInput);
+
+    const minutesLabel = document.createElement("label");
+    minutesLabel.className = "task-minutes-field";
+    minutesLabel.innerHTML = "<span>분량(분)</span>";
+    const minutesInput = document.createElement("input");
+    minutesInput.type = "number";
+    minutesInput.min = "5";
+    minutesInput.max = "180";
+    minutesInput.step = "5";
+    minutesInput.inputMode = "numeric";
+    minutesInput.value = String(Number(task.minutes) || 15);
+    minutesInput.dataset.taskField = "minutes";
+    minutesLabel.append(minutesInput);
+
+    const ruleLabel = document.createElement("label");
+    ruleLabel.className = "task-rule-field";
+    ruleLabel.innerHTML = "<span>완료 기준 <small>선택</small></span>";
+    const ruleInput = document.createElement("input");
+    ruleInput.type = "text";
+    ruleInput.maxLength = 120;
+    ruleInput.placeholder = "예: 단어 20개를 외우면 완료";
+    ruleInput.value = task.rule || "";
+    ruleInput.dataset.taskField = "rule";
+    ruleLabel.append(ruleInput);
+
+    const removeButton = document.createElement("button");
+    removeButton.type = "button";
+    removeButton.className = "task-remove-button";
+    removeButton.dataset.taskRemove = "true";
+    removeButton.setAttribute("aria-label", `${task.text || "할 일"} 삭제`);
+    removeButton.textContent = "×";
+
+    row.append(timeLabel, textLabel, minutesLabel, ruleLabel, removeButton);
+    return row;
+  });
+  taskBuilderListElement.replaceChildren(...rows);
+  if (taskBuilderEmptyElement) taskBuilderEmptyElement.hidden = builderTasks.length > 0;
+  updateTaskBudgetHint();
+  updateWizardSummary();
+}
+
+function getTaskBuilderError() {
+  if (!getSelectedDesignDays().length) return "실행할 요일을 하루 이상 선택해 주세요.";
+  if (!builderTasks.some((task) => String(task.text || "").trim())) return "할 일을 한 개 이상 담아주세요.";
+  return "";
+}
+
+// 유저가 실행 성향을 고르면 계획 스타일 이름을 붙여준다 (성향 진단·AI 없이)
+function getManualPlanStyle(readiness = DEFAULT_ROUTINE_READINESS) {
+  const styleByReadiness = {
+    "바로 실행하는 편이에요": "몰입 추진형",
+    "계획이 있으면 실행해요": "루틴 점검형",
+    "시작 전 준비가 필요해요": "차분 준비형",
+    "자주 미뤄요": "작은 시작형",
+    "시작해도 쉽게 중단돼요": "다시 시작형",
+  };
+  return styleByReadiness[readiness] || "균형 실행형";
+}
+
+function collectManualPlanInput() {
+  return {
+    goal: designGoal?.value.trim() || "목표 미입력",
+    period: goalPeriodInput?.value || "90",
+    routineTime: routineTimeInput?.value || "아침",
+    readiness: routineReadinessInput?.value || DEFAULT_ROUTINE_READINESS,
+    days: getSelectedDesignDays(),
+    tasks: builderTasks,
+    outcome: designOutcomeInput?.value.trim() || "",
+    resources: designResourcesInput?.value.trim() || "",
+    weekdayMinutes: Number(designWeekdayMinutesInput?.value) || null,
+    weekendMinutes: Number(designWeekendMinutesInput?.value) || null,
+  };
+}
+
+// 유저가 담은 할 일로 온보딩 미리보기를 만든다. 앱 저장 구조와는 분리돼 있고
+// 여기서 만든 값은 plan.aiPreview 쪽 요약 필드로만 쓰인다.
+function buildManualPreview({ goal, period, readiness, days, tasks, outcome, resources }) {
+  const template = getGoalPlanTemplates(goal);
+  const periodDays = Number(period) || 90;
+  const style = getManualPlanStyle(readiness);
+  const namedTasks = tasks.filter((task) => String(task.text || "").trim());
+  const firstTask = namedTasks[0] || { text: template.firstAction, minutes: 15, time: "07:00", rule: "" };
+  const totalMinutes = namedTasks.reduce((sum, task) => sum + (Number(task.minutes) || 0), 0);
+  const phaseStartEnd = Math.min(7, Math.max(2, Math.round(periodDays * 0.2)));
+  const phaseGrowEnd = Math.min(periodDays - 1, Math.max(phaseStartEnd + 1, Math.round(periodDays * 0.7)));
+  const weekPlan = ["월", "화", "수", "목", "금", "토", "일"].map((day) =>
+    days.includes(day)
+      ? `${day}요일 · ${namedTasks.map((task) => task.text.trim()).slice(0, 2).join(", ")}${namedTasks.length > 2 ? " 외" : ""} (약 ${totalMinutes}분)`
+      : `${day}요일 · 계획된 휴식`,
+  );
+
+  return {
+    personalitySummary: outcome
+      ? `내가 정한 완료 기준: ${outcome}`
+      : "완료 기준은 앱에서 언제든 적어둘 수 있어요. 오늘의 실행이 먼저예요.",
+    resourceSummary: resources
+      ? `활용할 리소스: ${resources}`
+      : "가진 자료나 도구를 적어두면 올리가 조언할 때 참고해요.",
+    planningStyle: `${style} 계획`,
+    firstAction: firstTask.text.trim() || template.firstAction,
+    weekTitle: `주 ${days.length}일, 내가 정한 리듬으로 갑니다`,
+    weekPlan,
+    coachMessage: `직접 만든 계획이라 더 잘 맞을 거예요. 이번 주는 완벽함보다 ${days.length}일의 리듬을 지키는 것부터 함께해요.`,
+    dashboard: {
+      goal: goal.replace("하기", ""),
+      progress: 4,
+      pace: `${periodDays}일 여정 · 오늘부터 시작`,
+    },
+    todaySchedule: namedTasks.slice(0, 5).map((task) => ({
+      time: task.time || "오늘",
+      durationMinutes: Math.max(5, Math.min(360, Number(task.minutes) || 15)),
+      task: task.text.trim(),
+      completionRule: String(task.rule || "").trim() || "정한 분량을 끝내면 완료",
+    })),
+    fullSchedule: [
+      { phase: "시작", days: `1–${phaseStartEnd}일`, focus: "정한 시간과 요일에 그대로 실행하며 리듬을 몸에 붙입니다.", successMetric: `${phaseStartEnd}일 중 ${Math.max(1, Math.round(phaseStartEnd * 0.6))}일 이상 실행` },
+      { phase: "성장", days: `${phaseStartEnd + 1}–${phaseGrowEnd}일`, focus: "주간 완료율을 보며 분량과 난이도를 직접 조정합니다.", successMetric: "주간 계획의 70% 이상 완료" },
+      { phase: "완성", days: `${phaseGrowEnd + 1}–${periodDays}일`, focus: "완료 기준과 비교해 마지막 구간을 정리합니다.", successMetric: outcome || "목표 완료 기준 최종 점검" },
+    ],
+    checkInRules: ["실행 직후 완료 여부 체크", "못한 날은 5분 최소 행동으로 재시작", "7일마다 다음 주 분량 직접 조정"],
+    fallbackPlan: `계획대로 하기 어려운 날에는 ${firstTask.text.trim() || "첫 할 일"}을 5분만 실행합니다.`,
+  };
+}
+
+/* 요일 선택 + 할 일 목록 → main의 scheduleOccurrences(전체 기간 날짜별 전개).
+   항목 필드는 encodeScheduleItem이 아는 키만 쓴다. 모르는 키를 넣으면 extra로
+   빠져 코덱 왕복은 통과하더라도 buildSchedule이 읽지 못한다. */
+function buildManualScheduleOccurrences({ planId, periodDays, days, tasks, startDate }) {
+  const namedTasks = tasks.filter((task) => String(task.text || "").trim()).slice(0, 5);
+  return Array.from({ length: periodDays }, (_, index) => {
+    const date = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + index);
+    const dateKey = localScheduleDateKey(date);
+    const dayName = MANUAL_DAY_NAMES[date.getDay()];
+    const isRestDay = !days.includes(dayName) || !namedTasks.length;
+    return {
+      dayNumber: index + 1,
+      date: dateKey,
+      dayLabel: isRestDay ? "계획된 휴식" : `${dayName}요일 계획`,
+      isRestDay,
+      items: isRestDay ? [] : namedTasks.map((task, taskIndex) => {
+        const time = /^\d{2}:\d{2}$/.test(task.time) ? task.time : "07:00";
+        return {
+          id: `${planId}-d${index + 1}-t${taskIndex + 1}`,
+          planId,
+          type: "ACTION",
+          title: String(task.text).trim(),
+          time,
+          scheduledAt: `${dateKey}T${time}`,
+          durationMinutes: Math.max(5, Math.min(360, Number(task.minutes) || 15)),
+          sourceReference: "",
+          quantityOrRange: "",
+          completionRule: String(task.rule || "").trim() || "정한 분량을 끝내면 완료",
+          recurrenceGroupId: `${planId}-task-${taskIndex + 1}`,
+        };
+      }),
+    };
+  });
+}
+
+// 입력이 바뀔 때마다 미리보기만 갱신한다. 저장은 최종 제출에서만 하므로
+// 홈 화면을 여는 것만으로 기존 계획이 덮어써지지 않는다.
+function updateManualPreview() {
+  if (!personalityForm) return;
+  renderAiPreview(buildManualPreview(collectManualPlanInput()));
+  updateWizardSummary();
+}
+
+// 유저가 직접 만든 계획을 저장한다 (AI 호출 0회).
+function saveManualPlan() {
+  if (!personalityForm) return;
+  const builderError = getTaskBuilderError();
+  if (builderError) {
+    showToast(builderError);
+    announce(builderError);
+    diagnosisStepIndex = builderError.includes("요일") ? 1 : 2;
+    renderDiagnosisStep();
+    revealActiveDiagnosisStep();
+    return;
+  }
+
+  const input = collectManualPlanInput();
+  const preview = buildManualPreview(input);
+  const planId = `manual-${Date.now()}`;
+  const periodDays = Math.max(7, Math.min(Number(input.period) || 90, 365));
+  const now = new Date();
+  const startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const scheduleOccurrences = buildManualScheduleOccurrences({
+    planId, periodDays, days: input.days, tasks: input.tasks, startDate,
+  });
+
+  // AI 초안이 지나가는 것과 같은 seam을 그대로 통과시킨다. planSource만 수동으로 표시한다.
+  const draftPlan = {
+    ...preview,
+    planId,
+    periodDays,
+    firstWeekSchedule: scheduleOccurrences.slice(0, 7),
+    scheduleOccurrences,
+    outcome: input.outcome,
+    resources: input.resources,
+    availableDays: input.days,
+    weekdayMinutes: input.weekdayMinutes,
+    weekendMinutes: input.weekendMinutes,
+    style: getManualPlanStyle(input.readiness),
+  };
+  const draftInput = {
+    draftId: planId,
+    goal: input.goal,
+    period: periodDays,
+    routineReadiness: input.readiness,
+    routineTime: input.routineTime,
+    availability: { availableDays: input.days, weekdayMinutes: input.weekdayMinutes, weekendMinutes: input.weekendMinutes },
+    material: {},
+    planningPreferences: [],
+  };
+  const plan = { ...buildActivatedExecutionPlan(draftPlan, draftInput, "as-is"), planSource: "manual" };
+
+  try {
+    writeExecutionPlan(plan);
+  } catch (error) {
+    console.warn("Unable to save manual execution plan", error);
+    showToast(error?.code === "ACCOUNT_STATE_CAPACITY_EXCEEDED"
+      ? "계획이 너무 커요. 할 일 수나 기간을 줄이고 다시 시도해 주세요."
+      : "계획을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.");
+    return;
+  }
+
+  renderAiPreview(preview);
+  planPreviewPanel?.classList.add("is-ready");
+  if (aiPreviewStatus) aiPreviewStatus.textContent = "내가 직접 만든 나의 계획이에요";
+  // 계획 완성 → 로그인 → 체험 시작 흐름에 맞춘 카피. renderAiPreview가 기본값을
+  // 되돌려 놓으므로 그 뒤에 덮어쓴다.
+  const signedIn = Boolean(authUiState.user);
+  if (previewConversionAction) {
+    previewConversionAction.textContent = signedIn ? "이 계획으로 시작하기" : "간편 로그인하고 무료 체험 시작";
+    trialStartInlineLink?.setAttribute("aria-label", previewConversionAction.textContent);
+  }
+  const conversionKicker = document.querySelector("#previewConversionKicker");
+  const conversionCopy = document.querySelector("#previewConversionCopy");
+  if (conversionKicker) conversionKicker.textContent = signedIn ? "바로 시작" : "카드 등록 없음";
+  if (conversionCopy) {
+    conversionCopy.textContent = signedIn
+      ? "오늘 화면으로 이동해 첫 할 일부터 시작해요."
+      : "간편 로그인하면 이 계획 그대로 24시간 무료 체험이 시작돼요.";
+  }
+  sendFunnelEvent("plan_complete");
+  showToast(authUiState.user
+    ? "계획 완성! 오늘부터 올리와 함께 시작해요."
+    : "계획 완성! 간편 로그인하면 무료 체험이 시작돼요.");
+  openFirstStepResult();
+}
+
 function updateWizardSummary() {
   const goal = designGoal?.value.trim() || "목표를 입력해 주세요";
   const selectedPeriod = goalPeriodInput?.selectedOptions?.[0]?.textContent.split(" · ")[0] || "기간 미정";
-  const days = checkedValues(availableDayInputs);
-  const time = sessionMinutesInput?.value ? `회당 ${sessionMinutesInput.value}분` : routineTimeInput?.value || "시간 미정";
+  const days = getSelectedDesignDays();
+  const time = routineTimeInput?.value || "시간 미정";
 
   if (wizardLiveGoal) wizardLiveGoal.textContent = goal;
   if (wizardLiveTiming) wizardLiveTiming.textContent = `${selectedPeriod} · ${days.length ? days.join("·") : "요일 미정"} · ${time}`;
+  if (wizardLiveTasks) {
+    const taskCount = builderTasks.filter((task) => String(task.text || "").trim()).length;
+    wizardLiveTasks.textContent = taskCount ? `주 ${days.length}일 · 하루 ${taskCount}개` : "3단계에서 직접 담아요";
+  }
 }
 
 function updateGoalStepState() {
@@ -2676,12 +3228,10 @@ function updateGoalStepState() {
   const hasGoal = Boolean(designGoal.value.trim());
   if (diagnosisNextButton && diagnosisStepIndex === 0) diagnosisNextButton.disabled = !hasGoal;
   if (aiPreviewButton && diagnosisSteps.length === 1) aiPreviewButton.disabled = !hasGoal;
-  // 1단계 CTA도 목표 이야기를 적기 전에는 진행할 수 없다.
-  if (goalAnalyzeButton) goalAnalyzeButton.disabled = !hasGoal;
   if (goalValidationMessage) {
     goalValidationMessage.textContent = !hasGoal
       ? "달성하고 싶은 결과를 입력해 주세요."
-      : "목표를 확인했어요. 올리에게 계획을 부탁해 보세요.";
+      : "목표를 확인했어요. 다음 단계에서 리듬을 정해요.";
   }
 }
 
@@ -2788,34 +3338,42 @@ function clearGuestRevisionAttempt(idempotencyKey) {
 }
 
 function getInvalidDiagnosisField() {
+  // 수동 빌더 4단계: 목표 → 리듬 → 할 일 → 마무리
   const fieldsByStep = [
-    [designGoal, goalPeriodInput],
-    [goalPeriodInput, routineTimeInput, sessionMinutesInput],
-    [birthDateInput, birthTimeInput, birthPlaceInput, mbtiInput],
+    [designGoal],
+    [goalPeriodInput, routineTimeInput, routineReadinessInput, designWeekdayMinutesInput],
+    [],
+    [],
   ];
   if (designGoal) {
     const message = designGoal.value.trim() ? "" : "달성하고 싶은 결과를 입력해 주세요.";
     designGoal.setCustomValidity(message);
   }
   if (diagnosisStepIndex === 1) {
-    const availableDays = checkedValues(availableDayInputs);
-    const needsMaterial = selectedMaterialMode() === "yes";
-    const message = !availableDays.length
-      ? "가능한 요일을 하나 이상 선택해 주세요."
-      : needsMaterial && (!materialNameInput?.value.trim() || !materialRangeInput?.value.trim())
-        ? "자료 이름과 목표 범위를 입력해 주세요."
-        : "";
-    sessionMinutesInput?.setCustomValidity(message);
+    designWeekdayMinutesInput?.setCustomValidity(
+      getSelectedDesignDays().length ? "" : "실행할 요일을 하루 이상 선택해 주세요.",
+    );
   }
   return (fieldsByStep[diagnosisStepIndex] || []).find((field) => field && !field.checkValidity()) || null;
 }
 
 function canLeaveDiagnosisStep() {
   const invalidField = getInvalidDiagnosisField();
-  if (!invalidField) return true;
-  invalidField.focus();
-  invalidField.reportValidity();
-  return false;
+  if (invalidField) {
+    invalidField.focus();
+    invalidField.reportValidity();
+    return false;
+  }
+  // 할 일 단계는 폼 유효성으로 표현할 수 없어 따로 막는다.
+  if (diagnosisStepIndex === 2) {
+    const builderError = getTaskBuilderError();
+    if (builderError) {
+      showToast(builderError);
+      announce(builderError);
+      return false;
+    }
+  }
+  return true;
 }
 
 function renderDiagnosisStep() {
@@ -2849,11 +3407,14 @@ function renderDiagnosisStep() {
   if (wizardStepLabel) wizardStepLabel.textContent = wizardStepLabels[diagnosisStepIndex] || "설정 중";
   if (wizardProgressValue) wizardProgressValue.textContent = `${progress}%`;
 
+  const isLastStep = diagnosisStepIndex === diagnosisSteps.length - 1;
   if (diagnosisBackButton) diagnosisBackButton.hidden = diagnosisStepIndex === 0;
-  // 각 단계는 자기 CTA(1단계 분석 요청 / 2단계 계획 생성)로만 진행한다.
-  if (diagnosisNextButton) diagnosisNextButton.hidden = true;
-  if (goalAnalyzeButton) goalAnalyzeButton.hidden = diagnosisStepIndex !== 0;
-  if (aiPreviewButton) aiPreviewButton.hidden = diagnosisStepIndex !== diagnosisSteps.length - 1;
+  // 수동 빌더는 "다음 단계"로 진행하고 마지막 단계에서만 계획을 완성한다.
+  if (diagnosisNextButton) diagnosisNextButton.hidden = isLastStep;
+  // AI 계획 생성 CTA는 수동 온보딩에서 도달 불가다. 3단계에서 코드째 제거한다.
+  if (goalAnalyzeButton) goalAnalyzeButton.hidden = true;
+  if (aiPreviewButton) aiPreviewButton.hidden = !isLastStep;
+  if (diagnosisStepIndex === 2) ensureBuilderTasks({ refreshIfUntouched: true });
   updateGoalStepState();
   updateWizardSummary();
 }
@@ -3179,7 +3740,7 @@ diagnosisBackButton?.addEventListener("click", () => {
 diagnosisNextButton?.addEventListener("click", () => advanceDiagnosisStep());
 
 // 단계별 선택형 입력: 전부 직접 확인해야 자동 진행 (하나만 고르고 넘어가지 않도록)
-const stepChoiceFieldIds = [[], [], []];
+const stepChoiceFieldIds = [[], [], [], []];
 const touchedChoiceFields = new Set();
 
 personalityForm?.addEventListener("change", (event) => {
@@ -4429,24 +4990,36 @@ async function submitGoalAnalysis() {
   }
 }
 
+/* 마지막 단계의 "내 계획 완성하기"는 AI가 아니라 수동 저장으로 간다.
+   submitGoalAnalysis / runPersonalityAnalysis / requestGoalAnalysis는 코드로만
+   남고 온보딩에서는 호출되지 않는다(3단계에서 제거 예정). */
+let manualSavePending = false;
+
+function submitManualPlan() {
+  if (manualSavePending) return;
+  if (!personalityForm?.reportValidity()) return;
+  manualSavePending = true;
+  try {
+    saveManualPlan();
+  } finally {
+    manualSavePending = false;
+  }
+}
+
+// click에서 기본 동작을 막으므로 submit은 Enter 키 경로에서만 발생한다 (이중 저장 없음).
 aiPreviewButton?.addEventListener("click", (event) => {
   event.preventDefault();
-  void submitGoalAnalysis();
-});
-
-aiPreviewButton?.addEventListener("pointerup", (event) => {
-  if (event.button !== 0 || event.isPrimary === false) return;
-  void submitGoalAnalysis();
+  submitManualPlan();
 });
 
 personalityForm?.addEventListener("submit", (event) => {
   event.preventDefault();
   if (diagnosisSteps.length && diagnosisStepIndex < diagnosisSteps.length - 1) {
-    canLeaveDiagnosisStep();
+    if (canLeaveDiagnosisStep()) advanceDiagnosisStep();
     return;
   }
   if (event.submitter && event.submitter !== aiPreviewButton) return;
-  void submitGoalAnalysis();
+  submitManualPlan();
 });
 
 materialModeInputs.forEach((input) => {
@@ -4460,19 +5033,71 @@ materialModeInputs.forEach((input) => {
   });
 });
 
+// 수동 빌더 입력은 미리보기만 로컬로 갱신한다 (AI 호출 없음).
 [
-  birthDateInput, birthTimeInput, birthPlaceInput, mbtiInput, goalPeriodInput,
-  routineReadinessInput, routineTimeInput, designGoal, currentContextInput, materialNameInput,
-  materialRangeInput, materialProgressInput, materialCompletionInput, materialUnitInput,
-  sessionMinutesInput, weeklyFrequencyInput, targetDateInput, planIntensityInput,
-  bufferDaysInput, excludedDatesInput, notificationTimeInput,
-  ...availableDayInputs, ...difficultDayInputs, ...planningPreferenceInputs,
+  goalPeriodInput, routineReadinessInput, routineTimeInput, designGoal,
+  designOutcomeInput, designResourcesInput, designWeekdayMinutesInput, designWeekendMinutesInput,
+  ...designDayInputs,
 ].forEach(
   (field) => {
-    field?.addEventListener("change", runPersonalityAnalysis);
+    field?.addEventListener("change", updateManualPreview);
     field?.addEventListener("input", updateWizardSummary);
   },
 );
+
+// 목표가 바뀌면 아직 손대지 않은 초안만 새 목표 유형에 맞춰 다시 채운다.
+designGoal?.addEventListener("input", () => ensureBuilderTasks({ refreshIfUntouched: true }));
+routineTimeInput?.addEventListener("change", () => {
+  if (builderTasksTouched) return;
+  ensureBuilderTasks({ force: true });
+});
+
+taskBuilderListElement?.addEventListener("input", (event) => {
+  const row = event.target.closest?.(".task-builder-item");
+  const field = event.target.dataset?.taskField;
+  if (!row || !field) return;
+  const index = Number(row.dataset.taskIndex);
+  if (!builderTasks[index]) return;
+  builderTasksTouched = true;
+  builderTasks[index][field] = field === "minutes" ? Number(event.target.value) || 0 : event.target.value;
+  if (field === "minutes") updateTaskBudgetHint();
+  if (field === "text") updateWizardSummary();
+});
+
+taskBuilderListElement?.addEventListener("click", (event) => {
+  const removeButton = event.target.closest?.("[data-task-remove]");
+  if (!removeButton) return;
+  const index = Number(removeButton.closest(".task-builder-item")?.dataset.taskIndex);
+  if (!builderTasks[index]) return;
+  builderTasksTouched = true;
+  builderTasks.splice(index, 1);
+  renderTaskBuilder();
+});
+
+addTaskButton?.addEventListener("click", () => {
+  if (builderTasks.length >= 5) {
+    showToast("할 일은 하루 5개까지가 좋아요. 작게 시작할수록 오래가요.");
+    return;
+  }
+  builderTasksTouched = true;
+  const times = getDesignTimes();
+  builderTasks.push({ time: times[Math.min(builderTasks.length, times.length - 1)], text: "", minutes: 15, rule: "" });
+  renderTaskBuilder();
+  taskBuilderListElement?.querySelector(".task-builder-item:last-child [data-task-field='text']")?.focus();
+});
+
+refillTemplateButton?.addEventListener("click", () => {
+  ensureBuilderTasks({ force: true });
+  showToast("목표에 맞는 초안으로 다시 채웠어요. 자유롭게 고쳐주세요.");
+});
+
+minimalStartButton?.addEventListener("click", () => {
+  const first = builderTasks.find((task) => String(task.text || "").trim()) || buildStarterTasks()[0];
+  builderTasks = [{ ...first, minutes: Math.min(10, Number(first.minutes) || 10) }];
+  builderTasksTouched = true;
+  renderTaskBuilder();
+  showToast("좋아요, 하루 10분 하나로 시작해요. 작은 시작이 제일 힘이 세요.");
+});
 
 draftAdjustButton?.addEventListener("click", () => {
   diagnosisStepIndex = Math.min(1, Math.max(0, diagnosisSteps.length - 1));
@@ -4505,7 +5130,8 @@ discardDraftChangesButton?.addEventListener("click", () => {
   showToast("수정 내용을 버리고 AI가 만든 마지막 계획으로 돌아왔어요.");
 });
 
-runPersonalityAnalysis();
+ensureBuilderTasks();
+updateManualPreview();
 if (!resumedPendingGoal && window.location.hash === "#firstStep" && readPendingGoalPreview()?.preview) {
   restorePendingGoalPreview();
 }
@@ -4999,6 +5625,25 @@ function writeExecutionPlan(plan) {
 function isPlainObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
+
+/* E2E 검증용 읽기 전용 훅. 저장된 계획을 디코드해 보여주고 스케줄 코덱 왕복을
+   다시 확인한다. 쓰기 기능은 노출하지 않는다. */
+window.__omwTest = Object.freeze({
+  readExecutionPlan,
+  planCodecRoundTrip() {
+    const plan = readExecutionPlan();
+    const reDecoded = decodeExecutionPlanFromStorage(
+      JSON.parse(JSON.stringify(encodeExecutionPlanForStorage(plan))),
+    );
+    const same = (left, right) =>
+      JSON.stringify(canonicalJsonValue(left)) === JSON.stringify(canonicalJsonValue(right));
+    return {
+      ok: Boolean(plan?.planId),
+      scheduleOccurrences: same(plan?.scheduleOccurrences, reDecoded?.scheduleOccurrences),
+      firstWeekSchedule: same(plan?.firstWeekSchedule, reDecoded?.firstWeekSchedule),
+    };
+  },
+});
 
 const LEGACY_OLLIE_GROWTH_FIELD = ["ol", "lyGrowthState"].join("");
 

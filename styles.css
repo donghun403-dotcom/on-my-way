@@ -18115,3 +18115,203 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
     animation: none;
   }
 }
+
+/* ===== 수동 계획 빌더 (온보딩 STEP 2~3) =====
+   참조 구현(feature/manual-onboarding)의 할 일 빌더·요일 칩을 main의 토큰
+   레이어로 번역해 옮겼다. 참조판 전용 토큰(--font-title, --font-card-title)은
+   쓰지 않고 main 정의를 따른다. */
+
+.builder-choice-section {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.builder-choice-section > legend {
+  padding: 0;
+  margin-bottom: var(--space-2);
+  color: var(--ink-secondary);
+  font-size: var(--text-xs);
+  font-weight: 900;
+}
+
+.builder-days-hint {
+  margin: var(--space-2) 0 0;
+  color: var(--ink-muted);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+}
+
+.session-minute-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.session-minute-field input {
+  flex: 1;
+  min-width: 0;
+}
+
+.session-minute-field em {
+  flex: none;
+  color: var(--ink-muted);
+  font-style: normal;
+  font-size: var(--text-xs);
+  font-weight: 800;
+}
+
+.task-builder {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.task-builder-list {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.task-builder-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) 84px;
+  grid-template-areas:
+    "time title minutes"
+    "rule rule rule";
+  gap: var(--space-2) var(--space-3);
+  padding: 14px 40px 14px 14px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-xs);
+}
+
+.task-builder-item .task-time-field { grid-area: time; }
+.task-builder-item .task-title-field { grid-area: title; }
+.task-builder-item .task-minutes-field { grid-area: minutes; }
+.task-builder-item .task-rule-field { grid-area: rule; }
+
+.task-builder-item label {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  color: var(--ink-secondary);
+  font-size: var(--text-2xs);
+  font-weight: 900;
+}
+
+.task-builder-item label small {
+  color: var(--ink-muted);
+  font-weight: 700;
+}
+
+.task-builder-item input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 10px;
+  color: var(--ink);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-sm);
+  outline: none;
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.task-builder-item input:focus-visible {
+  border-color: var(--border-brand);
+  background: var(--surface);
+  box-shadow: 0 0 0 3px var(--surface-brand-soft);
+}
+
+.task-remove-button {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  color: var(--ink-muted);
+  background: var(--surface-muted);
+  border: 0;
+  border-radius: var(--r-circle);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  font-weight: 900;
+}
+
+.task-remove-button:hover {
+  color: var(--ink-inverse);
+  background: var(--ink-danger);
+}
+
+.task-builder-empty {
+  margin: 0;
+  padding: 18px 14px;
+  color: var(--ink-secondary);
+  background: var(--surface-muted);
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--r-lg);
+  text-align: center;
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.task-builder-budget {
+  margin: 0;
+  padding: 10px 14px;
+  color: var(--ink-success);
+  background: var(--surface-success-soft);
+  border-radius: var(--r-sm);
+  font-size: var(--text-xs);
+  font-weight: 800;
+}
+
+.task-builder-budget.is-over {
+  color: var(--ink-danger);
+  background: var(--surface-danger-soft);
+}
+
+.task-builder-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.builder-ghost {
+  min-height: 44px;
+  padding: 11px 14px;
+  color: var(--ink);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-pill);
+  cursor: pointer;
+  font-size: var(--text-xs);
+  font-weight: 900;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.builder-ghost:hover {
+  border-color: var(--border-brand);
+  background: var(--surface-muted);
+}
+
+/* 기본 동작(할 일 추가)만 브랜드 그라디언트로 강조한다. 그라디언트가 파스텔이라
+   흰 글자는 대비가 부족해 main 규칙대로 네이비(--ink-on-brand)를 얹는다. */
+.task-builder-actions #addTaskButton {
+  color: var(--ink-on-brand);
+  background: var(--brand-gradient);
+  border-color: transparent;
+  box-shadow: var(--shadow-sm);
+}
+
+@media (max-width: 640px) {
+  .task-builder-item {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "title title"
+      "time minutes"
+      "rule rule";
+  }
+}

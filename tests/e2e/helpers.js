@@ -120,6 +120,40 @@ async function submitGoalStory(page, goalText) {
   await page.locator("#aiPreviewButton").waitFor({ state: "visible" });
 }
 
+/* 수동 빌더 4단계(목표 → 리듬 → 할 일 → 마무리)를 끝까지 진행한다.
+   AI 호출은 한 번도 일어나지 않는다. tasks를 주면 3단계 초안을 덮어쓴다. */
+async function completeManualPlan(page, { goal = "3개월 안에 토익 900점 달성하기", tasks = null } = {}) {
+  await page.locator("#designGoal").fill(goal);
+  const next = page.locator("#diagnosisNextButton");
+  await next.click();                       // 1 → 2 (리듬)
+  await expect(page.locator(".diagnosis-step.active")).toHaveAttribute("data-step-title", "언제, 얼마나 해볼까요?");
+  await next.click();                       // 2 → 3 (할 일)
+  await expect(page.locator(".diagnosis-step.active")).toHaveAttribute("data-step-title", "어떤 일을 하면 될까요?");
+  await page.locator("#taskBuilderList .task-builder-item").first().waitFor();
+
+  if (tasks) {
+    const rows = page.locator("#taskBuilderList .task-builder-item");
+    while (await rows.count() > tasks.length) {
+      await rows.last().locator("[data-task-remove]").click();
+    }
+    while (await rows.count() < tasks.length) {
+      await page.locator("#addTaskButton").click();
+    }
+    for (const [index, task] of tasks.entries()) {
+      const row = rows.nth(index);
+      if (task.time) await row.locator("[data-task-field='time']").fill(task.time);
+      await row.locator("[data-task-field='text']").fill(task.text);
+      if (task.minutes) await row.locator("[data-task-field='minutes']").fill(String(task.minutes));
+      if (task.rule) await row.locator("[data-task-field='rule']").fill(task.rule);
+    }
+  }
+
+  await next.click();                       // 3 → 4 (마무리)
+  await expect(page.locator(".diagnosis-step.active")).toHaveAttribute("data-step-title", "이대로 시작해볼까요?");
+  await page.locator("#aiPreviewButton").click();
+  await expect(page.locator("#firstStep")).toBeVisible();
+}
+
 async function prepareApp(page, storage = {}) {
   await mockExternalAssets(page);
   await page.addInitScript(
@@ -525,6 +559,7 @@ module.exports = {
   expectNoHorizontalOverflow,
   isCompletedRumNavigationLifecycle,
   isExpectedFirefoxNavigationImageAbort,
+  completeManualPlan,
   mockAccountExperience,
   mockGoalAnalysis,
   submitGoalStory,
