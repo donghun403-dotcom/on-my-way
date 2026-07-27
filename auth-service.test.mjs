@@ -14,7 +14,7 @@ import {
 } from "./auth-service.mjs";
 import { commitAiCredits, getAiCreditUsage, reserveAiCredits, startAiTrial } from "./ai-credits-service.mjs";
 import { createBillingLedger, createMemoryBillingDb } from "./billing-ledger.mjs";
-import worker, { createGoalPlanForUser } from "./worker.mjs";
+import worker from "./worker.mjs";
 
 function memoryStore(seed = []) {
   const users = new Map(seed.map((user) => [user.id, user]));
@@ -836,62 +836,6 @@ test("로그아웃은 서버 세션을 폐기하고 같은 쿠키 재사용을 �
   assert.equal((await handleAccountApi(context({ path: "/api/auth/session", env, store, cookie: sessionCookie }))).json.user, null);
 });
 
-test("Free 회원의 첫 계획 생성은 서버 회원 기록에 저장된다", async () => {
-  const store = memoryStore();
-  const user = { id: "google:first-plan", role: "member", plan: "free" };
-  await store.putUser(user);
-  const result = await createGoalPlanForUser({
-    input: { goal: "영어 공부" },
-    env: {},
-    userStore: store,
-    user,
-    generatePlan: async () => ({ plan: { goal: "영어 공부" } }),
-    now: 123456,
-  });
-  assert.equal(result.plan.goal, "영어 공부");
-  assert.equal((await store.getUser(user.id)).goalPlanGeneratedAt, 123456);
-});
-
-test("계획을 만든 Free 회원은 다른 브라우저에서도 추가 생성할 수 없다", async () => {
-  const store = memoryStore();
-  const user = { id: "google:limited", role: "member", plan: "free", goalPlanGeneratedAt: 123456 };
-  let generated = false;
-  await assert.rejects(
-    createGoalPlanForUser({
-      input: { goal: "다시 만들기" },
-      env: {},
-      userStore: store,
-      user,
-      generatePlan: async () => {
-        generated = true;
-        return { plan: {} };
-      },
-    }),
-    (error) => error.status === 409 && error.code === "GOAL_PLAN_LIMIT_REACHED",
-  );
-  assert.equal(generated, false);
-});
-
-test("Pro와 무료 체험 중인 회원은 Free 전용 계획 1개 제한을 적용받지 않는다", async () => {
-  for (const plan of ["trial", "pro"]) {
-    const user = { id: `google:unlimited-${plan}`, role: "member", plan, goalPlanGeneratedAt: 123456 };
-    const store = memoryStore([user]);
-    let generated = false;
-    const result = await createGoalPlanForUser({
-      input: { goal: "추가 계획" },
-      env: {},
-      userStore: store,
-      user,
-      generatePlan: async () => {
-        generated = true;
-        return { plan: { goal: "추가 계획" } };
-      },
-    });
-    assert.equal(generated, true);
-    assert.equal(result.plan.goal, "추가 계획");
-  }
-});
-
 test("해지된 구독은 결제 기간 종료 후 Free로 내려간다", async () => {
   const user = {
     id: "google:paid",
@@ -1509,7 +1453,7 @@ test("7일이 지난 삭제 대기 계정은 영구 삭제되고 재로그인으
 test("AI endpoints reject unauthenticated requests before invoking providers", async () => {
   const kv = { async get() { return null; }, async put() {}, async list() { return { keys: [] }; } };
   const assets = { async fetch() { return new Response("asset"); } };
-  for (const path of ["/api/ai/goal-plan", "/api/ai/companion-chat", "/api/ai/plan-revision"]) {
+  for (const path of ["/api/ai/companion-chat", "/api/ai/plan-revision"]) {
     const response = await worker.fetch(new Request(`https://preview.example${path}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

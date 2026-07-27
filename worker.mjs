@@ -1,17 +1,13 @@
-import { createAiGoalPlan } from "./ai-goal-plan.mjs";
 // 게스트 초안 라우트는 사라졌지만 Durable Object 클래스는 wrangler 마이그레이션이
 // 참조하므로 계속 내보낸다.
 import { GuestPlanDraftObject } from "./guest-plan-draft-object.mjs";
-import { createCompanionReply } from "./ai-companion-chat.mjs";
+import { createCompanionReply, normalizeCheerEventType } from "./ai-companion-chat.mjs";
 import { createAiPlanRevision } from "./ai-plan-revision.mjs";
 import {
   safeAiDiagnostics,
   safeAiSuccessDiagnostics,
 } from "./ai-output-contract.mjs";
-import {
-  GOAL_PLAN_MAX_OUTPUT_TOKENS,
-  PLAN_REVISION_MAX_OUTPUT_TOKENS,
-} from "./ai-plan-output-policy.mjs";
+import { PLAN_REVISION_MAX_OUTPUT_TOKENS } from "./ai-plan-output-policy.mjs";
 import {
   commitAiCredits,
   getAiCreditUsage,
@@ -106,6 +102,17 @@ function funnelDateKey(now = Date.now()) {
   return new Date(now + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
+// 무료 치어링(축하·위로)은 올리 에너지를 차감하지 않는 대신 KST 기준 하루 각 1회로 서버가 상한을 건다.
+// (docs/pricing-system-v2.md의 비용 가드레일 — 클라이언트 상한만 믿지 않는다)
+// 순수 함수라 "쓸 수 있는지"만 보는 사전 확인과 "썼다"고 기록하는 사후 확정에 같은 판정을 쓴다.
+export function checkDailyCheerAllowance(user, eventType, now = Date.now()) {
+  const dateKey = funnelDateKey(now);
+  const log = user?.cheerLog && user.cheerLog.date === dateKey ? { ...user.cheerLog } : { date: dateKey };
+  if (log[eventType]) return { allowed: false, user };
+  log[eventType] = now;
+  return { allowed: true, user: { ...user, cheerLog: log } };
+}
+
 export async function recordFunnelEvent({ step, kv, now = Date.now() }) {
   const name = String(step || "").replace(/^funnel:/, "");
   if (!FUNNEL_STEPS.has(name)) return null;
@@ -122,44 +129,8 @@ export async function recordFunnelEvent({ step, kv, now = Date.now() }) {
   return { key, counts };
 }
 
-export async function createGoalPlanForUser({ input, env, userStore, user, generatePlan = createAiGoalPlan, now = Date.now() }) {
-  const hasFreeLimit = user && user.role !== "admin" && user.plan === "free";
-  if (hasFreeLimit && user.goalPlanGeneratedAt) {
-    const error = new Error("Free 플랜에서는 목표와 활성 계획을 1개까지 이용할 수 있어요. 기존 계획의 수정에서 이어가 주세요.");
-    error.status = 409;
-    error.code = "GOAL_PLAN_LIMIT_REACHED";
-    throw error;
-  }
-
-  const planInput = {
-    ...input,
-    draftPlanId: String(input?.draftPlanId || "").trim() || crypto.randomUUID(),
-  };
-  const result = await generatePlan(planInput, {
-    apiKey: env.OPENAI_API_KEY,
-    model: env.OPENAI_MODEL || "gpt-5.4-mini",
-  });
-
-  if (user && user.role !== "admin") {
-    await withAiCreditUserLock(user.id, async () => {
-      const latestUser = await userStore.getUser(user.id);
-      if (!latestUser || (latestUser.status && latestUser.status !== "active")) {
-        const error = new Error("계정 상태가 변경되어 생성한 계획을 저장하지 않았어요.");
-        error.status = 409;
-        error.code = "ACCOUNT_INACTIVE";
-        throw error;
-      }
-      latestUser.goalPlanGeneratedAt = now;
-      await userStore.putUser(latestUser);
-      Object.assign(user, latestUser);
-    });
-  }
-  return result;
-}
-
 const AI_GENERATION_ROUTES = Object.freeze({
-  // 온보딩은 수동 빌더가 처리하므로 목표 이해 정리 라우트는 없다. 계획 생성은 앱 안에서만 쓴다.
-  "/api/ai/goal-plan": { action: "create_plan", kind: "goal", maxBytes: 50_000 },
+  // 계획은 유저가 수동 빌더로 직접 만든다. AI는 이미 있는 계획을 다듬고 대화하는 데만 쓴다.
   "/api/ai/companion-chat": { action: "companion_chat", kind: "companion", maxBytes: 5_000 },
   "/api/ai/plan-revision": { action: "revise_plan", kind: "revision", maxBytes: 20_000 },
   "/api/ai/recovery-plan": { action: "recovery_plan", kind: "revision", maxBytes: 20_000 },
@@ -301,31 +272,37 @@ async function handleAiGenerationRequest({ request, env, accountContext, route }
     return json(aiErrorBody(error), error.status || 400);
   }
 
+  // 자동 치어링(축하·위로)은 유료 재화를 쓰지 않는 대신 하루 각 1회라는 별도 상한을 탄다.
+  // AI를 부르기 전에 먼저 막아야 상한 초과 요청이 비용을 만들지 않는다.
+  const cheerEventType = route.kind === "companion" ? normalizeCheerEventType(input?.eventType) : "chat";
+  const isFreeCheer = cheerEventType !== "chat";
+  if (isFreeCheer && !checkDailyCheerAllowance(user, cheerEventType).allowed) {
+    return json({ ok: false, error: "오늘의 무료 응원은 이미 전해드렸어요. 내일 또 만나요!", code: "CHEER_LIMIT_REACHED" }, 429);
+  }
+
   let reservation = null;
   let providerCalled = false;
   const model = env.OPENAI_MODEL || "gpt-5.4-mini";
   const aiCorrelationId = crypto.randomUUID();
   let aiStartedAt = 0;
   try {
-    reservation = await reserveAiCredits({ store: userStore, userId: user.id, action: route.action, requestId });
+    if (!isFreeCheer) {
+      reservation = await reserveAiCredits({ store: userStore, userId: user.id, action: route.action, requestId });
+    }
 
     let result;
     aiStartedAt = Date.now();
-    if (route.kind === "goal") {
-      // Reload after the reservation write so the goal-limit write cannot overwrite credit state.
-      const creditAwareUser = await userStore.getUser(user.id);
-      result = await createGoalPlanForUser({ input, env, userStore, user: creditAwareUser });
-    } else if (route.kind === "companion") {
+    if (route.kind === "companion") {
       result = await createCompanionReply(input, {
         apiKey: env.OPENAI_API_KEY,
         model,
-        allowPersonalization: ["pro", "trial"].includes(reservation.usage.plan),
+        allowPersonalization: !isFreeCheer && ["pro", "trial"].includes(reservation.usage.plan),
       });
     } else {
       result = await createAiPlanRevision(input, { apiKey: env.OPENAI_API_KEY, model });
     }
     providerCalled = true;
-    if (route.kind === "goal" || route.kind === "revision") {
+    if (route.kind === "revision") {
       console.info(`AI ${route.action} completed`, safeAiSuccessDiagnostics(result, {
         correlationId: aiCorrelationId,
         environment: env.APP_ENV || "unknown",
@@ -333,6 +310,17 @@ async function handleAiGenerationRequest({ request, env, accountContext, route }
         operation: route.action,
         latencyMs: Date.now() - aiStartedAt,
       }));
+    }
+
+    if (isFreeCheer) {
+      // AI가 실제로 답을 만든 뒤에만 오늘의 무료 응원을 소진 처리한다 (실패했으면 다시 시도할 수 있어야 한다).
+      // 사전 확인과 이 확정 사이의 경합은 크레딧과 같은 유저 락 안에서 다시 판정해 막는다.
+      await withAiCreditUserLock(user.id, async () => {
+        const latest = (await userStore.getUser(user.id)) || user;
+        const claimed = checkDailyCheerAllowance(latest, cheerEventType);
+        if (claimed.allowed) await userStore.putUser(claimed.user);
+      });
+      return json({ ok: true, ...publicAiResult(result), requestId, eventType: cheerEventType, chargedCredits: 0 });
     }
 
     const committed = await commitAiCredits({
@@ -355,11 +343,7 @@ async function handleAiGenerationRequest({ request, env, accountContext, route }
       model,
       operation: route.action,
       latencyMs: aiStartedAt ? Date.now() - aiStartedAt : 0,
-      maxOutputTokens: route.kind === "goal"
-        ? GOAL_PLAN_MAX_OUTPUT_TOKENS
-        : route.kind === "revision"
-          ? PLAN_REVISION_MAX_OUTPUT_TOKENS
-          : 0,
+      maxOutputTokens: route.kind === "revision" ? PLAN_REVISION_MAX_OUTPUT_TOKENS : 0,
     }));
     if (reservation?.shouldExecute) {
       try {

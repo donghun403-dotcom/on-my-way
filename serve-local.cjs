@@ -177,8 +177,7 @@ const contentTypes = {
 };
 
 const AI_GENERATION_ROUTES = Object.freeze({
-  // 온보딩은 수동 빌더가 처리하므로 목표 이해 정리 라우트는 없다. 계획 생성은 앱 안에서만 쓴다.
-  "/api/ai/goal-plan": { action: "create_plan", kind: "goal", maxBytes: 50_000 },
+  // 계획은 유저가 수동 빌더로 직접 만든다. AI는 이미 있는 계획을 다듬고 대화하는 데만 쓴다.
   "/api/ai/companion-chat": { action: "companion_chat", kind: "companion", maxBytes: 5_000 },
   "/api/ai/plan-revision": { action: "revise_plan", kind: "revision", maxBytes: 20_000 },
   "/api/ai/recovery-plan": { action: "recovery_plan", kind: "revision", maxBytes: 20_000 },
@@ -273,34 +272,32 @@ async function handleLocalAiGenerationRequest({ request, response, route }) {
     releaseAiCredits,
     reserveAiCredits,
   } = await aiCreditsServiceModule;
+  // 개발 패리티: 자동 치어링은 운영과 마찬가지로 재화를 차감하지 않는다.
+  // 하루 각 1회 상한은 KV 유저 레코드에 기록이 남아야 하므로 운영(worker.mjs)에서만 강제한다.
+  const { normalizeCheerEventType } = await aiCompanionChatModule;
+  const isFreeCheer = route.kind === "companion" && normalizeCheerEventType(input?.eventType) !== "chat";
+
   let reservation = null;
   let providerCalled = false;
   const model = localEnv.OPENAI_MODEL || "gpt-5.4-mini";
 
   try {
-    reservation = await reserveAiCredits({
-      store: localUserStore,
-      userId: user.id,
-      action: route.action,
-      requestId,
-    });
+    if (!isFreeCheer) {
+      reservation = await reserveAiCredits({
+        store: localUserStore,
+        userId: user.id,
+        action: route.action,
+        requestId,
+      });
+    }
 
     let result;
-    if (route.kind === "goal") {
-      const { createGoalPlanForUser } = await workerModule;
-      const creditAwareUser = await localUserStore.getUser(user.id);
-      result = await createGoalPlanForUser({
-        input,
-        env: localEnv,
-        userStore: localUserStore,
-        user: creditAwareUser,
-      });
-    } else if (route.kind === "companion") {
+    if (route.kind === "companion") {
       const { createCompanionReply } = await aiCompanionChatModule;
       result = await createCompanionReply(input, {
         apiKey: localEnv.OPENAI_API_KEY,
         model,
-        allowPersonalization: ["pro", "trial"].includes(reservation.usage.plan),
+        allowPersonalization: !isFreeCheer && ["pro", "trial"].includes(reservation.usage.plan),
       });
     } else {
       const { createAiPlanRevision } = await aiPlanRevisionModule;
@@ -310,6 +307,11 @@ async function handleLocalAiGenerationRequest({ request, response, route }) {
       });
     }
     providerCalled = true;
+
+    if (isFreeCheer) {
+      sendJson(response, 200, { ok: true, ...publicAiResult(result), requestId, chargedCredits: 0 });
+      return;
+    }
 
     const committed = await commitAiCredits({
       store: localUserStore,

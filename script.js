@@ -300,6 +300,9 @@ const ACCOUNT_SCOPED_STORAGE_KEYS = [
   "omwCompanionEvents",
   "omwFocusSession",
   "omwExecutionTheme",
+  // 오늘의 치어링(CHEER_STATE_KEY). 계정마다 따로 보관해야 다른 계정의 축하가 새어 나오지 않고,
+  // 게스트로 받은 축하는 첫 로그인 때 함께 승계된다. 하루짜리 값이라 서버 동기화 대상은 아니다.
+  "omwCheerState",
   EXECUTION_LEDGER_PLAN_KEY,
 ];
 const SERVER_SYNC_STORAGE_KEYS = [
@@ -3260,8 +3263,46 @@ function getGoalPlanTemplates(goal) {
   return templates[kind];
 }
 
-async function requestCompanionReply(message) {
-  if (!(await ensureAiActionAvailable("companion_chat"))) {
+/* 오늘(또는 마지막 실행일)부터 거꾸로 센 연속 완주일. 할 일이 없는 날은 계획된 휴식이라
+   흐름을 끊지 않고 건너뛴다. 서버는 이 값이 있을 때만 축하 문구에 연속일을 언급한다. */
+function countCompletedStreakDays(bundle) {
+  const { day } = getTodayPlanContext(bundle);
+  let streak = 0;
+  for (let cursor = Number(day) || 1; cursor >= 1; cursor -= 1) {
+    const dayPlan = bundle.schedule[cursor - 1];
+    if (!dayPlan) break;
+    if (!dayPlan.tasks.length) continue;
+    if (getDayCompletion(dayPlan, bundle.state.checkedByDay).percent !== 100) break;
+    streak += 1;
+  }
+  return streak;
+}
+
+/* 올리가 축하·위로의 어조를 정하는 데 쓰는 실행 컨텍스트. 놓친 일정은 rolloverNotice가
+   가리키는 지난 실행일에서 체크되지 않은 것만 골라 최대 3개까지 보낸다. */
+function collectCompanionContext(bundle) {
+  const { dayPlan } = getTodayPlanContext(bundle);
+  const notice = bundle.state.rolloverNotice;
+  const missedDayPlan = notice ? bundle.schedule[Number(notice.day) - 1] : null;
+  const missedChecked = missedDayPlan ? bundle.state.checkedByDay[String(missedDayPlan.day)] || [] : [];
+  const memories = Array.isArray(bundle.state.dailyMemories) ? bundle.state.dailyMemories : [];
+  return {
+    todayCompletion: dayPlan ? getDayCompletion(dayPlan, bundle.state.checkedByDay).percent : 0,
+    missedTasks: (missedDayPlan?.tasks || [])
+      .filter((_, index) => !missedChecked[index])
+      .map((task) => String(task.text || "").trim())
+      .filter(Boolean)
+      .slice(0, 3),
+    streakDays: countCompletedStreakDays(bundle),
+    mood: String(memories[memories.length - 1]?.mood || "").trim(),
+  };
+}
+
+/* 자동 치어링(축하·위로)은 유료 재화를 쓰지 않으므로 크레딧 게이트를 지나지 않는다.
+   대신 서버가 하루 각 1회로 상한을 걸고, 초과분은 CHEER_LIMIT_REACHED로 돌려준다. */
+async function requestCompanionReply(message, { eventType = "chat" } = {}) {
+  const isCheer = eventType !== "chat";
+  if (!isCheer && !(await ensureAiActionAvailable("companion_chat"))) {
     const error = new Error("올리와 대화할 수 있는 AI 크레딧을 확인해 주세요.");
     error.code = "AI_CREDIT_UNAVAILABLE";
     throw error;
@@ -3280,10 +3321,12 @@ async function requestCompanionReply(message) {
       credentials: "same-origin",
       body: JSON.stringify({
         message,
+        eventType,
         context: {
           goal: bundle.plan?.goal || "",
           energy: companionState.energy || "",
           todayFocus: bundle.plan?.firstAction || "",
+          ...collectCompanionContext(bundle),
           personalization: {
             mbti: profile.mbti || bundle.plan?.mbti || "",
             planningStyle: bundle.plan?.style || "",
@@ -3304,7 +3347,7 @@ async function requestCompanionReply(message) {
     }
     const reply = String(result.reply || "").trim();
     if (!reply) throw new Error("올리가 답을 만들지 못했어요.");
-    sendFunnelEvent("ai_credit_charged");
+    if (!isCheer) sendFunnelEvent("ai_credit_charged");
     return { reply, headline: String(result.headline || "").trim() };
   } catch (error) {
     if (error.name === "AbortError") throw new Error("올리의 답이 늦어지고 있어요. 잠시 후 다시 말 걸어주세요.");
@@ -3312,6 +3355,83 @@ async function requestCompanionReply(message) {
   } finally {
     window.clearTimeout(timeoutId);
   }
+}
+
+// ===== 올리 치어링: 완료 축하 · 미완료 위로 (하루 각 1회 · 에너지 미차감) =====
+const CHEER_STATE_KEY = "omwCheerState";
+const cheerRequestsInFlight = new Set();
+
+const LOCAL_CHEER_COPY = {
+  celebrate: [
+    { headline: "오늘 전부 해냈어요!", reply: "정한 일정을 끝까지 해낸 하루예요. 이 흐름, 올리가 꼭 기억해둘게요. 내일도 같은 시간에 만나요!" },
+    { headline: "완주 축하해요!", reply: "오늘 계획을 모두 완료했어요. 스스로 정한 약속을 지킨 하루라서 더 값져요. 오늘의 기분을 기록 탭에 남겨볼까요?" },
+    { headline: "대단해요, 올클리어!", reply: "오늘의 체크가 전부 채워졌어요. 이런 날이 하나씩 쌓여서 목표까지 가는 거예요. 푹 쉬어요, 내일도 함께해요!" },
+  ],
+  comfort: [
+    { headline: "괜찮아요, 다시 가요.", reply: "놓친 일정은 실패가 아니라 조정 신호예요. 아래 회복 버튼으로 내일 계획에 가볍게 다시 담아볼까요?" },
+    { headline: "오늘은 여기까지도 충분해요.", reply: "다 못한 날도 우리 여정의 일부예요. 5분짜리 가장 작은 행동 하나만 다시 시작해도 흐름은 이어져요." },
+  ],
+};
+
+function cheerKicker(eventType) {
+  return eventType === "celebrate" ? "OLLIE CHEER · 오늘의 축하" : "OLLIE CHEER · 다시 시작 응원";
+}
+
+function cheerImage(eventType) {
+  return eventType === "celebrate" ? "assets/ollie-celebrate.png" : "assets/ollie-comfort.png";
+}
+
+function readCheerState() {
+  const state = readStorageObject(CHEER_STATE_KEY, {});
+  return state.date === getTodayKey() ? state : { date: getTodayKey() };
+}
+
+function displayCheer(eventType, cheer) {
+  showOllieReaction(cheer.reply, cheer.headline);
+  if (dailyCoachKicker) dailyCoachKicker.textContent = cheerKicker(eventType);
+  if (dailyCoachTitle) dailyCoachTitle.textContent = cheer.headline;
+  if (dailyCoachMessage) dailyCoachMessage.textContent = cheer.reply;
+  setImageSource(dailyCoachImage, cheerImage(eventType));
+  if (memoryConversation) memoryConversation.textContent = cheer.reply;
+  announce(cheer.reply);
+}
+
+/* 축하·위로를 AI로 시도하고, 실패(비로그인·상한 도달·오류)하면 로컬 문구로 조용히 대체한다.
+   에너지는 차감하지 않으며, 표시 여부는 로컬에서도 하루 각 1회로 제한한다 (서버 상한과 이중 안전망). */
+async function triggerOllieCheer(eventType, detail = {}) {
+  if (!document.body.classList.contains("execution-page")) return;
+  if (!LOCAL_CHEER_COPY[eventType]) return;
+  if (readCheerState()[eventType]) return;
+  if (cheerRequestsInFlight.has(eventType)) return;
+  cheerRequestsInFlight.add(eventType);
+
+  const pool = LOCAL_CHEER_COPY[eventType];
+  const fallback = pool[Math.floor(Math.random() * pool.length)];
+  let cheer = fallback;
+  let source = "local";
+  const message =
+    eventType === "celebrate"
+      ? `오늘 계획 ${detail.total || "전부"}개를 방금 모두 완료했어요!`
+      : `지난 접속에서 일정 ${detail.missedCount || "몇"}개를 완료하지 못했어요.`;
+
+  // AI 치어링은 로그인 회원에게만 시도한다 (서버가 401을 반환하므로 게스트는 바로 로컬 문구)
+  if (authUiState.user) {
+    try {
+      const { reply, headline } = await requestCompanionReply(message, { eventType });
+      cheer = { reply, headline: headline || fallback.headline };
+      source = "ai";
+    } catch (error) {
+      /* 하루 상한(CHEER_LIMIT_REACHED)·네트워크 오류 → 로컬 문구로 대체 */
+    }
+  }
+  cheerRequestsInFlight.delete(eventType);
+
+  const nextState = readCheerState();
+  if (nextState[eventType]) return;
+  nextState[eventType] = { headline: cheer.headline, reply: cheer.reply, source, at: new Date().toISOString() };
+  writeStorageObject(CHEER_STATE_KEY, nextState);
+  displayCheer(eventType, cheer);
+  trackCompanionEvent("ollie_cheer_shown", { eventType, source });
 }
 
 /* 결과 화면의 "올리가 이해한 내용" 카드. 유저가 직접 담은 값만 되읽어 준다 —
@@ -7081,6 +7201,7 @@ function completeFocusTask() {
   if (newlyRecorded) showOllieStarShower(dayPlan.tasks[taskIndex]?.text);
   showToast(newlyRecorded ? `일정 하나를 완료했어요 · 올리가 ${10 + completionBonus} XP를 받았어요` : completionBonus ? "오늘 계획을 모두 완료했어요 · 올리가 8 XP를 받았어요" : wasUnchecked ? "완료 상태를 다시 표시했어요 · XP는 중복 지급되지 않아요" : "이미 완료된 일정이에요");
   trackCompanionEvent("focus_completed", { day: dayPlan.day, taskIndex, rewarded: Boolean(newlyRecorded || completionBonus), completionBonus });
+  if (completionBonus) triggerOllieCheer("celebrate", { total: dayPlan.tasks.length });
   renderExecutionPage(bundle);
   if (newlyRecorded) openCompletionReflection(bundle.state, dayPlan, taskIndex, startFocusButton);
 }
@@ -8143,6 +8264,8 @@ function renderRecoveryPrompt(state, selectedCompletion) {
   if (recoverySummary && notice) {
     recoverySummary.textContent = "원래 계획을 다 하지 않아도 괜찮아요. 지금 가능한 크기로 다시 이어가요.";
   }
+  // 놓친 일정이 보이는 날에는 올리가 하루 한 번 먼저 위로를 건넨다 (자책 방지 · 재시작 유도)
+  if (shouldShow) triggerOllieCheer("comfort", { missedCount: notice.missedCount });
 }
 
 function renderCompanionExperience({ plan, selectedCompletion, remainingTasks, completedDays, overallProgress }) {
@@ -8379,6 +8502,23 @@ function renderDailyCoach(state, selectedCompletion, dayPlan) {
   } else if (selectedCompletion.percent === 100) {
     kicker = "OLLIE COACH · 오늘 일정 완료";
     copy = { title: "오늘 스케줄을 모두 해냈어요. 이 흐름을 올리가 기억할게요!", message: "오늘의 기분과 잘된 점을 추억 카드에 남기면 내일 계획을 더 정확하게 맞출 수 있어요.", image: "assets/ollie-celebrate.png" };
+  }
+
+  // 오늘 이미 전한 올리의 축하·위로가 있으면 코치 카드에 유지한다 (새로고침·재렌더에도 사라지지 않게)
+  const cheerState = readCheerState();
+  const activeCheerType =
+    dayPlan?.tasks?.length && selectedCompletion.percent === 100 && cheerState.celebrate
+      ? "celebrate"
+      : state.rolloverNotice && selectedCompletion.percent < 100 && cheerState.comfort
+        ? "comfort"
+        : "";
+  if (activeCheerType) {
+    kicker = cheerKicker(activeCheerType);
+    copy = {
+      title: cheerState[activeCheerType].headline,
+      message: cheerState[activeCheerType].reply,
+      image: cheerImage(activeCheerType),
+    };
   }
 
   if (dailyCoachKicker) dailyCoachKicker.textContent = kicker;
@@ -8984,6 +9124,7 @@ executionChecklist?.addEventListener("change", (event) => {
   } else if (event.target.checked && wasUnchecked) {
     showToast("완료 상태를 다시 표시했어요 · XP는 중복 지급되지 않아요");
   }
+  if (completionBonus) triggerOllieCheer("celebrate", { total: dayPlan.tasks.length });
   renderExecutionPage(bundle);
 });
 
@@ -9024,6 +9165,7 @@ completeTodayButton?.addEventListener("click", () => {
   } else if (restoredCompleted > 0) {
     showToast("오늘 계획의 완료 상태를 복원했어요 · XP는 중복 지급되지 않아요");
   }
+  if (completionBonus) triggerOllieCheer("celebrate", { total: dayPlan.tasks.length });
   renderExecutionPage(bundle);
 });
 

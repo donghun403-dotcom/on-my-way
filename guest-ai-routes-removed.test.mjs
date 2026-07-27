@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import worker from "./worker.mjs";
 
-/* 게스트 AI 온보딩 라우트(goal-analyze · goal-preview · goal-draft/*)를 걷어냈다.
-   온보딩은 수동 빌더가 처리하므로 서버가 계획을 만들 이유가 없다.
+/* 서버가 계획을 만들던 AI 라우트를 모두 걷어냈다. 온보딩은 수동 빌더가 처리하고,
+   회원의 계획 생성(goal-plan)도 클라이언트 호출자가 사라져 함께 제거했다.
    이 스펙은 그 라우트들이 "조용히 다른 핸들러로 흘러가지 않는다"를 고정한다:
    /api/ 아래 경로는 정적 자산으로 폴백하지 않고 JSON 404로 끝나야 한다.
    (기존 guest-ai-preview.test.mjs를 대체한다) */
@@ -13,6 +13,7 @@ const REMOVED_ROUTES = [
   "/api/ai/goal-preview",
   "/api/ai/goal-draft/revise",
   "/api/ai/goal-draft/claim",
+  "/api/ai/goal-plan",
 ];
 
 // 라우트가 살아 있었다면 반드시 건드렸을 바인딩들. 하나라도 호출되면 실패한다.
@@ -66,7 +67,6 @@ test("제거한 게스트 온보딩 라우트는 JSON 404로 끝나고 정적 �
 
 test("남아 있는 AI 라우트는 로그인 없이는 401로 막히고 게스트 우회 경로가 없다", async () => {
   const stillRouted = [
-    "/api/ai/goal-plan",
     "/api/ai/companion-chat",
     "/api/ai/plan-revision",
     "/api/ai/recovery-plan",
