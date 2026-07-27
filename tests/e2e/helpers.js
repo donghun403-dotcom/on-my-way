@@ -92,32 +92,6 @@ async function mockExternalAssets(page) {
     route.fulfill({ status: 204, contentType: "font/woff", body: "" }),
   );
   await page.route("**/api/funnel", (route) => route.fulfill({ status: 204, body: "" }));
-  await mockGoalAnalysis(page);
-}
-
-// 온보딩 1단계(자연어 이야기) → 2단계(올리가 정리한 이해) 전환용 기본 분석 응답.
-async function mockGoalAnalysis(page, analysis = {}) {
-  await page.route("**/api/ai/goal-analyze", (route) => route.fulfill({
-    status: 200,
-    contentType: "application/json",
-    body: JSON.stringify({
-      ok: true,
-      analysis: {
-        goal: "정리한 목표",
-        currentState: [],
-        availableTime: [],
-        questions: [],
-        ...analysis,
-      },
-    }),
-  }));
-}
-
-// 1단계에서 목표 이야기를 적고 올리의 정리(2단계)까지 진행한다.
-async function submitGoalStory(page, goalText) {
-  await page.locator("#designGoal").fill(goalText);
-  await page.locator("#goalAnalyzeButton").click();
-  await page.locator("#aiPreviewButton").waitFor({ state: "visible" });
 }
 
 /* 수동 빌더 4단계(목표 → 리듬 → 할 일 → 마무리)를 끝까지 진행한다.
@@ -561,8 +535,6 @@ module.exports = {
   isExpectedFirefoxNavigationImageAbort,
   completeManualPlan,
   mockAccountExperience,
-  mockGoalAnalysis,
-  submitGoalStory,
   mockExternalAssets,
   monitorPage,
   prepareApp,

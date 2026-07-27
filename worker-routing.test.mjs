@@ -75,7 +75,7 @@ test("상태 점검 API는 비밀값 없이 운영 의존성 준비 여부를 �
   assert.equal(fixture.limiterCalls(), 0);
 });
 
-test("health AI readiness matches the dependencies required by guest preview and revision", async () => {
+test("health AI readiness matches the dependencies required by the in-app AI routes", async () => {
   const cases = [
     { name: "API key only", overrides: { AI_RATE_LIMITER: null, GUEST_PLAN_DRAFTS: null, SESSION_SECRET: "" } },
     { name: "limiter missing", overrides: { AI_RATE_LIMITER: null } },

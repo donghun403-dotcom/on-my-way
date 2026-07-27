@@ -38,7 +38,8 @@ test("수동 4단계로 계획을 만들면 AI 호출 없이 실행 계획이 �
   await waitForBootstrap(page);
 
   await expect(page.locator(".diagnosis-step.active")).toHaveAttribute("data-step-title", "무엇을 시작해볼까요?");
-  await expect(page.locator("#goalAnalyzeButton")).toBeHidden();
+  // AI 계획 생성 CTA는 마크업에서 사라졌다. 진행은 "다음 단계" 하나로만 한다.
+  await expect(page.locator("#goalAnalyzeButton")).toHaveCount(0);
 
   await completeManualPlan(page, {
     goal: "3개월 안에 토익 900점 달성하기",
@@ -194,6 +195,59 @@ test("할 일을 모두 비우면 다음 단계로 넘어가지 못한다", asyn
   // 같은 단계에 머무르고 계획도 저장되지 않는다.
   await expect(page.locator(".diagnosis-step.active")).toHaveAttribute("data-step-title", "어떤 일을 하면 될까요?");
   expect(await readStored(page, "omwExecutionPlan")).toBeNull();
+
+  diagnostics.expectClean();
+});
+
+/* AI 온보딩 시절부터 지켜온 계약이라 수동 빌더 기준으로 옮겨 왔다. 카테고리 칩은
+   예시를 제안할 뿐이고, 목표 문장을 대신 써 주거나 사용자 확인 없이 단계를
+   넘기지 않는다. (원본: onboarding-ai-legacy.spec.js) */
+test("목표 카테고리는 예시만 제안하고 사용자의 명시적 확인 전에는 진행하지 않는다", async ({ page }) => {
+  const diagnostics = monitorPage(page);
+  const goalAiRequests = trackGoalAiRequests(page);
+  await mockAccountExperience(page);
+
+  await page.goto("/index.html#designFlow");
+  await waitForBootstrap(page);
+
+  const goal = page.locator("#designGoal");
+  const next = page.locator("#diagnosisNextButton");
+  const stepTitle = page.locator(".diagnosis-step.active");
+
+  await expect(goal).toHaveValue("");
+  await expect(next).toBeDisabled();
+
+  await page.getByRole("button", { name: "시험", exact: true }).click();
+  await expect(page.getByRole("button", { name: "시험", exact: true })).toHaveAttribute("aria-pressed", "true");
+  // 칩만 눌렀을 때는 목표 문장을 대신 채우지 않는다.
+  await expect(goal).toHaveValue("");
+  await expect(goal).toHaveAttribute("placeholder", "예: 6개월 안에 공인중개사 1차 합격하기");
+  await expect(page.locator("#goalExampleSuggestions button")).toHaveCount(3);
+  await expect(stepTitle).toHaveAttribute("data-step-title", "무엇을 시작해볼까요?");
+  await expect(next).toBeDisabled();
+
+  await page.getByRole("button", { name: "올해 한국사능력검정시험 1급 취득하기", exact: true }).click();
+  await expect(goal).toHaveValue("올해 한국사능력검정시험 1급 취득하기");
+  await expect(stepTitle).toHaveAttribute("data-step-title", "무엇을 시작해볼까요?");
+  await expect(next).toBeEnabled();
+
+  // 카테고리를 바꿔도 사용자가 직접 고친 문장을 덮어쓰지 않는다.
+  await goal.fill("올해 한국사능력검정시험 1급을 여름까지 취득하기");
+  for (const category of ["운동", "취업", "습관"]) {
+    await page.getByRole("button", { name: category, exact: true }).click();
+    await expect(goal).toHaveValue("올해 한국사능력검정시험 1급을 여름까지 취득하기");
+    await expect(stepTitle).toHaveAttribute("data-step-title", "무엇을 시작해볼까요?");
+  }
+
+  await goal.fill("   ");
+  await expect(next).toBeDisabled();
+  await expect(page.locator("#goalValidationMessage")).toHaveText("달성하고 싶은 결과를 입력해 주세요.");
+  await goal.press("Enter");
+  await expect(stepTitle).toHaveAttribute("data-step-title", "무엇을 시작해볼까요?");
+
+  await goal.fill("30일 동안 매일 저녁 한 줄 일기 쓰기");
+  await expect(next).toBeEnabled();
+  expect(goalAiRequests).toEqual([]);
 
   diagnostics.expectClean();
 });

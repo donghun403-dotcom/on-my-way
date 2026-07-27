@@ -213,8 +213,11 @@ test("readiness requires Staging AI while keeping storage and payments safety ga
   const worker = readFileSync(new URL("./worker.mjs", import.meta.url), "utf8");
   assert.match(worker, /const guestAi = getGuestAiReadiness\(env\)/);
   assert.match(worker, /ai: guestAi\.ready/);
-  // 비회원 AI 경로(목표 분석·미리보기·수정)는 모두 같은 준비 상태 가드를 통과해야 한다.
-  assert.equal((worker.match(/if \(!getGuestAiReadiness\(env\)\.ready\)/g) || []).length, 3);
+  /* 비회원 AI 경로는 수동 온보딩으로 대체되면서 사라졌다. 준비 상태 판정은
+     이제 /api/health 하나만 쓰므로, 다른 곳에 가드가 다시 생기지 않는지 본다. */
+  assert.equal((worker.match(/if \(!getGuestAiReadiness\(env\)\.ready\)/g) || []).length, 0);
+  assert.equal((worker.match(/getGuestAiReadiness\(env\)/g) || []).length, 1);
+  assert.doesNotMatch(worker, /\/api\/ai\/goal-(analyze|preview|draft)/);
 });
 
 test("exact 40-character deployment input must equal the checked-out SHA", () => {
