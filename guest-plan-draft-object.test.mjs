@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { durableCommand, memoryDurableObjectNamespace } from "./guest-plan-draft-fixture.mjs";
-import { GUEST_DRAFT_GENERATION_LEASE_MS, GUEST_DRAFT_TTL_MS } from "./guest-plan-draft-object.mjs";
+import { GUEST_DRAFT_GENERATION_LEASE_MS, GUEST_DRAFT_MAX_REVISIONS, GUEST_DRAFT_TTL_MS } from "./guest-plan-draft-object.mjs";
 
 const DRAFT_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const CAPABILITY_HASH = "b".repeat(64);
@@ -799,4 +799,89 @@ test("claim retries preserve the first schedule preference and reject plan hash 
   assert.equal(first.body.claimScheduleStartPreference, "shorter");
   assert.equal(retry.body.claimScheduleStartPreference, "shorter");
   assert.equal((await storage.get("draft")).claimScheduleStartPreference, "shorter");
+});
+
+test("게스트 revision은 최초 미리보기 이후 상한까지만 성공하고 이후에는 로그인 전환 코드로 차단된다", async () => {
+  const namespace = memoryDurableObjectNamespace();
+  const { stub } = namespace.newIsolate(DRAFT_ID);
+  await seedReady(stub);
+
+  let revision = 1;
+  let activeHash = INPUT_HASH;
+  for (let index = 1; index <= GUEST_DRAFT_MAX_REVISIONS; index += 1) {
+    const nextHash = String(index).repeat(64);
+    const begin = await jsonCommand(stub, "begin-revision", {
+      now: 300_000 + index * 10,
+      capabilityHash: CAPABILITY_HASH,
+      expectedRevision: revision,
+      expectedInputHash: activeHash,
+      input: input(`수정 목표 ${index}`),
+      inputHash: nextHash,
+      generationToken: `cap-token-${index}`,
+      idempotencyKey: `revision:cap-key-${index}`,
+    });
+    assert.equal(begin.status, 200, `revision ${index} begin`);
+    assert.equal(begin.body.shouldGenerate, true);
+    const commit = await jsonCommand(stub, "commit-generation", {
+      now: 300_001 + index * 10,
+      generationToken: `cap-token-${index}`,
+      idempotencyKey: `revision:cap-key-${index}`,
+      inputHash: nextHash,
+      plan: plan(`수정 목표 ${index}`),
+      preview: { firstAction: `수정 행동 ${index}` },
+    });
+    assert.equal(commit.status, 200, `revision ${index} commit`);
+    revision = commit.body.activeRevision;
+    activeHash = nextHash;
+  }
+  assert.equal(revision, 1 + GUEST_DRAFT_MAX_REVISIONS);
+
+  const blocked = await jsonCommand(stub, "begin-revision", {
+    now: 310_000,
+    capabilityHash: CAPABILITY_HASH,
+    expectedRevision: revision,
+    expectedInputHash: activeHash,
+    input: input("한 번 더 수정"),
+    inputHash: "e".repeat(64),
+    generationToken: "cap-token-overflow",
+    idempotencyKey: "revision:cap-key-overflow",
+  });
+  assert.equal(blocked.status, 429);
+  assert.equal(blocked.body.code, "GUEST_REVISION_LIMIT_REACHED");
+
+  const unchanged = await jsonCommand(stub, "begin-revision", {
+    now: 310_001,
+    capabilityHash: CAPABILITY_HASH,
+    expectedRevision: revision,
+    expectedInputHash: activeHash,
+    input: input(`수정 목표 ${GUEST_DRAFT_MAX_REVISIONS}`),
+    inputHash: activeHash,
+    generationToken: "cap-token-unchanged",
+    idempotencyKey: "revision:cap-key-unchanged",
+  });
+  assert.equal(unchanged.status, 200);
+  assert.equal(unchanged.body.unchanged, true);
+
+  const replay = await jsonCommand(stub, "begin-revision", {
+    now: 310_002,
+    capabilityHash: CAPABILITY_HASH,
+    expectedRevision: GUEST_DRAFT_MAX_REVISIONS,
+    expectedInputHash: String(GUEST_DRAFT_MAX_REVISIONS - 1).repeat(64),
+    input: input(`수정 목표 ${GUEST_DRAFT_MAX_REVISIONS}`),
+    inputHash: activeHash,
+    generationToken: "cap-token-replay",
+    idempotencyKey: `revision:cap-key-${GUEST_DRAFT_MAX_REVISIONS}`,
+  });
+  assert.equal(replay.status, 200);
+  assert.equal(replay.body.idempotent, true);
+
+  const claim = await jsonCommand(stub, "claim", {
+    now: 310_003,
+    capabilityHash: CAPABILITY_HASH,
+    userId: "converted-user",
+    expectedRevision: revision,
+    expectedInputHash: activeHash,
+  });
+  assert.equal(claim.status, 200);
+  assert.equal(claim.body.claimedBy, "converted-user");
 });

@@ -14,9 +14,8 @@ test("Free and Pro policy values have one authoritative definition", () => {
   assert.deepEqual(PLAN_CONFIG.free, {
     displayName: "Free",
     priceKRW: 0,
-    signupCredits: 5,
-    monthlyCredits: 5,
-    dailyCreditLimit: 2,
+    monthlyCredits: 10,
+    dailyCreditLimit: 4,
     maxGoals: 1,
     maxActivePlans: 1,
     creditsRollover: false,
@@ -31,7 +30,6 @@ test("Free and Pro policy values have one authoritative definition", () => {
   assert.deepEqual(PLAN_CONFIG.pro, {
     displayName: "Pro",
     priceKRW: 4_900,
-    signupCredits: 0,
     monthlyCredits: 250,
     dailyCreditLimit: 30,
     maxGoals: null,
@@ -47,7 +45,7 @@ test("Free and Pro policy values have one authoritative definition", () => {
     },
   });
   assert.equal(DEFAULT_TIME_ZONE, "Asia/Seoul");
-  assert.match(CREDIT_POLICY_VERSION, /^2026-07-15/);
+  assert.match(CREDIT_POLICY_VERSION, /^2026-07-27/);
   assert.equal(getPlanConfig("trial"), PLAN_CONFIG.pro);
   assert.equal(getPlanConfig("unknown"), null);
   assert.ok(Object.isFrozen(PLAN_CONFIG));

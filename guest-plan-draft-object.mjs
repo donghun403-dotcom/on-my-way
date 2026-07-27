@@ -2,6 +2,10 @@ const STATE_KEY = "draft";
 export const GUEST_DRAFT_SCHEMA_VERSION = 1;
 export const GUEST_DRAFT_TTL_MS = 24 * 60 * 60 * 1_000;
 export const GUEST_DRAFT_GENERATION_LEASE_MS = 90 * 1_000;
+// Successful revisions allowed after the initial preview. Guests get the
+// initial plan plus this many free AI adjustments; past that they must log in
+// (claim is free) so anonymous traffic cannot burn unbounded provider spend.
+export const GUEST_DRAFT_MAX_REVISIONS = 3;
 export const GUEST_GENERATION_RESULT_OUTCOMES = Object.freeze({
   SUCCESS: "success",
   TERMINAL_CONTRACT_FAILURE: "terminal_contract_failure",
@@ -448,6 +452,10 @@ export class GuestPlanDraftObject {
           return { status: 200, body: { ok: true, cached: true, unchanged: true, ...publicMetadata(state) } };
         }
         if (state.pendingGeneration) return { status: 409, body: { ok: false, code: "DRAFT_REVISION_PENDING" } };
+        // activeRevision 1 is the initial preview, so revisions used = activeRevision - 1.
+        if (Number(state.activeRevision || 0) > GUEST_DRAFT_MAX_REVISIONS) {
+          return { status: 429, body: { ok: false, code: "GUEST_REVISION_LIMIT_REACHED" } };
+        }
         const next = {
           ...state,
           status: "GENERATING",

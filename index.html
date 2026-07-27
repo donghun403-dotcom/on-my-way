@@ -524,8 +524,8 @@
               </p>
               <p class="pricing-plan-summary">부담 없이 기본 기능을 써보며 나만의 실행 리듬을 만들어요.</p>
               <ul class="pricing-plan-benefits">
-                <li><span>가입 첫 달 AI 크레딧</span><strong data-policy-plan="free" data-policy-field="signup-credits">—</strong></li>
-                <li><span>이후 매월 AI 크레딧</span><strong data-policy-plan="free" data-policy-field="monthly-credits">—</strong></li>
+                <li><span>가입 후 무료 체험 1회</span><strong><b data-policy-plan="pro" data-policy-field="trial-duration">—</b> · AI 크레딧 <b data-policy-plan="pro" data-policy-field="trial-credits">—</b></strong></li>
+                <li><span>매월 AI 크레딧</span><strong data-policy-plan="free" data-policy-field="monthly-credits">—</strong></li>
                 <li><span>하루 사용 한도</span><strong data-policy-plan="free" data-policy-field="daily-limit">—</strong></li>
                 <li><span>목표와 활성 계획</span><strong><b data-policy-plan="free" data-policy-field="max-goals">—</b> · <b data-policy-plan="free" data-policy-field="max-active-plans">—</b></strong></li>
                 <li class="pricing-benefit-copy">기본 기록 기능 제공</li>
@@ -683,6 +683,69 @@
         <small>© 2026 Olive&amp;Rich. All rights reserved. On My Way is a service of Olive&amp;Rich.</small>
       </div>
     </footer>
+
+    <div class="sheet-overlay" id="accountSheetOverlay" hidden></div>
+    <aside class="companion-chat-sheet account-sheet" id="authSheet" role="dialog" aria-modal="true" aria-labelledby="authSheetTitle" tabindex="-1" hidden>
+      <div class="auth-sheet-hero">
+        <div class="auth-sheet-heading">
+          <span class="auth-sheet-kicker"><i aria-hidden="true"></i>3초 만에 시작</span>
+          <h2 id="authSheetTitle">올리와 함께<br />가볍게 시작해요</h2>
+          <p class="auth-sheet-copy" id="authSheetCopy">새 비밀번호 없이, 쓰던 계정 하나면 가입과 로그인이 한 번에 끝나요.</p>
+        </div>
+        <div class="auth-ollie-visual" aria-hidden="true">
+          <span>반가워요!</span>
+          <img src="assets/ollie-comfort.png" alt="" />
+        </div>
+        <button class="account-sheet-close" type="button" id="closeAuthSheet" aria-label="로그인 닫기">×</button>
+      </div>
+      <div class="auth-provider-list" id="authProviderList">
+        <button class="auth-provider kakao" type="button" data-auth-provider="kakao" aria-label="카카오로 계속하기">
+          <span class="provider-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3C6.48 3 2 6.52 2 10.86c0 2.79 1.85 5.24 4.64 6.64l-.95 3.48a.42.42 0 0 0 .62.46l4.13-2.72c.51.06 1.03.09 1.56.09 5.52 0 10-3.52 10-7.95S17.52 3 12 3Z" /></svg></span>
+          <span>카카오로 계속하기</span><span class="provider-arrow" aria-hidden="true">›</span>
+        </button>
+        <button class="auth-provider naver" type="button" data-auth-provider="naver" aria-label="네이버로 계속하기">
+          <span class="provider-mark naver-mark" aria-hidden="true">N</span>
+          <span>네이버로 계속하기</span><span class="provider-arrow" aria-hidden="true">›</span>
+        </button>
+        <button class="auth-provider google" type="button" data-auth-provider="google" aria-label="Google로 계속하기">
+          <span class="provider-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path fill="#4285F4" d="M21.6 12.23c0-.71-.06-1.4-.18-2.05H12v3.88h5.38a4.6 4.6 0 0 1-2 3.02v2.52h3.24c1.9-1.75 2.98-4.33 2.98-7.37Z"/><path fill="#34A853" d="M12 22c2.7 0 4.97-.9 6.62-2.4l-3.24-2.52c-.9.6-2.05.96-3.38.96-2.61 0-4.82-1.76-5.61-4.13H3.04v2.6A10 10 0 0 0 12 22Z"/><path fill="#FBBC05" d="M6.39 13.91A6.02 6.02 0 0 1 6.07 12c0-.66.11-1.31.32-1.91v-2.6H3.04A10 10 0 0 0 2 12c0 1.61.39 3.14 1.04 4.51l3.35-2.6Z"/><path fill="#EA4335" d="M12 5.96c1.47 0 2.79.5 3.83 1.5l2.87-2.87A9.63 9.63 0 0 0 12 2a10 10 0 0 0-8.96 5.49l3.35 2.6C7.18 7.72 9.39 5.96 12 5.96Z"/></svg></span>
+          <span>Google로 계속하기</span><span class="provider-arrow" aria-hidden="true">›</span>
+        </button>
+        <button class="auth-provider apple" type="button" data-auth-provider="apple" aria-label="Apple로 계속하기" hidden>
+          <span class="provider-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.28-.07 2.17.7 2.92.76 1.12-.23 2.19-.89 3.39-.8 1.44.12 2.53.68 3.25 1.71-2.97 1.78-2.27 5.69.46 6.79-.55 1.43-1.27 2.85-2.02 4.51ZM12.03 7.25C11.88 5.12 13.62 3.36 15.61 3.2c.27 2.46-2.23 4.3-3.58 4.05Z" /></svg></span>
+          <span>Apple로 계속하기</span><span class="provider-arrow" aria-hidden="true">›</span>
+        </button>
+      </div>
+      <p class="auth-provider-status" id="authProviderStatus" role="status" aria-live="polite" tabindex="-1"></p>
+      <div class="auth-trust-list" aria-label="로그인 안내"><span>Free 계속 무료</span><span>24시간 무료 체험</span><span>자동 결제 없음</span></div>
+      <p class="auth-sheet-terms">계속하면 <a href="/terms" target="_blank" rel="noopener">서비스 이용약관</a>과 <a href="/privacy" target="_blank" rel="noopener">개인정보 처리방침</a>에 동의하게 됩니다.<br />로그인하면 Free 플랜으로 시작하고, 원할 때 한 번만 무료 체험을 시작할 수 있어요.</p>
+    </aside>
+
+    <div class="sheet-overlay" id="energyChargeOverlay" hidden></div>
+    <aside class="companion-chat-sheet energy-charge-sheet" id="energyChargeSheet" role="dialog" aria-modal="true" aria-labelledby="energyChargeTitle" tabindex="-1" hidden>
+      <div class="sheet-handle" aria-hidden="true"></div>
+      <div class="sheet-title-row">
+        <div>
+          <span>AI CREDITS</span>
+          <h2 id="energyChargeTitle">AI 크레딧 이용 안내</h2>
+        </div>
+        <button id="closeEnergyCharge" type="button" aria-label="AI 크레딧 안내 닫기">×</button>
+      </div>
+      <div class="energy-charge-balance">
+        <span class="energy-leaf" aria-hidden="true">◆</span>
+        <div><small>이번 기간 남은 크레딧</small><strong id="energyChargeBalance">확인 중</strong></div>
+      </div>
+      <div class="energy-pack-list credit-cost-summary" aria-label="기능별 AI 크레딧">
+        <span>올리와 대화 <strong><b data-ai-credit-cost="companion_chat">—</b>크레딧</strong></span>
+        <span>오늘의 한 걸음 <strong><b data-ai-credit-cost="create_daily_step">—</b>크레딧</strong></span>
+        <span>계획 일부 수정 <strong><b data-ai-credit-cost="revise_plan">—</b>크레딧</strong></span>
+        <span>회복 계획 생성 <strong><b data-ai-credit-cost="recovery_plan">—</b>크레딧</strong></span>
+        <span>새 목표 계획 생성 <strong><b data-ai-credit-cost="create_plan">—</b>크레딧</strong></span>
+        <span>전체 일정 재조정 <strong><b data-ai-credit-cost="reschedule_plan">—</b>크레딧</strong></span>
+      </div>
+      <a class="energy-pro-link" href="#pricing">Free와 Pro의 제공량이 궁금하다면 <strong>플랜 비교 보기 →</strong></a>
+      <p class="chat-response" role="status">AI 크레딧은 플랜에 따라 매월 새로 제공되며 이월되지 않아요. 추가 크레딧 판매는 현재 제공하지 않습니다.</p>
+    </aside>
 
     <dialog class="billing-confirm-dialog" id="billingConfirmDialog" aria-labelledby="billingConfirmTitle">
       <form method="dialog" class="billing-confirm-card">

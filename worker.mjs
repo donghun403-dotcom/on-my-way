@@ -1,5 +1,5 @@
 import { createAiGoalPlan, goalInputForHash, normalizeGoalInput } from "./ai-goal-plan.mjs";
-import { GuestPlanDraftObject } from "./guest-plan-draft-object.mjs";
+import { GUEST_DRAFT_MAX_REVISIONS, GuestPlanDraftObject } from "./guest-plan-draft-object.mjs";
 import { createCompanionReply } from "./ai-companion-chat.mjs";
 import { createGoalAnalysis } from "./ai-goal-analysis.mjs";
 import { createAiPlanRevision } from "./ai-plan-revision.mjs";
@@ -344,12 +344,14 @@ function guestDraftApiError(code, status, metadata = {}) {
     DRAFT_PLAN_ACCESS_DENIED: "이 브라우저에서 만든 계획 초안인지 확인하지 못했어요.",
     DRAFT_PLAN_ALREADY_CLAIMED: "이미 다른 계정에 저장된 계획 초안이에요.",
     DRAFT_REVISION_PENDING: "수정한 조건으로 계획을 만드는 중이에요.",
+    GUEST_REVISION_LIMIT_REACHED: `무료로 다듬을 수 있는 ${GUEST_DRAFT_MAX_REVISIONS}번을 모두 사용했어요. 로그인하면 지금 계획을 그대로 저장하고 무료 체험 크레딧으로 이어서 조정할 수 있어요.`,
     DRAFT_REVISION_CONFLICT: "계획 초안이 다른 화면에서 변경됐어요. 최신 초안을 다시 확인해 주세요.",
     DRAFT_PLAN_INPUT_MISMATCH: "입력 조건과 AI 일정이 일치하지 않아 저장하지 않았어요.",
     DRAFT_ADJUSTMENT_REQUIRED: "현재 조건으로는 전체 일정을 확정할 수 없어요. 조정안을 선택해 계획을 다시 확인해 주세요.",
     DRAFT_IDEMPOTENCY_KEY_CONFLICT: "이전 요청과 입력 조건이 달라 새 요청으로 다시 시도해 주세요.",
   };
   const terminal = code === "DRAFT_IDEMPOTENCY_KEY_CONFLICT"
+    || code === "GUEST_REVISION_LIMIT_REACHED"
     || (code === "DRAFT_REVISION_CONFLICT" && Number(status) === 412);
   return json({
     ok: false,

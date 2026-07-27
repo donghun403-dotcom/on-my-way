@@ -1739,6 +1739,12 @@ drawerMyPage?.addEventListener("click", openMyPageSheet);
 drawerUpgrade?.addEventListener("click", handleProPricingCta);
 drawerLogout?.addEventListener("click", logoutAccount);
 closeAuthSheetButton?.addEventListener("click", closeAuthSheet);
+navLoginLink?.addEventListener("click", (event) => {
+  // 온보딩 페이지에 로그인 시트가 있으면 페이지 이동 없이 바로 연다.
+  if (authUiState.user || !authSheet) return;
+  event.preventDefault();
+  openAuthSheet();
+});
 closeMyPageSheetButton?.addEventListener("click", () => setSheetOpen(myPageSheet, accountSheetOverlay, false));
 accountSheetOverlay?.addEventListener("click", () => {
   const openSheetElement = [authSheet, myPageSheet, personalitySheet].find((sheet) => sheet && sheet.hidden === false);
@@ -1772,7 +1778,6 @@ function hydratePolicyValues() {
     if (!plan) return;
     const values = {
       price: formatWon(plan.priceKRW),
-      "signup-credits": `${plan.signupCredits}개`,
       "monthly-credits": `${plan.monthlyCredits}개`,
       "daily-limit": `${plan.dailyCreditLimit}크레딧`,
       "max-goals": plan.maxGoals === null ? "제한 없음" : `목표 ${plan.maxGoals}개`,
@@ -1872,19 +1877,20 @@ async function loadAiUsage({ force = false } = {}) {
 }
 
 function renderOllieEnergy() {
-  if (!ollieEnergyMeter) return;
+  // 온보딩 페이지에는 에너지 미터 없이 크레딧 안내 시트만 있을 수 있다.
+  if (!ollieEnergyMeter && !energyChargeBalance) return;
   const bucket = aiUsageState?.monthly;
   if (!authUiState.loaded || (authUiState.user && !bucket)) {
     if (ollieEnergyBalance) ollieEnergyBalance.textContent = "확인 중";
     if (energyChargeBalance) energyChargeBalance.textContent = "확인 중";
-    ollieEnergyMeter.setAttribute("aria-busy", "true");
+    ollieEnergyMeter?.setAttribute("aria-busy", "true");
     return;
   }
   if (!authUiState.user) {
     if (ollieEnergyBalance) ollieEnergyBalance.textContent = "로그인 필요";
     if (energyChargeBalance) energyChargeBalance.textContent = "로그인 후 확인";
     if (ollieEnergyBar) ollieEnergyBar.style.width = "0%";
-    ollieEnergyMeter.setAttribute("aria-busy", "false");
+    ollieEnergyMeter?.setAttribute("aria-busy", "false");
     return;
   }
   const limit = Math.max(1, Number(bucket.limit) || 1);
@@ -1894,9 +1900,9 @@ function renderOllieEnergy() {
   if (ollieEnergyBalance) ollieEnergyBalance.textContent = `${remaining} / ${bucket.limit}`;
   if (energyChargeBalance) energyChargeBalance.textContent = `${remaining} / ${bucket.limit}`;
   if (ollieEnergyBar) ollieEnergyBar.style.width = `${percent}%`;
-  ollieEnergyMeter.setAttribute("aria-busy", "false");
-  ollieEnergyMeter.setAttribute("aria-label", `AI 크레딧 ${remaining}개 남음, ${bucket.limit}개 중`);
-  ollieEnergyMeter.classList.toggle("is-low", isLow);
+  ollieEnergyMeter?.setAttribute("aria-busy", "false");
+  ollieEnergyMeter?.setAttribute("aria-label", `AI 크레딧 ${remaining}개 남음, ${bucket.limit}개 중`);
+  ollieEnergyMeter?.classList.toggle("is-low", isLow);
   if (ollieEnergyWarning) ollieEnergyWarning.hidden = !isLow;
 }
 
@@ -2054,7 +2060,7 @@ async function ensureAiActionAvailable(action) {
   }
   if (!authUiState.user) {
     showToast("로그인하면 AI 크레딧과 기능을 안전하게 사용할 수 있어요.");
-    if (document.body.classList.contains("execution-page")) openAuthSheet();
+    if (authSheet) openAuthSheet();
     else location.assign("app.html?auth=login&return=%2F");
     return false;
   }
@@ -2078,7 +2084,7 @@ async function ensureAiActionAvailable(action) {
   if (Number(usage.daily.remaining) < cost) {
     const trialEnded = usage.plan === "free" && !usage.trial?.eligible && authUiState.user?.trialUsedAt;
     showToast(trialEnded && action === "create_plan"
-      ? `24시간 무료 체험이 종료되었거나 체험 크레딧을 모두 사용했어요. Free 플랜으로 계속 이용할 수 있어요.`
+      ? `무료 체험이 끝나 Free 플랜으로 이용 중이에요. 오늘 크레딧을 이미 사용해서 ${formatUsageTime(usage.daily.resetsAt, usage.timeZone)}에 ${cost}크레딧으로 다시 만들 수 있어요.`
       : `이 기능에는 ${cost}크레딧이 필요해요. 오늘 사용할 수 있는 크레딧이 부족하며 ${formatUsageTime(usage.daily.resetsAt, usage.timeZone)}에 다시 제공돼요.`);
     sendFunnelEvent("ai_credit_insufficient");
     openEnergyCharge();
@@ -4280,6 +4286,35 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
       showToast(error.message);
       openFirstStepResult();
       return;
+    }
+    if (showLoading && error.code === "GUEST_REVISION_LIMIT_REACHED") {
+      if (aiPreviewStatus) {
+        aiPreviewStatus.textContent = "무료로 다듬을 수 있는 횟수를 모두 사용했어요. 마지막으로 만든 계획은 그대로 보관 중이에요.";
+      }
+      if (aiPreviewButton) {
+        aiPreviewButton.disabled = false;
+        setAiPreviewButtonLabel("수정한 조건으로 계획 다시 만들기", { showCost: false });
+      }
+      planPreviewPanel?.classList.add("is-ready");
+      showToast(error.message || "무료 계획 다듬기를 모두 사용했어요. 로그인하면 이어서 조정할 수 있어요.");
+      // 로그인 왕복(취소 포함) 후에도 초안 이어가기가 복원되도록 intent를 남긴다.
+      createPendingFullPlanAuthIntent(draftRecord);
+      openAuthSheet({
+        message: "지금까지 만든 계획은 저장돼 있어요. 로그인하면 그대로 저장하고 무료 체험 크레딧으로 이어서 조정할 수 있어요.",
+      });
+      return;
+    }
+    if (showLoading && error.code === "AI_CREDIT_UNAVAILABLE") {
+      // ensureAiActionAvailable 이 이미 이유를 안내하고 로그인/크레딧 시트를 열었다.
+      if (aiPreviewStatus) aiPreviewStatus.textContent = "AI 크레딧을 확인한 뒤 계획을 다시 만들 수 있어요. 적어둔 내용은 그대로 보관했어요.";
+      if (aiPreviewButton) {
+        aiPreviewButton.disabled = false;
+        syncGoalBuilderCta();
+      }
+      return;
+    }
+    if (showLoading && ["DAILY_AI_CREDIT_LIMIT_EXCEEDED", "MONTHLY_AI_CREDITS_EXHAUSTED", "TRIAL_AI_CREDITS_EXHAUSTED", "AI_ACTION_NOT_AVAILABLE"].includes(error.code)) {
+      openEnergyCharge();
     }
     if (showLoading) {
       if (aiPreviewStatus) aiPreviewStatus.textContent = guestRevisionRequest
@@ -9993,6 +10028,9 @@ openEnergyChargeButton?.addEventListener("click", openEnergyCharge);
 warningChargeButton?.addEventListener("click", openEnergyCharge);
 closeEnergyChargeButton?.addEventListener("click", closeEnergyCharge);
 energyChargeOverlay?.addEventListener("click", closeEnergyCharge);
+document.querySelectorAll(".energy-pro-link").forEach((link) => {
+  link.addEventListener("click", closeEnergyCharge);
+});
 
 touchCompanionButton?.addEventListener("click", () => {
   const state = getCompanionState();

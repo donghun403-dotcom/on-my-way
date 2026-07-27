@@ -1,4 +1,4 @@
-export const CREDIT_POLICY_VERSION = "2026-07-15.v1";
+export const CREDIT_POLICY_VERSION = "2026-07-27.v1";
 export const POLICY_VERSION = CREDIT_POLICY_VERSION;
 export const DEFAULT_TIME_ZONE = "Asia/Seoul";
 
@@ -12,9 +12,11 @@ export const PLAN_CONFIG = deepFreeze({
   free: {
     displayName: "Free",
     priceKRW: 0,
-    signupCredits: 5,
-    monthlyCredits: 5,
-    dailyCreditLimit: 2,
+    // dailyCreditLimit must stay >= AI_CREDIT_COSTS.create_plan so a post-trial
+    // Free user can regenerate an onboarding plan once per day instead of
+    // hitting a permanent wall. monthlyCredits is the loss cap per free user.
+    monthlyCredits: 10,
+    dailyCreditLimit: 4,
     maxGoals: 1,
     maxActivePlans: 1,
     creditsRollover: false,
@@ -29,7 +31,6 @@ export const PLAN_CONFIG = deepFreeze({
   pro: {
     displayName: "Pro",
     priceKRW: 4_900,
-    signupCredits: 0,
     monthlyCredits: 250,
     dailyCreditLimit: 30,
     maxGoals: null,

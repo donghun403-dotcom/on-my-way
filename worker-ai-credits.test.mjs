@@ -228,8 +228,8 @@ test("인증된 사용자는 usage를 조회하고 무료 체험을 명시적으
   assert.equal(initial.response.status, 200);
   assert.equal(initial.body.ok, true);
   assert.equal(initial.body.plan, "free");
-  assert.equal(initial.body.daily.limit, 2);
-  assert.equal(initial.body.monthly.limit, 5);
+  assert.equal(initial.body.daily.limit, 4);
+  assert.equal(initial.body.monthly.limit, 10);
   assert.equal(initial.body.trial.eligible, true);
 
   const first = await callApi(context, "/api/ai/trial/start", { method: "POST" });
@@ -280,19 +280,21 @@ test("AI 경로는 고정 비용을 사용하고 클라이언트 plan·creditCos
     }
 
     const freeContext = await authenticatedWorker({ plan: "free", userId: "spoofed-free-user" });
+    const charged = await callApi(freeContext, "/api/ai/goal-plan", {
+      method: "POST",
+      requestId: "spoofed-plan-and-cost",
+      body: { ...goalPlanInput(), plan: "pro", creditCost: 0, cost: 0 },
+    });
+    assert.equal(charged.response.status, 200);
+    assert.equal(charged.body.chargedCredits, 4);
+
     const originalConsoleError = console.error;
     console.error = () => {};
     try {
       const blocked = await callApi(freeContext, "/api/ai/goal-plan", {
         method: "POST",
-        requestId: "spoofed-plan-and-cost",
-        body: {
-          goal: "비용 위조 목표",
-          routine: { readiness: "준비됨", preferredTime: "저녁" },
-          plan: "pro",
-          creditCost: 0,
-          cost: 0,
-        },
+        requestId: "spoofed-plan-and-cost-retry",
+        body: { ...goalPlanInput(), plan: "pro", creditCost: 0, cost: 0 },
       });
       assert.equal(blocked.response.status, 429);
       assert.equal(blocked.body.code, "DAILY_AI_CREDIT_LIMIT_EXCEEDED");
@@ -301,7 +303,7 @@ test("AI 경로는 고정 비용을 사용하고 클라이언트 plan·creditCos
     }
   });
 
-  assert.equal(calls.length, routeCases.length);
+  assert.equal(calls.length, routeCases.length + 1);
   const usage = await callApi(context, "/api/ai/usage");
   assert.equal(usage.body.plan, "pro");
   assert.equal(usage.body.daily.used, 14);

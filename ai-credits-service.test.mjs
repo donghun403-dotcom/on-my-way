@@ -58,7 +58,7 @@ async function expectCode(promise, code) {
   );
 }
 
-test("schema-on-read gives a Free user 5 monthly credits, a daily limit of 2, and one trial eligibility", async () => {
+test("schema-on-read gives a Free user 10 monthly credits, a daily limit of 4, and one trial eligibility", async () => {
   const store = memoryStore(freeUser());
   const usage = await getAiCreditUsage({ store, userId: "free-user", now: SEOUL_JAN_15_NOON });
 
@@ -66,12 +66,12 @@ test("schema-on-read gives a Free user 5 monthly credits, a daily limit of 2, an
   assert.deepEqual(usage.daily, {
     used: 0,
     reserved: 0,
-    limit: 2,
-    remaining: 2,
+    limit: 4,
+    remaining: 4,
     resetsAt: "2026-01-15T15:00:00.000Z",
   });
-  assert.equal(usage.monthly.limit, 5);
-  assert.equal(usage.monthly.remaining, 5);
+  assert.equal(usage.monthly.limit, 10);
+  assert.equal(usage.monthly.remaining, 10);
   assert.equal(usage.monthly.resetsAt, "2026-01-31T15:00:00.000Z");
   assert.deepEqual(usage.trial, {
     eligible: true,
@@ -129,7 +129,7 @@ test("Free reservations enforce exact costs and both daily and monthly accountin
   });
   assert.equal(first.cost, 1);
   assert.equal(first.usage.plan, "free");
-  assert.equal(first.usage.dailyRemaining, 1);
+  assert.equal(first.usage.dailyRemaining, 3);
 
   await commitAiCredits({
     store,
@@ -140,62 +140,76 @@ test("Free reservations enforce exact costs and both daily and monthly accountin
     model: "test-model",
     now: SEOUL_JAN_15_NOON + 1,
   });
-  await reserveAiCredits({
-    store,
-    userId: "free-user",
-    action: "companion_chat",
-    requestId: "chat-2",
-    now: SEOUL_JAN_15_NOON + 2,
-  });
-  await commitAiCredits({
-    store,
-    userId: "free-user",
-    requestId: "chat-2",
-    now: SEOUL_JAN_15_NOON + 3,
-  });
+  for (const [index, requestId] of ["chat-2", "chat-3", "chat-4"].entries()) {
+    await reserveAiCredits({
+      store,
+      userId: "free-user",
+      action: "companion_chat",
+      requestId,
+      now: SEOUL_JAN_15_NOON + 2 + index * 2,
+    });
+    await commitAiCredits({
+      store,
+      userId: "free-user",
+      requestId,
+      now: SEOUL_JAN_15_NOON + 3 + index * 2,
+    });
+  }
 
   await expectCode(
     reserveAiCredits({
       store,
       userId: "free-user",
       action: "companion_chat",
-      requestId: "chat-3",
-      now: SEOUL_JAN_15_NOON + 4,
+      requestId: "chat-5",
+      now: SEOUL_JAN_15_NOON + 10,
     }),
     "DAILY_AI_CREDIT_LIMIT_EXCEEDED",
   );
-  const usage = await getAiCreditUsage({ store, userId: "free-user", now: SEOUL_JAN_15_NOON + 5 });
-  assert.equal(usage.daily.used, 2);
-  assert.equal(usage.monthly.used, 2);
-  assert.equal(usage.metrics.apiCalls, 2);
-  assert.equal(usage.metrics.successfulCalls, 2);
+  const usage = await getAiCreditUsage({ store, userId: "free-user", now: SEOUL_JAN_15_NOON + 11 });
+  assert.equal(usage.daily.used, 4);
+  assert.equal(usage.monthly.used, 4);
+  assert.equal(usage.metrics.apiCalls, 4);
+  assert.equal(usage.metrics.successfulCalls, 4);
   assert.equal(usage.metrics.inputTokens, 10);
-  assert.equal(usage.actionUsage.companion_chat.lifetimeChargedCredits, 2);
+  assert.equal(usage.actionUsage.companion_chat.lifetimeChargedCredits, 4);
 });
 
-test("a Free user with only two daily credits cannot reserve a four-credit action", async () => {
+test("a Free user can afford exactly one four-credit plan generation per day", async () => {
   const store = memoryStore(freeUser());
+  const reserved = await reserveAiCredits({
+    store,
+    userId: "free-user",
+    action: "create_plan",
+    requestId: "daily-plan",
+    now: SEOUL_JAN_15_NOON,
+    plan: "pro",
+    creditCost: 0,
+  });
+  assert.equal(reserved.cost, 4);
+  assert.equal(reserved.usage.dailyRemaining, 0);
+  await commitAiCredits({ store, userId: "free-user", requestId: "daily-plan", now: SEOUL_JAN_15_NOON + 1 });
+
   await expectCode(
     reserveAiCredits({
       store,
       userId: "free-user",
       action: "create_plan",
-      requestId: "expensive-plan",
-      now: SEOUL_JAN_15_NOON,
-      plan: "pro",
-      creditCost: 0,
+      requestId: "second-daily-plan",
+      now: SEOUL_JAN_15_NOON + 2,
     }),
     "DAILY_AI_CREDIT_LIMIT_EXCEEDED",
   );
-  const usage = await getAiCreditUsage({ store, userId: "free-user", now: SEOUL_JAN_15_NOON });
-  assert.equal(usage.daily.used, 0);
+  const usage = await getAiCreditUsage({ store, userId: "free-user", now: SEOUL_JAN_15_NOON + 3 });
+  assert.equal(usage.daily.used, 4);
   assert.equal(usage.daily.reserved, 0);
+  assert.equal(usage.monthly.remaining, 6);
 });
 
 test("Free monthly exhaustion is enforced even when a new Seoul day restores the daily allowance", async () => {
   const store = memoryStore(freeUser());
   let sequence = 0;
-  for (const [dayOffset, count] of [[0, 2], [24 * HOUR, 2], [48 * HOUR, 1]]) {
+  for (const [dayOffset, count] of [[0, 4], [24 * HOUR, 4], [48 * HOUR, 2]]) {
     for (let index = 0; index < count; index += 1) {
       sequence += 1;
       const now = SEOUL_JAN_15_NOON + dayOffset + index;
@@ -480,7 +494,7 @@ test("different requests for one user are serialized inside the same worker isol
   const usage = await getAiCreditUsage({ store, userId: "free-user", now: SEOUL_JAN_15_NOON + 1 });
   assert.equal(usage.daily.reserved, 2);
   assert.equal(usage.monthly.reserved, 2);
-  assert.equal(usage.daily.remaining, 0);
+  assert.equal(usage.daily.remaining, 2);
 });
 
 test("failed AI calls release the reservation and restore availability exactly once", async () => {
@@ -501,7 +515,7 @@ test("failed AI calls release the reservation and restore availability exactly o
     now: SEOUL_JAN_15_NOON + 1,
   });
   assert.equal(released.refundedCredits, 2);
-  assert.equal(released.usage.dailyRemaining, 2);
+  assert.equal(released.usage.dailyRemaining, 4);
 
   const duplicateRelease = await releaseAiCredits({
     store,
