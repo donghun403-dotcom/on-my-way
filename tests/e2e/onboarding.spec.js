@@ -101,11 +101,8 @@ async function openGuestFullPlanAuthChooser(page) {
   await page.locator("#aiPreviewButton").click();
   await expect.poll(() => calls.preview).toBe(1);
   await expect(page.locator("#firstStep")).toHaveAttribute("data-preview-mode", "guest");
-  await Promise.all([
-    page.waitForURL(/\/app\.html/),
-    page.locator("#trialStartInlineLink").click(),
-  ]);
-  await waitForBootstrap(page);
+  // 온보딩 페이지에서 바로 로그인 시트를 연다. 초안 화면을 떠나지 않는다.
+  await page.locator("#trialStartInlineLink").click();
   await expect(page.locator("#authSheet")).toBeVisible();
   return { account, calls, claimBodies };
 }
@@ -263,31 +260,14 @@ test("infeasible roadmap requires an explicit adjustment before claim", async ({
   expect(revised.activeInputHash).toBe("e".repeat(64));
   expect(await page.evaluate(() => localStorage.getItem("omwExecutionPlan"))).toBeNull();
 
-  await Promise.all([
-    page.waitForURL(/app\.html\?auth=login&return=/),
-    page.locator("#trialStartInlineLink").click(),
-  ]);
+  await page.locator("#trialStartInlineLink").click();
   await expect(page.locator("#authSheet")).toBeVisible();
   await expect(page.getByRole("button", { name: "Google로 계속하기" })).toBeVisible();
   account.user = { id: "usr_infeasible_e2e", provider: "google", name: "Roadmap Tester", email: "roadmap@example.com", plan: "free", role: "member" };
   account.usage = createUsageResponse({ plan: "free", trialEligible: true });
-  const authenticatedStateLoaded = page.waitForResponse((response) =>
-    response.request().method() === "GET"
-    && new URL(response.url()).pathname === "/api/account/state"
-    && response.status() === 200);
-  await Promise.all([
-    authenticatedStateLoaded.then((response) => response.finished()),
-    page.goto("/?resumeGoal=1&auth=success"),
-  ]);
-  await waitForBootstrap(page);
-  await expect(page.locator("#designGoal")).toHaveValue(goal);
-  await expect(page.locator("#previewAction")).toHaveText(revisedRoadmap.firstAction);
-
-  await Promise.all([
-    page.waitForResponse((response) => new URL(response.url()).pathname === "/api/ai/goal-draft/claim" && response.status() === 200),
-    page.waitForURL(/\/app\.html/),
-    page.locator("#trialStartInlineLink").click(),
-  ]);
+  // 로그인을 마치고 돌아오면 CTA를 다시 누르지 않아도 초안을 저장하고 앱으로 넘어간다.
+  await page.goto("/?resumeGoal=1&auth=success");
+  await page.waitForURL(/\/app\.html/);
   await waitForAppReady(page);
 
   const activated = await page.evaluate(() => (localStorage.getItem("omwExecutionPlan") ? readExecutionPlan() : null));
@@ -731,7 +711,7 @@ test("provider 화면에서 browser back으로 돌아오면 자동 재시작 없
   diagnostics.expectClean();
 });
 
-test("취소 뒤 다른 provider를 직접 선택하면 성공 복원 후 명시적 CTA에서만 전체 계획을 만든다", async ({ page }) => {
+test("취소 뒤 다른 provider로 로그인하면 돌아오자마자 초안을 저장하고 앱으로 넘어간다", async ({ page }) => {
   const diagnostics = monitorPage(page);
   const { account, calls, claimBodies } = await openGuestFullPlanAuthChooser(page);
   const providerStarts = [];
@@ -760,26 +740,16 @@ test("취소 뒤 다른 provider를 직접 선택하면 성공 복원 후 명시
     page.getByRole("button", { name: "네이버로 계속하기" }).click(),
   ]);
   await page.goto("/?resumeGoal=1&auth=success&provider=naver");
-  await waitForBootstrap(page);
-  await expect(page.locator("#firstStep")).toBeVisible();
-  await expect(page.locator("#designGoal")).toHaveValue("90일 안에 첫 유료 고객 10명 만들기");
-  await expect(page.locator("#previewAction")).toHaveText("잠재 고객 한 명에게 문제 인터뷰를 요청하기");
-  await expect(page.locator("#previewConversionAction")).toHaveText("이 계획으로 시작하기");
-  // 온보딩에서 시작 방식 버튼을 걷어냈다. 조정은 로그인 후 앱의 자연어 조정으로,
-  // claim에는 항상 기본값이 전달된다.
-  await expect(page.locator("[data-schedule-start]")).toHaveCount(0);
+  await page.waitForURL(/\/app\.html/);
+  await waitForAppReady(page);
   expect(providerStarts).toEqual(["kakao", "naver"]);
-  expect(calls).toEqual({ preview: 1, claim: 0, full: 0 });
-  expect(await page.evaluate(() => sessionStorage.getItem("onmyway:pending-auth-intent"))).toBeNull();
-
-  await Promise.all([
-    page.waitForURL(/\/app\.html/),
-    page.locator("#trialStartInlineLink").click(),
-  ]);
+  // 초안 저장은 claim 한 번으로 끝나고, 크레딧을 쓰는 전체 계획 생성은 호출하지 않는다.
   await expect.poll(() => calls.claim).toBe(1);
+  // 온보딩에서 시작 방식 버튼을 걷어냈으므로 claim에는 항상 기본값이 전달된다.
   expect(claimBodies[0].scheduleStartPreference).toBe("as-is");
   expect(calls.full).toBe(0);
   expect(calls.preview).toBe(1);
+  expect(await page.evaluate(() => sessionStorage.getItem("onmyway:pending-auth-intent"))).toBeNull();
   diagnostics.expectClean();
 });
 
@@ -787,11 +757,10 @@ test("provider chooser를 명시적으로 닫으면 pending intent를 정리하�
   const diagnostics = monitorPage(page);
   const { calls } = await openGuestFullPlanAuthChooser(page);
   await page.getByRole("button", { name: "로그인 닫기" }).click();
-  await page.waitForURL(/resumeGoal=1/);
-  await waitForBootstrap(page);
+  await expect(page.locator("#authSheet")).toBeHidden();
+  await expect(page).toHaveURL(/#firstStep$/);
   await expect(page.locator("#firstStep")).toBeVisible();
   await expect(page.locator("#firstStep")).toHaveAttribute("data-preview-mode", "guest");
-  await expect(page.locator("#firstStep")).toBeFocused();
   expect(await page.evaluate(() => sessionStorage.getItem("onmyway:pending-auth-intent"))).toBeNull();
   expect(calls).toEqual({ preview: 1, claim: 0, full: 0 });
   diagnostics.expectClean();
@@ -807,8 +776,8 @@ test("만료된 auth intent는 provider를 시작하지 않고 기존 미리보�
     sessionStorage.setItem(key, JSON.stringify(intent));
   });
   await page.reload();
-  await page.waitForURL(/resumeGoal=1/);
   await waitForBootstrap(page);
+  await expect(page.locator("#authSheet")).toBeHidden();
   await expect(page.locator("#firstStep")).toBeVisible();
   await expect(page.locator("#firstStep")).toHaveAttribute("data-preview-mode", "guest");
   expect(await page.evaluate(() => sessionStorage.getItem("onmyway:pending-auth-intent"))).toBeNull();
@@ -996,29 +965,20 @@ test("익명 사용자는 실제 AI 계획 일부를 본 뒤 로그인·회원�
   });
   expect(await page.evaluate(() => localStorage.getItem("omwExecutionPlan"))).toBeNull();
 
-  await Promise.all([
-    page.waitForURL(/app\.html\?auth=login&return=/),
-    page.locator("#trialStartInlineLink").click(),
-  ]);
+  await page.locator("#trialStartInlineLink").click();
   await expect(page.locator("#authSheet")).toBeVisible();
-  expect(decodeURIComponent(new URL(page.url()).searchParams.get("return"))).toBe("/?resumeGoal=1");
+  await expect(page).toHaveURL(/#firstStep$/);
 
   account.user = { id: "usr_guest_preview", provider: "google", name: "미리보기 사용자", email: "preview@example.com", plan: "free", role: "member" };
   account.usage = createUsageResponse({ plan: "free", trialEligible: true });
+  // 로그인 직후에는 CTA를 다시 누르지 않아도 초안 저장과 앱 이동이 이어진다.
   await page.goto("/?resumeGoal=1&auth=success");
-  await waitForBootstrap(page);
-  await expect(page.locator("#firstStep")).toBeVisible();
-  await expect(page.locator("#designGoal")).toHaveValue("90일 안에 첫 유료 고객 10명 만들기");
-  await expect(page.locator("#previewAction")).toHaveText("잠재 고객 한 명에게 문제 인터뷰를 요청하기");
-  await expect(page.locator("#previewConversionAction")).toHaveText("이 계획으로 시작하기");
-
-  await Promise.all([
-    page.waitForResponse((response) => new URL(response.url()).pathname === "/api/ai/goal-draft/claim" && response.status() === 200),
-    page.waitForURL(/\/app\.html/),
-    page.locator("#trialStartInlineLink").click(),
-  ]);
+  await page.waitForURL(/\/app\.html/);
   await waitForAppReady(page);
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem("omwExecutionPlan") || "null")?.planSource)).toBe("ai-reviewed-draft");
+  // 앱의 첫 화면은 항상 '오늘' 탭이다.
+  await expect(page.locator("#view-today")).toBeVisible();
+  await expect(page.locator("#tab-today")).toHaveAttribute("aria-selected", "true");
 });
 
 test("익명 초안 수정은 기존 AI 일정을 보존하고 명시적 재생성 뒤에만 active revision을 교체한다", async ({ page }, testInfo) => {

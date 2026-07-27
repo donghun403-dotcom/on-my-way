@@ -6,6 +6,7 @@ Thumbs.db
 .DS_Store
 tmp/dev-users.json
 tmp/dev-settings.json
+tmp/dev-funnel.json
 
 # Playwright dependencies and local QA artifacts
 node_modules/

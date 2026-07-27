@@ -18084,3 +18084,34 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .plan-discard-changes:hover { color: var(--ink-brand); text-decoration: underline; }
 
 .plan-discard-changes[hidden] { display: none; }
+
+/* ============================================================
+   탭 스와이프 전환
+   손가락으로 넘긴 방향에서 새 탭이 들어오도록 기본 viewFade 대신
+   방향이 있는 슬라이드를 쓴다. `[data-enter]`는 스와이프로 바뀔 때만
+   붙으므로 탭 버튼 클릭은 기존 페이드를 유지한다.
+   ============================================================ */
+.execution-page .app-view.is-active[data-enter="left"] {
+  animation: viewSlideFromRight 0.26s ease;
+}
+
+.execution-page .app-view.is-active[data-enter="right"] {
+  animation: viewSlideFromLeft 0.26s ease;
+}
+
+@keyframes viewSlideFromRight {
+  from { opacity: 0; transform: translateX(22px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes viewSlideFromLeft {
+  from { opacity: 0; transform: translateX(-22px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .execution-page .app-view.is-active[data-enter="left"],
+  .execution-page .app-view.is-active[data-enter="right"] {
+    animation: none;
+  }
+}

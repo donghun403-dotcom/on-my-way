@@ -838,7 +838,9 @@ async function activateReviewedGoalDraft() {
     }
     if (!authUiState.user) {
       createPendingFullPlanAuthIntent(draftInput);
-      location.assign(`app.html?auth=login&return=${encodeURIComponent("/?resumeGoal=1")}`);
+      // 온보딩 페이지에는 로그인 시트가 있으므로 이동 없이 열고, 로그인 후 저장을 자동으로 이어간다.
+      if (authSheet) openAuthSheet({ message: "로그인하면 지금 만든 계획을 그대로 저장하고 바로 시작해요." });
+      else location.assign(`app.html?auth=login&return=${encodeURIComponent("/?resumeGoal=1")}`);
       return false;
     }
 
@@ -863,7 +865,7 @@ async function activateReviewedGoalDraft() {
     if (readTrialAccess()?.plan !== "pro") localStorage.setItem(FREE_PLAN_GENERATED_KEY, "true");
     if (authUiState.user) authUiState.user.goalPlanGeneratedAt = authUiState.user.goalPlanGeneratedAt || Date.now();
     await saveAccountStateToServer();
-    location.assign("app.html");
+    location.assign("app.html?tab=today");
     return true;
   } catch (error) {
     showToast(error.message || "계획을 저장하지 못했어요. 현재 계획은 바뀌지 않았습니다.");
@@ -872,6 +874,28 @@ async function activateReviewedGoalDraft() {
     goalDraftActivationPending = false;
     trialStartInlineLink?.removeAttribute("aria-busy");
   }
+}
+
+function pendingGoalDraftReadyForActivation() {
+  const draftInput = safeJsonParse(sessionStorage.getItem(PENDING_GOAL_DRAFT_KEY), null);
+  const previewRecord = readPendingGoalPreview();
+  if (!draftInput || !previewRecord?.preview) return false;
+  if (previewRequiresAdjustment(previewRecord.preview)) return false;
+  if (!previewRecord.draftPlanId) return true;
+  return !previewRecord.pendingDraftInput
+    && goalDraftSignature(draftInput) === previewRecord.activeDraftSignature
+    && Boolean(previewRecord.activeInputHash)
+    && Boolean(previewRecord.activeRevision);
+}
+
+// 로그인·회원가입을 마치고 온보딩으로 돌아오면 저장 버튼을 다시 누르게 하지 않고 그대로 이어간다.
+async function resumeFullPlanActivationAfterAuth() {
+  if (!authUiState.user || !pendingGoalDraftReadyForActivation()) return;
+  clearPendingFullPlanAuthIntent();
+  setTrialStartDisabled(true);
+  if (aiPreviewStatus) aiPreviewStatus.textContent = "로그인을 확인했어요. 계획을 저장하고 오늘 화면으로 이동할게요.";
+  showToast("로그인했어요 · 이 계획으로 바로 시작할게요.");
+  if (!(await activateReviewedGoalDraft())) setTrialStartDisabled(false);
 }
 
 trialStartInlineLink?.addEventListener("click", async (event) => {
@@ -1377,6 +1401,11 @@ function openAuthSheet({ message = "", focusStatus = false } = {}) {
 function closeAuthSheet() {
   if (readPendingFullPlanAuthIntent()) {
     clearPendingFullPlanAuthIntent();
+    // 온보딩 페이지에서는 이미 초안 화면 위에 떠 있으므로 새로고침 없이 닫기만 한다.
+    if (document.body.classList.contains("home-page")) {
+      setSheetOpen(authSheet, accountSheetOverlay, false);
+      return;
+    }
     location.replace("/?resumeGoal=1");
     return;
   }
@@ -1426,6 +1455,8 @@ function authRedirectTarget() {
   if (params.get("redirect") === "admin") return "/admin.html";
   if (params.get("return") === "/delete-account") return "/delete-account";
   if (params.get("return") === "/?resumeGoal=1") return "/?resumeGoal=1";
+  // 온보딩에서 바로 연 로그인도 돌아온 뒤 계획 저장을 이어가야 한다.
+  if (readPendingFullPlanAuthIntent()) return "/?resumeGoal=1";
   return location.pathname || "/app.html";
 }
 
@@ -10507,6 +10538,7 @@ accountExperienceReady
     if (ready) {
       if (!document.body?.classList.contains("execution-page") && resumedPendingGoal) {
         restorePendingGoalPreview();
+        void resumeFullPlanActivationAfterAuth();
       }
       initializeExecutionPage();
       markAppReady();

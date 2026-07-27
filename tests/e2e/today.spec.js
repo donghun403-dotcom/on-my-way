@@ -400,6 +400,73 @@ test("모바일 첫 화면은 오늘의 한 걸음과 CTA를 우선하고 가로
   }
 });
 
+// WebKit은 Touch·TouchEvent 생성자를 제공하지 않으므로, 핸들러가 실제로 읽는
+// touches/changedTouches만 실은 이벤트를 직접 만들어 네 브라우저에서 같게 검증한다.
+async function swipeView(page, direction) {
+  await page.evaluate((swipeDirection) => {
+    const main = document.querySelector(".execution-app");
+    const rect = main.getBoundingClientRect();
+    const clientY = rect.top + Math.min(rect.height, 400) / 2;
+    const start = swipeDirection === "left" ? rect.right - 30 : rect.left + 30;
+    const end = swipeDirection === "left" ? rect.left + 30 : rect.right - 30;
+    const fire = (type, touches, changedTouches) => {
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      Object.defineProperty(event, "touches", { value: touches });
+      Object.defineProperty(event, "changedTouches", { value: changedTouches });
+      main.dispatchEvent(event);
+    };
+    fire("touchstart", [{ clientX: start, clientY }], [{ clientX: start, clientY }]);
+    fire("touchend", [], [{ clientX: end, clientY }]);
+  }, direction);
+}
+
+test("앱은 항상 오늘 탭에서 열리고 좌우 스와이프로 탭을 넘긴다", async ({ page }) => {
+  const diagnostics = monitorPage(page);
+  await page.goto("/app.html");
+  await waitForAppReady(page);
+  await expect(page.locator("#tab-today")).toHaveAttribute("aria-selected", "true");
+
+  await swipeView(page, "left");
+  await expect(page.locator("#tab-plan")).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator("#view-plan")).toBeVisible();
+
+  await swipeView(page, "left");
+  await expect(page.locator("#tab-mate")).toHaveAttribute("aria-selected", "true");
+
+  await swipeView(page, "right");
+  await expect(page.locator("#tab-plan")).toHaveAttribute("aria-selected", "true");
+
+  // 첫 탭보다 더 오른쪽으로 넘겨도 순환하지 않고 그대로 머문다.
+  await swipeView(page, "right");
+  await expect(page.locator("#tab-today")).toHaveAttribute("aria-selected", "true");
+  await swipeView(page, "right");
+  await expect(page.locator("#tab-today")).toHaveAttribute("aria-selected", "true");
+
+  // 같은 세션의 새로고침은 보던 탭을 유지한다.
+  await page.locator("#tab-memory").click();
+  await page.reload();
+  await waitForAppReady(page);
+  await expect(page.locator("#tab-memory")).toHaveAttribute("aria-selected", "true");
+
+  // 앱을 새로 열면(세션이 바뀌면) 마지막 탭이 남아 있지 않고 항상 오늘에서 시작한다.
+  expect(await page.evaluate(() => localStorage.getItem("onmyway.activeView"))).toBeNull();
+  await page.evaluate(() => sessionStorage.removeItem("onmyway.activeView"));
+  await page.reload();
+  await waitForAppReady(page);
+  await expect(page.locator("#tab-today")).toHaveAttribute("aria-selected", "true");
+  diagnostics.expectClean();
+});
+
+test("시트가 열려 있으면 스와이프로 탭이 바뀌지 않는다", async ({ page }) => {
+  await page.goto("/app.html");
+  await waitForAppReady(page);
+  await page.locator("#addTodayScheduleButton").click();
+  await expect(page.locator("#addScheduleSheet")).toBeVisible();
+  await swipeView(page, "left");
+  await expect(page.locator("#tab-today")).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator("#addScheduleSheet")).toBeVisible();
+});
+
 test("일정이 많으면 세 개만 보여주고 펼치고 다시 접는다", async ({ page }) => {
   await page.goto("/app.html");
   await waitForAppReady(page);

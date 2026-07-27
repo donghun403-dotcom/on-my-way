@@ -1008,15 +1008,20 @@
         const views = Array.from(document.querySelectorAll(".app-view"));
         const tabs = Array.from(document.querySelectorAll(".execution-tabbar .tab"));
         const main = document.querySelector(".execution-app");
+        // 세션 저장이라 같은 탭 안의 새로고침은 화면을 유지하고, 앱을 새로 열면 항상 '오늘'에서 시작한다.
         const STORAGE_KEY = "onmyway.activeView";
+        let activeView = "";
 
-        function setView(name, { save = true, scroll = true } = {}) {
+        function setView(name, { save = true, scroll = true, enterFrom = "" } = {}) {
           const target = views.find((view) => view.dataset.view === name);
           if (!target) return;
+          activeView = name;
           views.forEach((view) => {
             const isActive = view === target;
             view.classList.toggle("is-active", isActive);
             view.hidden = !isActive;
+            if (isActive && enterFrom) view.dataset.enter = enterFrom;
+            else delete view.dataset.enter;
           });
           tabs.forEach((tab) => {
             const isActive = tab.dataset.view === name;
@@ -1025,7 +1030,7 @@
           });
           if (save) {
             try {
-              localStorage.setItem(STORAGE_KEY, name);
+              sessionStorage.setItem(STORAGE_KEY, name);
             } catch (error) {
               /* storage unavailable — ignore */
             }
@@ -1034,6 +1039,14 @@
             window.scrollTo({ top: 0, behavior: "smooth" });
             main?.focus?.({ preventScroll: true });
           }
+        }
+
+        function stepView(direction, enterFrom) {
+          const currentIndex = tabs.findIndex((tab) => tab.dataset.view === activeView);
+          const nextTab = tabs[currentIndex + direction];
+          if (currentIndex < 0 || !nextTab) return false;
+          setView(nextTab.dataset.view, { enterFrom });
+          return true;
         }
 
         tabs.forEach((tab) => {
@@ -1058,12 +1071,59 @@
           trigger.addEventListener("click", () => setView(trigger.dataset.gotoView));
         });
 
-        // Restore an explicit return tab first, then the last view (default: today).
+        // Horizontal swipe between tabs, so the app can be browsed without aiming at the tab bar.
+        const SWIPE_MIN_DISTANCE = 56;
+        const SWIPE_MAX_DURATION_MS = 700;
+        let swipeStart = null;
+
+        function scrollsHorizontally(element) {
+          for (let node = element; node && node !== main; node = node.parentElement) {
+            if (node.scrollWidth - node.clientWidth <= 8) continue;
+            const overflowX = getComputedStyle(node).overflowX;
+            if (overflowX === "auto" || overflowX === "scroll") return true;
+          }
+          return false;
+        }
+
+        function swipeBlocked(target) {
+          // 시트·다이얼로그가 열려 있거나 일정 순서를 끌고 있는 중에는 탭을 넘기지 않는다.
+          if (document.body.classList.contains("sheet-open")) return true;
+          if (document.querySelector("dialog[open], .is-reordering")) return true;
+          if (!(target instanceof Element)) return false;
+          if (target.closest("input[type='range'], [data-mode='priority'] .task-row")) return true;
+          return scrollsHorizontally(target);
+        }
+
+        main?.addEventListener("touchstart", (event) => {
+          if (event.touches.length !== 1 || swipeBlocked(event.target)) {
+            swipeStart = null;
+            return;
+          }
+          const touch = event.touches[0];
+          swipeStart = { x: touch.clientX, y: touch.clientY, at: Date.now() };
+        }, { passive: true });
+
+        main?.addEventListener("touchend", (event) => {
+          const start = swipeStart;
+          swipeStart = null;
+          if (!start || event.changedTouches.length !== 1) return;
+          if (Date.now() - start.at > SWIPE_MAX_DURATION_MS) return;
+          const touch = event.changedTouches[0];
+          const deltaX = touch.clientX - start.x;
+          const deltaY = touch.clientY - start.y;
+          // 세로 스크롤을 탭 이동으로 오인하지 않도록 가로 이동이 확실할 때만 넘긴다.
+          if (Math.abs(deltaX) < SWIPE_MIN_DISTANCE || Math.abs(deltaX) <= Math.abs(deltaY) * 1.4) return;
+          stepView(deltaX < 0 ? 1 : -1, deltaX < 0 ? "left" : "right");
+        }, { passive: true });
+
+        main?.addEventListener("touchcancel", () => { swipeStart = null; }, { passive: true });
+
+        // A fresh app launch always opens 오늘; an explicit ?tab= wins, then the tab kept for this session.
         let initial = "today";
         const params = new URLSearchParams(location.search);
         const requested = params.get("tab");
         try {
-          const saved = localStorage.getItem(STORAGE_KEY);
+          const saved = sessionStorage.getItem(STORAGE_KEY);
           if (requested && views.some((view) => view.dataset.view === requested)) initial = requested;
           else if (saved && views.some((view) => view.dataset.view === saved)) initial = saved;
         } catch (error) {
