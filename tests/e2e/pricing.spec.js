@@ -23,8 +23,10 @@ test("비로그인 가격표는 확정 정책과 체험 조건을 표시하고 �
   await expect(page.locator("#pricingPolicyStatus")).toContainText("Free와 Pro 정책을 확인했어요");
   await expect(page.locator("#pricingFreePrice")).toHaveText("₩0");
   await expect(page.locator("#pricingProPrice")).toHaveText("₩4,900");
-  await expect(freeCard.locator('[data-policy-field="monthly-credits"]')).toHaveText("5개");
-  await expect(freeCard.locator('[data-policy-field="daily-limit"]')).toHaveText("2크레딧");
+  await expect(freeCard.locator('[data-policy-field="monthly-credits"]')).toHaveText("10개");
+  await expect(freeCard.locator('[data-policy-field="daily-limit"]')).toHaveText("4크레딧");
+  await expect(freeCard.locator('[data-policy-field="trial-duration"]')).toHaveText("24시간");
+  await expect(freeCard.locator('[data-policy-field="trial-credits"]')).toHaveText("15개");
   await expect(proCard.locator('[data-policy-field="monthly-credits"]')).toHaveText("250개");
   await expect(proCard.locator('[data-policy-field="daily-limit"]')).toHaveText("30크레딧");
   await expect(proCard.locator('[data-policy-field="trial-duration"]')).toHaveText("24시간");

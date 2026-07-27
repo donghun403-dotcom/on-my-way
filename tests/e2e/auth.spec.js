@@ -281,7 +281,9 @@ for (const cancellation of [
       await page.getByRole("button", { name: "메뉴 열기" }).click();
       const loginLink = page.getByRole("link", { name: "로그인" });
       await expect(loginLink).toBeVisible();
-      await Promise.all([page.waitForURL(/\/app\.html\?auth=login/), loginLink.click()]);
+      // 온보딩 페이지의 로그인 링크는 이제 페이지 이동 없이 같은 화면에서 시트를 연다.
+      await loginLink.click();
+      await expect(page).toHaveURL(/\/$/);
     } else {
       await page.goto("/app.html?auth=login&return=%2F");
       await waitForBootstrap(page);
