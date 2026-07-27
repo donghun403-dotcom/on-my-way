@@ -1,5 +1,4 @@
-import { createAiGoalPlan } from "./ai-goal-plan.mjs";
-import { createCompanionReply } from "./ai-companion-chat.mjs";
+import { createCompanionReply, normalizeCheerEventType } from "./ai-companion-chat.mjs";
 import { createAiPlanRevision } from "./ai-plan-revision.mjs";
 import { handleAccountApi, parseCookies, createKvStore, currentSessionUser, renewDueSubscriptions } from "./auth-service.mjs";
 
@@ -54,11 +53,32 @@ function secureResponse(response) {
   return secured;
 }
 
-const FUNNEL_STEPS = new Set(["step1_enter", "step2_enter", "step3_enter", "step4_enter", "trial_start"]);
+// 온보딩 4단계(목표→리듬→할 일→마무리) 진입, 계획 완성, 가입 게이트 노출/로그인 시작/성공, 체험 시작
+const FUNNEL_STEPS = new Set([
+  "step1_enter",
+  "step2_enter",
+  "step3_enter",
+  "step4_enter",
+  "plan_complete",
+  "signup_gate",
+  "signup_start",
+  "signup_success",
+  "trial_start",
+]);
 
 function funnelDateKey(now = Date.now()) {
   // 한국 시간 기준 일자 버킷
   return new Date(now + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+// 무료 치어링(축하·위로)은 에너지를 차감하지 않는 대신 KST 기준 하루 각 1회로 서버에서 상한을 강제한다.
+// (docs/pricing-system-v2.md의 비용 가드레일 — 클라이언트 상한만 믿지 않는다)
+export function checkDailyCheerAllowance(user, eventType, now = Date.now()) {
+  const dateKey = funnelDateKey(now);
+  const log = user?.cheerLog && user.cheerLog.date === dateKey ? { ...user.cheerLog } : { date: dateKey };
+  if (log[eventType]) return { allowed: false, user };
+  log[eventType] = now;
+  return { allowed: true, user: { ...user, cheerLog: log } };
 }
 
 export async function recordFunnelEvent({ step, kv, now = Date.now() }) {
@@ -75,27 +95,6 @@ export async function recordFunnelEvent({ step, kv, now = Date.now() }) {
   // 근사 지표라 동시 요청 간 원자적 갱신은 생략
   await kv.put(key, JSON.stringify(counts), { expirationTtl: 60 * 60 * 24 * 90 });
   return { key, counts };
-}
-
-export async function createGoalPlanForUser({ input, env, userStore, user, generatePlan = createAiGoalPlan, now = Date.now() }) {
-  const hasTrialLimit = user && user.role !== "admin" && user.plan !== "pro";
-  if (hasTrialLimit && user.goalPlanGeneratedAt) {
-    const error = new Error("무료 체험에서는 AI 목표 계획을 1개 만들 수 있어요. 기존 계획을 앱에서 이어가 주세요.");
-    error.status = 409;
-    error.code = "GOAL_PLAN_LIMIT_REACHED";
-    throw error;
-  }
-
-  const result = await generatePlan(input, {
-    apiKey: env.OPENAI_API_KEY,
-    model: env.OPENAI_MODEL || "gpt-5.4-mini",
-  });
-
-  if (hasTrialLimit) {
-    user.goalPlanGeneratedAt = now;
-    await userStore.putUser(user);
-  }
-  return result;
 }
 
 async function handleFetch(request, env) {
@@ -150,34 +149,6 @@ async function handleFetch(request, env) {
       }
     }
 
-    if (url.pathname === "/api/ai/goal-plan") {
-      if (request.method !== "POST") return json({ error: "POST 요청만 사용할 수 있어요." }, 405);
-
-      if (!env.USERS_KV) return json({ error: "회원 저장소 설정이 필요합니다." }, 503);
-      const userStore = createKvStore(env.USERS_KV);
-      const user = await currentSessionUser({ ...accountContext, store: userStore });
-      if (!user) return json({ error: "로그인 후 AI 기능을 이용할 수 있어요." }, 401);
-
-      if (env.AI_RATE_LIMITER) {
-        const actor = `${user.id}:${request.headers.get("cf-connecting-ip") || "unknown"}`;
-        const { success } = await env.AI_RATE_LIMITER.limit({ key: `goal-plan:${actor}` });
-        if (!success) return json({ error: "AI 요청이 잠시 많아요. 1분 후 다시 시도해 주세요." }, 429);
-      }
-
-      const contentLength = Number(request.headers.get("content-length") || 0);
-      if (contentLength > 50000) return json({ error: "요청 내용이 너무 커요." }, 413);
-
-      try {
-        const input = await request.json();
-        const result = await createGoalPlanForUser({ input, env, userStore, user });
-        return json(result);
-      } catch (error) {
-        console.error("AI goal plan request failed", error);
-        const message = error.status === 503 ? "올리가 계획을 준비하는 동안 연결이 지연되고 있어요." : error.message || "AI 계획을 만들지 못했어요.";
-        return json({ error: message, code: error.code || undefined }, error.status || 500);
-      }
-    }
-
     if (url.pathname === "/api/ai/companion-chat") {
       if (request.method !== "POST") return json({ error: "POST 요청만 사용할 수 있어요." }, 405);
 
@@ -196,10 +167,24 @@ async function handleFetch(request, env) {
 
       try {
         const input = await request.json();
+        const eventType = normalizeCheerEventType(input?.eventType);
+
+        // 자동 치어링(축하·위로)은 하루 각 1회 무료 — 초과 요청은 AI 호출 전에 차단
+        let cheerAllowance = null;
+        if (eventType !== "chat") {
+          cheerAllowance = checkDailyCheerAllowance(user, eventType);
+          if (!cheerAllowance.allowed) {
+            return json({ error: "오늘의 무료 응원은 이미 전해드렸어요. 내일 또 만나요!", code: "CHEER_LIMIT_REACHED" }, 429);
+          }
+        }
+
         const result = await createCompanionReply(input, {
           apiKey: env.OPENAI_API_KEY,
           model: env.OPENAI_MODEL || "gpt-5.4-mini",
         });
+
+        // AI 응답이 성공했을 때만 오늘의 무료 응원을 사용 처리 (실패 시 재시도 가능)
+        if (cheerAllowance) await accountContext.store.putUser(cheerAllowance.user);
         return json(result);
       } catch (error) {
         console.error("Companion chat request failed", error);

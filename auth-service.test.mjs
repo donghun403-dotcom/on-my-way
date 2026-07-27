@@ -7,7 +7,7 @@ import {
   parseCookies,
   renewDueSubscriptions,
 } from "./auth-service.mjs";
-import worker, { createGoalPlanForUser } from "./worker.mjs";
+import worker, { checkDailyCheerAllowance } from "./worker.mjs";
 
 function memoryStore(seed = []) {
   const users = new Map(seed.map((user) => [user.id, user]));
@@ -136,42 +136,6 @@ test("관리자는 임시 비밀번호를 안전하게 교체할 수 있다", as
   assert.equal(newLogin.status, 200);
 });
 
-test("무료 체험 회원의 첫 계획 생성은 서버 회원 기록에 저장된다", async () => {
-  const store = memoryStore();
-  const user = { id: "google:first-plan", role: "member", plan: "trial" };
-  await store.putUser(user);
-  const result = await createGoalPlanForUser({
-    input: { goal: "영어 공부" },
-    env: {},
-    userStore: store,
-    user,
-    generatePlan: async () => ({ plan: { goal: "영어 공부" } }),
-    now: 123456,
-  });
-  assert.equal(result.plan.goal, "영어 공부");
-  assert.equal((await store.getUser(user.id)).goalPlanGeneratedAt, 123456);
-});
-
-test("계획을 만든 무료 체험 회원은 다른 브라우저에서도 추가 생성할 수 없다", async () => {
-  const store = memoryStore();
-  const user = { id: "google:limited", role: "member", plan: "trial", goalPlanGeneratedAt: 123456 };
-  let generated = false;
-  await assert.rejects(
-    createGoalPlanForUser({
-      input: { goal: "다시 만들기" },
-      env: {},
-      userStore: store,
-      user,
-      generatePlan: async () => {
-        generated = true;
-        return { plan: {} };
-      },
-    }),
-    (error) => error.status === 409 && error.code === "GOAL_PLAN_LIMIT_REACHED",
-  );
-  assert.equal(generated, false);
-});
-
 test("해지된 구독은 결제 기간 종료 후 체험 상태로 내려간다", async () => {
   const user = {
     id: "google:paid",
@@ -188,7 +152,7 @@ test("해지된 구독은 결제 기간 종료 후 체험 상태로 내려간다
 test("AI endpoints reject unauthenticated requests before invoking providers", async () => {
   const kv = { async get() { return null; }, async put() {}, async list() { return { keys: [] }; } };
   const assets = { async fetch() { return new Response("asset"); } };
-  for (const path of ["/api/ai/goal-plan", "/api/ai/companion-chat", "/api/ai/plan-revision"]) {
+  for (const path of ["/api/ai/companion-chat", "/api/ai/plan-revision"]) {
     const response = await worker.fetch(new Request(`https://preview.example${path}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -196,6 +160,38 @@ test("AI endpoints reject unauthenticated requests before invoking providers", a
     }), { USERS_KV: kv, ASSETS: assets });
     assert.equal(response.status, 401, path);
   }
+});
+
+test("무료 치어링은 KST 기준 하루 각 1회만 허용된다", () => {
+  const noonKst = Date.parse("2026-07-27T12:00:00+09:00");
+  const user = { id: "kakao:cheer" };
+
+  const first = checkDailyCheerAllowance(user, "celebrate", noonKst);
+  assert.equal(first.allowed, true);
+
+  const second = checkDailyCheerAllowance(first.user, "celebrate", noonKst + 60_000);
+  assert.equal(second.allowed, false);
+
+  // 같은 날이라도 위로(comfort)는 별도로 1회 허용된다
+  const comfort = checkDailyCheerAllowance(first.user, "comfort", noonKst + 60_000);
+  assert.equal(comfort.allowed, true);
+
+  // 다음 날(KST)이 되면 다시 허용된다
+  const nextDay = checkDailyCheerAllowance(second.user, "celebrate", noonKst + 24 * 60 * 60 * 1000);
+  assert.equal(nextDay.allowed, true);
+});
+
+test("온보딩 수동화 이후 goal-plan 엔드포인트는 더 이상 라우팅되지 않는다", async () => {
+  const kv = { async get() { return null; }, async put() {}, async list() { return { keys: [] }; } };
+  const assets = { async fetch() { return new Response("asset"); } };
+  const response = await worker.fetch(new Request("https://preview.example/api/ai/goal-plan", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: "{}",
+  }), { USERS_KV: kv, ASSETS: assets });
+  // API 라우트가 제거되어 정적 자산 처리로 넘어간다 (401/409 계약이 완전히 사라졌는지 확인)
+  assert.equal(response.status, 200);
+  assert.equal(await response.text(), "asset");
 });
 
 test("API requests from arbitrary origins are rejected", async () => {

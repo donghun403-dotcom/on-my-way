@@ -3,6 +3,7 @@
 node_modules/
 .agents/
 .claude/
+.github/
 docs/
 tmp/
 tests/
@@ -20,3 +21,13 @@ playwright.config.js
 debug.log
 *.pdf
 *.md
+brand/
+marketing/
+.backups/
+.patch-backups/
+.codex-artifacts/
+.codex-backups/
+.worktrees/
+_to_delete/
+output/
+outputs/

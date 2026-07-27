@@ -13,3 +13,14 @@ playwright-report/
 test-results/
 blob-report/
 debug.log
+
+# Local backups, agent work dirs, generated outputs (never commit)
+.backups/
+.patch-backups/
+.codex-artifacts/
+.codex-backups/
+.worktrees/
+.wrangler/
+_to_delete/
+output/
+outputs/

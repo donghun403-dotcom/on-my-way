@@ -6,7 +6,7 @@
     <title>On My Way - 올리와 시작하는 목표 여정</title>
     <meta
       name="description"
-      content="On My Way는 AI와 올리가 큰 목표를 오늘의 작은 실행으로 바꿔주는 목표 코치 앱입니다."
+      content="On My Way는 내가 직접 만든 목표 계획을 올리와 함께 매일 실행하며 달성해가는 목표 메이트 앱입니다."
     />
     <meta name="robots" content="index,follow,max-image-preview:large" />
     <link rel="canonical" href="https://on-my-way.jungslawyer.workers.dev/" />
@@ -79,9 +79,9 @@
 
       <section class="design-flow section-band story-flow" id="designFlow" data-page-view="trial" aria-live="polite" hidden>
         <div class="section-heading">
-          <p class="eyebrow">3 Steps · About 30 Seconds</p>
-          <h2>세 가지만 고르면 오늘 계획이 완성돼요</h2>
-          <p>정답은 없어요. 편하게 고르고 나중에 언제든 바꿀 수 있어요.</p>
+          <p class="eyebrow">4 Steps · My Own Plan</p>
+          <h2>내 계획은 내가 직접, 올리와 함께 만들어요</h2>
+          <p>정답은 없어요. 편하게 담아두고 나중에 언제든 바꿀 수 있어요.</p>
           <ul class="trial-trust-list" aria-label="무료 체험 안내">
             <li><span aria-hidden="true">✓</span> 카드 등록 없음</li>
             <li><span aria-hidden="true">✓</span> 자동 결제 없음</li>
@@ -89,21 +89,22 @@
           </ul>
         </div>
         <div class="design-panel first-meeting-panel goal-builder-shell">
-          <nav class="diagnosis-stepper" aria-label="목표 설정 단계">
+          <nav class="diagnosis-stepper" aria-label="계획 만들기 단계">
             <span class="active" data-diagnosis-step="0" aria-current="step"><b>01</b><em>목표</em></span>
-            <span data-diagnosis-step="1"><b>02</b><em>루틴</em></span>
-            <span data-diagnosis-step="2"><b>03</b><em>성향</em></span>
+            <span data-diagnosis-step="1"><b>02</b><em>리듬</em></span>
+            <span data-diagnosis-step="2"><b>03</b><em>할 일</em></span>
+            <span data-diagnosis-step="3"><b>04</b><em>마무리</em></span>
           </nav>
 
           <form class="personality-form ollie-goal-card" id="personalityForm">
             <header class="builder-header">
               <div>
-                <p class="builder-kicker">한 번에 하나씩만 선택해요</p>
+                <p class="builder-kicker">한 번에 하나씩만 정해요</p>
                 <h3 id="diagnosisStepTitle" aria-live="polite">무엇을 시작해볼까요?</h3>
               </div>
-              <span id="diagnosisStepCount">1 / 3</span>
+              <span id="diagnosisStepCount">1 / 4</span>
             </header>
-            <div class="builder-progress" aria-hidden="true"><span id="diagnosisProgressBar" style="width: 33%"></span></div>
+            <div class="builder-progress" aria-hidden="true"><span id="diagnosisProgressBar" style="width: 25%"></span></div>
             <p class="builder-reassurance"><span aria-hidden="true">✓</span> 지금 선택은 임시 설정이에요. 앱에서 편하게 다시 바꿀 수 있어요.</p>
 
             <section class="diagnosis-step active" data-step-title="무엇을 시작해볼까요?">
@@ -132,7 +133,7 @@
               </div>
             </section>
 
-            <section class="diagnosis-step" data-step-title="언제 하면 가장 편할까요?" hidden>
+            <section class="diagnosis-step" data-step-title="언제, 얼마나 해볼까요?" hidden>
               <div class="builder-field-grid">
                 <label class="builder-field" for="goalPeriod">
                   <span>얼마 동안 해볼까요?</span>
@@ -155,6 +156,19 @@
                   </select>
                 </label>
               </div>
+              <fieldset class="builder-days" aria-describedby="builderDaysHint">
+                <legend>실행할 요일</legend>
+                <div>
+                  <label><input type="checkbox" value="월" checked data-design-day /><span>월</span></label>
+                  <label><input type="checkbox" value="화" checked data-design-day /><span>화</span></label>
+                  <label><input type="checkbox" value="수" checked data-design-day /><span>수</span></label>
+                  <label><input type="checkbox" value="목" checked data-design-day /><span>목</span></label>
+                  <label><input type="checkbox" value="금" checked data-design-day /><span>금</span></label>
+                  <label><input type="checkbox" value="토" data-design-day /><span>토</span></label>
+                  <label><input type="checkbox" value="일" data-design-day /><span>일</span></label>
+                </div>
+                <p class="builder-days-hint" id="builderDaysHint">쉬는 요일이 있어도 괜찮아요. 계획된 휴식도 계획이에요.</p>
+              </fieldset>
               <details class="optional-settings">
                 <summary><span>조금 더 맞춤 설정</span><small>선택</small></summary>
                 <label class="builder-field" for="routineReadiness">
@@ -167,39 +181,59 @@
                     <option>시작해도 쉽게 중단돼요</option>
                   </select>
                 </label>
+                <div class="builder-field-grid">
+                  <label class="builder-field" for="designWeekdayMinutes">
+                    <span>평일 하루 가능 시간(분)</span>
+                    <input id="designWeekdayMinutes" type="number" min="10" max="720" step="10" inputmode="numeric" placeholder="60" />
+                  </label>
+                  <label class="builder-field" for="designWeekendMinutes">
+                    <span>주말 하루 가능 시간(분)</span>
+                    <input id="designWeekendMinutes" type="number" min="10" max="720" step="10" inputmode="numeric" placeholder="90" />
+                  </label>
+                </div>
               </details>
             </section>
 
-            <section class="diagnosis-step" data-step-title="이대로 바로 시작할까요?" hidden>
-              <div class="profile-intro refined-profile-intro">
-                <span>필수 설정은 모두 끝났어요</span>
-                <p>아래 정보는 건너뛰어도 계획을 바로 만들 수 있어요.</p>
-              </div>
-              <details class="optional-settings personality-optional-settings">
-                <summary><span>성향 정보를 추가할게요</span><small>선택</small></summary>
-                <div class="personality-fields" aria-label="성향 분석 입력">
-                  <label for="birthDate">생년월일<input id="birthDate" type="date" /></label>
-                  <label for="birthTime">출생 시간<input id="birthTime" type="time" /></label>
-                  <label for="birthPlace">출생지<input id="birthPlace" type="text" placeholder="예: 서울" /></label>
-                  <label for="mbti">MBTI
-                    <select id="mbti">
-                      <option value="" selected>나중에 입력</option>
-                      <option>INTJ</option><option>INTP</option><option>ENTJ</option><option>ENTP</option>
-                      <option>INFJ</option><option>INFP</option><option>ENFJ</option><option>ENFP</option>
-                      <option>ISTJ</option><option>ISFJ</option><option>ESTJ</option><option>ESFJ</option>
-                      <option>ISTP</option><option>ISFP</option><option>ESTP</option><option>ESFP</option>
-                    </select>
-                  </label>
+            <section class="diagnosis-step" data-step-title="어떤 일을 하면 될까요?" hidden>
+              <div class="ollie-message compact-ollie-message">
+                <img class="mascot-art mascot-avatar" src="assets/ollie-thinking.png" alt="" />
+                <div>
+                  <span>올리가 초안을 준비했어요</span>
+                  <p>목표에 맞춰 미리 담아둔 할 일이에요. 나에게 맞게 고치고, 더하고, 빼주세요.</p>
                 </div>
-                <div class="privacy-note"><span aria-hidden="true">✓</span> 입력 내용은 목표 계획을 만드는 데만 사용됩니다.</div>
-              </details>
-              <div class="trial-terms-note"><span aria-hidden="true">✓</span> 결제정보 없이 24시간 이용 · 자동 결제 없음 · 체험 종료 후 결제 전까지 이용 일시 중단</div>
+              </div>
+              <div class="task-builder" id="taskBuilder" aria-label="내 할 일 만들기">
+                <div class="task-builder-list" id="taskBuilderList"></div>
+                <p class="task-builder-empty" id="taskBuilderEmpty" hidden>아직 할 일이 없어요. 아래 버튼으로 첫 할 일을 추가해 주세요.</p>
+                <p class="task-builder-budget" id="taskBudgetHint" aria-live="polite" hidden></p>
+                <div class="task-builder-actions">
+                  <button type="button" id="addTaskButton"><span aria-hidden="true">＋</span> 할 일 추가</button>
+                  <button type="button" id="refillTemplateButton">목표에 맞는 초안 다시 받기</button>
+                  <button type="button" id="minimalStartButton">부담돼요 · 최소로 시작하기</button>
+                </div>
+              </div>
+            </section>
+
+            <section class="diagnosis-step" data-step-title="이대로 시작해볼까요?" hidden>
+              <div class="profile-intro refined-profile-intro">
+                <span>필수 입력은 모두 끝났어요</span>
+                <p>아래는 건너뛰어도 돼요. 적어두면 올리가 응원하고 조언할 때 참고해요.</p>
+              </div>
+              <label class="builder-field builder-field-large" for="designOutcome">
+                <span>언제까지 어떤 상태가 되면 성공인가요? <small>선택</small></span>
+                <textarea id="designOutcome" rows="2" maxlength="500" placeholder="예: 90일 뒤 토익 900점 성적표 받기"></textarea>
+              </label>
+              <label class="builder-field builder-field-large" for="designResources">
+                <span>활용할 자료·도구·사람·예산 <small>선택</small></span>
+                <textarea id="designResources" rows="2" maxlength="500" placeholder="예: 기출문제집 2권, 인강 수강권, 스터디 친구 1명"></textarea>
+              </label>
+              <div class="trial-terms-note"><span aria-hidden="true">✓</span> 간편 로그인 후 결제정보 없이 24시간 이용 · 자동 결제 없음 · 체험 종료 후 결제 전까지 이용 일시 중단</div>
             </section>
 
             <footer class="builder-actions">
               <button class="builder-back" type="button" id="diagnosisBackButton" hidden>이전</button>
               <button class="builder-next" type="button" id="diagnosisNextButton">다음 단계</button>
-              <button type="submit" id="aiPreviewButton" hidden>이대로 1일 체험 시작하기</button>
+              <button type="submit" id="aiPreviewButton" hidden>내 계획 완성하기</button>
             </footer>
           </form>
 
@@ -210,12 +244,13 @@
                 <b id="wizardStepLabel">목표 설정 중</b>
               </div>
               <img src="assets/ollie-thinking.png" alt="" />
-              <p>입력할수록 올리가 나에게 맞는 계획을 구체화해요.</p>
+              <p>채울수록 내 계획이 완성돼요. 올리가 옆에서 함께해요.</p>
               <dl>
                 <div><dt>목표</dt><dd id="wizardLiveGoal">토익 900점 달성</dd></div>
                 <div><dt>리듬</dt><dd id="wizardLiveTiming">90일 · 아침</dd></div>
+                <div><dt>할 일</dt><dd id="wizardLiveTasks">주 5일 · 3개</dd></div>
               </dl>
-              <div class="summary-progress"><span>설정 완성도</span><strong id="wizardProgressValue">25%</strong></div>
+              <div class="summary-progress"><span>계획 완성도</span><strong id="wizardProgressValue">25%</strong></div>
             </div>
             <a class="first-step-back" href="#designFlow"><span aria-hidden="true">←</span> 목표 입력으로 돌아가기</a>
             <div class="preview-result-content">
@@ -236,13 +271,13 @@
                   <strong id="previewAction">단어 40개 + LC 1세트</strong>
                   <p id="previewCompletionRule">작게 시작하고 완료 표시까지 남겨요.</p>
                 </article>
-                <div class="result-inline-start" role="region" aria-label="오늘 계획 시작하기">
-                  <div><span>READY TO GO</span><strong>설명은 나중에 봐도 괜찮아요. 올리와 첫 일정부터 시작해요.</strong></div>
-                  <a id="trialStartInlineLink" href="app.html" aria-label="방금 만든 오늘의 맞춤 계획 바로 시작하기"><span>오늘 계획 바로 시작</span><b aria-hidden="true">→</b></a>
+                <div class="result-inline-start" role="region" aria-label="올리와 무료 체험 시작하기">
+                  <div><span>READY TO GO</span><strong>간편 로그인하면 이 계획 그대로, 올리와 무료 체험이 시작돼요.</strong></div>
+                  <a id="trialStartInlineLink" href="app.html?auth=start" aria-label="로그인하고 방금 만든 계획으로 무료 체험 시작하기"><span>올리와 함께 시작하기</span><b aria-hidden="true">→</b></a>
                 </div>
                 <details class="result-details-disclosure">
                   <summary>
-                    <span><strong>내 계획 자세히 보기</strong><small>오늘 스케줄 · 첫 주 로드맵 · 맞춤 분석</small></span>
+                    <span><strong>내 계획 자세히 보기</strong><small>오늘 스케줄 · 일주일 리듬 · 목표 로드맵</small></span>
                     <b aria-hidden="true">보기</b>
                   </summary>
                   <div class="result-details-content">
@@ -256,7 +291,7 @@
                       <span>다음 단계</span><strong id="aiPreviewTitle">이번 주에는 루틴을 고정합니다</strong>
                     </article>
                     <article class="result-week-card" aria-labelledby="weekPlanTitle">
-                      <div class="result-section-head"><span>FIRST 7 DAYS</span><strong id="weekPlanTitle">첫 주 실행 로드맵</strong></div>
+                      <div class="result-section-head"><span>MY WEEK</span><strong id="weekPlanTitle">내가 정한 일주일 리듬</strong></div>
                       <ol id="aiVisibleWeekPlan" class="result-week-list">
                         <li>같은 시간에 작은 행동 1개를 반복합니다.</li>
                       </ol>
@@ -268,8 +303,8 @@
                       </div>
                     </article>
                     <div class="analysis-grid compact-analysis result-insight-grid">
-                      <article><span>성향 요약</span><p id="manseProfile">생년월일시와 MBTI를 입력하면 AI가 목표 설계 관점으로 요약합니다.</p></article>
-                      <article><span>추천 방식</span><p id="mbtiProfile">목표 기간과 현재 상태에 맞는 실행 방식을 보여줍니다.</p></article>
+                      <article><span>나의 완료 기준</span><p id="manseProfile">마무리 단계에서 성공 기준을 적으면 여기에 담아둬요.</p></article>
+                      <article><span>활용할 리소스</span><p id="mbtiProfile">가진 자료와 도구를 적어두면 올리가 조언할 때 참고해요.</p></article>
                     </div>
                   </div>
                 </details>
@@ -292,18 +327,18 @@
           <div class="feature-showcase-head">
             <div>
               <span>올리와 함께하는 4가지 순간</span>
-              <strong id="appFeatureTitle">AI 스케줄로 오늘 시작하기</strong>
+              <strong id="appFeatureTitle">내 계획으로 오늘 시작하기</strong>
             </div>
             <span id="appFeatureCounter" aria-live="polite">1 / 4</span>
           </div>
 
           <div class="app-feature-carousel" id="appFeatureCarousel" tabindex="0" aria-label="On My Way 앱 기능 소개">
-            <article class="app-feature-slide feature-today" data-feature-title="AI 스케줄로 오늘 시작하기">
+            <article class="app-feature-slide feature-today" data-feature-title="내 계획으로 오늘 시작하기">
               <div class="feature-copy">
                 <span class="feature-number">01 · TODAY</span>
-                <h3>AI가 목표를 쪼개<br />오늘의 스케줄로 만들어요</h3>
-                <p>목표와 기간만 넣으면 하루 단위 스케줄이 생겨요. 아침부터 마무리까지 시간 순서대로 하나씩 체크하면 돼요.</p>
-                <ul><li>시간대별 AI 스케줄 체크리스트</li><li>첫 일정부터 집중 타이머로 시작</li><li>완료 기록으로 다음 날 계획 조절</li></ul>
+                <h3>내가 만든 계획이<br />매일의 스케줄이 돼요</h3>
+                <p>3분 만에 직접 담은 할 일이 요일에 맞춰 하루 스케줄로 펼쳐져요. 아침부터 마무리까지 시간 순서대로 하나씩 체크하면 돼요.</p>
+                <ul><li>내가 정한 시간대별 체크리스트</li><li>첫 일정부터 집중 타이머로 시작</li><li>완료하면 올리가 축하하고 응원해요</li></ul>
               </div>
               <div class="feature-phone-card">
                 <div class="feature-phone-top">
@@ -372,7 +407,7 @@
           <div class="feature-carousel-controls">
             <button type="button" id="appFeaturePrev" aria-label="이전 기능">←</button>
             <div class="feature-carousel-dots" role="tablist" aria-label="기능 선택">
-              <button class="active" type="button" role="tab" data-feature-index="0" aria-label="AI 스케줄 기능" aria-selected="true"></button>
+              <button class="active" type="button" role="tab" data-feature-index="0" aria-label="내 계획 스케줄 기능" aria-selected="true"></button>
               <button type="button" role="tab" data-feature-index="1" aria-label="계획 조정 기능" aria-selected="false"></button>
               <button type="button" role="tab" data-feature-index="2" aria-label="성장 여정 기능" aria-selected="false"></button>
               <button type="button" role="tab" data-feature-index="3" aria-label="감정 다이어리 기능" aria-selected="false"></button>
@@ -381,8 +416,8 @@
           </div>
           <ol class="trial-conversion-path" aria-label="무료 체험 진행 순서">
             <li><span>01</span><strong>앱 구경</strong><small>기능을 먼저 확인해요</small></li>
-            <li><span>02</span><strong>내 목표 입력</strong><small>올리가 계획을 만들어요</small></li>
-            <li><span>03</span><strong>24시간 체험</strong><small>결제정보는 필요 없어요</small></li>
+            <li><span>02</span><strong>내 계획 만들기</strong><small>3분이면 충분해요</small></li>
+            <li><span>03</span><strong>로그인 후 24시간 체험</strong><small>결제정보는 필요 없어요</small></li>
             <li><span>04</span><strong>계속할지 결정</strong><small>PRO 월 2,900원</small></li>
           </ol>
           <a class="feature-app-link" href="#designFlow">내 목표로 1일 무료 체험하기 <span aria-hidden="true">↑</span></a>
@@ -402,9 +437,9 @@
               <p>내 목표로 핵심 기능을 직접 써보는 하루</p>
             </div>
             <ul class="pricing-benefits">
-              <li>AI 목표 계획 1개 생성</li>
-              <li>AI 간단 수정 10회</li>
-              <li>매일 맞춤 일정</li>
+              <li>내 계획 직접 만들기 · 수정 무제한</li>
+              <li>올리 에너지 10 · 올리와 대화 10회</li>
+              <li>매일 스케줄 체크와 집중 타이머</li>
               <li>결제정보·자동 결제 없음</li>
             </ul>
             <strong>0원</strong>
@@ -434,10 +469,10 @@
               <p>PRO는 매월 300 에너지가 충전돼요. 평균적인 사용 패턴이라면 매달 충분히 이용할 수 있어요.</p>
             </div>
             <div class="energy-cost-grid" aria-label="기능별 올리 에너지 사용량">
-              <article><span>1</span><strong>간단한 수정</strong><small>문구·시간·순서 조정</small></article>
-              <article><span>3</span><strong>오늘 일정 다시 만들기</strong><small>하루 계획 전체 재생성</small></article>
+              <article><span>1</span><strong>올리와 대화</strong><small>응원·위로·조언 한 마디</small></article>
+              <article><span>3</span><strong>계획 다듬기</strong><small>내 계획을 AI 변경안으로</small></article>
               <article><span>5</span><strong>주간 최적화</strong><small>한 주 흐름 다시 맞추기</small></article>
-              <article><span>10</span><strong>목표 전체 재설계</strong><small>목표 구조 처음부터 재구성</small></article>
+              <article><span>0</span><strong>매일 축하·응원</strong><small>하루의 축하와 위로는 무료</small></article>
             </div>
             <p class="energy-reset-note"><span aria-hidden="true">↻</span> 올리 에너지는 매월 새로 충전되며, 남은 에너지는 다음 달로 이월되지 않아요.</p>
           </section>

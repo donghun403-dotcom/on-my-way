@@ -5,7 +5,7 @@ const path = require("path");
 const port = Number(process.env.PORT || 8765);
 const host = "127.0.0.1";
 const root = path.resolve(__dirname);
-const aiGoalPlanModule = import("./ai-goal-plan.mjs");
+const aiCompanionChatModule = import("./ai-companion-chat.mjs");
 const aiPlanRevisionModule = import("./ai-plan-revision.mjs");
 const authServiceModule = import("./auth-service.mjs");
 const workerModule = import("./worker.mjs");
@@ -184,24 +184,24 @@ const server = http.createServer(async (request, response) => {
     }
   }
 
-  if (pathname === "/api/ai/goal-plan") {
+  if (pathname === "/api/ai/companion-chat") {
     if (request.method !== "POST") {
       sendJson(response, 405, { error: "POST 요청만 사용할 수 있어요." });
       return;
     }
 
     try {
-      const input = await readJsonBody(request);
-      const { createAiGoalPlan } = await aiGoalPlanModule;
-      const result = await createAiGoalPlan(input, {
+      const input = await readJsonBody(request, 5000);
+      const { createCompanionReply } = await aiCompanionChatModule;
+      // 참고: 하루 1회 무료 치어링(축하·위로) 상한은 운영 Worker(worker.mjs)에서 강제된다. 로컬은 개발 편의상 미적용.
+      const result = await createCompanionReply(input, {
         apiKey: process.env.OPENAI_API_KEY,
         model: process.env.OPENAI_MODEL || "gpt-5.4-mini",
       });
       sendJson(response, 200, result);
     } catch (error) {
-      console.error("AI goal plan request failed", error);
-      const message = error.status === 503 ? "올리가 계획을 준비하는 동안 연결이 지연되고 있어요." : error.message || "AI 계획을 만들지 못했어요.";
-      sendJson(response, error.status || 500, { error: message });
+      console.error("Companion chat request failed", error);
+      sendJson(response, error.status || 500, { error: error.message || "올리의 답을 만들지 못했어요." });
     }
     return;
   }

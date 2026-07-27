@@ -1,0 +1,20 @@
+{
+  "name": "on-my-way-marketing",
+  "version": "0.2.0",
+  "description": "올리(OLLIE) 캐릭터를 앞세운 인스타그램·페이스북 자동 마케팅 팀. 출시 전에는 올리를 독립 캐릭터로 각인시키고, 이후 On My Way와 연결한다. 캐릭터 바이블, 콘텐츠 캘린더, 릴스 에피소드 콘티, 4컷 만화 캐러셀, 성과 리뷰, 캐릭터·광고법 검수를 담당한다.",
+  "author": {
+    "name": "On My Way"
+  },
+  "keywords": [
+    "marketing",
+    "instagram",
+    "reels",
+    "carousel",
+    "character",
+    "ollie",
+    "content-calendar",
+    "korean",
+    "on-my-way"
+  ],
+  "license": "UNLICENSED"
+}

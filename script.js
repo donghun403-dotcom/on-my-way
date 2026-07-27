@@ -28,6 +28,18 @@ const mbtiInput = document.querySelector("#mbti");
 const goalPeriodInput = document.querySelector("#goalPeriod");
 const routineReadinessInput = document.querySelector("#routineReadiness");
 const routineTimeInput = document.querySelector("#routineTime");
+const designDayInputs = document.querySelectorAll("[data-design-day]");
+const designWeekdayMinutesInput = document.querySelector("#designWeekdayMinutes");
+const designWeekendMinutesInput = document.querySelector("#designWeekendMinutes");
+const designOutcomeInput = document.querySelector("#designOutcome");
+const designResourcesInput = document.querySelector("#designResources");
+const taskBuilderListElement = document.querySelector("#taskBuilderList");
+const taskBuilderEmptyElement = document.querySelector("#taskBuilderEmpty");
+const taskBudgetHintElement = document.querySelector("#taskBudgetHint");
+const addTaskButton = document.querySelector("#addTaskButton");
+const refillTemplateButton = document.querySelector("#refillTemplateButton");
+const minimalStartButton = document.querySelector("#minimalStartButton");
+const wizardLiveTasks = document.querySelector("#wizardLiveTasks");
 const manseProfile = document.querySelector("#manseProfile");
 const mbtiProfile = document.querySelector("#mbtiProfile");
 const planningStyle = document.querySelector("#planningStyle");
@@ -182,14 +194,12 @@ const TRIAL_ACCESS_KEY = "omwTrialAccess";
 const TRIAL_LEAD_KEY = "omwTrialLead";
 const TRIAL_DURATION_MS = 24 * 60 * 60 * 1000;
 const OLLIE_ENERGY_KEY = "omwOllieEnergy";
-const FREE_PLAN_GENERATED_KEY = "omwFreePlanGenerated";
 const ACCOUNT_STORAGE_SCOPE_KEY = "omwAccountStorageScope";
 const ACCOUNT_STORAGE_SNAPSHOT_PREFIX = "omwAccountStorageSnapshot:";
 const ACCOUNT_SCOPED_STORAGE_KEYS = [
   TRIAL_ACCESS_KEY,
   TRIAL_LEAD_KEY,
   OLLIE_ENERGY_KEY,
-  FREE_PLAN_GENERATED_KEY,
   "omwTrialReminderDismissed",
   "omwPersonalityProfile",
   "omwPersonalityNudgeDismissed",
@@ -199,6 +209,7 @@ const ACCOUNT_SCOPED_STORAGE_KEYS = [
   "omwCompanionEvents",
   "omwFocusSession",
   "omwExecutionTheme",
+  "omwCheerState",
 ];
 let activePlanScreen = "home";
 
@@ -220,6 +231,18 @@ function switchAccountStorageScope(targetScope, { clearTarget = false } = {}) {
       return false;
     }
     if (currentScope === targetScope && !clearTarget) return false;
+
+    // 이 기기에서 처음 로그인하는 계정이면, 게스트로 만든 계획·기록을 그대로 이어받는다.
+    // (온보딩에서 만든 계획이 가입 순간 사라지지 않도록 하는 가입 게이트의 핵심 연결부)
+    const isFirstLoginOnDevice =
+      !clearTarget &&
+      currentScope === "guest" &&
+      targetScope.startsWith("user:") &&
+      localStorage.getItem(`${ACCOUNT_STORAGE_SNAPSHOT_PREFIX}${targetScope}`) === null;
+    if (isFirstLoginOnDevice) {
+      localStorage.setItem(ACCOUNT_STORAGE_SCOPE_KEY, targetScope);
+      return false;
+    }
 
     localStorage.setItem(`${ACCOUNT_STORAGE_SNAPSHOT_PREFIX}${currentScope}`, JSON.stringify(captureAccountStorage()));
     ACCOUNT_SCOPED_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
@@ -327,13 +350,24 @@ function lockTrialExperience(mode) {
   if (!trialPaywall) return;
   const wasHidden = trialPaywall.hidden;
   trialPaywall.hidden = false;
+  trialPaywall.dataset.mode = mode || "";
   document.body.classList.add("trial-locked");
   [...document.body.children].forEach((element) => {
-    if (element !== trialPaywall) element.inert = true;
+    // 로그인 시트와 그 오버레이는 잠금 위에서도 동작해야 한다 (가입 게이트)
+    if (element === trialPaywall || element === authSheet || element === accountSheetOverlay) return;
+    element.inert = true;
   });
   if (wasHidden) window.setTimeout(() => trialPaywall.focus({ preventScroll: true }), 0);
 
-  if (mode === "expired") {
+  if (mode === "need-login") {
+    if (trialPaywallKicker) trialPaywallKicker.textContent = "거의 다 왔어요";
+    if (trialPaywallTitle) trialPaywallTitle.textContent = "간편 로그인하고 무료 체험을 시작하세요";
+    if (trialPaywallCopy) trialPaywallCopy.textContent = "직접 만든 계획을 계정에 안전하게 담아드려요. 결제정보 없이 24시간 동안 올리와 함께할 수 있어요.";
+    if (trialPaywallAction) {
+      trialPaywallAction.textContent = "3초 만에 간편 로그인";
+      trialPaywallAction.href = "#login";
+    }
+  } else if (mode === "expired") {
     if (trialPaywallKicker) trialPaywallKicker.textContent = "체험이 종료되었어요";
     if (trialPaywallTitle) trialPaywallTitle.textContent = "만든 계획을 그대로 이어갈까요?";
     if (trialPaywallCopy) trialPaywallCopy.textContent = "24시간 무료 체험이 끝나 앱 이용이 잠시 멈췄어요. PRO를 시작하면 계획과 기록이 그대로 이어져요.";
@@ -360,15 +394,29 @@ function updateTrialStatus(expiresAt) {
 
 function initializeTrialAccess() {
   if (!document.body.classList.contains("execution-page")) return;
-  const access = readTrialAccess();
+  let access = readTrialAccess();
   if (access?.plan === "pro") {
     if (trialStatusBanner) trialStatusBanner.hidden = true;
     initializePersonalityNudge();
     return;
   }
-  if (!access?.expiresAt) {
-    lockTrialExperience("not-started");
+
+  // 새 흐름: ① 계획 없음 → 온보딩으로 ② 계획은 있는데 비로그인 → 가입 게이트 ③ 로그인 → 체험 진행
+  const hasPlan = Boolean(readExecutionPlan().goal);
+  if (!hasPlan) {
+    lockTrialExperience("no-plan");
     return;
+  }
+
+  if (!access?.expiresAt) {
+    if (!authUiState.user) {
+      lockTrialExperience("need-login");
+      sendFunnelEvent("signup_gate");
+      if (onboardingGatePending) openAuthSheet();
+      return;
+    }
+    // 로그인은 되어 있는데 서버 체험 정보가 아직 동기화되지 않은 예외적인 경우의 안전망
+    access = startTrialAccess();
   }
   if (Date.now() >= Number(access.expiresAt)) {
     lockTrialExperience("expired");
@@ -380,7 +428,13 @@ function initializeTrialAccess() {
   window.setInterval(() => updateTrialStatus(Number(access.expiresAt)), 60 * 1000);
 }
 
-trialStartInlineLink?.addEventListener("click", startTrialAccess);
+// 가입 게이트에서 로그인 버튼을 누르면 페이월 위로 로그인 시트를 연다
+trialPaywallAction?.addEventListener("click", (event) => {
+  if (trialPaywall?.dataset.mode !== "need-login") return;
+  event.preventDefault();
+  sendFunnelEvent("signup_start");
+  openAuthSheet();
+});
 
 trialPhoneInput?.addEventListener("input", () => {
   const digits = trialPhoneInput.value.replace(/\D/g, "").slice(0, 11);
@@ -532,6 +586,8 @@ personalityNudgeDismissButton?.addEventListener("click", () => {
 
 // ===== 회원 · 인증 =====
 const authUiState = { user: null, loaded: false };
+// 온보딩(계획 완성) → app.html?auth=start 로 넘어온 경우: 가입 게이트에서 곧바로 로그인 시트를 연다
+let onboardingGatePending = false;
 const menuToggle = document.querySelector("#menuToggle");
 const appMenuDrawer = document.querySelector("#appMenuDrawer");
 const appMenuBackdrop = document.querySelector("#appMenuBackdrop");
@@ -591,13 +647,6 @@ function syncServerPlanToLocal() {
   const user = authUiState.user;
   if (!user) return;
 
-  try {
-    if (user.plan === "pro" || user.goalPlanGeneratedAt) localStorage.setItem(FREE_PLAN_GENERATED_KEY, "true");
-    else localStorage.removeItem(FREE_PLAN_GENERATED_KEY);
-  } catch (error) {
-    console.warn("Unable to sync goal plan allowance", error);
-  }
-
   if (!document.body.classList.contains("execution-page")) return;
 
   if (user.plan === "pro") {
@@ -619,6 +668,8 @@ function syncServerPlanToLocal() {
         TRIAL_ACCESS_KEY,
         JSON.stringify({ startedAt: user.trialStartedAt || Date.now(), expiresAt: Number(user.trialExpiresAt), plan: "trial" }),
       );
+      // 가입과 함께 서버가 시작한 체험이 이 기기에서 처음 활성화되는 순간
+      if (!local?.expiresAt) sendFunnelEvent("trial_start");
     } catch (error) {
       console.warn("Unable to sync trial plan", error);
     }
@@ -821,8 +872,12 @@ function handleAuthQueryParams() {
   const redirectToAdmin = params.get("redirect") === "admin";
   const adminDenied = params.get("admin") === "denied";
 
-  if (authParam === "success") showToast("로그인되었어요 · 올리가 기억할게요!");
+  if (authParam === "success") {
+    showToast("로그인되었어요 · 올리가 기억할게요!");
+    sendFunnelEvent("signup_success");
+  }
   if (authParam === "error") showToast("로그인에 실패했어요. 다시 시도해 주세요.");
+  if (authParam === "start" && !authUiState.user) onboardingGatePending = true;
   if (adminDenied) showToast("관리자 권한이 있는 계정만 접근할 수 있어요.");
   if (redirectToAdmin && authUiState.user?.role === "admin") {
     location.replace("/admin.html");
@@ -1103,7 +1158,7 @@ goalInput?.addEventListener("input", () => {
 
 let diagnosisStepIndex = 0;
 
-const wizardStepLabels = ["목표 설정 중", "실행 리듬 설정 중", "성향 설정 중"];
+const wizardStepLabels = ["목표 설정 중", "리듬 설정 중", "할 일 담는 중", "마무리 확인 중"];
 
 const goalTemplates = {
   exam: {
@@ -1156,6 +1211,230 @@ const goalTemplates = {
   },
 };
 
+// ===== 온보딩 할 일 빌더: 유저가 직접 만드는 주간 계획 (AI 호출 없음) =====
+const STARTER_TASKS_BY_KIND = {
+  exam: [
+    { text: "단어 40개 외우기", minutes: 20, rule: "40개를 소리 내어 한 번씩 읽으면 완료" },
+    { text: "문제 1세트 풀기", minutes: 30, rule: "채점까지 마치면 완료" },
+    { text: "오답 정리하기", minutes: 15, rule: "틀린 이유를 한 줄씩 적으면 완료" },
+  ],
+  fitness: [
+    { text: "가벼운 유산소 20분", minutes: 20, rule: "타이머 20분을 채우면 완료" },
+    { text: "근력 운동 1세트", minutes: 15, rule: "정한 동작을 끝내면 완료" },
+    { text: "식사·컨디션 기록", minutes: 5, rule: "오늘 기록을 남기면 완료" },
+  ],
+  career: [
+    { text: "이력서·포트폴리오 다듬기", minutes: 30, rule: "한 항목을 고치면 완료" },
+    { text: "채용 공고 3개 확인", minutes: 15, rule: "지원 여부를 표시하면 완료" },
+    { text: "오늘 배운 것 정리", minutes: 10, rule: "한 줄 기록을 남기면 완료" },
+  ],
+  habit: [
+    { text: "오늘의 핵심 행동 실행", minutes: 15, rule: "정한 분량을 끝내면 완료" },
+    { text: "실행 직후 한 줄 기록", minutes: 5, rule: "완료 체크와 기록을 남기면 완료" },
+  ],
+  money: [
+    { text: "오늘 지출 기록하기", minutes: 10, rule: "지출을 전부 적으면 완료" },
+    { text: "고정비·변동비 확인", minutes: 15, rule: "분류를 마치면 완료" },
+    { text: "저축 목표 점검", minutes: 5, rule: "현재 위치를 확인하면 완료" },
+  ],
+  project: [
+    { text: "가장 작은 다음 산출물 만들기", minutes: 30, rule: "눈에 보이는 결과가 생기면 완료" },
+    { text: "진행 상황 정리", minutes: 10, rule: "다음 할 일을 정하면 완료" },
+  ],
+};
+
+let builderTasks = [];
+let builderTasksTouched = false;
+let builderTemplateKind = "";
+
+function getDesignTimes() {
+  const timeSet = {
+    아침: ["07:00", "12:30", "21:00"],
+    점심: ["10:30", "13:00", "21:00"],
+    저녁: ["09:00", "18:30", "22:00"],
+    "자기 전": ["08:00", "20:30", "23:00"],
+  };
+  return timeSet[routineTimeInput?.value] || timeSet["아침"];
+}
+
+function getSelectedDesignDays() {
+  return [...designDayInputs].filter((input) => input.checked).map((input) => input.value);
+}
+
+function buildStarterTasks() {
+  const kind = getGoalKind(designGoal?.value.trim() || "");
+  const times = getDesignTimes();
+  const starters = STARTER_TASKS_BY_KIND[kind] || STARTER_TASKS_BY_KIND.project;
+  return starters.map((task, index) => ({
+    time: times[Math.min(index, times.length - 1)],
+    text: task.text,
+    minutes: task.minutes,
+    rule: task.rule,
+  }));
+}
+
+function ensureBuilderTasks({ force = false, refreshIfUntouched = false } = {}) {
+  if (!taskBuilderListElement) return;
+  const kind = getGoalKind(designGoal?.value.trim() || "");
+  const shouldFill =
+    force ||
+    !builderTasks.length ||
+    (refreshIfUntouched && !builderTasksTouched && kind !== builderTemplateKind);
+  if (!shouldFill) return;
+  builderTasks = buildStarterTasks();
+  builderTemplateKind = kind;
+  builderTasksTouched = false;
+  renderTaskBuilder();
+}
+
+function getBuilderTaskMinutesTotal() {
+  return builderTasks.reduce((sum, task) => sum + (Number(task.minutes) || 0), 0);
+}
+
+function updateTaskBudgetHint() {
+  if (!taskBudgetHintElement) return;
+  const total = getBuilderTaskMinutesTotal();
+  const weekdayLimit = Number(designWeekdayMinutesInput?.value) || 0;
+  if (!builderTasks.length) {
+    taskBudgetHintElement.hidden = true;
+    return;
+  }
+  if (weekdayLimit && total > weekdayLimit) {
+    taskBudgetHintElement.hidden = false;
+    taskBudgetHintElement.classList.add("is-over");
+    taskBudgetHintElement.textContent = `하루 합계 ${total}분 · 가능 시간(${weekdayLimit}분)을 넘어요. 조금 줄이면 지키기 쉬워져요.`;
+    return;
+  }
+  taskBudgetHintElement.hidden = false;
+  taskBudgetHintElement.classList.remove("is-over");
+  taskBudgetHintElement.textContent = `하루 합계 약 ${total}분 · 이 정도면 충분히 지킬 수 있어요.`;
+}
+
+function renderTaskBuilder() {
+  if (!taskBuilderListElement) return;
+  const rows = builderTasks.map((task, index) => {
+    const row = document.createElement("article");
+    row.className = "task-builder-item";
+    row.dataset.taskIndex = String(index);
+
+    const timeLabel = document.createElement("label");
+    timeLabel.className = "task-time-field";
+    timeLabel.innerHTML = "<span>시간</span>";
+    const timeInput = document.createElement("input");
+    timeInput.type = "time";
+    timeInput.value = /^\d{2}:\d{2}$/.test(task.time) ? task.time : "07:00";
+    timeInput.dataset.taskField = "time";
+    timeLabel.append(timeInput);
+
+    const textLabel = document.createElement("label");
+    textLabel.className = "task-title-field";
+    textLabel.innerHTML = "<span>할 일</span>";
+    const textInput = document.createElement("input");
+    textInput.type = "text";
+    textInput.maxLength = 80;
+    textInput.placeholder = "예: 단어 40개 외우기";
+    textInput.value = task.text || "";
+    textInput.dataset.taskField = "text";
+    textLabel.append(textInput);
+
+    const minutesLabel = document.createElement("label");
+    minutesLabel.className = "task-minutes-field";
+    minutesLabel.innerHTML = "<span>분량(분)</span>";
+    const minutesInput = document.createElement("input");
+    minutesInput.type = "number";
+    minutesInput.min = "5";
+    minutesInput.max = "180";
+    minutesInput.step = "5";
+    minutesInput.inputMode = "numeric";
+    minutesInput.value = String(Number(task.minutes) || 15);
+    minutesInput.dataset.taskField = "minutes";
+    minutesLabel.append(minutesInput);
+
+    const ruleLabel = document.createElement("label");
+    ruleLabel.className = "task-rule-field";
+    ruleLabel.innerHTML = "<span>완료 기준 <small>선택</small></span>";
+    const ruleInput = document.createElement("input");
+    ruleInput.type = "text";
+    ruleInput.maxLength = 120;
+    ruleInput.placeholder = "예: 단어 20개를 외우면 완료";
+    ruleInput.value = task.rule || "";
+    ruleInput.dataset.taskField = "rule";
+    ruleLabel.append(ruleInput);
+
+    const removeButton = document.createElement("button");
+    removeButton.type = "button";
+    removeButton.className = "task-remove-button";
+    removeButton.dataset.taskRemove = "true";
+    removeButton.setAttribute("aria-label", `${task.text || "할 일"} 삭제`);
+    removeButton.textContent = "×";
+
+    row.append(timeLabel, textLabel, minutesLabel, ruleLabel, removeButton);
+    return row;
+  });
+  taskBuilderListElement.replaceChildren(...rows);
+  if (taskBuilderEmptyElement) taskBuilderEmptyElement.hidden = builderTasks.length > 0;
+  updateTaskBudgetHint();
+  updateWizardSummary();
+}
+
+taskBuilderListElement?.addEventListener("input", (event) => {
+  const row = event.target.closest?.(".task-builder-item");
+  const field = event.target.dataset?.taskField;
+  if (!row || !field) return;
+  const index = Number(row.dataset.taskIndex);
+  if (!builderTasks[index]) return;
+  builderTasksTouched = true;
+  builderTasks[index][field] = field === "minutes" ? Number(event.target.value) || 0 : event.target.value;
+  if (field === "minutes") updateTaskBudgetHint();
+  if (field === "text") updateWizardSummary();
+});
+
+taskBuilderListElement?.addEventListener("click", (event) => {
+  const removeButton = event.target.closest?.("[data-task-remove]");
+  if (!removeButton) return;
+  const row = removeButton.closest(".task-builder-item");
+  const index = Number(row?.dataset.taskIndex);
+  if (!builderTasks[index]) return;
+  builderTasksTouched = true;
+  builderTasks.splice(index, 1);
+  renderTaskBuilder();
+});
+
+addTaskButton?.addEventListener("click", () => {
+  if (builderTasks.length >= 5) {
+    showToast("할 일은 하루 5개까지가 좋아요. 작게 시작할수록 오래가요.");
+    return;
+  }
+  builderTasksTouched = true;
+  const times = getDesignTimes();
+  builderTasks.push({ time: times[Math.min(builderTasks.length, times.length - 1)], text: "", minutes: 15, rule: "" });
+  renderTaskBuilder();
+  const lastRow = taskBuilderListElement?.querySelector(".task-builder-item:last-child [data-task-field='text']");
+  lastRow?.focus();
+});
+
+refillTemplateButton?.addEventListener("click", () => {
+  ensureBuilderTasks({ force: true });
+  showToast("목표에 맞는 초안으로 다시 채웠어요. 자유롭게 고쳐주세요.");
+});
+
+minimalStartButton?.addEventListener("click", () => {
+  const first = builderTasks.find((task) => task.text.trim()) || buildStarterTasks()[0];
+  builderTasks = [{ ...first, minutes: Math.min(10, Number(first.minutes) || 10) }];
+  builderTasksTouched = true;
+  renderTaskBuilder();
+  showToast("좋아요, 하루 10분 하나로 시작해요. 작은 시작이 제일 힘이 세요.");
+});
+
+designDayInputs.forEach((input) => {
+  input.addEventListener("change", () => {
+    updateWizardSummary();
+    updateManualPreview();
+  });
+});
+
+designWeekdayMinutesInput?.addEventListener("input", updateTaskBudgetHint);
+
 function updateWizardSummary() {
   const goal = designGoal?.value.trim() || "목표를 입력해 주세요";
   const selectedPeriod = goalPeriodInput?.selectedOptions?.[0]?.textContent.split(" · ")[0] || "기간 미정";
@@ -1163,13 +1442,19 @@ function updateWizardSummary() {
 
   if (wizardLiveGoal) wizardLiveGoal.textContent = goal;
   if (wizardLiveTiming) wizardLiveTiming.textContent = `${selectedPeriod} · ${time}`;
+  if (wizardLiveTasks) {
+    const dayCount = getSelectedDesignDays().length;
+    const taskCount = builderTasks.filter((task) => task.text.trim()).length;
+    wizardLiveTasks.textContent = taskCount ? `주 ${dayCount}일 · 하루 ${taskCount}개` : "3단계에서 직접 담아요";
+  }
 }
 
 function getInvalidDiagnosisField() {
   const fieldsByStep = [
     [designGoal],
     [goalPeriodInput, routineTimeInput, routineReadinessInput],
-    [birthDateInput, birthTimeInput, birthPlaceInput, mbtiInput],
+    [],
+    [],
   ];
   if (designGoal) {
     designGoal.setCustomValidity(designGoal.value.trim() ? "" : "목표를 한 글자 이상 입력해 주세요.");
@@ -1177,12 +1462,33 @@ function getInvalidDiagnosisField() {
   return (fieldsByStep[diagnosisStepIndex] || []).find((field) => field && !field.checkValidity()) || null;
 }
 
+function getTaskBuilderError() {
+  if (!getSelectedDesignDays().length) return "실행할 요일을 하루 이상 선택해 주세요.";
+  if (!builderTasks.some((task) => task.text.trim())) return "할 일을 한 개 이상 담아주세요.";
+  return "";
+}
+
 function canLeaveDiagnosisStep() {
   const invalidField = getInvalidDiagnosisField();
-  if (!invalidField) return true;
-  invalidField.focus();
-  invalidField.reportValidity();
-  return false;
+  if (invalidField) {
+    invalidField.focus();
+    invalidField.reportValidity();
+    return false;
+  }
+  if (diagnosisStepIndex === 1 && !getSelectedDesignDays().length) {
+    showToast("실행할 요일을 하루 이상 선택해 주세요.");
+    announce("실행할 요일을 하루 이상 선택해 주세요.");
+    return false;
+  }
+  if (diagnosisStepIndex === 2) {
+    const builderError = getTaskBuilderError();
+    if (builderError) {
+      showToast(builderError);
+      announce(builderError);
+      return false;
+    }
+  }
+  return true;
 }
 
 function renderDiagnosisStep() {
@@ -1217,6 +1523,10 @@ function renderDiagnosisStep() {
   if (diagnosisNextButton) diagnosisNextButton.hidden = diagnosisStepIndex === diagnosisSteps.length - 1;
   if (diagnosisNextButton) diagnosisNextButton.textContent = "다음 단계";
   if (aiPreviewButton) aiPreviewButton.hidden = diagnosisStepIndex !== diagnosisSteps.length - 1;
+  if (diagnosisStepIndex === 2) {
+    ensureBuilderTasks({ refreshIfUntouched: true });
+    renderTaskBuilder();
+  }
   updateWizardSummary();
 }
 
@@ -1268,7 +1578,7 @@ diagnosisBackButton?.addEventListener("click", () => {
 diagnosisNextButton?.addEventListener("click", () => advanceDiagnosisStep());
 
 // 단계별 선택형 입력: 전부 직접 확인해야 자동 진행 (하나만 고르고 넘어가지 않도록)
-const stepChoiceFieldIds = [[], ["goalPeriod", "routineTime"], []];
+const stepChoiceFieldIds = [[], ["goalPeriod", "routineTime"], [], []];
 const touchedChoiceFields = new Set();
 
 personalityForm?.addEventListener("change", (event) => {
@@ -1302,6 +1612,7 @@ goalSuggestionButtons.forEach((button) => {
 
     goalSuggestionButtons.forEach((item) => item.classList.toggle("selected", Boolean(category) && item.dataset.goalCategory === category));
     customGoalButton?.classList.remove("selected");
+    ensureBuilderTasks({ refreshIfUntouched: true });
     updateWizardSummary();
 
     if (button.hasAttribute("data-scroll-to-builder")) {
@@ -1527,54 +1838,6 @@ function decidePlanningStyle(manse, mbti) {
   return "균형 실행형";
 }
 
-function buildAiPlanPayload({
-  goal,
-  period,
-  currentState,
-  routineReadiness,
-  routineTime,
-  currentRoutine,
-  birthDate,
-  birthTime,
-  birthPlace,
-  mbti,
-  manse,
-  style,
-}) {
-  return {
-    endpoint: "POST /api/ai/goal-plan",
-    modelRole: "goal_planning_coach",
-    input: {
-      goal,
-      periodDays: Number(period),
-      currentState,
-      routine: {
-        readiness: routineReadiness,
-        preferredTime: routineTime,
-        existingRoutine: currentRoutine,
-      },
-      birth: {
-        date: birthDate,
-        time: birthTime,
-        place: birthPlace,
-      },
-      mbti,
-      manseoryeok: manse,
-      recommendedPlanningStyle: style,
-    },
-    instruction:
-      "만세력 기반 성향, MBTI 성향, 기존 루틴과 실행 성향을 함께 비교해 사용자가 목표를 달성하기 쉬운 계획 스타일을 정하고, 전체 기간 계획, 오늘의 스케줄, 체크인 방식, 성장 보상 메시지를 생성한다.",
-    outputSchema: {
-      personalitySummary: "string",
-      planningStyle: "string",
-      fullSchedule: "array",
-      todaySchedule: "array",
-      checkInRules: "array",
-      companionGrowthPlan: "array",
-    },
-  };
-}
-
 function getGoalKind(goal) {
   const text = goal.toLowerCase();
   if (text.includes("토익") || text.includes("시험") || text.includes("자격증")) return "exam";
@@ -1628,116 +1891,153 @@ function getGoalPlanTemplates(goal) {
   return templates[kind];
 }
 
-function buildLocalAiPreview(payload) {
-  const { goal, periodDays, currentState, mbti, manseoryeok, recommendedPlanningStyle, routine = {} } = payload.input;
-  const template = getGoalPlanTemplates(goal);
-  const period = Number(periodDays) || 90;
-  const progress = Math.max(12, Math.min(48, Math.round(1800 / period)));
-  const routineTime = routine.preferredTime || "아침";
-  const existingRoutine = routine.existingRoutine || "이미 하는 작은 행동";
-  const readiness = routine.readiness || DEFAULT_ROUTINE_READINESS;
-  const lowFriction = needsLowFrictionStart(readiness);
-  const routineAdvice = lowFriction
-    ? `${routineTime}에 ${existingRoutine} 직후 10분만 시작하고, 알림으로 다시 불러옵니다.`
-    : `${routineTime}에 ${existingRoutine}와 새 목표를 붙여 바로 실행 흐름을 만듭니다.`;
-  const personalityBits = [];
-  if (payload.input.birth?.date) personalityBits.push(`${manseoryeok.dayMaster.trait} 성향`);
-  if (mbti) personalityBits.push(`${mbti}의 유지 방식`);
-  const personalitySummary = personalityBits.length
-    ? `${personalityBits.join("과 ")}을 함께 보면, 처음부터 큰 계획을 밀어붙이기보다 오늘 실행할 단위를 선명하게 두는 편이 좋습니다.`
-    : "성향 정보는 건너뛰었어요. 목표와 기간을 기준으로, 처음부터 큰 계획보다 오늘 실행할 단위를 선명하게 두는 계획으로 시작합니다.";
+// 유저가 실행 성향을 고르면 계획 스타일 이름을 붙여준다 (성향 진단·AI 없이)
+function getManualPlanStyle(readiness = DEFAULT_ROUTINE_READINESS) {
+  const styleByReadiness = {
+    "바로 실행하는 편이에요": "몰입 추진형",
+    "계획이 있으면 실행해요": "루틴 점검형",
+    "시작 전 준비가 필요해요": "차분 준비형",
+    "자주 미뤄요": "작은 시작형",
+    "시작해도 쉽게 중단돼요": "다시 시작형",
+  };
+  return styleByReadiness[readiness] || "균형 실행형";
+}
 
-  const firstAction = lowFriction ? `${routineTime} 10분 루틴: ${template.firstAction}` : `${routineTime} 루틴: ${template.firstAction}`;
-  const firstDuration = lowFriction ? 10 : 20;
-  // 단계 구간을 기간에 비례해 계산 (7일 같은 짧은 목표에서도 구간이 겹치지 않게)
-  const phaseStartEnd = Math.min(7, Math.max(2, Math.round(period * 0.2)));
-  const phaseGrowEnd = Math.min(period - 1, Math.max(phaseStartEnd + 1, Math.round(period * 0.7)));
-  const weekPlan = [
-    routineAdvice,
-    ...template.weekPlan,
-    "놓친 날에는 분량을 보충하지 않고 5분 최소 행동으로 바로 다시 시작합니다.",
-    "7일째에는 완료 횟수와 어려웠던 구간을 확인해 다음 주 분량을 조정합니다.",
-  ].slice(0, 7);
+// 유저가 직접 담은 할 일로 온보딩 미리보기·앱 계획 데이터를 만든다 (AI 호출 없음)
+function buildManualPreview({ goal, period, routineTime, readiness, days, tasks, outcome, resources }) {
+  const template = getGoalPlanTemplates(goal);
+  const periodDays = Number(period) || 90;
+  const style = getManualPlanStyle(readiness);
+  const namedTasks = tasks.filter((task) => task.text.trim());
+  const firstTask = namedTasks[0] || { text: template.firstAction, minutes: 15, time: "07:00", rule: "" };
+  const totalMinutes = namedTasks.reduce((sum, task) => sum + (Number(task.minutes) || 0), 0);
+  const phaseStartEnd = Math.min(7, Math.max(2, Math.round(periodDays * 0.2)));
+  const phaseGrowEnd = Math.min(periodDays - 1, Math.max(phaseStartEnd + 1, Math.round(periodDays * 0.7)));
+  const dayNames = ["월", "화", "수", "목", "금", "토", "일"];
+  const weekPlan = dayNames.map((day) =>
+    days.includes(day)
+      ? `${day}요일 · ${namedTasks.map((task) => task.text.trim()).slice(0, 2).join(", ")}${namedTasks.length > 2 ? " 외" : ""} (약 ${totalMinutes}분)`
+      : `${day}요일 · 계획된 휴식`,
+  );
 
   return {
-    personalitySummary,
-    planningStyle: `${recommendedPlanningStyle} 계획`,
-    firstAction,
-    weekTitle: template.weekTitle,
+    personalitySummary: outcome
+      ? `내가 정한 완료 기준: ${outcome}`
+      : "완료 기준은 앱에서 언제든 적어둘 수 있어요. 오늘의 실행이 먼저예요.",
+    resourceSummary: resources
+      ? `활용할 리소스: ${resources}`
+      : "가진 자료나 도구를 적어두면 올리가 조언할 때 참고해요.",
+    planningStyle: `${style} 계획`,
+    firstAction: firstTask.text.trim(),
+    weekTitle: `주 ${days.length}일, 내가 정한 리듬으로 갑니다`,
     weekPlan,
-    coachMessage: `${currentState || "현재 상태"}를 기준으로 보면, 이번 주는 완성보다 흐름을 만드는 것이 우선입니다. ${routineAdvice}`,
+    coachMessage: `직접 만든 계획이라 더 잘 맞을 거예요. 이번 주는 완벽함보다 ${days.length}일의 리듬을 지키는 것부터 함께해요.`,
     dashboard: {
       goal: goal.replace("하기", ""),
-      progress,
-      pace: template.pace,
+      progress: 4,
+      pace: `${periodDays}일 여정 · 오늘부터 시작`,
     },
-    todaySchedule: [
-      { time: `${routineTime} · ${existingRoutine} 직후`, durationMinutes: firstDuration, task: firstAction, completionRule: "타이머를 켜고 정한 분량까지만 끝내면 완료" },
-      { time: "실행 직후", durationMinutes: 5, task: "오늘 실행 여부와 어려웠던 점 한 줄 기록", completionRule: "완료 체크와 한 줄 기록을 남기면 완료" },
-      { time: "하루 마무리", durationMinutes: 5, task: "내일 시작할 첫 행동을 눈에 보이게 준비", completionRule: "도구나 자료를 미리 꺼내두면 완료" },
-    ],
+    todaySchedule: namedTasks.slice(0, 5).map((task) => ({
+      time: task.time || "오늘",
+      durationMinutes: Math.max(5, Math.min(360, Number(task.minutes) || 15)),
+      task: task.text.trim(),
+      completionRule: task.rule?.trim() || "정한 분량을 끝내면 완료",
+    })),
     fullSchedule: [
-      { phase: "시작", days: `1–${phaseStartEnd}일`, focus: "실행 시간과 최소 행동을 고정합니다.", successMetric: `${phaseStartEnd}일 중 ${Math.max(1, Math.round(phaseStartEnd * 0.6))}일 이상 실행` },
-      { phase: "성장", days: `${phaseStartEnd + 1}–${phaseGrowEnd}일`, focus: "주간 결과를 확인하며 분량과 난이도를 조금씩 높입니다.", successMetric: "주간 계획의 70% 이상 완료" },
-      { phase: "완성", days: `${phaseGrowEnd + 1}–${period}일`, focus: "실전 점검과 약한 구간 보완에 집중합니다.", successMetric: "목표 지표 최종 점검 완료" },
+      { phase: "시작", days: `1–${phaseStartEnd}일`, focus: "정한 시간과 요일에 그대로 실행하며 리듬을 몸에 붙입니다.", successMetric: `${phaseStartEnd}일 중 ${Math.max(1, Math.round(phaseStartEnd * 0.6))}일 이상 실행` },
+      { phase: "성장", days: `${phaseStartEnd + 1}–${phaseGrowEnd}일`, focus: "주간 완료율을 보며 분량과 난이도를 직접 조정합니다.", successMetric: "주간 계획의 70% 이상 완료" },
+      { phase: "완성", days: `${phaseGrowEnd + 1}–${periodDays}일`, focus: "완료 기준과 비교해 마지막 구간을 정리합니다.", successMetric: outcome || "목표 완료 기준 최종 점검" },
     ],
-    checkInRules: ["실행 직후 완료 여부 체크", "못한 날은 5분 최소 행동으로 재시작", "7일마다 다음 주 난이도 조정"],
-    fallbackPlan: `계획대로 하기 어려운 날에는 ${template.firstAction}을 5분만 실행합니다.`,
+    checkInRules: ["실행 직후 완료 여부 체크", "못한 날은 5분 최소 행동으로 재시작", "7일마다 다음 주 분량 직접 조정"],
+    fallbackPlan: `계획대로 하기 어려운 날에는 ${firstTask.text.trim() || "첫 할 일"}을 5분만 실행합니다.`,
   };
 }
 
-async function requestAiPlan(payload) {
-  const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), 60000);
-
-  try {
-    const response = await fetch("/api/ai/goal-plan", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload.input),
-      signal: controller.signal,
-    });
-    const result = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      const error = new Error(result.error || "AI 계획을 만드는 중 문제가 생겼어요.");
-      error.status = response.status;
-      error.code = result.code || "";
-      throw error;
-    }
-
-    return result.plan || result;
-  } catch (error) {
-    if (error.name === "AbortError") throw new Error("AI 응답 시간이 길어졌어요. 잠시 후 다시 시도해 주세요.");
-    throw error;
-  } finally {
-    window.clearTimeout(timeoutId);
-  }
+// 요일 선택 + 할 일 목록 → 앱 스케줄 엔진이 그대로 읽는 주간 템플릿 (ai-plan-revision과 동일 스키마)
+function buildManualWeeklySchedule(days, tasks) {
+  const dayNames = ["월", "화", "수", "목", "금", "토", "일"];
+  const namedTasks = tasks.filter((task) => task.text.trim());
+  return dayNames.map((day) => {
+    const active = days.includes(day) && namedTasks.length > 0;
+    return {
+      day,
+      isRestDay: !active,
+      tasks: active
+        ? namedTasks.slice(0, 5).map((task) => ({
+            time: /^\d{2}:\d{2}$/.test(task.time) ? task.time : "오늘",
+            durationMinutes: Math.max(5, Math.min(360, Number(task.minutes) || 15)),
+            task: task.text.trim(),
+            completionRule: task.rule?.trim() || "정한 분량을 끝내면 완료",
+          }))
+        : [],
+    };
+  });
 }
 
-async function requestCompanionReply(message) {
+// 오늘 기준 연속 완주일 수 (휴식일은 끊김으로 치지 않는다) — 올리 치어링 컨텍스트용
+function getConsecutiveCompletedDays(schedule, state) {
+  let streak = 0;
+  for (let day = Number(state.selectedDay) || 1; day >= 1; day -= 1) {
+    const dayPlan = schedule[day - 1];
+    if (!dayPlan) break;
+    if (!dayPlan.tasks.length) continue;
+    if (getDayCompletion(dayPlan, state.checkedByDay).percent !== 100) {
+      if (day === Number(state.selectedDay)) continue; // 오늘이 아직 진행 중이면 어제부터 센다
+      break;
+    }
+    streak += 1;
+  }
+  return streak;
+}
+
+// 올리에게 보낼 오늘의 상황 요약 (대화·축하·위로 공통 컨텍스트)
+function buildCompanionContext(bundle) {
+  const companionState = getCompanionState();
+  const dayPlan = bundle.schedule[bundle.state.selectedDay - 1] || bundle.schedule[0];
+  const completion = dayPlan ? getDayCompletion(dayPlan, bundle.state.checkedByDay) : { percent: 0 };
+  const checkedToday = bundle.state.checkedByDay[String(dayPlan?.day)] || [];
+  const missedTasks = (dayPlan?.tasks || [])
+    .filter((_, index) => !checkedToday[index])
+    .map((task) => String(task.text || "").trim())
+    .filter(Boolean)
+    .slice(0, 3);
+  const memories = Array.isArray(bundle.state.dailyMemories) ? bundle.state.dailyMemories : [];
+  const latestMemory = memories[memories.length - 1];
+
+  return {
+    goal: bundle.plan?.goal || "",
+    energy: companionState.energy || "",
+    todayFocus: bundle.plan?.firstAction || "",
+    todayCompletion: completion.percent,
+    missedTasks,
+    streakDays: getConsecutiveCompletedDays(bundle.schedule, bundle.state),
+    mood: String(latestMemory?.customMood || latestMemory?.mood || "").trim(),
+  };
+}
+
+async function requestCompanionReply(message, { eventType = "chat" } = {}) {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), 30000);
 
   try {
     const bundle = getPlanBundle();
-    const companionState = getCompanionState();
     const response = await fetch("/api/ai/companion-chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         message,
-        context: {
-          goal: bundle.plan?.goal || "",
-          energy: companionState.energy || "",
-          todayFocus: bundle.plan?.firstAction || "",
-        },
+        eventType,
+        context: buildCompanionContext(bundle),
       }),
       signal: controller.signal,
     });
     const result = await response.json().catch(() => ({}));
 
-    if (!response.ok) throw new Error(result.error || "올리가 답을 만들지 못했어요.");
+    if (!response.ok) {
+      const error = new Error(result.error || "올리가 답을 만들지 못했어요.");
+      error.code = result.code || "";
+      throw error;
+    }
     const reply = String(result.reply || "").trim();
     if (!reply) throw new Error("올리가 답을 만들지 못했어요.");
     return { reply, headline: String(result.headline || "").trim() };
@@ -1749,26 +2049,84 @@ async function requestCompanionReply(message) {
   }
 }
 
-async function playAnalysisLoading() {
-  if (!aiPreviewStatus) return;
+// ===== 올리 치어링: 완료 축하 · 미완료 위로 (하루 각 1회 · 에너지 미차감) =====
+const CHEER_STATE_KEY = "omwCheerState";
+const cheerRequestsInFlight = new Set();
 
-  const steps = [
-    "목표를 실행 가능한 크기로 나누고 있어요",
-    "현재 루틴과 연결할 시간을 찾고 있어요",
-    "미루기 쉬운 구간에 대비책을 넣고 있어요",
-    "첫 주 계획을 만들고 있어요",
-  ];
+const LOCAL_CHEER_COPY = {
+  celebrate: [
+    { headline: "오늘 전부 해냈어요!", reply: "정한 일정을 끝까지 해낸 하루예요. 이 흐름, 올리가 꼭 기억해둘게요. 내일도 같은 시간에 만나요!" },
+    { headline: "완주 축하해요!", reply: "오늘 계획을 모두 완료했어요. 스스로 정한 약속을 지킨 하루라서 더 값져요. 오늘의 기분을 기록 탭에 남겨볼까요?" },
+    { headline: "대단해요, 올클리어!", reply: "오늘의 체크가 전부 채워졌어요. 이런 날이 하나씩 쌓여서 목표까지 가는 거예요. 푹 쉬어요, 내일도 함께해요!" },
+  ],
+  comfort: [
+    { headline: "괜찮아요, 다시 가요.", reply: "놓친 일정은 실패가 아니라 조정 신호예요. 아래 회복 버튼으로 내일 계획에 가볍게 다시 담아볼까요?" },
+    { headline: "오늘은 여기까지도 충분해요.", reply: "다 못한 날도 우리 여정의 일부예요. 5분짜리 가장 작은 행동 하나만 다시 시작해도 흐름은 이어져요." },
+  ],
+};
 
-  for (const step of steps) {
-    aiPreviewStatus.textContent = step;
-    await new Promise((resolve) => setTimeout(resolve, 320));
+function readCheerState() {
+  const state = readStorageObject(CHEER_STATE_KEY, {});
+  return state.date === getTodayKey() ? state : { date: getTodayKey() };
+}
+
+function saveCheerState(state) {
+  writeStorageObject(CHEER_STATE_KEY, state);
+}
+
+function displayCheer(eventType, cheer) {
+  const isCelebrate = eventType === "celebrate";
+  showOllieReaction(cheer.reply, cheer.headline);
+  if (dailyCoachKicker) dailyCoachKicker.textContent = isCelebrate ? "OLLIE CHEER · 오늘의 축하" : "OLLIE CHEER · 다시 시작 응원";
+  if (dailyCoachTitle) dailyCoachTitle.textContent = cheer.headline;
+  if (dailyCoachMessage) dailyCoachMessage.textContent = cheer.reply;
+  setImageSource(dailyCoachImage, isCelebrate ? "assets/ollie-celebrate.png" : "assets/ollie-comfort.png");
+  if (memoryConversation) memoryConversation.textContent = cheer.reply;
+  announce(cheer.reply);
+}
+
+// 축하·위로를 AI로 시도하고, 실패(비로그인·상한 도달·오류)하면 로컬 문구로 조용히 대체한다.
+// 에너지는 차감하지 않으며, 표시 여부는 로컬에서도 하루 각 1회로 제한한다 (서버 상한과 이중 안전망).
+async function triggerOllieCheer(eventType, detail = {}) {
+  if (!document.body.classList.contains("execution-page")) return;
+  if (!LOCAL_CHEER_COPY[eventType]) return;
+  if (readCheerState()[eventType]) return;
+  if (cheerRequestsInFlight.has(eventType)) return;
+  cheerRequestsInFlight.add(eventType);
+
+  const pool = LOCAL_CHEER_COPY[eventType];
+  const fallback = pool[Math.floor(Math.random() * pool.length)];
+  let cheer = fallback;
+  let source = "local";
+  const message =
+    eventType === "celebrate"
+      ? `오늘 계획 ${detail.total || "전부"}개를 방금 모두 완료했어요!`
+      : `지난 접속에서 일정 ${detail.missedCount || "몇"}개를 완료하지 못했어요.`;
+
+  // AI 치어링은 로그인 회원에게만 시도한다 (서버가 401을 반환하므로 게스트는 바로 로컬 문구)
+  if (authUiState.user) {
+    try {
+      const { reply, headline } = await requestCompanionReply(message, { eventType });
+      cheer = { reply, headline: headline || fallback.headline };
+      source = "ai";
+    } catch (error) {
+      /* 하루 상한(CHEER_LIMIT_REACHED)·네트워크 오류 → 로컬 문구로 대체 */
+    }
   }
+  cheerRequestsInFlight.delete(eventType);
+
+  const nextState = readCheerState();
+  if (nextState[eventType]) return;
+  nextState[eventType] = { headline: cheer.headline, reply: cheer.reply, source, at: new Date().toISOString() };
+  saveCheerState(nextState);
+  displayCheer(eventType, cheer);
+  trackCompanionEvent("ollie_cheer_shown", { eventType, source });
 }
 
 function renderAiPreview(preview) {
   if (planningStyle) planningStyle.textContent = preview.planningStyle.replace(" 계획", "");
   if (manseProfile) manseProfile.textContent = preview.personalitySummary;
-  if (mbtiProfile) mbtiProfile.textContent = `${preview.planningStyle}으로 시작하고, 첫 행동은 "${preview.firstAction}"으로 잡습니다.`;
+  if (mbtiProfile) mbtiProfile.textContent = preview.resourceSummary || `${preview.planningStyle}으로 시작하고, 첫 행동은 "${preview.firstAction}"으로 잡습니다.`;
   if (aiPreviewTitle) aiPreviewTitle.textContent = preview.weekTitle;
   if (aiPreviewList) {
     const items = (preview.weekPlan || []).map((item) => {
@@ -1832,111 +2190,68 @@ function renderAiPreview(preview) {
   if (dashboardPaceText) dashboardPaceText.textContent = preview.dashboard.pace;
 }
 
-async function runPersonalityAnalysis({ showLoading = false } = {}) {
+function collectManualPlanInput() {
+  return {
+    goal: designGoal?.value.trim() || goalInput?.value.trim() || "목표 미입력",
+    period: goalPeriodInput?.value || "90",
+    routineTime: routineTimeInput?.value || "아침",
+    readiness: routineReadinessInput?.value || DEFAULT_ROUTINE_READINESS,
+    days: getSelectedDesignDays(),
+    tasks: builderTasks,
+    outcome: designOutcomeInput?.value.trim() || "",
+    resources: designResourcesInput?.value.trim() || "",
+    weekdayMinutes: Number(designWeekdayMinutesInput?.value) || null,
+    weekendMinutes: Number(designWeekendMinutesInput?.value) || null,
+  };
+}
+
+// 입력이 바뀔 때마다 미리보기만 갱신한다. 저장은 최종 제출에서만 하므로
+// 홈 화면을 여는 것만으로 기존 계획이 덮어써지지 않는다.
+function updateManualPreview() {
   if (!personalityForm) return;
+  const input = collectManualPlanInput();
+  renderAiPreview(buildManualPreview(input));
+  updateWizardSummary();
+}
 
-  if (showLoading && readTrialAccess()?.plan !== "pro") {
-    try {
-      const serverSaysGenerated = authUiState.user?.plan !== "pro" && Boolean(authUiState.user?.goalPlanGeneratedAt);
-      const guestDeviceSaysGenerated = !authUiState.user && localStorage.getItem(FREE_PLAN_GENERATED_KEY) === "true";
-      if (serverSaysGenerated || guestDeviceSaysGenerated) {
-        if (aiPreviewStatus) aiPreviewStatus.textContent = "무료 목표 계획 1개를 이미 만들었어요";
-        planPreviewPanel?.classList.add("is-ready");
-        showToast("무료 플랜은 목표 계획 1개를 만들 수 있어요. 앱에서 올리 에너지로 수정해 보세요.");
-        openFirstStepResult();
-        return;
-      }
-    } catch (error) {
-      /* storage unavailable — continue */
-    }
+// 유저가 직접 만든 계획을 저장하고 체험을 시작한다 (AI 호출 0회)
+function saveManualPlan() {
+  if (!personalityForm) return;
+  const builderError = getTaskBuilderError();
+  if (builderError) {
+    showToast(builderError);
+    diagnosisStepIndex = builderError.includes("요일") ? 1 : 2;
+    renderDiagnosisStep();
+    revealActiveDiagnosisStep();
+    return;
   }
 
-  const goal = designGoal.value.trim() || goalInput?.value.trim() || "목표 미입력";
-  const period = goalPeriodInput.value;
-  const currentState = "";
-  const routineReadiness = routineReadinessInput?.value || DEFAULT_ROUTINE_READINESS;
-  const routineTime = routineTimeInput?.value || "아침";
-  const currentRoutine = "";
-  const birthDate = birthDateInput?.value || "";
-  const birthTime = birthTimeInput?.value || "";
-  const birthPlace = birthPlaceInput?.value.trim() || "";
-  const mbti = mbtiInput?.value || "";
-  const hasBirthInfo = Boolean(birthDate);
-  const safeBirthDate = birthDate || "1995-01-01";
-  const safeBirthTime = birthTime || "12:00";
-
-  const rawManse = calculateSimpleManse(safeBirthDate, safeBirthTime);
-  const manse = hasBirthInfo ? rawManse : { ...rawManse, summary: "" };
-  const mbtiSummary = mbti ? analyzeMbti(mbti) : "성향 정보 없이 목표와 실행 스타일을 기준으로 계획합니다.";
-  const style = decidePlanningStyle(rawManse, mbti);
-  const payload = buildAiPlanPayload({
-    goal,
-    period,
-    currentState,
-    routineReadiness,
-    routineTime,
-    currentRoutine,
-    birthDate,
-    birthTime,
-    birthPlace,
-    mbti,
-    manse,
-    style,
-  });
-
-  if (showLoading) {
-    aiPreviewStatus.textContent = "AI가 목표 설계 중";
-    aiPreviewButton.disabled = true;
-    aiPreviewButton.textContent = "올리가 오늘 계획을 만드는 중...";
-    await playAnalysisLoading();
-  }
-
-  let preview;
-  let usedFallback = false;
-  try {
-    preview = showLoading ? await requestAiPlan(payload) : buildLocalAiPreview(payload);
-  } catch (error) {
-    if (error.code === "GOAL_PLAN_LIMIT_REACHED") {
-      if (aiPreviewStatus) aiPreviewStatus.textContent = "무료 목표 계획 1개를 이미 만들었어요";
-      if (aiPreviewButton) {
-        aiPreviewButton.disabled = false;
-        aiPreviewButton.textContent = "이대로 1일 체험 시작하기";
-      }
-      planPreviewPanel?.classList.add("is-ready");
-      showToast(error.message);
-      openFirstStepResult();
-      return;
-    }
-    preview = buildLocalAiPreview(payload);
-    usedFallback = true;
-  }
+  const input = collectManualPlanInput();
+  const preview = buildManualPreview(input);
+  const weeklySchedule = buildManualWeeklySchedule(input.days, input.tasks);
   renderAiPreview(preview);
-  if (showLoading) planPreviewPanel?.classList.add("is-ready");
-
-  if (aiPreviewStatus) aiPreviewStatus.textContent = usedFallback ? "AI 연결 없이 제공하는 기본 계획 템플릿" : "올리가 AI로 만든 맞춤 계획";
-  if (aiPreviewButton) {
-    aiPreviewButton.disabled = false;
-    aiPreviewButton.textContent = "이대로 1일 체험 시작하기";
-  }
 
   try {
     localStorage.setItem(
       "omwExecutionPlan",
       JSON.stringify({
-        goal,
-        period: Number(period),
-        currentState,
-        routineReadiness,
-        routineTime,
-        currentRoutine,
-        mbti,
-        style,
+        goal: input.goal,
+        period: Number(input.period),
+        currentState: "",
+        routineReadiness: input.readiness,
+        routineTime: input.routineTime,
+        currentRoutine: "",
+        availableDays: input.days,
+        weekdayMinutes: input.weekdayMinutes,
+        weekendMinutes: input.weekendMinutes,
+        outcome: input.outcome,
+        resources: input.resources,
+        style: getManualPlanStyle(input.readiness),
         firstAction: preview.firstAction,
         coachMessage: preview.coachMessage,
-        manseSummary: manse.summary,
-        mbtiSummary,
         aiPreview: preview,
-        planSource: usedFallback ? "local-template" : "ai",
+        manualWeeklySchedule: weeklySchedule,
+        planSource: "manual",
         createdAt: new Date().toISOString(),
       }),
     );
@@ -1944,27 +2259,11 @@ async function runPersonalityAnalysis({ showLoading = false } = {}) {
     console.warn("Unable to save execution plan", error);
   }
 
-  if (showLoading) {
-    saveTrialLead();
-    startTrialAccess();
-    if (birthDate || birthPlace || mbti) {
-      try {
-        localStorage.setItem(PERSONALITY_PROFILE_KEY, JSON.stringify({ birthDate, birthTime, birthPlace, mbti, updatedAt: new Date().toISOString() }));
-      } catch (error) {
-        /* storage unavailable — ignore */
-      }
-    }
-  }
-  if (showLoading && usedFallback) showToast("AI 연결에 실패해 기본 계획 템플릿을 보여드려요 · 나중에 AI 계획을 다시 만들 수 있어요");
-  if (showLoading) openFirstStepResult();
-  if (showLoading && readTrialAccess()?.plan !== "pro") {
-    try {
-      localStorage.setItem(FREE_PLAN_GENERATED_KEY, "true");
-      if (authUiState.user) authUiState.user.goalPlanGeneratedAt = Date.now();
-    } catch (error) {
-      /* storage unavailable — ignore */
-    }
-  }
+  planPreviewPanel?.classList.add("is-ready");
+  if (aiPreviewStatus) aiPreviewStatus.textContent = "내가 직접 만든 나의 계획이에요";
+  sendFunnelEvent("plan_complete");
+  showToast(authUiState.user ? "계획 완성! 오늘부터 올리와 함께 시작해요." : "계획 완성! 간편 로그인하면 올리와 무료 체험이 시작돼요.");
+  openFirstStepResult();
 }
 
 function openFirstStepResult() {
@@ -1986,17 +2285,17 @@ personalityForm?.addEventListener("submit", (event) => {
     revealActiveDiagnosisStep();
     return;
   }
-  runPersonalityAnalysis({ showLoading: true });
+  saveManualPlan();
 });
 
-[birthDateInput, birthTimeInput, birthPlaceInput, mbtiInput, goalPeriodInput, routineReadinessInput, routineTimeInput, designGoal].forEach(
+[goalPeriodInput, routineReadinessInput, routineTimeInput, designGoal, designOutcomeInput, designResourcesInput, designWeekdayMinutesInput, designWeekendMinutesInput].forEach(
   (field) => {
-    field?.addEventListener("change", runPersonalityAnalysis);
+    field?.addEventListener("change", updateManualPreview);
     field?.addEventListener("input", updateWizardSummary);
   },
 );
 
-runPersonalityAnalysis();
+updateManualPreview();
 
 const adminDashboard = document.querySelector("#adminDashboard");
 const memberTableBody = document.querySelector("#memberTableBody");
@@ -2599,18 +2898,24 @@ function applySchedulePreferences(schedule, state, { resetChecks = false } = {})
   state.checkedTaskKeysByDay = checkedTaskKeysByDay;
 }
 
+// 상태에 주간 템플릿이 없으면 온보딩에서 유저가 직접 만든 템플릿을 사용한다
+function getEffectiveWeeklySchedule(plan, stateWeekly) {
+  if (Array.isArray(stateWeekly) && stateWeekly.length) return stateWeekly;
+  return Array.isArray(plan?.manualWeeklySchedule) ? plan.manualWeeklySchedule : [];
+}
+
 function getPlanBundle({ reset = false, customText, revisionRequest, revisionDetails, weeklySchedule } = {}) {
   const plan = readExecutionPlan();
   const previous = getExecutionState();
   const planText = customText ?? previous.planText ?? getDefaultPlanText(plan);
   const requestText = revisionRequest ?? previous.revisionRequest ?? "";
   const detailConfig = revisionDetails ?? previous.revisionDetails ?? {};
-  const weekConfig = weeklySchedule ?? previous.weeklySchedule ?? [];
+  const weekConfig = weeklySchedule ?? getEffectiveWeeklySchedule(plan, previous.weeklySchedule);
   const schedule = buildSchedule(plan, planText, requestText, weekConfig);
   const customTasksByDay = previous.customTasksByDay || {};
   prepareScheduleTasks(schedule, customTasksByDay);
   const previousSchedule = reset
-    ? buildSchedule(plan, previous.planText || getDefaultPlanText(plan), previous.revisionRequest || "", previous.weeklySchedule || [])
+    ? buildSchedule(plan, previous.planText || getDefaultPlanText(plan), previous.revisionRequest || "", getEffectiveWeeklySchedule(plan, previous.weeklySchedule))
     : schedule;
   if (reset) {
     prepareScheduleTasks(previousSchedule, customTasksByDay);
@@ -2635,7 +2940,13 @@ function getPlanBundle({ reset = false, customText, revisionRequest, revisionDet
         pendingRevisionDetails: previous.pendingRevisionDetails || {},
         pendingRevisionSummary: previous.pendingRevisionSummary || {},
         pendingWeeklySchedule: previous.pendingWeeklySchedule || [],
-        status: previous.scheduleKey ? previous.status || "AI 제안" : plan.planSource === "local-template" ? "기본 템플릿" : "AI 제안",
+        status: previous.scheduleKey
+          ? previous.status || "내 계획"
+          : plan.planSource === "manual"
+            ? "내가 만든 계획"
+            : plan.planSource === "local-template"
+              ? "기본 템플릿"
+              : "AI 제안",
         selectedDay: previous.selectedDay || 1,
         checkedByDay: checkedForSchedule,
         customTasksByDay,
@@ -3471,6 +3782,7 @@ function completeFocusTask() {
   if (newlyRecorded) showOllieStarShower(dayPlan.tasks[activeFocusTaskIndex]?.text);
   showToast(newlyRecorded ? `일정 하나를 완료했어요 · 올리가 ${10 + completionBonus} XP를 받았어요` : completionBonus ? "오늘 계획을 모두 완료했어요 · 올리가 8 XP를 받았어요" : wasUnchecked ? "완료 상태를 다시 표시했어요 · XP는 중복 지급되지 않아요" : "이미 완료된 일정이에요");
   trackCompanionEvent("focus_completed", { day: dayPlan.day, taskIndex: activeFocusTaskIndex, rewarded: Boolean(newlyRecorded || completionBonus), completionBonus });
+  if (completionBonus) triggerOllieCheer("celebrate", { total: dayPlan.tasks.length });
   renderExecutionPage(bundle);
 }
 
@@ -3498,7 +3810,7 @@ function renderFocusTask(dayPlan, selectedCompletion) {
   const suggestedMinutes = getSuggestedFocusMinutes(task);
   if (focusTaskTitle) focusTaskTitle.textContent = task?.text || "오늘 기록 돌아보기";
   const taskPosition = dayPlan.scheduleMode === "priority" ? `${taskIndex + 1}순위` : task?.time || "시간 미정";
-  if (focusTaskMeta) focusTaskMeta.textContent = selectedCompletion.percent === 100 ? "오늘 AI 스케줄을 모두 완료했어요" : `${taskPosition} · 타이머를 켜고 올리와 함께 시작해요`;
+  if (focusTaskMeta) focusTaskMeta.textContent = selectedCompletion.percent === 100 ? "오늘 스케줄을 모두 완료했어요" : `${taskPosition} · 타이머를 켜고 올리와 함께 시작해요`;
   if (minimumGoalText) minimumGoalText.textContent = selectedCompletion.percent === 100 ? "오늘 일정 모두 완료" : `집중 시간 ${suggestedMinutes}분`;
   if (focusProgressText) focusProgressText.textContent = `${selectedCompletion.completed}/${selectedCompletion.total} 완료`;
   if (startFocusButton) {
@@ -4324,6 +4636,8 @@ function renderRecoveryPrompt(state, selectedCompletion) {
   if (recoverySummary && notice) {
     recoverySummary.textContent = `지난 접속에서 ${notice.missedCount}개가 남았어요. 올리가 다시 시작할 형태로 바꿔둘게요.`;
   }
+  // 놓친 일정이 보이는 날에는 올리가 하루 한 번 먼저 위로를 건넨다 (자책 방지 · 재시작 유도)
+  if (shouldShow) triggerOllieCheer("comfort", { missedCount: notice.missedCount });
 }
 
 function renderCompanionExperience({ plan, selectedCompletion, remainingTasks, completedDays, overallProgress }) {
@@ -4516,6 +4830,23 @@ function renderDailyCoach(state, selectedCompletion, dayPlan) {
     copy = { title: "오늘 스케줄을 모두 해냈어요. 이 흐름을 올리가 기억할게요!", message: "오늘의 기분과 잘된 점을 추억 카드에 남기면 내일 계획을 더 정확하게 맞출 수 있어요.", image: "assets/ollie-celebrate.png" };
   }
 
+  // 오늘 이미 전한 올리의 축하·위로가 있으면 코치 카드에 유지한다 (재렌더에도 사라지지 않게)
+  const cheerState = readCheerState();
+  const activeCheer =
+    dayPlan?.tasks?.length && selectedCompletion.percent === 100 && cheerState.celebrate
+      ? { type: "celebrate", ...cheerState.celebrate }
+      : state.rolloverNotice && selectedCompletion.percent < 100 && cheerState.comfort
+        ? { type: "comfort", ...cheerState.comfort }
+        : null;
+  if (activeCheer) {
+    kicker = activeCheer.type === "celebrate" ? "OLLIE CHEER · 오늘의 축하" : "OLLIE CHEER · 다시 시작 응원";
+    copy = {
+      title: activeCheer.headline,
+      message: activeCheer.reply,
+      image: activeCheer.type === "celebrate" ? "assets/ollie-celebrate.png" : "assets/ollie-comfort.png",
+    };
+  }
+
   if (dailyCoachKicker) dailyCoachKicker.textContent = kicker;
   dailyCoachTitle.textContent = copy.title;
   dailyCoachMessage.textContent = copy.message;
@@ -4544,7 +4875,7 @@ function renderExecutionPage(bundle) {
     revisionDetailDraftLoaded = true;
   }
   updateRevisionButtonState();
-  if (planStatusBadge) planStatusBadge.textContent = state.pendingPlanText ? "변경안 대기" : state.status || "AI 제안";
+  if (planStatusBadge) planStatusBadge.textContent = state.pendingPlanText ? "변경안 대기" : state.status || "내 계획";
   if (acceptPlanButton) acceptPlanButton.disabled = !state.pendingPlanText;
   if (keepPlanButton) keepPlanButton.disabled = !state.pendingPlanText;
   if (reviseAgainButton) reviseAgainButton.disabled = false;
@@ -4864,6 +5195,7 @@ executionChecklist?.addEventListener("change", (event) => {
     showOllieStarShower(dayPlan.tasks[taskIndex]?.text);
     showToast(`일정 하나를 완료했어요 · 올리가 ${(newlyRecorded ? 10 : 0) + completionBonus} XP를 받았어요`);
     trackCompanionEvent("task_completed", { day: dayPlan.day, taskIndex, completionBonus });
+    if (completionBonus) triggerOllieCheer("celebrate", { total: dayPlan.tasks.length });
   } else if (event.target.checked && wasUnchecked) {
     showToast("완료 상태를 다시 표시했어요 · XP는 중복 지급되지 않아요");
   }
@@ -4890,9 +5222,10 @@ completeTodayButton?.addEventListener("click", () => {
     const xpEarned = newlyCompleted * 10 + completionBonus;
     addCompanionXp(xpEarned, "happy");
     pulseCompanion();
-    showOllieStarShower("오늘의 AI 스케줄");
+    showOllieStarShower("오늘의 스케줄");
     showToast(`오늘 계획 완료 · 올리가 ${xpEarned} XP를 얻었어요`);
     trackCompanionEvent("all_day_completed", { day: dayPlan.day, newlyCompleted, completionBonus });
+    if (completionBonus) triggerOllieCheer("celebrate", { total: dayPlan.tasks.length });
   } else if (restoredCompleted > 0) {
     showToast("오늘 계획의 완료 상태를 복원했어요 · XP는 중복 지급되지 않아요");
   }

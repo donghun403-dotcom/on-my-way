@@ -1,5 +1,19 @@
 # On My Way 프로젝트 상태
 
+## 2026-07-27 업데이트 — 온보딩 전면 개편 (수동 계획 + 올리 치어링)
+
+제품 방향 전환에 따라 작업 트리에서 다음 개편을 완료했다. 설계 근거는 `docs/onboarding-v2-redesign.md`, 가격·비용 계약은 `docs/pricing-system-v2.md` 기준이다.
+
+1. **온보딩 수동화**: 위저드를 4단계(목표 → 리듬 → 할 일 → 마무리)로 재구성. 성향(생년월일·MBTI) 스텝 제거(앱 내 성향 시트로 일원화). 할 일 빌더가 목표 유형별 초안을 채우고 유저가 직접 수정하며, 결과는 기존 `weeklySchedule` 스키마로 저장되어 앱 스케줄 엔진이 무수정 소화한다. 온보딩 AI 호출 0회. (`index.html`, `script.js`, `styles.css`)
+2. **가입 게이트**: 계획 완성 → `app.html?auth=start` → 로그인 시트 → 소셜 로그인 → 가입 시각 기준 서버 권위 체험 시작. 페이월 3모드(no-plan / need-login / expired). 첫 로그인 시 게스트 계획·기록을 계정이 이어받도록 저장소 스코프 전환을 수정(기존에는 로그인 순간 계획이 삭제되는 문제가 있었다). 퍼널 스텝 교체: `step1~4_enter, plan_complete, signup_gate, signup_start, signup_success, trial_start`.
+3. **서버 계약 정리**: `/api/ai/goal-plan` 라우트·`createGoalPlanForUser`·`GOAL_PLAN_LIMIT_REACHED`·`goalPlanGeneratedAt` 제거. `ai-goal-plan.mjs`는 `.backups/onboarding-v4-contracts-20260727/`로 이동. 무료 체험 혜택·에너지 표 카피를 실제 기능 기준으로 갱신.
+4. **올리 치어링**: 오늘 전부 완료 시 축하, 놓친 일정이 있으면 위로를 AI로 전달(companion-chat `eventType` = celebrate/comfort + 완료율·놓친 일정·연속일·최근 감정 컨텍스트). 에너지 미차감 대신 KST 기준 하루 각 1회를 서버에서 강제(`checkDailyCheerAllowance`, 초과 시 429). 비로그인·실패 시 로컬 문구로 대체. (`ai-companion-chat.mjs`, `worker.mjs`, `script.js`, `serve-local.cjs`)
+5. **카피 정비**: "AI가 계획을 만들어줘요" 계열 문구를 "내가 만들고 올리와 해내요" 방향으로 교체(메타 설명, 앱 투어 슬라이드 01, 전환 경로, 계획 배지 등).
+
+검증: 유닛 테스트 20/20 (`node --test *.test.mjs`), Playwright e2e 크로뮴 4개 프로젝트 65/65 (`onboarding.spec.js`는 새 플로우로 재작성, `cheer.spec.js` 신규). 데모 로그인을 포함한 온보딩→가입→체험 전체 여정 검증 완료. webkit 프로젝트는 이 환경에서 미실행.
+
+미커밋 상태이며 이전 파일은 `.backups/onboarding-v2~v5-*-20260727/`에 보존됨. 다음 조치: ① 변경분을 새 브랜치로 커밋 ② Preview 배포에서 소셜 로그인 실계정으로 가입 게이트·체험 시작·치어링 상한 검증 ③ 하단 "출시 차단 항목"과 병합 전략은 아래 2026-07-16 조사 내용을 따른다 (Apple 로그인·결제 검증 등은 이번 개편과 무관하게 유효).
+
 ## 기준
 
 - 기준일: 2026-07-16 (KST)

@@ -187,7 +187,6 @@ function publicUser(user) {
     proSince: user.proSince || null,
     subscriptionStatus: user.subscriptionStatus || null,
     currentPeriodEnd: user.currentPeriodEnd || null,
-    goalPlanGeneratedAt: user.goalPlanGeneratedAt || null,
     createdAt: user.createdAt,
     lastLoginAt: user.lastLoginAt,
   };
@@ -354,8 +353,12 @@ document.querySelector('#devLoginForm').addEventListener('submit', async (event)
       email: document.querySelector('#devEmail').value.trim(),
     }),
   });
-  if (response.ok) location.href = ${JSON.stringify(safeRedirectPath(redirect))};
-  else alert('로그인에 실패했어요. 다시 시도해 주세요.');
+  if (response.ok) {
+    await response.text().catch(() => {});
+    location.href = ${JSON.stringify(safeRedirectPath(redirect))};
+  } else {
+    alert('로그인에 실패했어요. 다시 시도해 주세요.');
+  }
 });
 </script></body></html>`;
 }

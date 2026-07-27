@@ -5,5 +5,13 @@
     "step3_enter": 6,
     "step4_enter": 2,
     "trial_start": 6
+  },
+  "funnel:2026-07-27": {
+    "step1_enter": 5,
+    "step2_enter": 1,
+    "step3_enter": 1,
+    "step4_enter": 1,
+    "plan_complete": 1,
+    "signup_gate": 2
   }
 }

@@ -6986,6 +6986,9 @@ body.sheet-open {
 .result-scroll-area {
   display: grid;
   min-height: 0;
+  /* overflow:hidden인 자식(내 계획 자세히 보기 등)이 그리드에 눌려 잘리지 않도록
+     행 크기를 콘텐츠 기준으로 고정한다 — 넘치는 내용은 이 영역의 스크롤로 본다 */
+  grid-auto-rows: max-content;
   gap: 12px;
   padding: clamp(24px, 3vw, 34px);
   overflow-y: auto;
@@ -8091,7 +8094,7 @@ body.sheet-open {
   }
 
   .home-page .story-flow:not(.showing-first-step) .diagnosis-stepper {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 5px;
     padding: 7px;
   }
@@ -14398,4 +14401,262 @@ body.sheet-open {
     font-size: 11px;
     line-height: 1.5;
   }
+}
+
+/* ===== 온보딩 수동 계획 빌더 (요일 선택 + 할 일 목록) ===== */
+.home-page .builder-days {
+  display: grid;
+  gap: 8px;
+  margin: 4px 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.home-page .builder-days legend {
+  color: #3a4357;
+  font-size: 12px;
+  font-weight: 900;
+  margin-bottom: 8px;
+}
+
+.home-page .builder-days > div {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.home-page .builder-days label {
+  position: relative;
+  cursor: pointer;
+}
+
+.home-page .builder-days input {
+  position: absolute;
+  opacity: 0;
+}
+
+.home-page .builder-days span {
+  display: grid;
+  min-height: 42px;
+  place-items: center;
+  color: #68748a;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid #dbe1eb;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.home-page .builder-days input:checked + span {
+  color: #ffffff;
+  background: linear-gradient(145deg, #789f94, #7d8ead);
+  border-color: transparent;
+}
+
+.home-page .builder-days input:focus-visible + span {
+  outline: 3px solid rgba(121, 156, 145, 0.2);
+  outline-offset: 2px;
+}
+
+.home-page .builder-days-hint {
+  margin: 0;
+  color: #737a8c;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.home-page .goal-builder-shell .builder-field textarea {
+  width: 100%;
+  padding: 12px 15px;
+  color: #30394e;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid #dbe1eb;
+  border-radius: 12px;
+  box-shadow: 0 3px 10px rgba(91, 106, 151, 0.04);
+  outline: none;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  resize: vertical;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.home-page .goal-builder-shell .builder-field textarea:focus {
+  border-color: #8daac2;
+  box-shadow: 0 0 0 4px rgba(117, 163, 191, 0.12);
+}
+
+.task-builder {
+  display: grid;
+  gap: 12px;
+}
+
+.task-builder-list {
+  display: grid;
+  gap: 10px;
+}
+
+.task-builder-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) 84px;
+  grid-template-areas:
+    "time title minutes"
+    "rule rule rule";
+  gap: 8px 10px;
+  padding: 14px 40px 14px 14px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid #dbe1eb;
+  border-radius: 14px;
+  box-shadow: 0 3px 10px rgba(91, 106, 151, 0.05);
+}
+
+.task-builder-item .task-time-field {
+  grid-area: time;
+}
+
+.task-builder-item .task-title-field {
+  grid-area: title;
+}
+
+.task-builder-item .task-minutes-field {
+  grid-area: minutes;
+}
+
+.task-builder-item label {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  color: #5b667b;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.task-builder-item label small {
+  color: #9aa2b4;
+  font-weight: 700;
+}
+
+.task-builder-item .task-rule-field {
+  grid-area: rule;
+}
+
+.task-builder-item input {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 10px;
+  color: #30394e;
+  background: #f7f9fc;
+  border: 1px solid #e2e7f0;
+  border-radius: 10px;
+  outline: none;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.task-builder-item input:focus {
+  border-color: #8daac2;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(117, 163, 191, 0.12);
+}
+
+.task-remove-button {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  color: #8b93a7;
+  background: #f1f4f9;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.task-remove-button:hover {
+  color: #ffffff;
+  background: #c07f8d;
+}
+
+.task-builder-empty {
+  margin: 0;
+  padding: 18px 14px;
+  color: #737a8c;
+  background: #f4f7fa;
+  border: 1px dashed #d4dbe6;
+  border-radius: 14px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.task-builder-budget {
+  margin: 0;
+  padding: 10px 14px;
+  color: #4c6157;
+  background: #eef5f0;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.task-builder-budget.is-over {
+  color: #8a4a58;
+  background: #f7ecef;
+}
+
+.task-builder-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.task-builder-actions button {
+  padding: 11px 14px;
+  color: #3a4357;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid #dbe1eb;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 900;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.task-builder-actions button:hover {
+  border-color: #8daac2;
+  background: #f2f6fb;
+}
+
+.task-builder-actions #addTaskButton {
+  color: #ffffff;
+  background: var(--blue);
+  border-color: transparent;
+}
+
+.task-builder-actions #addTaskButton:hover {
+  background: #4d5c8a;
+}
+
+@media (max-width: 640px) {
+  .task-builder-item {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "title title"
+      "time minutes"
+      "rule rule";
+  }
+}
+
+/* ===== 가입 게이트: 체험 잠금 화면 위에서 로그인 시트가 열리도록 ===== */
+.trial-locked #accountSheetOverlay {
+  z-index: 130;
+}
+
+.trial-locked #authSheet {
+  z-index: 140;
 }
