@@ -120,13 +120,29 @@ async function completeManualPlan(page, { goal = "3개월 안에 토익 900점 �
     while (await rows.count() < tasks.length) {
       await page.locator("#addTaskButton").click();
     }
-    for (const [index, task] of tasks.entries()) {
+    const fillRow = async (index, task) => {
       const row = rows.nth(index);
       if (task.time) await row.locator("[data-task-field='time']").fill(task.time);
       await row.locator("[data-task-field='text']").fill(task.text);
       if (task.minutes) await row.locator("[data-task-field='minutes']").fill(String(task.minutes));
       if (task.rule) await row.locator("[data-task-field='rule']").fill(task.rule);
-    }
+    };
+    for (const [index, task] of tasks.entries()) await fillRow(index, task);
+
+    /* renderTaskBuilder는 replaceChildren로 행을 통째로 갈아끼운다. 초안 재생성이
+       입력 사이에 끼어들면 방금 채운 값이 detached 노드와 함께 사라지고(그 input
+       이벤트는 리스트에 닿지 못한다) 그 행만 템플릿 문구로 남는다 — 뒷행을 채우는
+       동안 앞행이 되돌아가므로 행 단위 재시도로는 못 잡는다. 전체를 한 번 더 확인하고
+       어긋난 행만 다시 채운다. */
+    await expect.poll(async () => {
+      const values = [];
+      for (const [index, task] of tasks.entries()) {
+        const textField = rows.nth(index).locator("[data-task-field='text']");
+        if ((await textField.inputValue()) !== task.text) await fillRow(index, task);
+        values.push(await textField.inputValue());
+      }
+      return values.join(" | ");
+    }, { timeout: 10_000 }).toBe(tasks.map((task) => task.text).join(" | "));
   }
 
   await next.click();                       // 3 → 4 (마무리)
