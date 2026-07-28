@@ -570,6 +570,22 @@ async function captureAcceptance(page, testInfo, name, { fullPage = true } = {})
   });
 }
 
+/* 가격은 배포된 /plan-policy.mjs에서 읽는다. 테스트가 숫자를 다시 적으면 화면과 정책이
+   갈라져도 통과해 버린다 — 이 스펙이 막으려는 것이 정확히 그 상황이다. */
+async function readProPriceKRW(page) {
+  const price = await page.evaluate(() => import("/plan-policy.mjs").then((module) => module.PLAN_CONFIG.pro.priceKRW));
+  expect(Number.isFinite(price)).toBe(true);
+  return price;
+}
+
+function formatPriceWon(price) {
+  return `${price.toLocaleString("ko-KR")}원`;
+}
+
+function formatPriceSymbol(price) {
+  return `₩${price.toLocaleString("ko-KR")}`;
+}
+
 async function readStored(page, key) {
   return page.evaluate((storageKey) => {
     const value = localStorage.getItem(storageKey);
@@ -583,6 +599,9 @@ module.exports = {
   createUsageResponse,
   expectNoDuplicateIds,
   expectNoHorizontalOverflow,
+  formatPriceSymbol,
+  formatPriceWon,
+  readProPriceKRW,
   isCompletedRumNavigationLifecycle,
   isExpectedFirefoxNavigationImageAbort,
   completeManualPlan,

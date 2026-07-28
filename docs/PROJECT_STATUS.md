@@ -91,7 +91,7 @@ ASSETS·Durable Object·레이트리미터를 건드리지 않는 것까지 고�
 ### 남은 결정 사항
 
 1. **치어링 대상** — 현재 로그인 회원 전체(체험 포함). `docs/pricing-system-v2.md`를 이에 맞게 고쳤다. PRO 전용으로 좁히려면 `handleAiGenerationRequest`의 `isFreeCheer` 분기에 플랜 조건을 더하면 된다.
-2. **가격 문서와 구현 불일치** — PRO 가격(2,900 vs 4,900), 월 에너지(300 vs 250), 계획 다듬기(3 vs 2), 주간 최적화(5 vs 4). `docs/pricing-system-v2.md`의 "미정" 표에 정리했다. 결정 전까지 코드 값이 사실이다.
+2. **가격 문서와 구현 불일치** — PRO 가격은 **월 3,900원으로 확정**해 `PLAN_CONFIG.pro.priceKRW` 단일 출처로 통일했다(아래 "PRO 가격 3,900원 확정" 참고). 남은 불일치는 월 에너지(300 vs 250), 계획 다듬기(3 vs 2), 주간 최적화(5 vs 4)이며 `docs/pricing-system-v2.md`의 "미정" 표에 정리했다. 결정 전까지 코드 값이 사실이다.
 3. **`create_daily_step`("오늘의 한 걸음 생성")** — 재화 표와 UI에서 뺐다. 기능을 실제로 만들 계획이면 라우트와 함께 되살려야 한다.
 4. **Preview 소셜 로그인** — 로컬 검증은 dev login으로만 했다. 병합 전에 Preview에서 카카오·네이버·구글 실제 OAuth 왕복과 게스트 계획 승계를 확인해야 한다. 특히 새 계정 가입에 10분 이상 걸리는 경로를 한 번은 밟아 볼 것(2차 리뷰에서 고친 TTL 경로).
 5. **병합 후 정리 후보** — 2차 리뷰에서 죽은 코드로 확인했지만 병합 직전 위험 때문에 남겨 둔 것들. (a) `ai-goal-plan.mjs` 386줄 + `ai-goal-plan.test.mjs`: 지우려면 `ai-output-contract.test.mjs`·`ai-plan-output-policy.test.mjs`가 이 모듈에서 가져오는 `GOAL_PLAN_SCHEMA`·`validateGeneratedPlan` 의존을 먼저 끊어야 한다. (b) styles.css 고아 선택자 12개 군(`.home-page .personality-fields` 등 — app.html의 `app-personality-fields`는 별개 클래스다). (c) `getGuestAiReadiness` 이름이 남은 실체와 맞지 않는다.
@@ -855,3 +855,13 @@ PR #9 최신 head의 자동 검증과 diff·리뷰·충돌 상태를 최종 확�
 - 달성하기 어려운 목표와 제외 요일 목표 generation은 HTTP 502 `AI_OUTPUT_DOMAIN_INVALID`로 active draft를 저장하지 않았다. 가능 요일 revision도 첫 호출은 같은 domain 오류였고, 실패 뒤 동일 요청 재시도는 cached 응답이 아니라 새 provider 호출로 처리됐다. 따라서 전체 예산 8회 중 1회만 남아 새 RC에서 필수 6개 시나리오를 다시 증명할 수 없다.
 - 자료 revision은 자료명과 input hash 변경은 반영됐지만 공개 preview의 ACTION 범위 문자열만으로 `Unit 15~30`의 의미상 반영을 전부 증명하지 못했다. 공개 응답은 provider usage를 노출하지 않으므로 이번 실행에서 generation/revision token headroom도 증명하지 못했다.
 - AI gate 실패와 provider 예산 부족 때문에 OAuth A/B, 403/409/412, 64개 동시 claim, desktop/mobile UX, Draft PR, Preview, merge, Production은 `NOT RUN`이다. 보안·인증·결제 완화, retry/skip, 모델·token budget 변경으로 우회하지 않았고 release 상태는 `RELEASE_BLOCKED`이다.
+
+## PRO 가격 3,900원 확정 (2026-07-29)
+
+- PRO 구독 가격을 **월 3,900원**으로 확정하고 `PLAN_CONFIG.pro.priceKRW`를 유일한 출처로 만들었다. 이전에는 정책 4,900원과 문서 2,900원이 갈라져 있었고, 원인은 값이 여러 곳에 하드코딩된 구조였다.
+- 청구 경로에서 숫자를 지웠다. `billing-ledger.mjs`의 외부 승인 복구 가드와 그 SQL이 `4900`을 직접 비교하고 있어, 가격을 바꾸면 모든 신규 주문이 복구 대상에서 빠질 상태였다. 정책 값을 읽고 SQL은 bind 파라미터로 바꿨다. Toss 승인 금액(`chargeSubscription`)은 이전부터 정책을 읽고 있었다.
+- 화면은 문구를 고치는 대신 정책을 읽게 했다. 결제 확인 다이얼로그(`index.html`·`app.html`)에 `data-policy-field="price-won"`을 두고 `hydratePolicyValues`가 채운다. 정책을 불러오지 못하면 `confirmTrialPaidUpgrade`가 결제 동의를 받지 않고 안내만 한다 — 확인하지 못한 금액으로 동의를 받지 않는다.
+- `pricing-consistency.test.mjs`를 추가해 재발을 막는다. 청구 코드의 금액 리터럴, 화면의 가격 하드코딩, 정적 문구·정책 문서와 정책 값의 불일치를 검사한다. 수정 전 코드에서 6건 중 4건이 실패했고, 정책 값만 3,900으로 바꾼 상태에서는 6건 전부와 기존 단위 테스트 4건이 실패했다.
+- `docs/pricing-system-v2.md`의 단위 경제를 3,900원 기준으로 다시 계산했다. 표시가는 부가세 포함이므로 공급가액 3,545원이 실매출이고, PG 수수료(가정 3.3%)의 손익 비용은 117원이다. 총마진 60% 목표에서 AI 예산은 1,200원/월, 에너지당 상한은 250 기준 4.80원이다. 이전 판은 표시가를 그대로 매출로 놓아 마진을 약 10% 과대평가하고 있었다.
+- 에너지 팩(100/300/1,000 = 990·1,990·4,900원)은 구독과 별개 상품이라 손대지 않았고, 테스트가 그 표를 그대로 고정한다. `docs/wireframe.md`·`plan.md`·`spec.md`의 옛 가격은 "과거 설계 문서" 배너가 붙어 있어 그대로 뒀다. `PROJECT_STATUS.md`의 Staging Sandbox 4,900원 기록도 사실 기록이라 고치지 않았다.
+- 결제는 네 Wrangler 설정 모두 `PAYMENTS_ENABLED=false`를 유지한다. 실주문이 없으므로 가격 변경으로 복구 불가능해지는 기존 주문도 없다. 구독자가 있는 상태로 가격을 다시 바꾼다면 복구 가드를 그 시점 주문 금액까지 허용하도록 넓혀야 한다.

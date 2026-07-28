@@ -1024,10 +1024,10 @@
     <dialog class="billing-confirm-dialog" id="billingConfirmDialog" aria-labelledby="billingConfirmTitle">
       <form method="dialog" class="billing-confirm-card">
         <span>Pro 정기결제</span>
-        <h2 id="billingConfirmTitle">월 4,900원으로 Pro를 시작할까요?</h2>
+        <h2 id="billingConfirmTitle">월 <span data-policy-plan="pro" data-policy-field="price-won">—</span>으로 Pro를 시작할까요?</h2>
         <p>결제가 승인되면 남은 무료 체험은 종료되고 유료 Pro가 바로 시작돼요.</p>
         <div class="billing-confirm-actions">
-          <button class="primary" id="billingConfirmButton" type="submit" value="confirm">4,900원 결제하고 Pro 시작</button>
+          <button class="primary" id="billingConfirmButton" type="submit" value="confirm"><span data-policy-plan="pro" data-policy-field="price-won">—</span> 결제하고 Pro 시작</button>
           <button id="billingContinueTrialButton" type="submit" value="cancel">체험 계속하기</button>
         </div>
       </form>

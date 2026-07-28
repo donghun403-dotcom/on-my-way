@@ -1682,8 +1682,14 @@ let billingConfirmationPromise = null;
 let billingStartPromise = null;
 
 function confirmTrialPaidUpgrade() {
+  const price = proPriceKRW();
+  // 청구할 금액을 확인하지 못한 채로 결제 동의를 받지 않는다.
+  if (price === null) {
+    showToast(pricingPolicyError || "결제 금액을 확인하지 못했어요. 새로고침 후 다시 시도해 주세요.");
+    return Promise.resolve(false);
+  }
   if (!billingConfirmDialog || typeof billingConfirmDialog.showModal !== "function") {
-    return Promise.resolve(window.confirm("4,900원을 결제하고 Pro를 시작할까요?"));
+    return Promise.resolve(window.confirm(`${formatWonText(price)}을 결제하고 Pro를 시작할까요?`));
   }
   if (billingConfirmationPromise) return billingConfirmationPromise;
 
@@ -2029,6 +2035,16 @@ function formatWon(value) {
   return `₩${Number(value || 0).toLocaleString("ko-KR")}`;
 }
 
+// 결제 문구는 ₩ 기호보다 "원" 단위 표기가 자연스럽게 읽힌다. 값은 formatWon과 같은 정책에서 온다.
+function formatWonText(value) {
+  return `${Number(value || 0).toLocaleString("ko-KR")}원`;
+}
+
+function proPriceKRW() {
+  const price = pricingPolicy?.PLAN_CONFIG?.pro?.priceKRW;
+  return Number.isFinite(price) ? price : null;
+}
+
 function hydratePolicyValues() {
   if (!pricingPolicy) return;
   const { PLAN_CONFIG, AI_CREDIT_COSTS } = pricingPolicy;
@@ -2037,6 +2053,7 @@ function hydratePolicyValues() {
     if (!plan) return;
     const values = {
       price: formatWon(plan.priceKRW),
+      "price-won": formatWonText(plan.priceKRW),
       "monthly-credits": `${plan.monthlyCredits}개`,
       "daily-limit": `${plan.dailyCreditLimit}크레딧`,
       "max-goals": plan.maxGoals === null ? "제한 없음" : `목표 ${plan.maxGoals}개`,
