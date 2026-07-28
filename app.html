@@ -82,6 +82,35 @@
       <p class="drawer-footnote">On My Way · 작은 시작이 오래 이어지도록</p>
     </aside>
 
+    <div class="sheet-overlay" id="planChoiceOverlay" hidden></div>
+    <aside class="companion-chat-sheet plan-choice-sheet" id="planChoiceSheet" role="dialog" aria-modal="true" aria-labelledby="planChoiceTitle" tabindex="-1" hidden>
+      <div class="sheet-handle" aria-hidden="true"></div>
+      <div class="sheet-title-row">
+        <div>
+          <span id="planChoiceKicker">계획이 두 개예요</span>
+          <h2 id="planChoiceTitle">어느 쪽으로 이어갈까요?</h2>
+        </div>
+        <button id="closePlanChoice" type="button" aria-label="나중에 고르기">×</button>
+      </div>
+      <div class="plan-choice-ollie">
+        <img class="mascot-art" src="assets/ollie-thinking.png" alt="" />
+        <p id="planChoiceMessage">로그인 전에 만든 계획과 계정에 저장된 계획이 둘 다 있어요. 고른 쪽으로 이어갈게요.</p>
+      </div>
+      <div class="plan-choice-options">
+        <button type="button" class="plan-choice-option" data-plan-choice="guest">
+          <span class="plan-choice-label" data-plan-choice-label>방금 만든 계획으로 시작</span>
+          <b data-plan-choice-goal></b>
+          <small data-plan-choice-meta hidden></small>
+        </button>
+        <button type="button" class="plan-choice-option" data-plan-choice="account">
+          <span class="plan-choice-label" data-plan-choice-label>이전 계획 이어가기</span>
+          <b data-plan-choice-goal></b>
+          <small data-plan-choice-meta hidden></small>
+        </button>
+      </div>
+      <p class="plan-choice-note">고르지 않은 계획은 화면에서 내려가고, 사본은 이 기기에 남아요.</p>
+    </aside>
+
     <div class="sheet-overlay" id="accountSheetOverlay" hidden></div>
     <aside class="companion-chat-sheet account-sheet" id="authSheet" role="dialog" aria-modal="true" aria-labelledby="authSheetTitle" tabindex="-1" hidden>
       <div class="auth-sheet-hero">
@@ -288,7 +317,7 @@
             <p class="today-order-hint" id="todayOrderHint">시간을 눌러 오늘 일정에 맞게 조정할 수 있어요.</p>
             <button class="view-jump-link" data-goto-view="plan" type="button">이번 주 계획 보기</button>
           </details>
-          <button class="focus-adjust-link" data-open-companion-chat type="button">오늘 계획 조정하기</button>
+          <button class="focus-adjust-link" data-open-companion-chat data-chat-entry="adjust" type="button">오늘 계획, 올리와 조정하기</button>
         </section>
 
         <section class="execution-card recovery-card" id="recoveryCard" hidden>
@@ -301,7 +330,7 @@
           <div class="recovery-actions" aria-label="미완료 일정 회복">
             <button type="button" data-recovery-action="five">5분짜리 한 걸음으로 줄이기</button>
             <button type="button" data-recovery-action="tomorrow">오늘은 쉬고 내일 다시 시작하기</button>
-            <button type="button" data-recovery-action="talk">올리에게 지금 상태 말하기</button>
+            <button type="button" data-recovery-action="talk" data-chat-entry="recovery">올리에게 지금 상태 말하기</button>
           </div>
           <p class="recovery-credit-note">선택한 회복 방식은 바로 일정과 기록에 남고, AI 크레딧은 사용하지 않아요.</p>
         </section>
@@ -611,7 +640,7 @@
             </div>
           </div>
           <div class="companion-action-stack">
-            <button id="openCompanionChatPrimary" class="companion-chat-primary" type="button"><span>올리와 이야기하기</span><b aria-hidden="true">→</b></button>
+            <button id="openCompanionChatPrimary" class="companion-chat-primary" data-chat-entry="talk" type="button"><span>올리와 이야기하기</span><b aria-hidden="true">→</b></button>
             <button class="companion-touch-secondary" id="touchCompanion" type="button">오늘 쓰다듬기 · XP +5</button>
           </div>
           <section class="companion-relationship-summary" aria-labelledby="companionRelationshipTitle">
@@ -743,7 +772,7 @@
               <h2 id="memoryConversationTitle">대화에서 남은 한마디</h2>
               <p id="memoryConversation"></p>
             </div>
-            <button id="openCompanionChat" type="button">올리에서 대화 이어가기</button>
+            <button id="openCompanionChat" data-chat-entry="continue" type="button">올리와 대화 이어가기</button>
           </section>
 
           <details class="memory-history-disclosure">
@@ -803,10 +832,18 @@
       <div class="sheet-handle" aria-hidden="true"></div>
       <div class="sheet-title-row">
         <div>
-          <span>올리와 오늘 이야기하기</span>
+          <span id="companionChatKicker">올리와 오늘 이야기하기</span>
           <h2 id="companionChatTitle">지금 마음을 알려주세요</h2>
         </div>
         <button id="closeCompanionChat" type="button" aria-label="대화 닫기">×</button>
+      </div>
+      <div class="chat-ollie" id="companionChatOllie">
+        <img class="mascot-art" id="companionChatOllieImage" src="assets/ollie-action.png" alt="" />
+        <div class="chat-bubble">
+          <span>올리</span>
+          <p class="chat-response" id="companionChatResponse">메시지를 보내면 기능별 AI 크레딧을 사용해 올리가 직접 답해줘요. 계획을 바꾸는 요청은 계획 탭의 변경안에도 함께 담아둬요.</p>
+          <p class="chat-thinking" id="companionChatThinking" hidden><i aria-hidden="true"></i><i aria-hidden="true"></i><i aria-hidden="true"></i><span>생각하는 중</span></p>
+        </div>
       </div>
       <div class="energy-options" aria-label="오늘 상태 선택">
         <button type="button" data-energy="good">좋아요</button>
@@ -824,7 +861,6 @@
         <textarea id="companionChatInput" rows="4" placeholder="예: 오늘은 피곤했지만 그래도 첫 일정은 끝냈어."></textarea>
       </label>
       <button class="chat-send-button" id="sendCompanionMessage" type="button">올리에게 보내기 · <span data-ai-credit-cost="companion_chat">—</span>크레딧</button>
-      <p class="chat-response" id="companionChatResponse">메시지를 보내면 기능별 AI 크레딧을 사용해 올리가 직접 답해줘요. 계획을 바꾸는 요청은 계획 탭의 변경안에도 함께 담아둬요.</p>
     </aside>
 
     <div class="sheet-overlay" id="energyChargeOverlay" hidden></div>
@@ -961,6 +997,14 @@
     </section>
 
     <div class="ollie-star-shower" id="ollieStarShower" aria-hidden="true"></div>
+
+    <div class="ollie-celebration" id="ollieCelebration" aria-hidden="true" hidden>
+      <div class="ollie-celebration-card">
+        <img class="mascot-art" id="ollieCelebrationImage" src="assets/ollie-celebrate.png" alt="" />
+        <b class="ollie-celebration-stamp" id="ollieCelebrationStamp">참 잘했어요</b>
+        <p id="ollieCelebrationMessage"></p>
+      </div>
+    </div>
 
     <div class="sr-only" id="appLiveRegion" aria-live="polite"></div>
 

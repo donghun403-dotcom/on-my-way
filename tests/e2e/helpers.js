@@ -120,13 +120,29 @@ async function completeManualPlan(page, { goal = "3개월 안에 토익 900점 �
     while (await rows.count() < tasks.length) {
       await page.locator("#addTaskButton").click();
     }
-    for (const [index, task] of tasks.entries()) {
+    const fillRow = async (index, task) => {
       const row = rows.nth(index);
       if (task.time) await row.locator("[data-task-field='time']").fill(task.time);
       await row.locator("[data-task-field='text']").fill(task.text);
       if (task.minutes) await row.locator("[data-task-field='minutes']").fill(String(task.minutes));
       if (task.rule) await row.locator("[data-task-field='rule']").fill(task.rule);
-    }
+    };
+    for (const [index, task] of tasks.entries()) await fillRow(index, task);
+
+    /* renderTaskBuilder는 replaceChildren로 행을 통째로 갈아끼운다. 초안 재생성이
+       입력 사이에 끼어들면 방금 채운 값이 detached 노드와 함께 사라지고(그 input
+       이벤트는 리스트에 닿지 못한다) 그 행만 템플릿 문구로 남는다 — 뒷행을 채우는
+       동안 앞행이 되돌아가므로 행 단위 재시도로는 못 잡는다. 전체를 한 번 더 확인하고
+       어긋난 행만 다시 채운다. */
+    await expect.poll(async () => {
+      const values = [];
+      for (const [index, task] of tasks.entries()) {
+        const textField = rows.nth(index).locator("[data-task-field='text']");
+        if ((await textField.inputValue()) !== task.text) await fillRow(index, task);
+        values.push(await textField.inputValue());
+      }
+      return values.join(" | ");
+    }, { timeout: 10_000 }).toBe(tasks.map((task) => task.text).join(" | "));
   }
 
   await next.click();                       // 3 → 4 (마무리)
@@ -156,6 +172,25 @@ async function waitForAppReady(page) {
   await expect(page.locator("body")).toHaveAttribute("data-app-ready", "true", { timeout: 15_000 });
 }
 
+/* data-app-ready는 한 번 true가 되면 되돌아가지 않는다. 그래서 앱이 스스로
+   location.reload()를 부르는 흐름(계획 선택 적용, 구독 해지 등)에서는 waitForAppReady가
+   "새로고침 전 문서"에 즉시 매칭돼 그냥 통과하고, 그 뒤의 page.evaluate가 항해 도중에
+   떨어져 "Execution context was destroyed"로 죽는다. 로드마다 바뀌는 토큰을 기준으로
+   "새로운 ready"를 기다린다. */
+async function readAppReadyToken(page) {
+  return page.locator("body").evaluate((body) => body.dataset.appReadyToken || "");
+}
+
+async function waitForNewAppReady(page, previousToken) {
+  await page.waitForFunction(
+    (token) => document.body?.dataset.appReady === "true"
+      && Boolean(document.body.dataset.appReadyToken)
+      && document.body.dataset.appReadyToken !== token,
+    previousToken,
+    { timeout: 15_000 },
+  );
+}
+
 async function waitForBootstrap(page) {
   await expect.poll(async () => {
     try {
@@ -177,6 +212,16 @@ async function mockAccountExperience(page, {
 } = {}) {
   await mockExternalAssets(page);
   const state = { user, usage, paymentsEnabled, accountState: {}, revision: 0 };
+
+  /* 처음부터 로그인된 사용자를 모킹하는 테스트는 "이미 이 계정으로 쓰던 기기"를 뜻한다.
+     스코프를 비워 두면 부팅 때 익명 → 계정 전환이 일어나 계획 선택 시트가 열리고,
+     그 테스트가 보려던 화면을 가린다. 첫 로그인 승계 자체를 보는 테스트는 user 없이
+     시작해 나중에 account.user를 채우므로 여기 걸리지 않는다. */
+  if (user?.id) {
+    await page.addInitScript((scope) => {
+      if (!localStorage.getItem("onmyway:active-scope")) localStorage.setItem("onmyway:active-scope", scope);
+    }, `user:${user.id}`);
+  }
 
   await page.route("**/api/auth/providers", (route) => route.fulfill({
     status: 200,
@@ -547,6 +592,8 @@ module.exports = {
   prepareApp,
   waitForBootstrap,
   waitForAppReady,
+  readAppReadyToken,
+  waitForNewAppReady,
   readStored,
   testPlan,
 };

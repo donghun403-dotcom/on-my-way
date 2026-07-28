@@ -603,3 +603,46 @@ test("반복 일정 범위 편집은 변경 개수를 미리 보여준 뒤에만
     .toEqual(expect.arrayContaining([expect.objectContaining({ text: "남은 회차에 적용할 일정" })]));
   expect(appliedState.completedLog).toEqual(originalState?.completedLog || []);
 });
+
+/* 예전에는 완료 순간에 별빛만 쏟아지고, 올리의 축하는 올리 탭까지 가야 보였다.
+   이제는 완료한 그 자리에서 올리가 잠깐 나타나 도장을 찍는다. */
+test("일정을 완료하면 오늘 탭에서 올리가 직접 축하하고 잠시 뒤 사라진다", async ({ page }) => {
+  const diagnostics = monitorPage(page);
+  await page.goto("/app.html");
+  await waitForAppReady(page);
+
+  const celebration = page.locator("#ollieCelebration");
+  await expect(celebration).toBeHidden();
+
+  await page.locator("#executionChecklist .execution-check").first().check();
+  await expect(celebration).toBeVisible();
+  await expect(page.locator("#ollieCelebrationStamp")).toHaveText("참 잘했어요");
+  await expect(page.locator("#ollieCelebrationImage")).toHaveAttribute("src", /ollie-celebrate\.png/);
+  await expect(page.locator("#ollieCelebrationMessage")).not.toBeEmpty();
+  // 화면을 막지 않는다 — 축하가 떠 있는 동안에도 다음 일정을 바로 체크할 수 있어야 한다.
+  await expect(celebration).toHaveCSS("pointer-events", "none");
+  await expect(celebration).toBeHidden({ timeout: 4000 });
+
+  /* 탭하면 기다리지 않고 즉시 닫힌다. 체크로 다시 띄우면 1.8초 자동 종료 타이머와
+     경쟁하게 되고(webkit은 진입 애니메이션 안정화를 기다리다 그 창을 다 써버린다)
+     클릭 배선이 아니라 머신 속도를 재게 된다. 창을 새로 열어 그 경쟁을 없앤다. */
+  await page.evaluate(() => showOllieCelebration({ stamp: "참 잘했어요", message: "탭 종료 확인" }));
+  await expect(celebration).toBeVisible();
+  await page.locator(".ollie-celebration-card").click({ force: true });
+  await expect(celebration).toBeHidden({ timeout: 1000 });
+
+  diagnostics.expectClean();
+});
+
+test("하루를 모두 완료하면 완주 도장으로 축하한다", async ({ page }) => {
+  const diagnostics = monitorPage(page);
+  await page.goto("/app.html");
+  await waitForAppReady(page);
+
+  await page.locator("#todayTools summary").click();
+  await page.locator("#completeTodayButton").click();
+  await expect(page.locator("#ollieCelebration")).toBeVisible();
+  await expect(page.locator("#ollieCelebrationStamp")).toHaveText("오늘 완주");
+
+  diagnostics.expectClean();
+});
