@@ -810,7 +810,14 @@ function createManualPlanAuthIntent(planId) {
   }
 }
 
-function readManualPlanAuthIntent() {
+/* TTL 10분은 "로그인 창에서 돌아오지 않았다"고 보고 provider 선택 화면을 다시
+   띄울지 정하는 시간이다. 다 만든 계획이 로그인을 넘어 살아남을지 정하는 시간이
+   아니다 — 소셜 계정을 새로 만들면 문자 인증까지 10분을 넘기기 쉬운데, 수동
+   빌더는 폼 상태를 복원하지 않으므로 그 순간 유저는 빈 4단계를 마주하고 계획을
+   처음부터 다시 만들어야 한다. 이어가기 판정은 ignoreTtl로 이 시계를 건너뛴다.
+   의도 자체는 sessionStorage에 있어 탭이 닫히면 사라지고, 시트를 명시적으로
+   닫으면 closeAuthSheet가 지운다. 그 둘이 실제 수명 경계다. */
+function readManualPlanAuthIntent({ ignoreTtl = false } = {}) {
   const intent = safeJsonParse(sessionStorage.getItem(PENDING_AUTH_INTENT_KEY), null);
   const createdAt = Number(intent?.createdAt || 0);
   const valid = intent?.source === FULL_PLAN_AUTH_INTENT_SOURCE
@@ -818,7 +825,7 @@ function readManualPlanAuthIntent() {
     && intent?.resumeTarget === MANUAL_PLAN_AUTH_INTENT_RESUME
     && createdAt > 0
     && createdAt <= Date.now()
-    && Date.now() - createdAt <= FULL_PLAN_AUTH_INTENT_TTL_MS;
+    && (ignoreTtl || Date.now() - createdAt <= FULL_PLAN_AUTH_INTENT_TTL_MS);
   return valid ? intent : null;
 }
 
@@ -933,8 +940,13 @@ async function activateManualPlan() {
 // 로그인·회원가입을 마치고 온보딩으로 돌아오면 시작 버튼을 다시 누르게 하지 않고 그대로 이어간다.
 async function resumeFullPlanActivationAfterAuth() {
   if (!authUiState.user) return;
-  if (!readManualPlanAuthIntent() || !(savedManualPlan() || pendingManualPlanHandoff())) return;
-  clearPendingFullPlanAuthIntent();
+  /* 의도를 여기서 미리 지우지 않는다. 체험 시작(/api/ai/trial/start)이 네트워크
+     오류로 실패하면 activateManualPlan이 false를 돌려주는데, 앞에서 지워 두면
+     그 한 번으로 이어가기 토큰이 사라진다. 온보딩은 저장된 계획으로 결과 화면을
+     다시 그리지 않아서 다시 누를 버튼도 남지 않는다. 성공 경로의
+     activateManualPlan이 핸드오프와 함께 소비한다. */
+  if (!readManualPlanAuthIntent({ ignoreTtl: true })) return;
+  if (!(savedManualPlan() || pendingManualPlanHandoff())) return;
   setTrialStartDisabled(true);
   if (aiPreviewStatus) aiPreviewStatus.textContent = "로그인을 확인했어요. 무료 체험을 시작하고 오늘 화면으로 이동할게요.";
   showToast("로그인했어요 · 무료 체험을 시작할게요.");
@@ -1402,7 +1414,8 @@ function openAuthSheet({ message = "", focusStatus = false } = {}) {
 }
 
 function closeAuthSheet() {
-  if (readManualPlanAuthIntent()) {
+  // 명시적으로 닫는 것은 "이어가지 않겠다"는 뜻이므로 만료 여부와 무관하게 거둬들인다.
+  if (readManualPlanAuthIntent({ ignoreTtl: true })) {
     clearPendingFullPlanAuthIntent();
     // 온보딩 페이지에서는 이미 초안 화면 위에 떠 있으므로 새로고침 없이 닫기만 한다.
     if (document.body.classList.contains("home-page")) {
@@ -1424,8 +1437,8 @@ function restorePendingFullPlanAuthChooser({ authParam = "", provider = "", from
   const intent = readManualPlanAuthIntent();
   if (!intent) return false;
   /* 이미 로그인한 상태면 provider 선택 화면을 띄울 이유가 없다. 의도를 여기서
-     지우지는 않는다 — 그건 "로그인하고 돌아왔다"는 신호라서, 계획 이어가기
-     (resumeFullPlanActivationAfterAuth)가 받아서 소비해야 한다. */
+     지우지는 않는다 — 그건 "로그인하고 돌아왔다"는 신호라서 계획 이어가기가
+     받아야 한다. 소비는 체험 시작까지 성공한 activateManualPlan에서만 일어난다. */
   if (authUiState.user) return false;
   if (authParam === "deletion_pending") {
     clearPendingFullPlanAuthIntent();
@@ -3379,13 +3392,19 @@ function readCheerState() {
   return state.date === getTodayKey() ? state : { date: getTodayKey() };
 }
 
+/* 치어링은 AI 응답이 도착한 시점에 저절로 뜬다 — 완료 체크나 페이지 진입에서
+   몇 초 뒤다. 그래서 시선을 끌어가지 않는다: 열려 있는 대화 시트를 닫지도,
+   말풍선으로 강제 스크롤하지도 않는다. 읽던 화면이 제멋대로 끌려가는 편이
+   축하를 놓치는 것보다 나쁘다. 코치 카드에 남으므로 나중에 봐도 된다.
+   "대화에서 남은 한마디"(#memoryConversation)에는 쓰지 않는다. 그 카드는
+   companion_dialogue 이벤트만 읽는 renderMemoryCards가 소유하고 있어서,
+   여기서 넣어도 숨김이 풀리지 않고 다음 렌더에 바로 덮인다. */
 function displayCheer(eventType, cheer) {
-  showOllieReaction(cheer.reply, cheer.headline);
+  showOllieReaction(cheer.reply, cheer.headline, { stealFocus: false });
   if (dailyCoachKicker) dailyCoachKicker.textContent = cheerKicker(eventType);
   if (dailyCoachTitle) dailyCoachTitle.textContent = cheer.headline;
   if (dailyCoachMessage) dailyCoachMessage.textContent = cheer.reply;
   setImageSource(dailyCoachImage, cheerImage(eventType));
-  if (memoryConversation) memoryConversation.textContent = cheer.reply;
   announce(cheer.reply);
 }
 
@@ -3591,14 +3610,11 @@ function renderAiPreview(preview) {
   renderDraftUnderstanding(preview);
 }
 
-// "전체 로드맵" 옆의 기한 표시. 완료 희망일이 있으면 날짜로, 없으면 마지막
-// 단계의 기간을 씁니다. 둘 다 없으면 아무것도 쓰지 않습니다 — 날짜를 지어내지 않아요.
+/* "전체 로드맵" 옆의 기한 표시. 마지막 단계의 기간을 쓰고, 없으면 유저가 고른
+   전체 기간을 쓴다. 둘 다 없으면 아무것도 쓰지 않는다 — 날짜를 지어내지 않는다.
+   완료 희망일(#targetDate)을 날짜로 보여주던 분기는 수동 빌더가 그 입력을 받지
+   않게 되면서 도달할 수 없어졌다(collectManualPlanInput에 targetDate가 없다). */
 function roadmapDeadlineLabel(roadmapPhases) {
-  const targetDate = document.querySelector("#targetDate")?.value || "";
-  const parsed = targetDate ? new Date(`${targetDate}T00:00:00`) : null;
-  if (parsed && !Number.isNaN(parsed.getTime())) {
-    return `(${parsed.getMonth() + 1}월 ${parsed.getDate()}일까지)`;
-  }
   const finalDays = roadmapPhases.at(-1)?.days || "";
   if (finalDays) return `(총 ${finalDays})`;
   // 단계가 잠긴 게스트 화면에서도 기간만큼은 사실대로 보여준다.
@@ -6318,13 +6334,16 @@ function pulseBondCompanion(rewardText = "♥") {
   }
 }
 
-function showOllieReaction(message, headline) {
+/* 기본값은 "지금 이걸 보세요"다 — 유저가 올리에게 말을 건 직후라 열려 있던 대화
+   시트를 닫고 말풍선으로 시선을 옮기는 게 맞다. 치어링처럼 유저가 부르지 않았는데
+   저절로 도착하는 반응은 stealFocus:false로 내용과 반짝임만 남긴다. */
+function showOllieReaction(message, headline, { stealFocus = true } = {}) {
   if (message && companionMessage) companionMessage.textContent = message;
   if (headline && companionMoodLine) companionMoodLine.textContent = headline;
-  closeCompanionChat();
+  if (stealFocus) closeCompanionChat();
   const speech = document.querySelector("#companionHome .companion-speech");
   window.setTimeout(() => {
-    speech?.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (stealFocus) speech?.scrollIntoView({ behavior: "smooth", block: "center" });
     pulseCompanion();
     if (!speech) return;
     speech.classList.remove("is-reacting");
@@ -9812,7 +9831,12 @@ function markAppReady() {
 accountExperienceReady
   .then((ready) => {
     if (ready) {
-      if (!document.body?.classList.contains("execution-page") && resumedPendingGoal) {
+      /* resumeGoal 파라미터는 handleAuthQueryParams가 이 시점 전에 URL에서 지운다.
+         그래서 첫 복귀 뒤 새로고침하면 resumedPendingGoal은 항상 false가 된다.
+         체험 시작이 한 번 실패했을 때 새로고침으로 다시 시도할 수 있도록,
+         넘겨둔 계획이 남아 있으면 파라미터 없이도 이어가기를 부른다. 실제 판정은
+         resumeFullPlanActivationAfterAuth가 로그인 여부·의도·계획으로 다시 한다. */
+      if (!document.body?.classList.contains("execution-page") && (resumedPendingGoal || pendingManualPlanHandoff())) {
         void resumeFullPlanActivationAfterAuth();
       }
       initializeExecutionPage();

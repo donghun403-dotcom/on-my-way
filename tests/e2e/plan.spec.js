@@ -1,12 +1,18 @@
 const { test, expect } = require("@playwright/test");
 const { captureAcceptance, createUsageResponse, mockAccountExperience, monitorPage, prepareApp, waitForAppReady } = require("./helpers");
 
+/* 앱은 "오늘"을 브라우저의 로컬 날짜로 정한다(getLocalDateKey는 getFullYear/
+   getMonth/getDate를 쓴다). 그래서 시각만 고정하면 호스트 시간대가 서쪽으로
+   갈수록 같은 순간이 전날이 된다 — 2026-07-27T03:00Z는 UTC-4 이서에서 07-26이다.
+   서버가 KST로 하루를 자르는 서비스이므로 이 파일은 브라우저 시간대까지 KST로
+   못 박아 실행 위치와 무관하게 같은 날짜를 보게 한다. */
+test.use({ timezoneId: "Asia/Seoul" });
+
 /* 이 픽스처는 "1일차 = 2026-07-27(월)"이라는 달력 위에 서 있다. 화요일이 2·9일차라
    difficultDays로 빠지고, 4일차(목)가 excludedDates로 빠지며, 6일차가 2026-08-01이다.
    실행한 날에 따라 오늘이 몇 일차인지 달라지면 그 전제가 통째로 무너지므로(짝수 일차는
-   휴식일이라 오늘의 ACTION이 사라진다) 페이지 시계를 1일차 정오에 고정한다.
-   setFixedTime은 Date만 고정하고 타이머는 그대로 둔다. 03:00Z를 쓰면 KST(정오)에서도
-   UTC(오전)에서도 같은 날짜라 호스트 시간대에 흔들리지 않는다. */
+   휴식일이라 오늘의 ACTION이 사라진다) 페이지 시계를 1일차 정오(KST)에 고정한다.
+   setFixedTime은 Date만 고정하고 타이머는 그대로 둔다. */
 const ROADMAP_PREFERENCE_START = "2026-07-27";
 const ROADMAP_PREFERENCE_NOW = new Date(`${ROADMAP_PREFERENCE_START}T03:00:00.000Z`);
 

@@ -272,10 +272,13 @@ async function handleLocalAiGenerationRequest({ request, response, route }) {
     releaseAiCredits,
     reserveAiCredits,
   } = await aiCreditsServiceModule;
-  // 개발 패리티: 자동 치어링은 운영과 마찬가지로 재화를 차감하지 않는다.
-  // 하루 각 1회 상한은 KV 유저 레코드에 기록이 남아야 하므로 운영(worker.mjs)에서만 강제한다.
+  /* 개발 패리티: 자동 치어링은 운영과 마찬가지로 재화를 차감하지 않는다.
+     하루 각 1회 상한은 일부러 옮기지 않았다 — localUserStore도 파일로 getUser/putUser를
+     하므로 구현은 가능하지만, 그러면 개발자가 축하 문구를 한 번 보고 나서 다음 KST
+     자정까지 기다려야 한다. 상한 자체의 회귀는 worker-cheer.test.mjs가 지킨다. */
   const { normalizeCheerEventType } = await aiCompanionChatModule;
-  const isFreeCheer = route.kind === "companion" && normalizeCheerEventType(input?.eventType) !== "chat";
+  const cheerEventType = route.kind === "companion" ? normalizeCheerEventType(input?.eventType) : "chat";
+  const isFreeCheer = cheerEventType !== "chat";
 
   let reservation = null;
   let providerCalled = false;
@@ -309,7 +312,7 @@ async function handleLocalAiGenerationRequest({ request, response, route }) {
     providerCalled = true;
 
     if (isFreeCheer) {
-      sendJson(response, 200, { ok: true, ...publicAiResult(result), requestId, chargedCredits: 0 });
+      sendJson(response, 200, { ok: true, ...publicAiResult(result), requestId, eventType: cheerEventType, chargedCredits: 0 });
       return;
     }
 

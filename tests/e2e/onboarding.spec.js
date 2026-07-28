@@ -161,6 +161,181 @@ test("게스트가 계획을 완성하면 로그인 게이트가 열리고, 로�
   diagnostics.expectClean();
 });
 
+/* 게스트가 계획을 완성하고 로그인 게이트를 연 상태를 만든다. 여기까지 오면
+   sessionStorage에 이어가기 의도와 계획 사본이 둘 다 들어 있다. 로그인은 아직이다. */
+async function buildPlanAndOpenSignupGate(page, task) {
+  await page.goto("/index.html#designFlow");
+  await waitForBootstrap(page);
+  await completeManualPlan(page, { goal: "90일 안에 첫 유료 고객 10명 만들기", tasks: [task] });
+
+  await page.locator("#trialStartInlineLink").click();
+  await expect(page.locator("#authSheet")).toBeVisible();
+  expect(await page.evaluate(() => sessionStorage.getItem("onmyway:manual-plan-handoff"))).toBeTruthy();
+}
+
+// 소셜 로그인을 마치고 돌아온 상태를 모킹 계정에 반영한다.
+function signInAfterGate(account) {
+  account.user = { id: "usr_manual_gate", provider: "kakao", name: "수동 계획 사용자", email: "manual@example.com", plan: "free", role: "member" };
+  account.usage = createUsageResponse({ plan: "free", trialEligible: true });
+}
+
+// 의도를 발급 시각 기준으로 늙힌다 (TTL은 10분).
+function ageAuthIntent(page, minutes) {
+  return page.evaluate((elapsedMinutes) => {
+    const key = "onmyway:pending-auth-intent";
+    const intent = JSON.parse(sessionStorage.getItem(key));
+    intent.createdAt -= elapsedMinutes * 60 * 1000;
+    sessionStorage.setItem(key, JSON.stringify(intent));
+  }, minutes);
+}
+
+/* 핸드오프 복구 테스트는 sessionStorage 수명과 내비게이션 계약을 본다 — 레이아웃이
+   아니다. 그런데 하나하나가 빌더 4단계를 끝까지 걷고 페이지를 두세 번 넘기는 무거운
+   테스트라, 같은 Chromium을 뷰포트만 바꿔 세 번 돌리면 얻는 것 없이 전체 스위트의
+   경합만 키운다(실제로 이 넷을 4개 프로젝트에 다 걸었더니 손대지 않은 스펙들이
+   타임아웃으로 무너졌다). 엔진당 하나씩만 돌린다. */
+const HANDOFF_ENGINE_PROJECTS = ["desktop-chromium", "iphone-webkit"];
+
+function skipRedundantHandoffProject(testInfo) {
+  test.skip(
+    !HANDOFF_ENGINE_PROJECTS.includes(testInfo.project.name),
+    "저장소·내비게이션 계약이라 엔진당 1회면 충분하다 (Chromium · WebKit)",
+  );
+}
+
+/* 소셜 로그인 창에서 그냥 돌아오는 일은 흔하다. 그때 계획이 사라지면 안 되고,
+   어떤 제공자에서 취소했는지 이름을 붙여 다시 고르게 해야 한다. origin/main이
+   덮던 경로인데 스펙이 사라져 있었다. */
+test("소셜 로그인을 취소하고 돌아오면 안내와 함께 제공자를 다시 고를 수 있다", async ({ page }, testInfo) => {
+  skipRedundantHandoffProject(testInfo);
+  const diagnostics = monitorPage(page);
+  await mockAccountExperience(page);
+  await buildPlanAndOpenSignupGate(page, {
+    time: "09:00", text: "잠재 고객 한 명에게 인터뷰 요청", minutes: 15, rule: "메시지를 보내면 완료",
+  });
+
+  await page.route("**/api/auth/kakao/start**", (route) => route.fulfill({
+    status: 200,
+    contentType: "text/html",
+    body: "<!doctype html><title>Kakao OAuth</title><p>Provider handoff</p>",
+  }));
+  await Promise.all([
+    page.waitForURL(/\/api\/auth\/kakao\/start/),
+    page.getByRole("button", { name: "카카오로 계속하기" }).click(),
+  ]);
+
+  // 로그인하지 않고 취소로 돌아온다.
+  await page.goto("/?resumeGoal=1&auth=cancelled&provider=kakao");
+  await waitForBootstrap(page);
+
+  await expect(page.locator("#authSheet")).toBeVisible();
+  await expect(page.locator("#authProviderStatus")).toContainText("카카오");
+  await expect(page.getByRole("button", { name: "네이버로 계속하기" })).toBeVisible();
+  // 계획과 이어가기 의도는 그대로 남는다 — 취소는 포기가 아니다.
+  expect(await page.evaluate(() => sessionStorage.getItem("onmyway:manual-plan-handoff"))).toBeTruthy();
+  expect(await page.evaluate(() => sessionStorage.getItem("onmyway:pending-auth-intent"))).toBeTruthy();
+
+  diagnostics.expectClean();
+});
+
+/* 체험 시작은 서버 왕복이라 실패할 수 있다. 그때 이어가기 토큰까지 함께 날아가면
+   유저는 다 만든 계획을 잃는다 — 온보딩은 저장된 계획으로 결과 화면을 다시 그리지
+   않으므로 다시 누를 버튼이 없고, resumeGoal 파라미터도 이미 URL에서 지워진 뒤다. */
+test("체험 시작이 실패해도 계획은 남고 새로고침으로 다시 시작된다", async ({ page }, testInfo) => {
+  skipRedundantHandoffProject(testInfo);
+  const diagnostics = monitorPage(page, {
+    allowedResponseUrls: ["/api/ai/trial/start"],
+    allowedConsoleMessages: ["status of 503"],
+  });
+  acceptStorageMergePrompt(page);
+  const account = await mockAccountExperience(page);
+  await buildPlanAndOpenSignupGate(page, {
+    time: "09:00", text: "잠재 고객 한 명에게 인터뷰 요청", minutes: 15, rule: "메시지를 보내면 완료",
+  });
+  signInAfterGate(account);
+
+  /* 시도 횟수가 아니라 플래그로 끊는다. 로그인 직후 switchAccountStorageScope가
+     익명 데이터를 승계하며 location.reload()를 부를 수 있어서, "첫 번째만 실패"로
+     짜면 그 새로고침이 두 번째 시도를 성공시켜 버린다. */
+  let trialStartAttempts = 0;
+  let trialStartUnavailable = true;
+  await page.route("**/api/ai/trial/start", async (route) => {
+    trialStartAttempts += 1;
+    if (!trialStartUnavailable) return route.fallback();
+    return route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: '{"ok":false,"error":"무료 체험을 시작하지 못했어요."}',
+    });
+  });
+
+  await page.goto("/?resumeGoal=1&auth=success&provider=kakao");
+  // 실패 토스트는 2.2초 뒤 사라지므로 서버 시도 자체를 기다린다.
+  await expect.poll(() => trialStartAttempts, { timeout: 15_000 }).toBeGreaterThan(0);
+
+  // 앱으로 넘어가지 않았고, 다시 시도할 근거(의도 + 계획 사본)가 그대로 남아 있다.
+  expect(page.url()).not.toContain("/app.html");
+  expect(await page.evaluate(() => sessionStorage.getItem("onmyway:pending-auth-intent"))).toBeTruthy();
+  expect(await page.evaluate(() => sessionStorage.getItem("onmyway:manual-plan-handoff"))).toBeTruthy();
+
+  // handleAuthQueryParams가 resumeGoal을 지운 뒤라 새로고침 URL에는 파라미터가 없다.
+  trialStartUnavailable = false;
+  await page.goto("/");
+  await page.waitForURL(/\/app\.html/, { timeout: 20_000 });
+  expect(account.usage.plan).toBe("trial");
+  expect(await page.evaluate(() => sessionStorage.getItem("onmyway:pending-auth-intent"))).toBeNull();
+
+  diagnostics.expectClean();
+});
+
+/* 소셜 계정을 새로 만들면 문자 인증까지 10분을 넘기기 쉽다. 그 시계가 계획의
+   수명을 결정하면 안 된다 — 수동 빌더는 폼 상태를 복원하지 않아서 만료되는 순간
+   유저에게 남는 건 빈 4단계뿐이다. */
+test("의도 TTL이 지난 뒤 로그인해도 만든 계획은 그대로 이어진다", async ({ page }, testInfo) => {
+  skipRedundantHandoffProject(testInfo);
+  const diagnostics = monitorPage(page);
+  acceptStorageMergePrompt(page);
+  const account = await mockAccountExperience(page);
+  await buildPlanAndOpenSignupGate(page, {
+    time: "07:00", text: "지원 공고 한 곳 정리", minutes: 20, rule: "요구사항을 적어두면 완료",
+  });
+  signInAfterGate(account);
+
+  // 소셜 가입에 20분이 걸린 상태를 만든다.
+  await ageAuthIntent(page, 20);
+
+  await page.goto("/?resumeGoal=1&auth=success&provider=kakao");
+  await page.waitForURL(/\/app\.html/);
+  await waitForAppReady(page);
+
+  expect(account.usage.plan).toBe("trial");
+  await expect(page.getByText("지원 공고 한 곳 정리").first()).toBeVisible();
+  expect(await page.evaluate(() => sessionStorage.getItem("onmyway:pending-auth-intent"))).toBeNull();
+  expect(await page.evaluate(() => sessionStorage.getItem("onmyway:manual-plan-handoff"))).toBeNull();
+
+  diagnostics.expectClean();
+});
+
+/* 로그인 시트를 명시적으로 닫는 것은 "지금은 이어가지 않겠다"는 뜻이다. 만료된
+   의도까지 확실히 거둬들여야, 같은 탭에서 나중에 로그인했을 때 유저가 요청하지
+   않은 앱 이동이 일어나지 않는다. */
+test("로그인 시트를 닫으면 만료된 이어가기 의도까지 거둬들인다", async ({ page }, testInfo) => {
+  skipRedundantHandoffProject(testInfo);
+  const diagnostics = monitorPage(page);
+  await mockAccountExperience(page);
+  await buildPlanAndOpenSignupGate(page, {
+    time: "08:00", text: "회고 한 줄 쓰기", minutes: 10, rule: "한 문장을 남기면 완료",
+  });
+
+  await ageAuthIntent(page, 20);
+
+  await page.locator("#closeAuthSheet").click();
+  await expect(page.locator("#authSheet")).toBeHidden();
+  expect(await page.evaluate(() => sessionStorage.getItem("onmyway:pending-auth-intent"))).toBeNull();
+
+  diagnostics.expectClean();
+});
+
 test("이미 로그인한 사용자는 게이트 없이 바로 체험을 시작한다", async ({ page }) => {
   const diagnostics = monitorPage(page);
   const goalAiRequests = trackGoalAiRequests(page);

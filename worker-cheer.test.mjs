@@ -228,6 +228,28 @@ test("동시에 들어온 치어링 요청 중 하나만 200을 받고 AI도 한
   assert.equal(providerCalls, 1);
 });
 
+/* 자리잡기는 AI 호출보다 먼저다. 그 호출이 KV 오류로 던지면 예외가 try 밖으로
+   빠져나가 워커가 형식 없는 500을 내보낸다. 크레딧 예약이 실패했을 때와 같은
+   모양이어야 클라이언트가 같은 경로로 처리한다. */
+test("자리잡기가 KV 오류로 실패해도 형식을 갖춘 AI 오류로 응답한다", { concurrency: false }, async () => {
+  const context = await authenticatedWorker({ userId: "cheer-kv-fail-user" });
+  const originalPut = context.kv.put.bind(context.kv);
+  context.kv.put = async (key, value) => {
+    if (key === `user:${context.userId}`) throw new Error("KV write failed");
+    return originalPut(key, value);
+  };
+
+  let providerCalls = 0;
+  const { response, body } = await withMockFetch(companionReplyMock(() => { providerCalls += 1; }), () =>
+    callCheer(context, { eventType: "celebrate", requestId: "cheer-kv-fail:1" }));
+
+  assert.equal(response.status, 500);
+  assert.equal(body.ok, false);
+  assert.equal(body.code, "AI_REQUEST_FAILED");
+  // 자리를 잡지 못했으면 provider도 부르지 않는다 — 비용이 발생하면 안 된다.
+  assert.equal(providerCalls, 0);
+});
+
 test("유저가 먼저 말 거는 대화는 치어링 상한과 무관하게 크레딧을 쓴다", { concurrency: false }, async () => {
   const context = await authenticatedWorker({ userId: "cheer-chat-user" });
   await withMockFetch(companionReplyMock(), async () => {

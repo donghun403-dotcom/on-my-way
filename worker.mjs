@@ -300,25 +300,26 @@ async function handleAiGenerationRequest({ request, env, accountContext, route }
     return json(aiErrorBody(error), error.status || 400);
   }
 
-  // 자동 치어링(축하·위로)은 유료 재화를 쓰지 않는 대신 하루 각 1회라는 별도 상한을 탄다.
-  // AI를 부르기 전에 자리를 잡아야 상한 초과 요청이 provider 비용을 만들지 않는다.
   const cheerEventType = route.kind === "companion" ? normalizeCheerEventType(input?.eventType) : "chat";
   const isFreeCheer = cheerEventType !== "chat";
-  let cheerClaimed = false;
-  if (isFreeCheer) {
-    cheerClaimed = await claimDailyCheer({ store: userStore, userId: user.id, eventType: cheerEventType });
-    if (!cheerClaimed) {
-      return json({ ok: false, error: "오늘의 무료 응원은 이미 전해드렸어요. 내일 또 만나요!", code: "CHEER_LIMIT_REACHED" }, 429);
-    }
-  }
 
   let reservation = null;
   let providerCalled = false;
+  let cheerClaimed = false;
   const model = env.OPENAI_MODEL || "gpt-5.4-mini";
   const aiCorrelationId = crypto.randomUUID();
   let aiStartedAt = 0;
   try {
-    if (!isFreeCheer) {
+    if (isFreeCheer) {
+      /* 자동 치어링(축하·위로)은 유료 재화를 쓰지 않는 대신 하루 각 1회라는 별도
+         상한을 탄다. AI를 부르기 전에 자리를 잡아야 상한 초과 요청이 provider
+         비용을 만들지 않는다. 자리잡기 자체가 KV 오류로 실패하는 경우까지 try 안에
+         두어, 크레딧 예약이 실패했을 때와 같은 모양(aiErrorBody)으로 응답한다. */
+      cheerClaimed = await claimDailyCheer({ store: userStore, userId: user.id, eventType: cheerEventType });
+      if (!cheerClaimed) {
+        return json({ ok: false, error: "오늘의 무료 응원은 이미 전해드렸어요. 내일 또 만나요!", code: "CHEER_LIMIT_REACHED" }, 429);
+      }
+    } else {
       reservation = await reserveAiCredits({ store: userStore, userId: user.id, action: route.action, requestId });
     }
 
