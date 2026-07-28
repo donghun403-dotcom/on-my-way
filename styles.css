@@ -4274,9 +4274,142 @@ body.sheet-open {
   border-color: var(--routine-green);
 }
 
+/* 대화 시트 안의 올리 — 말을 건 사람이 시트를 떠나지 않고 반응을 본다 */
+.chat-ollie {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.chat-ollie img {
+  width: 56px;
+  height: 56px;
+  flex: 0 0 auto;
+  object-fit: contain;
+}
+
+.chat-bubble {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 10px 12px;
+  background: var(--routine-soft);
+  border: 1px solid var(--routine-line);
+  border-radius: 4px var(--r-md) var(--r-md) var(--r-md);
+}
+
+.chat-bubble > span {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--routine-green-dark);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.chat-thinking {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  color: var(--routine-muted);
+  font-size: 13px;
+}
+
+.chat-thinking i {
+  width: 5px;
+  height: 5px;
+  background: currentColor;
+  border-radius: 50%;
+  animation: chat-thinking-dot 1s ease-in-out infinite;
+}
+
+.chat-thinking i:nth-child(2) { animation-delay: 0.16s; }
+.chat-thinking i:nth-child(3) { animation-delay: 0.32s; }
+.chat-thinking span { margin-left: 4px; }
+
+@keyframes chat-thinking-dot {
+  0%, 60%, 100% { opacity: 0.28; }
+  30% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-thinking i { animation: none; opacity: 0.6; }
+}
+
 .chat-input-label {
   display: grid;
   gap: 8px;
+}
+
+/* 로그인 시 계획 선택 — 두 계획을 나란히 놓고 고르게 한다 */
+.plan-choice-ollie {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--routine-soft);
+  border: 1px solid var(--routine-line);
+  border-radius: var(--r-md);
+}
+
+.plan-choice-ollie img {
+  width: 52px;
+  height: 52px;
+  flex: 0 0 auto;
+  object-fit: contain;
+}
+
+.plan-choice-ollie p {
+  margin: 0;
+  color: var(--routine-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.plan-choice-options {
+  display: grid;
+  gap: 8px;
+}
+
+.plan-choice-option {
+  display: grid;
+  gap: 3px;
+  min-height: 44px;
+  padding: 12px;
+  text-align: left;
+  background: #ffffff;
+  border: 1px solid var(--routine-line);
+  border-radius: var(--r-md);
+  cursor: pointer;
+}
+
+.plan-choice-option:hover,
+.plan-choice-option:focus-visible {
+  border-color: var(--routine-green);
+  background: var(--routine-soft);
+}
+
+.plan-choice-option .plan-choice-label {
+  color: var(--routine-green-dark);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.plan-choice-option b {
+  color: var(--routine-text);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.plan-choice-option small {
+  color: var(--routine-muted);
+  font-size: 12px;
+}
+
+.plan-choice-note {
+  margin: 0;
+  color: var(--routine-muted);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .chat-input-label textarea {
@@ -11094,6 +11227,84 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   0% { opacity: 0; transform: translate3d(0,-5vh,0) rotate(0deg) scale(.5); }
   15% { opacity: 1; }
   100% { opacity: 0; transform: translate3d(-25px,105vh,0) rotate(220deg) scale(1.25); }
+}
+
+/* 완료 축하 — 오늘 탭 위에 올리가 잠깐 나타난다. 별빛만으로는 축하한 주체가 안 보였다.
+   화면을 막지 않고 1.8초 뒤 스스로 사라지며, 아무 데나 누르면 즉시 닫힌다. */
+/* 화면을 막지 않는다. 축하가 뜬 동안에도 다음 일정을 바로 체크할 수 있어야 한다 —
+   카드 자리만 눌러서 닫을 수 있게 pointer-events를 카드에만 되살린다. */
+.ollie-celebration {
+  position: fixed;
+  z-index: 150;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  pointer-events: none;
+}
+
+.ollie-celebration-card {
+  pointer-events: auto;
+  cursor: pointer;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  width: min(300px, 100%);
+  padding: var(--space-4) var(--space-4) 18px;
+  background: #ffffff;
+  border: 1px solid var(--routine-line);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-xl);
+  text-align: center;
+  animation: ollie-celebration-in 260ms cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+
+.ollie-celebration-card img {
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+  filter: drop-shadow(0 12px 16px rgba(91, 106, 151, 0.18));
+}
+
+.ollie-celebration-stamp {
+  padding: 5px 14px;
+  color: var(--rose-600);
+  border: 2px solid currentColor;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  transform: rotate(-6deg);
+  animation: ollie-celebration-stamp 320ms cubic-bezier(0.2, 0.9, 0.3, 1.4) 120ms both;
+}
+
+.ollie-celebration p {
+  margin: 4px 0 0;
+  color: var(--routine-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.ollie-celebration p:empty {
+  display: none;
+}
+
+@keyframes ollie-celebration-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes ollie-celebration-stamp {
+  from { opacity: 0; transform: rotate(-6deg) scale(1.5); }
+  to { opacity: 1; transform: rotate(-6deg) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ollie-celebration-card,
+  .ollie-celebration-stamp {
+    animation-duration: 1ms;
+    animation-delay: 0ms;
+  }
 }
 
 .execution-page .progress-card {

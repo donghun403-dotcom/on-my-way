@@ -178,6 +178,16 @@ async function mockAccountExperience(page, {
   await mockExternalAssets(page);
   const state = { user, usage, paymentsEnabled, accountState: {}, revision: 0 };
 
+  /* 처음부터 로그인된 사용자를 모킹하는 테스트는 "이미 이 계정으로 쓰던 기기"를 뜻한다.
+     스코프를 비워 두면 부팅 때 익명 → 계정 전환이 일어나 계획 선택 시트가 열리고,
+     그 테스트가 보려던 화면을 가린다. 첫 로그인 승계 자체를 보는 테스트는 user 없이
+     시작해 나중에 account.user를 채우므로 여기 걸리지 않는다. */
+  if (user?.id) {
+    await page.addInitScript((scope) => {
+      if (!localStorage.getItem("onmyway:active-scope")) localStorage.setItem("onmyway:active-scope", scope);
+    }, `user:${user.id}`);
+  }
+
   await page.route("**/api/auth/providers", (route) => route.fulfill({
     status: 200,
     contentType: "application/json",

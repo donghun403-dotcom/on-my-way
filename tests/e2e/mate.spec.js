@@ -143,3 +143,63 @@ test("Free 월간 크레딧을 모두 쓰면 올리 API를 호출하지 않고 �
   expect(apiCalls).toBe(0);
   diagnostics.expectClean();
 });
+
+/* 진입 문구와 시트 제목이 어긋나고, 답은 올리 탭에서만 보이던 문제. 시트는
+   말을 건 자리에 그대로 있어야 하고 올리도 그 안에 있어야 한다. */
+test("대화 시트는 진입 맥락을 따르고 올리와 답을 시트 안에서 보여준다", async ({ page }) => {
+  const diagnostics = monitorPage(page, { allowedResponseUrls: ["/api/ai/companion-chat"] });
+  await prepareMate(page);
+  let releaseReply = () => {};
+  const replyGate = new Promise((resolve) => { releaseReply = resolve; });
+  await page.route("**/api/ai/companion-chat", async (route) => {
+    await replyGate;
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        reply: "오늘 저녁 일정을 30분 안으로 줄여볼게요.",
+        headline: "짧게 가요.",
+        usage: createUsageResponse({ plan: "free", dailyUsed: 1, monthlyUsed: 2, trialEligible: false }),
+      }),
+    });
+  });
+  await openMateApp(page);
+
+  const sheet = page.locator("#companionChatSheet");
+  const ollieImage = page.locator("#companionChatOllieImage");
+
+  // (a) 오늘 탭의 계획 조정 진입 — 제목이 "지금 마음을 알려주세요"가 아니라 조정 맥락이다.
+  await page.locator("[data-open-companion-chat]").click();
+  await expect(sheet).toBeVisible();
+  await expect(page.locator("#companionChatKicker")).toHaveText("오늘 계획 조정");
+  await expect(page.locator("#companionChatTitle")).toHaveText("어떻게 바꾸면 좋을까요?");
+  // (b) 올리가 시트 안에 있다.
+  await expect(ollieImage).toBeVisible();
+
+  await page.locator("#companionChatInput").fill("저녁 일정이 너무 길어. 줄여줘.");
+  await page.locator("#sendCompanionMessage").click();
+
+  // 대기 표시도 시트 안에 있고, 시트는 닫히지 않는다.
+  await expect(page.locator("#companionChatThinking")).toBeVisible();
+  await expect(sheet).toBeVisible();
+  await expect(ollieImage).toHaveAttribute("src", /ollie-thinking\.png/);
+
+  releaseReply();
+  await expect(page.locator("#companionChatResponse")).toContainText("30분 안으로 줄여볼게요");
+  await expect(page.locator("#companionChatThinking")).toBeHidden();
+  await expect(sheet).toBeVisible();
+
+  // 기록 탭 진입도 같은 시트를 열고 맥락만 바뀐다.
+  await page.locator("#closeCompanionChat").click();
+  await expect(sheet).toBeHidden();
+  await page.locator("#tab-memory").click();
+  await page.locator("#openCompanionChat").click();
+  await expect(sheet).toBeVisible();
+  await expect(page.locator("#companionChatKicker")).toHaveText("올리와 나눈 대화");
+  await expect(ollieImage).toBeVisible();
+  // 직전 답변은 맥락이 바뀌어도 지워지지 않는다.
+  await expect(page.locator("#companionChatResponse")).toContainText("30분 안으로 줄여볼게요");
+
+  diagnostics.expectClean();
+});

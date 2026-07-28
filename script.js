@@ -286,6 +286,10 @@ const ACCOUNT_STORAGE_SCOPE_KEY = "onmyway:active-scope";
 const ANONYMOUS_DEVICE_KEY = "onmyway:anonymous-device";
 const LEGACY_ACCOUNT_STORAGE_SCOPE_KEY = "omwAccountStorageScope";
 const LEGACY_ACCOUNT_STORAGE_SNAPSHOT_PREFIX = "omwAccountStorageSnapshot:";
+/* 로그인 시점에 게스트 계획과 계정 계획이 둘 다 있을 때 남기는 표식.
+   어느 쪽도 지우지 않고 "아직 못 골랐다"만 기록하며, 선택은 인앱 시트가 받는다. */
+const PENDING_PLAN_CHOICE_KEY = "onmyway:pending-plan-choice";
+const PLAN_CHOICE_BACKUP_PREFIX = "onmyway:plan-choice-backup:";
 // 실행 상태 ledger가 참조한 계획의 사본. 계획이 먼저 교체돼도 기존 기록을 정확히 복원하기 위한 로컬 전용 키다(서버 동기화 제외).
 const EXECUTION_LEDGER_PLAN_KEY = "omwExecutionLedgerPlan";
 const ACCOUNT_SCOPED_STORAGE_KEYS = [
@@ -598,15 +602,18 @@ function switchAccountStorageScope(targetScope, { allowAnonymousMerge = false } 
     localStorage.setItem(accountSnapshotKey(currentScope), JSON.stringify(currentSnapshot));
     ACCOUNT_SCOPED_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
 
-    let targetSnapshot = readAccountSnapshot(targetScope);
-    const hasAnonymousData = currentScope.startsWith("anonymous:") && Object.keys(currentSnapshot).length > 0;
-    const targetIsEmpty = Object.keys(targetSnapshot).length === 0;
-    if (allowAnonymousMerge && targetScope.startsWith("user:") && hasAnonymousData && targetIsEmpty) {
-      const shouldImport = window.confirm("로그인 전에 만든 목표와 기록을 이 계정으로 가져올까요? 가져오지 않아도 익명 기록은 이 기기에 보관됩니다.");
-      if (shouldImport) {
-        targetSnapshot = { ...currentSnapshot };
-        localStorage.setItem(accountSnapshotKey(targetScope), JSON.stringify(targetSnapshot));
-      }
+    const targetSnapshot = readAccountSnapshot(targetScope);
+    /* 게스트가 만든 계획이 있으면 여기서 승계 여부를 정하지 않는다. 두 스냅샷은 각자의
+       스코프 키에 그대로 남고, 이 표식을 본 인앱 시트가 로그인 뒤에 물어본다.
+       예전에는 계정 스냅샷이 비어 있을 때만 confirm으로 묻고 아니면 조용히 덮었는데,
+       그래서 로그아웃 중에 만든 계획이 재로그인 한 번에 사라졌다. */
+    if (allowAnonymousMerge && targetScope.startsWith("user:") && currentScope.startsWith("anonymous:")
+      && snapshotHasPlan(currentSnapshot)) {
+      localStorage.setItem(PENDING_PLAN_CHOICE_KEY, JSON.stringify({
+        targetScope,
+        guestScope: currentScope,
+        at: Date.now(),
+      }));
     }
     restoreAccountSnapshot(targetSnapshot);
     localStorage.setItem(ACCOUNT_STORAGE_SCOPE_KEY, targetScope);
@@ -624,6 +631,130 @@ function switchAccountStorageScope(targetScope, { allowAnonymousMerge = false } 
     } catch {}
     return true;
   }
+}
+
+/* ===== 로그인 시 계획 선택 =====
+   로그인 전에 만든 계획과 계정에 저장된 계획이 부딪히면 앱이 대신 고르지 않는다.
+   두 스냅샷을 모두 남겨둔 채 시트로 물어보고, 고른 쪽만 화면에 올린다. */
+function snapshotHasPlan(snapshot) {
+  const plan = safeJsonParse(snapshot?.omwExecutionPlan, null);
+  return Boolean(plan && String(plan.goal || "").trim());
+}
+
+function readPendingPlanChoice() {
+  const pending = safeJsonParse(localStorage.getItem(PENDING_PLAN_CHOICE_KEY), null);
+  return pending?.targetScope && pending?.guestScope ? pending : null;
+}
+
+function clearPendingPlanChoice() {
+  try {
+    localStorage.removeItem(PENDING_PLAN_CHOICE_KEY);
+  } catch {}
+}
+
+function describePlanForChoice(raw) {
+  const plan = safeJsonParse(raw, null);
+  const goal = String(plan?.goal || "").trim();
+  if (!goal) return null;
+  const period = Number(plan.period) || 0;
+  const createdAt = plan.createdAt ? new Date(plan.createdAt) : null;
+  const createdLabel = createdAt && !Number.isNaN(createdAt.getTime())
+    ? `${createdAt.getMonth() + 1}월 ${createdAt.getDate()}일에 만든 계획`
+    : "";
+  return {
+    goal,
+    meta: [period ? `${period}일` : "", createdLabel].filter(Boolean).join(" · "),
+    // 온보딩 핸드오프처럼 같은 계획이 양쪽에 있으면 물어볼 이유가 없다.
+    identity: String(plan.planId || plan.createdAt || raw),
+  };
+}
+
+const PLAN_CHOICE_COPY = {
+  choose: {
+    kicker: "계획이 두 개예요",
+    title: "어느 쪽으로 이어갈까요?",
+    message: "로그인 전에 만든 계획과 계정에 저장된 계획이 둘 다 있어요. 고른 쪽으로 이어갈게요.",
+    guestLabel: "방금 만든 계획으로 시작",
+    accountLabel: "이전 계획 이어가기",
+  },
+  import: {
+    kicker: "로그인 전에 만든 계획",
+    title: "이 계정으로 가져올까요?",
+    message: "로그인 전에 만든 계획이 이 기기에 남아 있어요.",
+    guestLabel: "가져오기",
+    accountLabel: "가져오지 않기",
+  },
+};
+
+function renderPlanChoiceSheet(guest, account) {
+  const copy = account ? PLAN_CHOICE_COPY.choose : PLAN_CHOICE_COPY.import;
+  if (planChoiceKicker) planChoiceKicker.textContent = copy.kicker;
+  if (planChoiceTitle) planChoiceTitle.textContent = copy.title;
+  if (planChoiceMessage) planChoiceMessage.textContent = copy.message;
+  planChoiceButtons.forEach((button) => {
+    const isGuest = button.dataset.planChoice === "guest";
+    const plan = isGuest ? guest : account;
+    button.querySelector("[data-plan-choice-label]").textContent = isGuest ? copy.guestLabel : copy.accountLabel;
+    button.querySelector("[data-plan-choice-goal]").textContent = plan ? plan.goal : "계획 없이 시작해요";
+    const metaElement = button.querySelector("[data-plan-choice-meta]");
+    metaElement.textContent = plan?.meta || "";
+    metaElement.hidden = !plan?.meta;
+  });
+}
+
+function maybeAskPlanChoice() {
+  if (!planChoiceSheet || !planChoiceOverlay) return;
+  const pending = readPendingPlanChoice();
+  if (!pending) return;
+  /* 온보딩 가입 게이트는 세션 핸드오프가 계획을 그대로 넘긴다. 그 흐름 한가운데서
+     물으면 방금 만든 계획을 두고 "가져올까요?"를 되묻는 꼴이 된다. */
+  if (pendingManualPlanHandoff()) return;
+  if (!authUiState.user || localStorage.getItem(ACCOUNT_STORAGE_SCOPE_KEY) !== pending.targetScope) {
+    clearPendingPlanChoice();
+    return;
+  }
+  const guest = describePlanForChoice(readAccountSnapshot(pending.guestScope).omwExecutionPlan);
+  if (!guest) {
+    clearPendingPlanChoice();
+    return;
+  }
+  const account = describePlanForChoice(localStorage.getItem("omwExecutionPlan"));
+  if (account?.identity === guest.identity) {
+    clearPendingPlanChoice();
+    return;
+  }
+  renderPlanChoiceSheet(guest, account);
+  setSheetOpen(planChoiceSheet, planChoiceOverlay, true);
+}
+
+async function applyPlanChoice(choice) {
+  const pending = readPendingPlanChoice();
+  clearPendingPlanChoice();
+  setSheetOpen(planChoiceSheet, planChoiceOverlay, false);
+  if (!pending) return;
+
+  if (choice !== "guest") {
+    showToast("이전 계획으로 이어갈게요. 방금 만든 계획도 이 기기에 남아 있어요.");
+    return;
+  }
+
+  try {
+    const guestSnapshot = readAccountSnapshot(pending.guestScope);
+    // 고르지 않은 쪽은 화면에서 내리되, CS 문의에 대비해 사본은 남긴다.
+    const replaced = captureAccountStorage();
+    if (Object.keys(replaced).length) {
+      localStorage.setItem(`${PLAN_CHOICE_BACKUP_PREFIX}${Date.now()}`, JSON.stringify(replaced));
+    }
+    ACCOUNT_SCOPED_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
+    restoreAccountSnapshot(guestSnapshot);
+    localStorage.setItem(accountSnapshotKey(pending.targetScope), JSON.stringify(captureAccountStorage()));
+    /* 서버 원본까지 고른 쪽으로 맞춘 뒤에 새로고침한다. 여기서 실패해도
+       다음 부팅의 initializeAccountStateSync가 같은 비교로 다시 올린다. */
+    await saveAccountStateToServer();
+  } catch (error) {
+    console.warn("Unable to apply plan choice", error);
+  }
+  location.reload();
 }
 
 function setPlanScreen(screen, { scroll = true, focus = true } = {}) {
@@ -1107,6 +1238,13 @@ const myPageMonthlyReset = document.querySelector("#myPageMonthlyReset");
 const myPageMonthlyProgress = document.querySelector("#myPageMonthlyProgress");
 const myPageTrialUsage = document.querySelector("#myPageTrialUsage");
 const navLoginLink = document.querySelector("#navLoginLink");
+const planChoiceSheet = document.querySelector("#planChoiceSheet");
+const planChoiceOverlay = document.querySelector("#planChoiceOverlay");
+const planChoiceKicker = document.querySelector("#planChoiceKicker");
+const planChoiceTitle = document.querySelector("#planChoiceTitle");
+const planChoiceMessage = document.querySelector("#planChoiceMessage");
+const closePlanChoiceButton = document.querySelector("#closePlanChoice");
+const planChoiceButtons = document.querySelectorAll("[data-plan-choice]");
 
 const AUTH_PROVIDER_LABELS = { kakao: "카카오 계정", naver: "네이버 계정", google: "Google 계정", apple: "Apple 계정", password: "운영자 계정" };
 const AUTH_PROVIDER_SHORT_LABELS = { kakao: "카카오", naver: "네이버", google: "Google", apple: "Apple" };
@@ -1758,6 +1896,17 @@ navLoginLink?.addEventListener("click", (event) => {
   openAuthSheet();
 });
 closeMyPageSheetButton?.addEventListener("click", () => setSheetOpen(myPageSheet, accountSheetOverlay, false));
+planChoiceButtons.forEach((button) => {
+  button.addEventListener("click", () => void applyPlanChoice(button.dataset.planChoice));
+});
+closePlanChoiceButton?.addEventListener("click", () => {
+  // 닫기는 보류다. 표식을 남겨 두면 다음 방문에 다시 묻는다.
+  setSheetOpen(planChoiceSheet, planChoiceOverlay, false);
+  showToast("나중에 다시 물어볼게요. 두 계획 모두 그대로 있어요.");
+});
+planChoiceOverlay?.addEventListener("click", () => {
+  setSheetOpen(planChoiceSheet, planChoiceOverlay, false);
+});
 accountSheetOverlay?.addEventListener("click", () => {
   const openSheetElement = [authSheet, myPageSheet, personalitySheet].find((sheet) => sheet && sheet.hidden === false);
   if (openSheetElement === authSheet) closeAuthSheet();
@@ -2214,6 +2363,11 @@ const chatActionButtons = document.querySelectorAll("[data-chat-action]");
 const companionChatInput = document.querySelector("#companionChatInput");
 const sendCompanionMessage = document.querySelector("#sendCompanionMessage");
 const companionChatResponse = document.querySelector("#companionChatResponse");
+const companionChatKicker = document.querySelector("#companionChatKicker");
+const companionChatTitle = document.querySelector("#companionChatTitle");
+const companionChatOllie = document.querySelector("#companionChatOllie");
+const companionChatOllieImage = document.querySelector("#companionChatOllieImage");
+const companionChatThinking = document.querySelector("#companionChatThinking");
 const focusModeOverlay = document.querySelector("#focusModeOverlay");
 const focusMode = document.querySelector("#focusMode");
 const closeFocusModeButton = document.querySelector("#closeFocusMode");
@@ -2229,6 +2383,10 @@ const focusTimerPauseButton = document.querySelector("#focusTimerPauseButton");
 const focusTimeupMessage = document.querySelector("#focusTimeupMessage");
 const finishFocusButton = document.querySelector("#finishFocusButton");
 const ollieStarShower = document.querySelector("#ollieStarShower");
+const ollieCelebration = document.querySelector("#ollieCelebration");
+const ollieCelebrationImage = document.querySelector("#ollieCelebrationImage");
+const ollieCelebrationStamp = document.querySelector("#ollieCelebrationStamp");
+const ollieCelebrationMessage = document.querySelector("#ollieCelebrationMessage");
 const appLiveRegion = document.querySelector("#appLiveRegion");
 
 goalForm?.addEventListener("submit", (event) => {
@@ -2485,6 +2643,20 @@ function getBuilderTaskMinutesTotal() {
   return builderTasks.reduce((sum, task) => sum + (Number(task.minutes) || 0), 0);
 }
 
+/* 같은 할 일 묶음이 선택한 모든 요일에 그대로 들어가므로, 지켜야 할 상한은 그중
+   가장 빡빡한 쪽이다. 주말만 고른 사람에게 평일 값을 들이대지 않는다. */
+function getBuilderDailyLimit() {
+  const days = getSelectedDesignDays();
+  const weekday = Number(designWeekdayMinutesInput?.value) || 0;
+  const weekend = Number(designWeekendMinutesInput?.value) || 0;
+  const limits = [];
+  if (weekday && days.some((day) => !["토", "일"].includes(day))) limits.push({ label: "평일", minutes: weekday });
+  if (weekend && days.some((day) => ["토", "일"].includes(day))) limits.push({ label: "주말", minutes: weekend });
+  // 요일을 아직 고르지 않았으면 평일 값으로 안내한다 (기본 선택이 평일이다).
+  if (!limits.length && weekday) limits.push({ label: "평일", minutes: weekday });
+  return limits.sort((a, b) => a.minutes - b.minutes)[0] || null;
+}
+
 function updateTaskBudgetHint() {
   if (!taskBudgetHintElement) return;
   if (!builderTasks.length) {
@@ -2492,11 +2664,11 @@ function updateTaskBudgetHint() {
     return;
   }
   const total = getBuilderTaskMinutesTotal();
-  const weekdayLimit = Number(designWeekdayMinutesInput?.value) || 0;
+  const limit = getBuilderDailyLimit();
   taskBudgetHintElement.hidden = false;
-  if (weekdayLimit && total > weekdayLimit) {
+  if (limit && total > limit.minutes) {
     taskBudgetHintElement.classList.add("is-over");
-    taskBudgetHintElement.textContent = `하루 합계 ${total}분 · 가능 시간(${weekdayLimit}분)을 넘어요. 조금 줄이면 지키기 쉬워져요.`;
+    taskBudgetHintElement.textContent = `하루 합계 ${total}분 · ${limit.label} 가능 시간(${limit.minutes}분)을 넘어요. 조금 줄이면 지키기 쉬워져요.`;
     return;
   }
   taskBudgetHintElement.classList.remove("is-over");
@@ -2881,7 +3053,12 @@ function renderDiagnosisStep() {
   // 수동 빌더는 "다음 단계"로 진행하고 마지막 단계에서만 계획을 완성한다.
   if (diagnosisNextButton) diagnosisNextButton.hidden = isLastStep;
   if (aiPreviewButton) aiPreviewButton.hidden = !isLastStep;
-  if (diagnosisStepIndex === 2) ensureBuilderTasks({ refreshIfUntouched: true });
+  if (diagnosisStepIndex === 2) {
+    ensureBuilderTasks({ refreshIfUntouched: true });
+    /* 초안을 다시 채우지 않는 경우에도 힌트는 다시 계산한다. 직전 단계에서 정한
+       가능 시간이 이 화면의 기준이라 예전에는 기본값 30분이 그대로 남아 있었다. */
+    updateTaskBudgetHint();
+  }
   updateGoalStepState();
   updateWizardSummary();
 }
@@ -3365,6 +3542,8 @@ function readCheerState() {
    여기서 넣어도 숨김이 풀리지 않고 다음 렌더에 바로 덮인다. */
 function displayCheer(eventType, cheer) {
   showOllieReaction(cheer.reply, cheer.headline, { stealFocus: false });
+  // 완료 오버레이가 아직 떠 있으면 방금 도착한 축하 문구로 갈아 끼운다.
+  if (eventType === "celebrate") updateOllieCelebrationMessage(cheer.reply);
   if (dailyCoachKicker) dailyCoachKicker.textContent = cheerKicker(eventType);
   if (dailyCoachTitle) dailyCoachTitle.textContent = cheer.headline;
   if (dailyCoachMessage) dailyCoachMessage.textContent = cheer.reply;
@@ -3659,6 +3838,12 @@ personalityForm?.addEventListener("submit", (event) => {
     field?.addEventListener("input", updateWizardSummary);
   },
 );
+
+// 가능 시간과 실행 요일은 할 일 단계 상한의 근거다. 바뀌면 그 자리에서 다시 계산한다.
+[designWeekdayMinutesInput, designWeekendMinutesInput, ...designDayInputs].forEach((field) => {
+  field?.addEventListener("input", updateTaskBudgetHint);
+  field?.addEventListener("change", updateTaskBudgetHint);
+});
 
 // 목표가 바뀌면 아직 손대지 않은 초안만 새 목표 유형에 맞춰 다시 채운다.
 designGoal?.addEventListener("input", () => ensureBuilderTasks({ refreshIfUntouched: true }));
@@ -6281,6 +6466,60 @@ function showOllieStarShower(taskText = "오늘의 일정") {
   window.setTimeout(() => ollieStarShower.classList.remove("show"), 2200);
 }
 
+/* ===== 완료 축하 오버레이 =====
+   별빛만 쏟아지던 시절에는 축하한 주체가 화면에 없었다 — 올리의 축하는 올리 탭까지
+   가야 보였다. 완료한 그 자리에서 올리가 잠깐 나타나 도장을 찍고 사라진다.
+   시선은 끌되 붙잡지는 않는다: 1.8초 뒤 저절로 닫히고, 아무 데나 누르면 즉시 닫힌다. */
+const OLLIE_CELEBRATION_MS = 1800;
+let ollieCelebrationTimer = 0;
+
+const LOCAL_COMPLETION_LINES = [
+  "하나 끝냈어요. 이 흐름 그대로 가요.",
+  "방금 그거, 어제의 나보다 한 걸음 앞이에요.",
+  "체크 하나가 쌓였어요. 올리가 기억해둘게요.",
+];
+
+function hideOllieCelebration() {
+  if (!ollieCelebration) return;
+  window.clearTimeout(ollieCelebrationTimer);
+  ollieCelebrationTimer = 0;
+  ollieCelebration.hidden = true;
+}
+
+function showOllieCelebration({ stamp = "참 잘했어요", message = "", image = "assets/ollie-celebrate.png" } = {}) {
+  if (!ollieCelebration) return;
+  if (ollieCelebrationStamp) ollieCelebrationStamp.textContent = stamp;
+  if (ollieCelebrationMessage) ollieCelebrationMessage.textContent = message;
+  setImageSource(ollieCelebrationImage, image);
+  window.clearTimeout(ollieCelebrationTimer);
+  ollieCelebration.hidden = false;
+  ollieCelebrationTimer = window.setTimeout(hideOllieCelebration, OLLIE_CELEBRATION_MS);
+  // 낭독은 이미 별빛 announce와 토스트가 맡는다. 여기서 또 읽으면 세 번 겹친다.
+}
+
+/* AI 축하는 완료보다 몇 초 늦게 도착한다. 오버레이가 아직 떠 있으면 그 문구로
+   갈아 끼우고, 이미 닫혔으면 새로 띄우지 않는다 — 코치 카드에 남으므로 충분하다. */
+function updateOllieCelebrationMessage(message) {
+  if (!ollieCelebration || ollieCelebration.hidden || !message) return;
+  if (ollieCelebrationMessage) ollieCelebrationMessage.textContent = message;
+  window.clearTimeout(ollieCelebrationTimer);
+  ollieCelebrationTimer = window.setTimeout(hideOllieCelebration, OLLIE_CELEBRATION_MS);
+}
+
+function celebrateCompletion({ dayCompleted = false } = {}) {
+  // 오늘 치어링이 이미 와 있으면 그 문구를 쓰고, 아직이면 로컬 문구로 먼저 띄운다.
+  const cheer = dayCompleted ? readCheerState().celebrate : null;
+  const fallback = dayCompleted
+    ? "오늘 계획을 전부 해냈어요."
+    : LOCAL_COMPLETION_LINES[Math.floor(Math.random() * LOCAL_COMPLETION_LINES.length)];
+  showOllieCelebration({
+    stamp: dayCompleted ? "오늘 완주" : "참 잘했어요",
+    message: cheer?.reply || fallback,
+  });
+}
+
+ollieCelebration?.addEventListener("click", hideOllieCelebration);
+
 function pulseBondCompanion(rewardText = "♥") {
   if (executionCompanion) {
     executionCompanion.classList.remove("is-petted");
@@ -6635,10 +6874,73 @@ saveCompletionReflectionButton?.addEventListener("click", () => {
   renderExecutionPage(getPlanBundle());
 });
 
+/* 진입 문구와 시트 제목이 어긋나 있었다 — "오늘 계획 조정하기"를 눌러도
+   "지금 마음을 알려주세요"가 떠서 무엇을 적어야 하는지 알 수 없었다. */
+const COMPANION_CHAT_ENTRIES = {
+  talk: {
+    kicker: "올리와 오늘 이야기하기",
+    title: "지금 마음을 알려주세요",
+    placeholder: "예: 오늘은 피곤했지만 그래도 첫 일정은 끝냈어.",
+    greeting: "오늘 어땠는지 한 줄만 알려줘도 돼요. 듣고 있어요.",
+  },
+  adjust: {
+    kicker: "오늘 계획 조정",
+    title: "어떻게 바꾸면 좋을까요?",
+    placeholder: "예: 저녁 일정이 너무 길어. 30분 안으로 줄여줘.",
+    greeting: "어디가 무거운지 말해주면 오늘 계획을 그만큼 덜어낼게요.",
+  },
+  continue: {
+    kicker: "올리와 나눈 대화",
+    title: "이어서 이야기해요",
+    placeholder: "예: 아까 말한 그 방법, 내일도 그대로 해볼까?",
+    greeting: "아까 하던 이야기, 여기서 이어가요.",
+  },
+  recovery: {
+    kicker: "다시 시작",
+    title: "오늘은 어떤 날이었나요?",
+    placeholder: "예: 오늘은 도저히 못 하겠어. 내일부터 다시 할래.",
+    greeting: "못 한 날도 계획의 일부예요. 지금 상태만 알려주세요.",
+  },
+};
+
+function applyCompanionChatEntry(entry) {
+  const copy = COMPANION_CHAT_ENTRIES[entry] || COMPANION_CHAT_ENTRIES.talk;
+  if (companionChatKicker) companionChatKicker.textContent = copy.kicker;
+  if (companionChatTitle) companionChatTitle.textContent = copy.title;
+  if (companionChatInput) companionChatInput.placeholder = copy.placeholder;
+  setCompanionChatThinking(false);
+  // 아직 아무 말도 오가지 않았을 때만 인사로 채운다. 직전 답변은 덮지 않는다.
+  if (companionChatResponse && !companionChatResponse.dataset.replied) {
+    companionChatResponse.textContent = copy.greeting;
+  }
+}
+
+function setCompanionChatThinking(thinking) {
+  if (companionChatThinking) companionChatThinking.hidden = !thinking;
+  if (companionChatResponse) companionChatResponse.hidden = thinking;
+  setImageSource(companionChatOllieImage, thinking ? "assets/ollie-thinking.png" : "assets/ollie-action.png");
+}
+
+/* 답이 도착하면 시트 안에서 보이게 한다. 유저가 입력창까지 스크롤해 둔 상태라
+   말풍선이 위로 밀려나 있을 수 있다. */
+function showCompanionChatReply(message, { image = "assets/ollie-action.png" } = {}) {
+  setCompanionChatThinking(false);
+  if (companionChatResponse) {
+    companionChatResponse.textContent = message;
+    companionChatResponse.dataset.replied = "true";
+  }
+  setImageSource(companionChatOllieImage, image);
+  if (companionChatSheet?.hidden === false) {
+    companionChatOllie?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+}
+
 function openCompanionChat(event) {
   if (event?.currentTarget instanceof HTMLElement) previousFocusElement = event.currentTarget;
+  const entry = event?.currentTarget instanceof HTMLElement ? event.currentTarget.dataset.chatEntry : "";
+  applyCompanionChatEntry(entry);
   setSheetOpen(companionChatSheet, chatOverlay, true);
-  trackCompanionEvent("companion_chat_opened");
+  trackCompanionEvent("companion_chat_opened", { entry: entry || "talk" });
 }
 
 function closeCompanionChat() {
@@ -7175,6 +7477,7 @@ function completeFocusTask() {
   closeFocusMode();
   pulseCompanion();
   if (newlyRecorded) showOllieStarShower(dayPlan.tasks[taskIndex]?.text);
+  if (newlyRecorded || completionBonus) celebrateCompletion({ dayCompleted: Boolean(completionBonus) });
   showToast(newlyRecorded ? `일정 하나를 완료했어요 · 올리가 ${10 + completionBonus} XP를 받았어요` : completionBonus ? "오늘 계획을 모두 완료했어요 · 올리가 8 XP를 받았어요" : wasUnchecked ? "완료 상태를 다시 표시했어요 · XP는 중복 지급되지 않아요" : "이미 완료된 일정이에요");
   trackCompanionEvent("focus_completed", { day: dayPlan.day, taskIndex, rewarded: Boolean(newlyRecorded || completionBonus), completionBonus });
   if (completionBonus) triggerOllieCheer("celebrate", { total: dayPlan.tasks.length });
@@ -9091,6 +9394,7 @@ executionChecklist?.addEventListener("change", (event) => {
     addCompanionXp((newlyRecorded ? 10 : 0) + completionBonus, "happy");
     pulseCompanion();
     showOllieStarShower(dayPlan.tasks[taskIndex]?.text);
+    celebrateCompletion({ dayCompleted: Boolean(completionBonus) });
     showToast(`일정 하나를 완료했어요 · 올리가 ${(newlyRecorded ? 10 : 0) + completionBonus} XP를 받았어요`);
     trackCompanionEvent("task_completed", { day: dayPlan.day, taskIndex, completionBonus });
     if (newlyRecorded) {
@@ -9132,6 +9436,7 @@ completeTodayButton?.addEventListener("click", () => {
     addCompanionXp(xpEarned, "happy");
     pulseCompanion();
     showOllieStarShower("오늘의 AI 스케줄");
+    celebrateCompletion({ dayCompleted: Boolean(completionBonus) });
     showToast(`오늘 계획 완료 · 올리가 ${xpEarned} XP를 얻었어요`);
     trackCompanionEvent("all_day_completed", { day: dayPlan.day, newlyCompleted, completionBonus });
     if (newlyCompleted > 0) {
@@ -9372,7 +9677,7 @@ energyButtons.forEach((button) => {
 
     saveCompanionState({ ...state, energy, mood: energy === "tired" ? "caring" : "ready", lastEnergyCheckInDate: todayKey });
     energyButtons.forEach((item) => item.classList.toggle("active", item === button));
-    if (companionChatResponse) companionChatResponse.textContent = copy.message;
+    showCompanionChatReply(copy.message, { image: energy === "tired" ? "assets/ollie-comfort.png" : "assets/ollie-action.png" });
     if (companionMessage) companionMessage.textContent = copy.message;
     if (companionMoodLine) companionMoodLine.textContent = copy.headline;
     pulseCompanion();
@@ -9394,9 +9699,10 @@ chatActionButtons.forEach((button) => {
 
     if (action === "encourage") {
       const line = encouragementLines[Math.floor(Math.random() * encouragementLines.length)];
-      if (companionChatResponse) companionChatResponse.textContent = line;
+      showCompanionChatReply(line);
       addCompanionXp(2, "happy");
-      showOllieReaction(line, "올리의 응원이에요!");
+      // 시트 안에서 답을 보여줬으니 여기서 시트를 닫고 시선을 옮기지 않는다.
+      showOllieReaction(line, "올리의 응원이에요!", { stealFocus: false });
       trackCompanionEvent("quick_adjustment_selected", { action });
       return;
     }
@@ -9421,7 +9727,8 @@ chatActionButtons.forEach((button) => {
 
     if (!preset) return;
     appendRevisionRequest(preset.request, preset.response);
-    showOllieReaction(undefined, preset.headline);
+    showCompanionChatReply(preset.response);
+    showOllieReaction(undefined, preset.headline, { stealFocus: false });
     trackCompanionEvent("quick_adjustment_selected", { action });
   });
 });
@@ -9429,7 +9736,7 @@ chatActionButtons.forEach((button) => {
 sendCompanionMessage?.addEventListener("click", async () => {
   const message = companionChatInput?.value.trim() || "";
   if (!message) {
-    if (companionChatResponse) companionChatResponse.textContent = "하고 싶은 말을 한 줄만 적어도 충분해요.";
+    showCompanionChatReply("하고 싶은 말을 한 줄만 적어도 충분해요.");
     return;
   }
 
@@ -9438,25 +9745,28 @@ sendCompanionMessage?.addEventListener("click", async () => {
 
   appendRevisionRequest(`사용자 추가 요청: ${message}`, "올리가 답을 생각하고 있어요…");
   companionChatInput.value = "";
-  showOllieReaction(undefined, "음, 잠깐만요…");
+  /* stealFocus를 켜면 showOllieReaction이 이 시트를 닫고 올리 탭으로 시선을 옮긴다.
+     말을 건 사람은 여기 있는데 반응만 다른 탭에서 일어나던 원인이 이거였다. */
+  showOllieReaction(undefined, "음, 잠깐만요…", { stealFocus: false });
+  setCompanionChatThinking(true);
   addCompanionXp(3, "thinking");
   trackCompanionEvent("custom_revision_requested", { length: message.length });
 
   sendCompanionMessage.disabled = true;
   try {
     const { reply, headline } = await requestCompanionReply(message);
-    if (companionChatResponse) companionChatResponse.textContent = reply;
+    showCompanionChatReply(reply);
     if (memoryConversation) memoryConversation.textContent = reply;
     if (memoryConversationSummary) memoryConversationSummary.hidden = false;
-    showOllieReaction(reply, headline || "올리의 대답이에요.");
+    showOllieReaction(reply, headline || "올리의 대답이에요.", { stealFocus: false });
     trackCompanionEvent("companion_dialogue", {
       userLength: message.length,
       replyLength: reply.length,
     });
   } catch (error) {
     const fallback = `${error.message || "지금은 답을 만들지 못했어요."} 실패한 요청은 AI 크레딧으로 확정 차감되지 않아요.`;
-    if (companionChatResponse) companionChatResponse.textContent = fallback;
-    showOllieReaction(fallback, "잠시 생각을 고르고 있어요.");
+    showCompanionChatReply(fallback, { image: "assets/ollie-comfort.png" });
+    showOllieReaction(fallback, "잠시 생각을 고르고 있어요.", { stealFocus: false });
   } finally {
     sendCompanionMessage.disabled = false;
   }
@@ -9804,6 +10114,9 @@ accountExperienceReady
         void resumeFullPlanActivationAfterAuth();
       }
       initializeExecutionPage();
+      /* 계획 선택은 계정 상태 동기화가 끝난 뒤에 묻는다 — 그 전에는 화면의 계획이
+         서버 값으로 한 번 더 바뀔 수 있어서, 유저가 방금 본 것과 다른 걸 고르게 된다. */
+      maybeAskPlanChoice();
       markAppReady();
     }
   })

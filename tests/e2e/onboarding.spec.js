@@ -23,12 +23,6 @@ function trackGoalAiRequests(page) {
   return requests;
 }
 
-// 로그인 시 main의 switchAccountStorageScope가 익명 데이터 승계를 confirm으로 묻는다.
-// Playwright는 대화상자를 기본 거절하므로 명시적으로 수락해 게스트 계획을 넘긴다.
-function acceptStorageMergePrompt(page) {
-  page.on("dialog", (dialog) => dialog.accept());
-}
-
 /* 라우트를 지워도 카피가 남으면 유저에게는 기능이 살아 있는 것처럼 보인다.
    "AI가 계획을 만들어 준다"는 약속이 첫 화면 어디에도 없어야 한다. */
 test("첫 화면은 사라진 AI 계획 생성을 광고하지 않는다", async ({ page }) => {
@@ -112,7 +106,6 @@ test("저장한 수동 계획은 스케줄 코덱 왕복 검증을 통과한다"
 test("게스트가 계획을 완성하면 로그인 게이트가 열리고, 로그인 후 체험이 시작돼 오늘 화면으로 간다", async ({ page }) => {
   const diagnostics = monitorPage(page);
   const goalAiRequests = trackGoalAiRequests(page);
-  acceptStorageMergePrompt(page);
   const account = await mockAccountExperience(page);
 
   await page.goto("/index.html#designFlow");
@@ -247,7 +240,6 @@ test("체험 시작이 실패해도 계획은 남고 새로고침으로 다시 �
     allowedResponseUrls: ["/api/ai/trial/start"],
     allowedConsoleMessages: ["status of 503"],
   });
-  acceptStorageMergePrompt(page);
   const account = await mockAccountExperience(page);
   await buildPlanAndOpenSignupGate(page, {
     time: "09:00", text: "잠재 고객 한 명에게 인터뷰 요청", minutes: 15, rule: "메시지를 보내면 완료",
@@ -294,7 +286,6 @@ test("체험 시작이 실패해도 계획은 남고 새로고침으로 다시 �
 test("의도 TTL이 지난 뒤 로그인해도 만든 계획은 그대로 이어진다", async ({ page }, testInfo) => {
   skipRedundantHandoffProject(testInfo);
   const diagnostics = monitorPage(page);
-  acceptStorageMergePrompt(page);
   const account = await mockAccountExperience(page);
   await buildPlanAndOpenSignupGate(page, {
     time: "07:00", text: "지원 공고 한 곳 정리", minutes: 20, rule: "요구사항을 적어두면 완료",
@@ -463,6 +454,69 @@ test("실행 요일을 모두 해제하면 리듬 단계를 벗어나지 못한�
 
   await page.locator("#diagnosisNextButton").click();
   await expect(page.locator(".diagnosis-step.active")).toHaveAttribute("data-step-title", "언제, 얼마나 해볼까요?");
+
+  diagnostics.expectClean();
+});
+
+/* 2단계에서 정한 가능 시간이 3단계 경고의 기준이어야 한다. 예전에는 힌트가 모듈 로드
+   시점에 기본값 30분으로 한 번 계산되고 다시 계산되지 않아, 평일 50분을 넣어도
+   "가능 시간(30분)을 넘어요"가 떴다. 주말만 실행하는 사람에게 평일 값을 들이대던
+   것도 같은 함수의 문제다. */
+test("3단계 가능 시간 경고는 2단계에서 입력한 값과 선택한 요일을 따른다", async ({ page }) => {
+  const diagnostics = monitorPage(page);
+  await mockAccountExperience(page);
+  await page.goto("/index.html#designFlow");
+  await waitForBootstrap(page);
+
+  const next = page.locator("#diagnosisNextButton");
+  const back = page.locator("#diagnosisBackButton");
+  const hint = page.locator("#taskBudgetHint");
+
+  await page.locator("#designGoal").fill("3개월 안에 토익 900점 달성하기");
+  await next.click();
+  await expect(page.locator(".diagnosis-step.active")).toHaveAttribute("data-step-title", "언제, 얼마나 해볼까요?");
+  await page.locator("#designWeekdayMinutes").fill("50");
+  await next.click();
+  await expect(page.locator(".diagnosis-step.active")).toHaveAttribute("data-step-title", "어떤 일을 하면 될까요?");
+  await page.locator("#taskBuilderList .task-builder-item").first().waitFor();
+
+  /* 재현의 핵심. 시험 초안은 합계 45분이라 기본값 30분 기준이면 경고가 뜬다.
+     3단계에 들어선 순간, 할 일을 아직 건드리지 않았어도 50분이 기준이어야 한다. */
+  await expect(hint).toContainText("하루 합계 약 45분");
+  await expect(hint).not.toContainText("넘어요");
+
+  // 할 일을 하나만 남기고 45분으로 맞춘다 — 기본 30분 기준이면 초과, 입력한 50분이면 여유다.
+  const rows = page.locator("#taskBuilderList .task-builder-item");
+  while (await rows.count() > 1) await rows.last().locator("[data-task-remove]").click();
+  await rows.first().locator("[data-task-field='minutes']").fill("45");
+  await expect(hint).toContainText("45분");
+  await expect(hint).not.toContainText("넘어요");
+
+  // 상한을 넘기면 2단계에서 넣은 값이 경고에 그대로 나와야 한다.
+  await rows.first().locator("[data-task-field='minutes']").fill("60");
+  await expect(hint).toContainText("평일 가능 시간(50분)을 넘어요");
+
+  // 2단계로 돌아가 값을 바꾸면 3단계 경고도 따라 바뀐다.
+  await back.click();
+  await expect(page.locator(".diagnosis-step.active")).toHaveAttribute("data-step-title", "언제, 얼마나 해볼까요?");
+  await page.locator("#designWeekdayMinutes").fill("90");
+  await next.click();
+  await expect(page.locator(".diagnosis-step.active")).toHaveAttribute("data-step-title", "어떤 일을 하면 될까요?");
+  await expect(hint).not.toContainText("넘어요");
+
+  // 주말에만 실행하는 사람에게는 주말 값이 기준이다.
+  await back.click();
+  await expect(page.locator(".diagnosis-step.active")).toHaveAttribute("data-step-title", "언제, 얼마나 해볼까요?");
+  await page.locator("#designWeekendMinutes").fill("20");
+  await page.locator("[data-design-day]").evaluateAll((inputs) => {
+    inputs.forEach((input) => {
+      const isWeekend = input.value === "토" || input.value === "일";
+      if (input.checked !== isWeekend) input.click();
+    });
+  });
+  await next.click();
+  await expect(page.locator(".diagnosis-step.active")).toHaveAttribute("data-step-title", "어떤 일을 하면 될까요?");
+  await expect(hint).toContainText("주말 가능 시간(20분)을 넘어요");
 
   diagnostics.expectClean();
 });

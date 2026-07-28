@@ -621,6 +621,35 @@
       </div>
     </footer>
 
+    <div class="sheet-overlay" id="planChoiceOverlay" hidden></div>
+    <aside class="companion-chat-sheet plan-choice-sheet" id="planChoiceSheet" role="dialog" aria-modal="true" aria-labelledby="planChoiceTitle" tabindex="-1" hidden>
+      <div class="sheet-handle" aria-hidden="true"></div>
+      <div class="sheet-title-row">
+        <div>
+          <span id="planChoiceKicker">계획이 두 개예요</span>
+          <h2 id="planChoiceTitle">어느 쪽으로 이어갈까요?</h2>
+        </div>
+        <button id="closePlanChoice" type="button" aria-label="나중에 고르기">×</button>
+      </div>
+      <div class="plan-choice-ollie">
+        <img class="mascot-art" src="assets/ollie-thinking.png" alt="" />
+        <p id="planChoiceMessage">로그인 전에 만든 계획과 계정에 저장된 계획이 둘 다 있어요. 고른 쪽으로 이어갈게요.</p>
+      </div>
+      <div class="plan-choice-options">
+        <button type="button" class="plan-choice-option" data-plan-choice="guest">
+          <span class="plan-choice-label" data-plan-choice-label>방금 만든 계획으로 시작</span>
+          <b data-plan-choice-goal></b>
+          <small data-plan-choice-meta hidden></small>
+        </button>
+        <button type="button" class="plan-choice-option" data-plan-choice="account">
+          <span class="plan-choice-label" data-plan-choice-label>이전 계획 이어가기</span>
+          <b data-plan-choice-goal></b>
+          <small data-plan-choice-meta hidden></small>
+        </button>
+      </div>
+      <p class="plan-choice-note">고르지 않은 계획은 화면에서 내려가고, 사본은 이 기기에 남아요.</p>
+    </aside>
+
     <div class="sheet-overlay" id="accountSheetOverlay" hidden></div>
     <aside class="companion-chat-sheet account-sheet" id="authSheet" role="dialog" aria-modal="true" aria-labelledby="authSheetTitle" tabindex="-1" hidden>
       <div class="auth-sheet-hero">

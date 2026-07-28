@@ -1,5 +1,5 @@
 const { test, expect } = require("@playwright/test");
-const { mockExternalAssets, monitorPage, prepareApp, readStored, waitForAppReady } = require("./helpers");
+const { mockAccountExperience, mockExternalAssets, monitorPage, prepareApp, readStored, waitForAppReady } = require("./helpers");
 
 const corruptions = [
   ["invalid JSON and empty values", { omwExecutionState: "{bad-json", omwCompanionState: "" }],
@@ -187,4 +187,124 @@ test("처음 화면의 로컬 미리보기는 이미 저장된 회원 계획을 
   await prepareApp(page, { omwExecutionPlan: savedPlan });
   await page.goto("/index.html");
   await expect.poll(() => readStored(page, "omwExecutionPlan")).toMatchObject(savedPlan);
+});
+
+const ACCOUNT_PLAN = { goal: "이전 계정 계획", period: 90, planId: "plan-account", createdAt: "2026-07-01T00:00:00.000Z" };
+const GUEST_PLAN = { goal: "방금 만든 게스트 계획", period: 30, planId: "plan-guest", createdAt: "2026-07-28T00:00:00.000Z" };
+
+/* 재현: 계정A로 계획을 만들고 → 로그아웃 → 비로그인으로 새 계획 작성 → 계정A로 다시 로그인.
+   예전에는 계정 스냅샷이 비어 있지 않다는 이유로 아무것도 묻지 않고 복원해서, 방금 만든
+   계획이 화면에서 사라졌다. 이제는 어느 쪽도 버리지 않고 선택 표식만 남긴다. */
+test("재로그인 때 게스트 계획과 계정 계획이 둘 다 있으면 어느 쪽도 버리지 않는다", async ({ page }) => {
+  await mockExternalAssets(page);
+  await page.goto("/app.html");
+  const result = await page.evaluate(({ accountPlan, guestPlan }) => {
+    switchAccountStorageScope("user:account-a");
+    localStorage.setItem("omwExecutionPlan", JSON.stringify(accountPlan));
+
+    switchAccountStorageScope("anonymous:relogin-device");
+    localStorage.setItem("omwExecutionPlan", JSON.stringify(guestPlan));
+
+    switchAccountStorageScope("user:account-a", { allowAnonymousMerge: true });
+    return {
+      live: JSON.parse(localStorage.getItem("omwExecutionPlan") || "null"),
+      guestSnapshot: JSON.parse(
+        JSON.parse(localStorage.getItem("onmyway:anonymous:relogin-device:state") || "{}").omwExecutionPlan || "null",
+      ),
+      pending: JSON.parse(localStorage.getItem("onmyway:pending-plan-choice") || "null"),
+    };
+  }, { accountPlan: ACCOUNT_PLAN, guestPlan: GUEST_PLAN });
+
+  // 선택 전에는 계정 계획이 화면에 남고(기존 동작), 게스트 계획도 그대로 보존된다.
+  expect(result.live.planId).toBe("plan-account");
+  expect(result.guestSnapshot.planId).toBe("plan-guest");
+  expect(result.pending).toMatchObject({ targetScope: "user:account-a", guestScope: "anonymous:relogin-device" });
+});
+
+test("게스트 데이터가 없으면 선택을 묻지 않는다", async ({ page }) => {
+  await mockExternalAssets(page);
+  await page.goto("/app.html");
+  const pending = await page.evaluate(({ accountPlan }) => {
+    switchAccountStorageScope("user:account-a");
+    localStorage.setItem("omwExecutionPlan", JSON.stringify(accountPlan));
+    switchAccountStorageScope("anonymous:empty-device");
+    switchAccountStorageScope("user:account-a", { allowAnonymousMerge: true });
+    return localStorage.getItem("onmyway:pending-plan-choice");
+  }, { accountPlan: ACCOUNT_PLAN });
+
+  expect(pending).toBeNull();
+});
+
+/* 실제 화면에서 고르는 데까지가 수정 범위다. 네이티브 confirm은 쓰지 않는다. */
+test("로그인 뒤 인앱 시트에서 방금 만든 계획을 고르면 그 계획으로 이어간다", async ({ page }) => {
+  const account = await mockAccountExperience(page, {
+    user: { id: "account-a", provider: "kakao", name: "재로그인 사용자", email: "a@example.com", plan: "free", role: "member" },
+  });
+  account.accountState = { omwExecutionPlan: JSON.stringify(ACCOUNT_PLAN) };
+  account.revision = 3;
+
+  let nativeDialogs = 0;
+  page.on("dialog", (dialog) => { nativeDialogs += 1; return dialog.dismiss(); });
+
+  await page.addInitScript(({ accountPlan, guestPlan }) => {
+    if (sessionStorage.getItem("__omw_choice_seeded") === "true") return;
+    localStorage.clear();
+    // 로그아웃 상태에서 게스트가 새 계획을 만든 시점을 재현한다.
+    localStorage.setItem("onmyway:active-scope", "anonymous:relogin-device");
+    localStorage.setItem("onmyway:anonymous-device", "relogin-device");
+    localStorage.setItem("omwExecutionPlan", JSON.stringify(guestPlan));
+    localStorage.setItem("onmyway:user:account-a:state", JSON.stringify({ omwExecutionPlan: JSON.stringify(accountPlan) }));
+    sessionStorage.setItem("__omw_choice_seeded", "true");
+  }, { accountPlan: ACCOUNT_PLAN, guestPlan: GUEST_PLAN });
+
+  await page.goto("/app.html");
+  await waitForAppReady(page);
+
+  const sheet = page.locator("#planChoiceSheet");
+  await expect(sheet).toBeVisible();
+  await expect(sheet).toContainText("방금 만든 게스트 계획");
+  await expect(sheet).toContainText("이전 계정 계획");
+  expect(nativeDialogs).toBe(0);
+
+  await page.locator("[data-plan-choice='guest']").click();
+  await waitForAppReady(page);
+
+  await expect.poll(async () => (await readStored(page, "omwExecutionPlan"))?.planId).toBe("plan-guest");
+  await expect(page.locator("#planChoiceSheet")).toBeHidden();
+  // 고르지 않은 계획도 이 기기에 사본으로 남는다.
+  const backups = await page.evaluate(() =>
+    Object.keys(localStorage).filter((key) => key.startsWith("onmyway:plan-choice-backup:")));
+  expect(backups.length).toBeGreaterThan(0);
+});
+
+test("로그인 뒤 인앱 시트에서 이전 계획을 고르면 계정 계획이 유지된다", async ({ page }) => {
+  const account = await mockAccountExperience(page, {
+    user: { id: "account-a", provider: "kakao", name: "재로그인 사용자", email: "a@example.com", plan: "free", role: "member" },
+  });
+  account.accountState = { omwExecutionPlan: JSON.stringify(ACCOUNT_PLAN) };
+  account.revision = 3;
+
+  await page.addInitScript(({ accountPlan, guestPlan }) => {
+    if (sessionStorage.getItem("__omw_choice_seeded") === "true") return;
+    localStorage.clear();
+    localStorage.setItem("onmyway:active-scope", "anonymous:relogin-device");
+    localStorage.setItem("onmyway:anonymous-device", "relogin-device");
+    localStorage.setItem("omwExecutionPlan", JSON.stringify(guestPlan));
+    localStorage.setItem("onmyway:user:account-a:state", JSON.stringify({ omwExecutionPlan: JSON.stringify(accountPlan) }));
+    sessionStorage.setItem("__omw_choice_seeded", "true");
+  }, { accountPlan: ACCOUNT_PLAN, guestPlan: GUEST_PLAN });
+
+  await page.goto("/app.html");
+  await waitForAppReady(page);
+  await expect(page.locator("#planChoiceSheet")).toBeVisible();
+  await page.locator("[data-plan-choice='account']").click();
+
+  await expect(page.locator("#planChoiceSheet")).toBeHidden();
+  expect((await readStored(page, "omwExecutionPlan")).planId).toBe("plan-account");
+  // 다시 묻지 않는다.
+  expect(await page.evaluate(() => localStorage.getItem("onmyway:pending-plan-choice"))).toBeNull();
+  // 게스트 계획은 이 기기에 남아 있다.
+  const guestSnapshot = await page.evaluate(() =>
+    JSON.parse(JSON.parse(localStorage.getItem("onmyway:anonymous:relogin-device:state") || "{}").omwExecutionPlan || "null"));
+  expect(guestSnapshot.planId).toBe("plan-guest");
 });
