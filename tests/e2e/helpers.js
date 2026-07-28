@@ -156,6 +156,25 @@ async function waitForAppReady(page) {
   await expect(page.locator("body")).toHaveAttribute("data-app-ready", "true", { timeout: 15_000 });
 }
 
+/* data-app-ready는 한 번 true가 되면 되돌아가지 않는다. 그래서 앱이 스스로
+   location.reload()를 부르는 흐름(계획 선택 적용, 구독 해지 등)에서는 waitForAppReady가
+   "새로고침 전 문서"에 즉시 매칭돼 그냥 통과하고, 그 뒤의 page.evaluate가 항해 도중에
+   떨어져 "Execution context was destroyed"로 죽는다. 로드마다 바뀌는 토큰을 기준으로
+   "새로운 ready"를 기다린다. */
+async function readAppReadyToken(page) {
+  return page.locator("body").evaluate((body) => body.dataset.appReadyToken || "");
+}
+
+async function waitForNewAppReady(page, previousToken) {
+  await page.waitForFunction(
+    (token) => document.body?.dataset.appReady === "true"
+      && Boolean(document.body.dataset.appReadyToken)
+      && document.body.dataset.appReadyToken !== token,
+    previousToken,
+    { timeout: 15_000 },
+  );
+}
+
 async function waitForBootstrap(page) {
   await expect.poll(async () => {
     try {
@@ -557,6 +576,8 @@ module.exports = {
   prepareApp,
   waitForBootstrap,
   waitForAppReady,
+  readAppReadyToken,
+  waitForNewAppReady,
   readStored,
   testPlan,
 };

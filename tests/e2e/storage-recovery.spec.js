@@ -1,5 +1,5 @@
 const { test, expect } = require("@playwright/test");
-const { mockAccountExperience, mockExternalAssets, monitorPage, prepareApp, readStored, waitForAppReady } = require("./helpers");
+const { mockAccountExperience, mockExternalAssets, monitorPage, prepareApp, readAppReadyToken, readStored, waitForAppReady, waitForNewAppReady } = require("./helpers");
 
 const corruptions = [
   ["invalid JSON and empty values", { omwExecutionState: "{bad-json", omwCompanionState: "" }],
@@ -236,26 +236,36 @@ test("게스트 데이터가 없으면 선택을 묻지 않는다", async ({ pag
 });
 
 /* 실제 화면에서 고르는 데까지가 수정 범위다. 네이티브 confirm은 쓰지 않는다. */
-test("로그인 뒤 인앱 시트에서 방금 만든 계획을 고르면 그 계획으로 이어간다", async ({ page }) => {
-  const account = await mockAccountExperience(page, {
-    user: { id: "account-a", provider: "kakao", name: "재로그인 사용자", email: "a@example.com", plan: "free", role: "member" },
-  });
+const RELOGIN_USER = { id: "account-a", provider: "kakao", name: "재로그인 사용자", email: "a@example.com", plan: "free", role: "member" };
+
+/* 로그아웃 중에 게스트가 새 계획을 만든 기기를 재현한다. 활성 스코프는 익명이고
+   계정 스냅샷에는 예전 계획이 들어 있어, 부팅 때 익명 → 계정 전환이 일어난다. */
+async function seedReloginConflict(page) {
+  const account = await mockAccountExperience(page, { user: RELOGIN_USER });
   account.accountState = { omwExecutionPlan: JSON.stringify(ACCOUNT_PLAN) };
   account.revision = 3;
-
-  let nativeDialogs = 0;
-  page.on("dialog", (dialog) => { nativeDialogs += 1; return dialog.dismiss(); });
-
   await page.addInitScript(({ accountPlan, guestPlan }) => {
     if (sessionStorage.getItem("__omw_choice_seeded") === "true") return;
     localStorage.clear();
-    // 로그아웃 상태에서 게스트가 새 계획을 만든 시점을 재현한다.
     localStorage.setItem("onmyway:active-scope", "anonymous:relogin-device");
     localStorage.setItem("onmyway:anonymous-device", "relogin-device");
     localStorage.setItem("omwExecutionPlan", JSON.stringify(guestPlan));
     localStorage.setItem("onmyway:user:account-a:state", JSON.stringify({ omwExecutionPlan: JSON.stringify(accountPlan) }));
     sessionStorage.setItem("__omw_choice_seeded", "true");
   }, { accountPlan: ACCOUNT_PLAN, guestPlan: GUEST_PLAN });
+  return account;
+}
+
+function readGuestSnapshotPlanId(page) {
+  return page.evaluate(() =>
+    JSON.parse(JSON.parse(localStorage.getItem("onmyway:anonymous:relogin-device:state") || "{}").omwExecutionPlan || "null")?.planId || null);
+}
+
+test("로그인 뒤 인앱 시트에서 방금 만든 계획을 고르면 그 계획으로 이어간다", async ({ page }) => {
+  await seedReloginConflict(page);
+
+  let nativeDialogs = 0;
+  page.on("dialog", (dialog) => { nativeDialogs += 1; return dialog.dismiss(); });
 
   await page.goto("/app.html");
   await waitForAppReady(page);
@@ -266,10 +276,14 @@ test("로그인 뒤 인앱 시트에서 방금 만든 계획을 고르면 그 �
   await expect(sheet).toContainText("이전 계정 계획");
   expect(nativeDialogs).toBe(0);
 
+  /* 적용은 저장이 끝난 뒤 스스로 location.reload()를 부른다. data-app-ready는 한 번
+     true가 되면 되돌아가지 않으므로 waitForAppReady로는 새로고침 전후를 구분할 수
+     없고, 그 사이에 localStorage를 읽으면 실행 컨텍스트가 날아간다. 토큰으로 기다린다. */
+  const beforeToken = await readAppReadyToken(page);
   await page.locator("[data-plan-choice='guest']").click();
-  await waitForAppReady(page);
+  await waitForNewAppReady(page, beforeToken);
 
-  await expect.poll(async () => (await readStored(page, "omwExecutionPlan"))?.planId).toBe("plan-guest");
+  expect((await readStored(page, "omwExecutionPlan")).planId).toBe("plan-guest");
   await expect(page.locator("#planChoiceSheet")).toBeHidden();
   // 고르지 않은 계획도 이 기기에 사본으로 남는다.
   const backups = await page.evaluate(() =>
@@ -278,21 +292,7 @@ test("로그인 뒤 인앱 시트에서 방금 만든 계획을 고르면 그 �
 });
 
 test("로그인 뒤 인앱 시트에서 이전 계획을 고르면 계정 계획이 유지된다", async ({ page }) => {
-  const account = await mockAccountExperience(page, {
-    user: { id: "account-a", provider: "kakao", name: "재로그인 사용자", email: "a@example.com", plan: "free", role: "member" },
-  });
-  account.accountState = { omwExecutionPlan: JSON.stringify(ACCOUNT_PLAN) };
-  account.revision = 3;
-
-  await page.addInitScript(({ accountPlan, guestPlan }) => {
-    if (sessionStorage.getItem("__omw_choice_seeded") === "true") return;
-    localStorage.clear();
-    localStorage.setItem("onmyway:active-scope", "anonymous:relogin-device");
-    localStorage.setItem("onmyway:anonymous-device", "relogin-device");
-    localStorage.setItem("omwExecutionPlan", JSON.stringify(guestPlan));
-    localStorage.setItem("onmyway:user:account-a:state", JSON.stringify({ omwExecutionPlan: JSON.stringify(accountPlan) }));
-    sessionStorage.setItem("__omw_choice_seeded", "true");
-  }, { accountPlan: ACCOUNT_PLAN, guestPlan: GUEST_PLAN });
+  await seedReloginConflict(page);
 
   await page.goto("/app.html");
   await waitForAppReady(page);
@@ -304,7 +304,159 @@ test("로그인 뒤 인앱 시트에서 이전 계획을 고르면 계정 계획
   // 다시 묻지 않는다.
   expect(await page.evaluate(() => localStorage.getItem("onmyway:pending-plan-choice"))).toBeNull();
   // 게스트 계획은 이 기기에 남아 있다.
-  const guestSnapshot = await page.evaluate(() =>
-    JSON.parse(JSON.parse(localStorage.getItem("onmyway:anonymous:relogin-device:state") || "{}").omwExecutionPlan || "null"));
-  expect(guestSnapshot.planId).toBe("plan-guest");
+  expect(await readGuestSnapshotPlanId(page)).toBe("plan-guest");
+});
+
+/* (B) 선택 적용이 서버 저장에 매달려 있다. 저장이 실패했는데 시트를 조용히 닫으면
+   유저는 자기가 고른 것이 반영됐는지 알 수 없고, 서버가 모르는 채 로컬만 바뀐
+   상태가 남는다. 실패해도 시트는 열려 있어야 하고 두 계획과 표식은 그대로여야 한다. */
+test("선택 저장이 실패하면 시트를 닫지 않고 재시도를 주며 두 계획을 그대로 남긴다", async ({ page }) => {
+  await seedReloginConflict(page);
+  const diagnostics = monitorPage(page, {
+    allowedResponseUrls: ["/api/account/state"],
+    allowedConsoleMessages: ["status of 500"],
+  });
+
+  let putAttempts = 0;
+  await page.route("**/api/account/state", async (route) => {
+    if (route.request().method() !== "PUT") return route.fallback();
+    putAttempts += 1;
+    return route.fulfill({ status: 500, contentType: "application/json", body: '{"ok":false,"error":"E2E 저장 실패"}' });
+  });
+
+  await page.goto("/app.html");
+  await waitForAppReady(page);
+  const sheet = page.locator("#planChoiceSheet");
+  await expect(sheet).toBeVisible();
+
+  await page.locator("[data-plan-choice='guest']").click();
+
+  // 시트가 살아 있고 재시도 경로가 보인다.
+  await expect(sheet).toBeVisible();
+  await expect(page.locator("#planChoiceMessage")).toContainText("다시 시도할까요");
+  await expect(page.locator("[data-plan-choice='guest'] [data-plan-choice-label]")).toHaveText("다시 시도");
+  await expect(page.locator("[data-plan-choice='guest']")).toBeEnabled();
+  expect(putAttempts).toBeGreaterThan(0);
+
+  // 서버가 모르는 채 로컬만 바뀐 상태로 두지 않는다 — 선택 이전으로 되돌아가 있다.
+  expect((await readStored(page, "omwExecutionPlan")).planId).toBe("plan-account");
+  // 표식과 두 스냅샷이 모두 남아 다음 로드에 다시 묻는다.
+  expect(await page.evaluate(() => localStorage.getItem("onmyway:pending-plan-choice"))).not.toBeNull();
+  expect(await readGuestSnapshotPlanId(page)).toBe("plan-guest");
+
+  await page.reload();
+  await waitForAppReady(page);
+  await expect(page.locator("#planChoiceSheet")).toBeVisible();
+
+  diagnostics.expectClean();
+});
+
+test("저장이 살아나면 재시도로 고른 계획이 반영된다", async ({ page }) => {
+  await seedReloginConflict(page);
+
+  let failNextPut = true;
+  await page.route("**/api/account/state", async (route) => {
+    if (route.request().method() !== "PUT" || !failNextPut) return route.fallback();
+    failNextPut = false;
+    return route.fulfill({ status: 500, contentType: "application/json", body: '{"ok":false,"error":"E2E 저장 실패"}' });
+  });
+
+  await page.goto("/app.html");
+  await waitForAppReady(page);
+  await page.locator("[data-plan-choice='guest']").click();
+  await expect(page.locator("[data-plan-choice='guest'] [data-plan-choice-label]")).toHaveText("다시 시도");
+
+  const beforeToken = await readAppReadyToken(page);
+  await page.locator("[data-plan-choice='guest']").click();
+  await waitForNewAppReady(page, beforeToken);
+
+  expect((await readStored(page, "omwExecutionPlan")).planId).toBe("plan-guest");
+  expect(await page.evaluate(() => localStorage.getItem("onmyway:pending-plan-choice"))).toBeNull();
+});
+
+/* 상한이 없으면 응답이 오지 않는 저장에 화면이 영원히 매달린다. 타이밍 계약이라
+   레이아웃과 무관하므로 엔진 하나에서만 확인한다. */
+test("응답이 오지 않는 저장은 상한에 걸려 재시도로 넘어간다", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "타이밍 계약이라 엔진 1회면 충분하다");
+  test.setTimeout(60_000);
+  await seedReloginConflict(page);
+
+  await page.route("**/api/account/state", async (route) => {
+    if (route.request().method() !== "PUT") return route.fallback();
+    // 응답을 주지 않는다. AbortController 상한이 없으면 여기서 화면이 멈춘다.
+    await new Promise(() => {});
+  });
+
+  await page.goto("/app.html");
+  await waitForAppReady(page);
+  await page.locator("[data-plan-choice='guest']").click();
+  await expect(page.locator("[data-plan-choice='guest'] [data-plan-choice-label]")).toHaveText("적용하는 중…");
+
+  await expect(page.locator("#planChoiceMessage")).toContainText("다시 시도할까요", { timeout: 20_000 });
+  await expect(page.locator("#planChoiceSheet")).toBeVisible();
+  expect((await readStored(page, "omwExecutionPlan")).planId).toBe("plan-account");
+  expect(await page.evaluate(() => localStorage.getItem("onmyway:pending-plan-choice"))).not.toBeNull();
+});
+
+/* (A) 부트스트랩이 도중에 실패해도 질문은 해야 한다. maybeAskPlanChoice를 .then에만
+   두면 그 세션 내내 유저는 옛 계획이 이긴 것으로 보게 된다.
+   handleAuthQueryParams의 history.replaceState를 한 번 터뜨려 그 경로를 만든다 —
+   이 호출은 부트스트랩 끝자락에 있고 try/catch로 감싸여 있지 않다. */
+test("부트스트랩이 실패한 세션에서도 계획 선택을 묻는다", async ({ page }) => {
+  await seedReloginConflict(page);
+  const diagnostics = monitorPage(page, { allowedConsoleMessages: ["E2E induced bootstrap failure"] });
+
+  await page.addInitScript(() => {
+    const original = history.replaceState.bind(history);
+    let fired = false;
+    history.replaceState = function patchedReplaceState(...args) {
+      // 인증 확인과 스코프 전환이 끝난 뒤에만 한 번 터뜨린다.
+      if (!fired && document.body?.dataset.authReady === "true") {
+        fired = true;
+        throw new Error("E2E induced bootstrap failure");
+      }
+      return original(...args);
+    };
+  });
+
+  await page.goto("/app.html");
+  await expect(page.locator("#planChoiceSheet")).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator("#planChoiceSheet")).toContainText("방금 만든 게스트 계획");
+  diagnostics.expectClean();
+});
+
+/* 인증을 확인하지 못한 부팅에서는 앱이 익명 스코프로 내려앉는다. 그 순간 표식은
+   스코프가 달라져 지워지는 것이 맞다 — 대신 게스트 계획이 화면에 그대로 남고,
+   인증이 살아나면 질문이 다시 온다. "질문을 영영 못 받는 일은 없다"를 고정한다. */
+test("인증이 끊긴 동안에도 계획을 잃지 않고 복구되면 다시 묻는다", async ({ page }) => {
+  await seedReloginConflict(page);
+  const diagnostics = monitorPage(page, {
+    allowedConsoleMessages: ["status of 500"],
+    allowedResponseUrls: ["/api/auth/me"],
+  });
+
+  await page.goto("/app.html");
+  await waitForAppReady(page);
+  await expect(page.locator("#planChoiceSheet")).toBeVisible();
+
+  const failAuth = (route) => route.fulfill({ status: 500, contentType: "application/json", body: '{"ok":false}' });
+  await page.route("**/api/auth/me", failAuth);
+  await page.reload();
+  await expect(page.locator("body")).toHaveAttribute("data-auth-state", "error", { timeout: 15_000 });
+
+  // 익명으로 내려앉되 게스트 계획은 화면에 살아 있고 계정 계획도 스냅샷에 남는다.
+  expect(await page.evaluate(() => localStorage.getItem("onmyway:active-scope"))).toBe("anonymous:relogin-device");
+  await expect.poll(async () => (await readStored(page, "omwExecutionPlan"))?.planId).toBe("plan-guest");
+  expect(await page.evaluate(() =>
+    JSON.parse(JSON.parse(localStorage.getItem("onmyway:user:account-a:state") || "{}").omwExecutionPlan || "null")?.planId)).toBe("plan-account");
+  await expect(page.locator("#planChoiceSheet")).toBeHidden();
+
+  // 인증이 살아나면 같은 질문이 다시 온다.
+  await page.unroute("**/api/auth/me", failAuth);
+  await page.reload();
+  await waitForAppReady(page);
+  await expect(page.locator("#planChoiceSheet")).toBeVisible();
+  await expect(page.locator("#planChoiceSheet")).toContainText("방금 만든 게스트 계획");
+
+  diagnostics.expectClean();
 });

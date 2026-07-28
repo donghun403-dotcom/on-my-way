@@ -520,19 +520,36 @@ function applyServerSyncState(userId, state) {
   localStorage.setItem(accountSnapshotKey(scope), JSON.stringify(captureAccountStorage()));
 }
 
-async function saveAccountStateToServer({ keepalive = false } = {}) {
+/* 결과를 돌려주는 이유: 주기 동기화는 실패해도 다음 tick이 다시 하면 되지만,
+   유저가 버튼을 눌러 기다리는 저장은 성공했는지 알아야 화면을 어떻게 할지 정한다.
+   serverStateApplied 구분이 중요하다 — 409로 서버 상태를 받아 덮은 경우는 로컬이
+   서버와 어긋나지 않으므로 호출자가 되돌릴 필요가 없다. */
+const ACCOUNT_SYNC_RESULT = Object.freeze({
+  SAVED: "saved",
+  UNCHANGED: "unchanged",
+  BUSY: "busy",
+  ACCOUNT_CHANGED: "account-changed",
+  CONFLICT_APPLIED: "conflict-applied",
+  FAILED: "failed",
+});
+
+async function saveAccountStateToServer({ keepalive = false, timeoutMs = 0 } = {}) {
   const user = authUiState.user;
-  if (!user?.id || accountSyncInFlight) return;
+  if (!user?.id) return ACCOUNT_SYNC_RESULT.FAILED;
+  if (accountSyncInFlight) return ACCOUNT_SYNC_RESULT.BUSY;
   const state = captureServerSyncState();
   const serialized = JSON.stringify(state);
   const meta = readAccountSyncMeta(user.id);
-  if (serialized === meta.lastState) return;
+  if (serialized === meta.lastState) return ACCOUNT_SYNC_RESULT.UNCHANGED;
   accountSyncInFlight = true;
+  const controller = timeoutMs > 0 ? new AbortController() : null;
+  const timeoutId = controller ? window.setTimeout(() => controller.abort(), timeoutMs) : 0;
   try {
     const response = await fetch("/api/account/state", {
       method: "PUT",
       credentials: "same-origin",
       keepalive,
+      signal: controller?.signal,
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({
         userId: user.id,
@@ -542,19 +559,22 @@ async function saveAccountStateToServer({ keepalive = false } = {}) {
       }),
     });
     const data = await response.json().catch(() => ({}));
-    if (response.status === 409 && data.code === "ACCOUNT_CHANGED") return;
+    if (response.status === 409 && data.code === "ACCOUNT_CHANGED") return ACCOUNT_SYNC_RESULT.ACCOUNT_CHANGED;
     if (response.status === 409) {
       backupSyncConflict(user.id, state);
       applyServerSyncState(user.id, data.state || {});
       writeAccountSyncMeta(user.id, data.revision, data.state || {});
       showToast("다른 기기의 최신 데이터를 불러왔어요. 이 기기의 충돌 사본도 안전하게 보관했어요.");
-      return;
+      return ACCOUNT_SYNC_RESULT.CONFLICT_APPLIED;
     }
     if (!response.ok) throw new Error(data.error || "데이터를 동기화하지 못했어요.");
     writeAccountSyncMeta(user.id, data.revision, state);
+    return ACCOUNT_SYNC_RESULT.SAVED;
   } catch (error) {
     if (!keepalive) console.warn("Unable to sync account state", error);
+    return ACCOUNT_SYNC_RESULT.FAILED;
   } finally {
+    window.clearTimeout(timeoutId);
     accountSyncInFlight = false;
   }
 }
@@ -688,13 +708,19 @@ const PLAN_CHOICE_COPY = {
 
 function renderPlanChoiceSheet(guest, account) {
   const copy = account ? PLAN_CHOICE_COPY.choose : PLAN_CHOICE_COPY.import;
+  // 이전 시도의 오류·진행 상태를 지우고 처음 상태로 그린다.
+  if (planChoiceSheet) planChoiceSheet.dataset.planChoiceState = "";
+  setImageSource(planChoiceSheet?.querySelector(".plan-choice-ollie img"), "assets/ollie-thinking.png");
   if (planChoiceKicker) planChoiceKicker.textContent = copy.kicker;
   if (planChoiceTitle) planChoiceTitle.textContent = copy.title;
   if (planChoiceMessage) planChoiceMessage.textContent = copy.message;
   planChoiceButtons.forEach((button) => {
     const isGuest = button.dataset.planChoice === "guest";
     const plan = isGuest ? guest : account;
-    button.querySelector("[data-plan-choice-label]").textContent = isGuest ? copy.guestLabel : copy.accountLabel;
+    button.disabled = false;
+    const labelElement = button.querySelector("[data-plan-choice-label]");
+    delete labelElement.dataset.restoreLabel;
+    labelElement.textContent = isGuest ? copy.guestLabel : copy.accountLabel;
     button.querySelector("[data-plan-choice-goal]").textContent = plan ? plan.goal : "계획 없이 시작해요";
     const metaElement = button.querySelector("[data-plan-choice-meta]");
     metaElement.textContent = plan?.meta || "";
@@ -709,10 +735,14 @@ function maybeAskPlanChoice() {
   /* 온보딩 가입 게이트는 세션 핸드오프가 계획을 그대로 넘긴다. 그 흐름 한가운데서
      물으면 방금 만든 계획을 두고 "가져올까요?"를 되묻는 꼴이 된다. */
   if (pendingManualPlanHandoff()) return;
-  if (!authUiState.user || localStorage.getItem(ACCOUNT_STORAGE_SCOPE_KEY) !== pending.targetScope) {
+  // 스코프가 더는 그 계정이 아니면 표식 자체가 낡은 것이다.
+  if (localStorage.getItem(ACCOUNT_STORAGE_SCOPE_KEY) !== pending.targetScope) {
     clearPendingPlanChoice();
     return;
   }
+  /* 로그인 상태를 확인하지 못한 부팅(부트스트랩 실패)에서는 묻지 않되 표식은 남긴다.
+     여기서 지워버리면 유저는 질문을 영영 못 받고 옛 계획이 이긴 것으로 끝난다. */
+  if (!authUiState.user) return;
   const guest = describePlanForChoice(readAccountSnapshot(pending.guestScope).omwExecutionPlan);
   if (!guest) {
     clearPendingPlanChoice();
@@ -727,34 +757,102 @@ function maybeAskPlanChoice() {
   setSheetOpen(planChoiceSheet, planChoiceOverlay, true);
 }
 
+/* 저장 상한 10초. 근거: 주기 동기화가 5초마다 도는데 그보다 짧게 자르면 정상적으로
+   느린 저장을 실패로 오인한다. 반대로 AI 경로의 60초는 모델 추론을 기다리는 값이고
+   이건 계정 상태 쓰기 한 번이라 맞지 않는다. 부트스트랩의 /api/auth/me가 같은 워커를
+   상대로 이미 10초를 쓰므로 계정 API 상한을 그대로 따른다. 유저가 버튼을 누르고
+   기다리는 전경 동작이라는 점에서도 10초가 인내의 상한이다. */
+const PLAN_CHOICE_SAVE_TIMEOUT_MS = 10_000;
+let planChoiceApplying = false;
+
+function setPlanChoiceBusy(busy) {
+  planChoiceButtons.forEach((button) => {
+    button.disabled = busy;
+    const label = button.querySelector("[data-plan-choice-label]");
+    if (!label) return;
+    if (busy && button.dataset.planChoice === "guest") {
+      label.dataset.restoreLabel = label.dataset.restoreLabel || label.textContent;
+      label.textContent = "적용하는 중…";
+    } else if (!busy && label.dataset.restoreLabel) {
+      label.textContent = label.dataset.restoreLabel;
+      delete label.dataset.restoreLabel;
+    }
+  });
+  if (closePlanChoiceButton) closePlanChoiceButton.disabled = busy;
+  if (planChoiceSheet) planChoiceSheet.dataset.planChoiceState = busy ? "applying" : "";
+}
+
+/* 실패했다고 시트를 닫지 않는다. 닫아버리면 유저는 자기가 고른 것이 반영됐는지
+   알 수 없고, 표식만 남아 다음 로드에 같은 질문을 다시 받는다. 여기서 바로
+   다시 시도할 수 있게 두고, 두 계획과 표식은 그대로 남긴다. */
+function showPlanChoiceRetry() {
+  if (planChoiceSheet) planChoiceSheet.dataset.planChoiceState = "error";
+  if (planChoiceMessage) {
+    planChoiceMessage.textContent = "지금 저장하지 못했어요. 다시 시도할까요? 두 계획은 그대로 있어요.";
+  }
+  planChoiceButtons.forEach((button) => {
+    const label = button.querySelector("[data-plan-choice-label]");
+    if (!label) return;
+    if (button.dataset.planChoice === "guest") {
+      label.dataset.restoreLabel = label.dataset.restoreLabel || label.textContent;
+      label.textContent = "다시 시도";
+    }
+  });
+  setImageSource(planChoiceSheet?.querySelector(".plan-choice-ollie img"), "assets/ollie-comfort.png");
+}
+
 async function applyPlanChoice(choice) {
+  if (planChoiceApplying) return;
   const pending = readPendingPlanChoice();
-  clearPendingPlanChoice();
-  setSheetOpen(planChoiceSheet, planChoiceOverlay, false);
-  if (!pending) return;
+  if (!pending) {
+    setSheetOpen(planChoiceSheet, planChoiceOverlay, false);
+    return;
+  }
 
   if (choice !== "guest") {
+    clearPendingPlanChoice();
+    setSheetOpen(planChoiceSheet, planChoiceOverlay, false);
     showToast("이전 계획으로 이어갈게요. 방금 만든 계획도 이 기기에 남아 있어요.");
     return;
   }
 
+  planChoiceApplying = true;
+  setPlanChoiceBusy(true);
+  // 저장이 실패하면 여기로 되돌린다. 서버가 모르는 채 로컬만 바뀐 상태를 남기지 않는다.
+  const restorePoint = captureAccountStorage();
+  let result = ACCOUNT_SYNC_RESULT.FAILED;
   try {
     const guestSnapshot = readAccountSnapshot(pending.guestScope);
-    // 고르지 않은 쪽은 화면에서 내리되, CS 문의에 대비해 사본은 남긴다.
-    const replaced = captureAccountStorage();
-    if (Object.keys(replaced).length) {
-      localStorage.setItem(`${PLAN_CHOICE_BACKUP_PREFIX}${Date.now()}`, JSON.stringify(replaced));
-    }
     ACCOUNT_SCOPED_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
     restoreAccountSnapshot(guestSnapshot);
     localStorage.setItem(accountSnapshotKey(pending.targetScope), JSON.stringify(captureAccountStorage()));
-    /* 서버 원본까지 고른 쪽으로 맞춘 뒤에 새로고침한다. 여기서 실패해도
-       다음 부팅의 initializeAccountStateSync가 같은 비교로 다시 올린다. */
-    await saveAccountStateToServer();
+    result = await saveAccountStateToServer({ timeoutMs: PLAN_CHOICE_SAVE_TIMEOUT_MS });
   } catch (error) {
     console.warn("Unable to apply plan choice", error);
+    result = ACCOUNT_SYNC_RESULT.FAILED;
   }
-  location.reload();
+
+  if (result === ACCOUNT_SYNC_RESULT.SAVED || result === ACCOUNT_SYNC_RESULT.UNCHANGED) {
+    // 고르지 않은 쪽은 화면에서 내리되, CS 문의에 대비해 사본은 남긴다.
+    if (Object.keys(restorePoint).length) {
+      localStorage.setItem(`${PLAN_CHOICE_BACKUP_PREFIX}${Date.now()}`, JSON.stringify(restorePoint));
+    }
+    clearPendingPlanChoice();
+    location.reload();
+    return;
+  }
+
+  /* CONFLICT_APPLIED는 서버 상태를 이미 로컬에 덮어썼으므로 어긋남이 없다 —
+     되돌리면 오히려 다른 기기의 최신 상태를 지우게 된다. 나머지는 서버에 닿지
+     못한 것이므로 로컬을 선택 이전으로 돌려놓는다. */
+  if (result !== ACCOUNT_SYNC_RESULT.CONFLICT_APPLIED) {
+    ACCOUNT_SCOPED_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
+    restoreAccountSnapshot(restorePoint);
+    localStorage.setItem(accountSnapshotKey(pending.targetScope), JSON.stringify(restorePoint));
+  }
+  planChoiceApplying = false;
+  setPlanChoiceBusy(false);
+  showPlanChoiceRetry();
 }
 
 function setPlanScreen(screen, { scroll = true, focus = true } = {}) {
@@ -10098,6 +10196,11 @@ function markAppReady() {
   if (document.body.dataset.appReady === "true") return;
   if (document.body.dataset.authReady !== "true" || !["anonymous", "member"].includes(document.body.dataset.authState)) return;
   if (document.body.dataset.pricingState !== "ready") return;
+  /* 로드마다 다른 토큰을 남긴다. data-app-ready는 한 번 true가 되면 되돌아가지
+     않으므로, 앱이 스스로 location.reload()를 부르는 흐름에서 "새로고침 전 화면"과
+     "새로고침 뒤 화면"을 구분할 방법이 없었다. 테스트가 그 둘을 구분하지 못해
+     리로드 도중에 localStorage를 읽다 실행 컨텍스트가 날아간 적이 있다. */
+  document.body.dataset.appReadyToken = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
   document.body.dataset.appReady = "true";
   window.dispatchEvent(new CustomEvent("omw:app-ready"));
 }
@@ -10124,5 +10227,9 @@ accountExperienceReady
     console.error("Unable to initialize the account experience", error);
     document.documentElement.classList.remove("account-storage-pending");
     initializeExecutionPage();
+    /* 부트스트랩이 실패해도 물어보기는 한다. 이 호출을 .then에만 두면 그 세션 내내
+       유저는 옛 계획이 이긴 것으로 보게 된다. 로그인 확인이 안 된 경우는
+       maybeAskPlanChoice가 표식을 남긴 채 조용히 물러난다. */
+    maybeAskPlanChoice();
     markAppReady();
   });
