@@ -1,0 +1,265 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { createKvStore, createSessionToken } from "./auth-service.mjs";
+import worker, { checkDailyCheerAllowance, claimDailyCheer, releaseDailyCheer } from "./worker.mjs";
+
+const TEST_SECRET = "worker-cheer-test-secret-that-is-long-enough";
+const KST_NOON = Date.UTC(2026, 6, 27, 3, 0, 0);
+const DAY_MS = 24 * 60 * 60 * 1_000;
+
+function memoryKv() {
+  const values = new Map();
+  return {
+    values,
+    async get(key, type) {
+      const value = values.get(key);
+      if (value === undefined) return null;
+      if (type === "json" || type?.type === "json") return JSON.parse(value);
+      return value;
+    },
+    async put(key, value) {
+      values.set(key, String(value));
+    },
+    async delete(key) {
+      values.delete(key);
+    },
+    async list({ prefix = "" } = {}) {
+      return { keys: [...values.keys()].filter((key) => key.startsWith(prefix)).map((name) => ({ name })), list_complete: true, cursor: "" };
+    },
+  };
+}
+
+async function authenticatedWorker({ plan = "pro", userId = `cheer-${plan}` } = {}) {
+  const kv = memoryKv();
+  const now = Date.now();
+  const sessionId = `session-${userId}`;
+  await kv.put(`user:${userId}`, JSON.stringify({
+    id: userId,
+    provider: "google",
+    name: "치어링 테스터",
+    email: `${userId}@example.test`,
+    role: "member",
+    status: "active",
+    plan,
+    createdAt: now - 1_000,
+    lastLoginAt: now,
+  }));
+  await kv.put(`session:${sessionId}`, JSON.stringify({ id: sessionId, userId, createdAt: now, expiresAt: now + 60 * 60 * 1_000, revokedAt: null }));
+  const token = await createSessionToken({ sid: sessionId, sub: userId, role: "member", iat: now, exp: now + 60 * 60 * 1_000 }, TEST_SECRET);
+  return {
+    kv,
+    userId,
+    cookie: `omw_session=${token}`,
+    env: {
+      APP_ENV: "test",
+      SESSION_SECRET: TEST_SECRET,
+      USERS_KV: kv,
+      OPENAI_API_KEY: "test-openai-key",
+      OPENAI_MODEL: "test-model",
+    },
+  };
+}
+
+async function callCheer(context, { eventType, message = "오늘 계획을 전부 완료했어요!", requestId } = {}) {
+  const headers = new Headers({ Cookie: context.cookie, "Content-Type": "application/json" });
+  if (requestId) headers.set("X-Request-ID", requestId);
+  const response = await worker.fetch(
+    new Request("https://onmyway.example.test/api/ai/companion-chat", {
+      method: "POST",
+      headers,
+      body: JSON.stringify(eventType === undefined ? { message } : { message, eventType }),
+    }),
+    context.env,
+  );
+  return { response, body: await response.json() };
+}
+
+function companionReplyMock(onCall = () => {}, { fail = false } = {}) {
+  return async (url, options = {}) => {
+    onCall({ url: String(url), requestBody: JSON.parse(options.body || "{}") });
+    if (fail) return new Response(JSON.stringify({ error: { message: "upstream down" } }), { status: 500, headers: { "Content-Type": "application/json" } });
+    return new Response(
+      JSON.stringify({ output_text: JSON.stringify({ headline: "오늘 전부 해냈어요", reply: "이 흐름 올리가 기억할게요." }), usage: { input_tokens: 5, output_tokens: 2 } }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  };
+}
+
+async function withMockFetch(mock, operation) {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = mock;
+  try {
+    return await operation();
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+}
+
+test("치어링 하루 상한은 같은 날 두 번째를 거부하고, 종류별로 따로 세며, 다음 날 리셋된다", () => {
+  const first = checkDailyCheerAllowance({ id: "u" }, "celebrate", KST_NOON);
+  assert.equal(first.allowed, true);
+  assert.equal(first.user.cheerLog.date, "2026-07-27");
+
+  // 같은 날 두 번째 축하는 거부되고, 유저 레코드도 바뀌지 않는다
+  const second = checkDailyCheerAllowance(first.user, "celebrate", KST_NOON + 60_000);
+  assert.equal(second.allowed, false);
+  assert.deepEqual(second.user, first.user);
+
+  // 위로는 축하와 독립적으로 하루 1회를 쓴다
+  const comfort = checkDailyCheerAllowance(first.user, "comfort", KST_NOON + 60_000);
+  assert.equal(comfort.allowed, true);
+  assert.equal(checkDailyCheerAllowance(comfort.user, "comfort", KST_NOON + 120_000).allowed, false);
+  assert.equal(checkDailyCheerAllowance(comfort.user, "celebrate", KST_NOON + 120_000).allowed, false);
+
+  // 날짜 버킷이 바뀌면 두 종류 모두 다시 열린다
+  const nextDay = checkDailyCheerAllowance(comfort.user, "celebrate", KST_NOON + DAY_MS);
+  assert.equal(nextDay.allowed, true);
+  assert.equal(nextDay.user.cheerLog.date, "2026-07-28");
+  assert.equal(nextDay.user.cheerLog.comfort, undefined);
+  assert.equal(checkDailyCheerAllowance(comfort.user, "comfort", KST_NOON + DAY_MS).allowed, true);
+});
+
+test("상한은 KST 자정을 경계로 바뀐다", () => {
+  const beforeMidnight = Date.UTC(2026, 6, 27, 14, 59, 0); // KST 2026-07-27 23:59
+  const afterMidnight = Date.UTC(2026, 6, 27, 15, 1, 0); // KST 2026-07-28 00:01
+  const used = checkDailyCheerAllowance({ id: "u" }, "celebrate", beforeMidnight);
+  assert.equal(used.allowed, true);
+  assert.equal(checkDailyCheerAllowance(used.user, "celebrate", beforeMidnight + 30_000).allowed, false);
+  assert.equal(checkDailyCheerAllowance(used.user, "celebrate", afterMidnight).allowed, true);
+});
+
+test("자동 치어링은 크레딧을 차감하지 않고 하루 각 1회만 AI를 호출한다", { concurrency: false }, async () => {
+  const context = await authenticatedWorker({ userId: "cheer-limit-user" });
+  const calls = [];
+  await withMockFetch(companionReplyMock((call) => calls.push(call)), async () => {
+    const celebrate = await callCheer(context, { eventType: "celebrate", requestId: "cheer:1" });
+    assert.equal(celebrate.response.status, 200);
+    assert.equal(celebrate.body.ok, true);
+    assert.equal(celebrate.body.chargedCredits, 0);
+    assert.equal(celebrate.body.eventType, "celebrate");
+    assert.equal(celebrate.body.headline, "오늘 전부 해냈어요");
+    // 무료 치어링은 usage를 돌려주지 않는다 — 클라이언트 잔량 표시가 흔들리면 안 된다.
+    assert.equal(celebrate.body.usage, undefined);
+
+    const repeated = await callCheer(context, { eventType: "celebrate", requestId: "cheer:2" });
+    assert.equal(repeated.response.status, 429);
+    assert.equal(repeated.body.code, "CHEER_LIMIT_REACHED");
+
+    // 위로는 별도 카운터라 같은 날에도 한 번 더 받을 수 있다
+    const comfort = await callCheer(context, { eventType: "comfort", requestId: "cheer:3" });
+    assert.equal(comfort.response.status, 200);
+    assert.equal(comfort.body.eventType, "comfort");
+  });
+
+  // 상한 초과 요청은 AI를 부르지 않는다 (비용이 발생하면 안 된다)
+  assert.equal(calls.length, 2);
+  assert.deepEqual(calls.map((call) => call.requestBody.input.split("\n")[0]), ["상황: celebrate", "상황: comfort"]);
+  // 이벤트별 지침이 실제로 프롬프트에 들어간다
+  assert.match(calls[0].requestBody.instructions, /오늘 완료 축하/);
+  assert.match(calls[1].requestBody.instructions, /놓친 일정 위로/);
+
+  const stored = await context.kv.get(`user:${context.userId}`, "json");
+  assert.equal(typeof stored.cheerLog.celebrate, "number");
+  assert.equal(typeof stored.cheerLog.comfort, "number");
+  // 에너지(크레딧) 원장은 자동 치어링으로 열리지 않는다
+  assert.equal(stored.aiCredits, undefined);
+});
+
+test("AI 실패는 오늘의 무료 치어링을 소진하지 않는다", { concurrency: false }, async () => {
+  const context = await authenticatedWorker({ userId: "cheer-retry-user" });
+  await withMockFetch(companionReplyMock(() => {}, { fail: true }), async () => {
+    const failed = await callCheer(context, { eventType: "celebrate", requestId: "cheer-retry:1" });
+    assert.equal(failed.response.ok, false);
+  });
+  // 자리는 AI 호출 전에 잡았다가 실패로 되돌려졌다 — 날짜 버킷만 남고 종류는 비어 있어야 한다.
+  assert.equal((await context.kv.get(`user:${context.userId}`, "json")).cheerLog.celebrate, undefined);
+
+  await withMockFetch(companionReplyMock(), async () => {
+    const retried = await callCheer(context, { eventType: "celebrate", requestId: "cheer-retry:2" });
+    assert.equal(retried.response.status, 200);
+    assert.equal(retried.body.chargedCredits, 0);
+  });
+  assert.equal(typeof (await context.kv.get(`user:${context.userId}`, "json")).cheerLog.celebrate, "number");
+});
+
+/* 확인만 하고 AI를 부른 뒤 기록하면 겹친 요청이 전부 통과해 provider 비용이 중복된다.
+   자리를 먼저 잡아야 하고, 그 잡기가 직렬화돼야 한다. */
+test("동시에 들어온 같은 종류의 치어링은 하나만 자리를 잡는다", { concurrency: false }, async () => {
+  const context = await authenticatedWorker({ userId: "cheer-race-user" });
+  const store = createKvStore(context.kv);
+
+  const claims = await Promise.all(
+    Array.from({ length: 5 }, () => claimDailyCheer({ store, userId: context.userId, eventType: "celebrate" })),
+  );
+  assert.equal(claims.filter(Boolean).length, 1);
+
+  const stored = await context.kv.get(`user:${context.userId}`, "json");
+  assert.equal(typeof stored.cheerLog.celebrate, "number");
+  assert.equal(stored.cheerLog.comfort, undefined);
+
+  // 되돌리면 같은 날에도 다시 잡을 수 있다
+  assert.equal(await releaseDailyCheer({ store, userId: context.userId, eventType: "celebrate" }), true);
+  assert.equal((await context.kv.get(`user:${context.userId}`, "json")).cheerLog.celebrate, undefined);
+  assert.equal(await claimDailyCheer({ store, userId: context.userId, eventType: "celebrate" }), true);
+});
+
+/* 관리자 비밀번호 세션은 유효하지만 KV에 회원 레코드가 없다.
+   여기서 세션 객체를 그대로 저장하면 존재한 적 없는 user:admin:password가 생긴다. */
+test("저장된 회원 레코드가 없는 세션은 자리를 잡지 못하고 레코드도 만들지 않는다", { concurrency: false }, async () => {
+  const kv = memoryKv();
+  const store = createKvStore(kv);
+  assert.equal(await claimDailyCheer({ store, userId: "admin:password", eventType: "celebrate" }), false);
+  assert.equal(kv.values.size, 0);
+});
+
+test("동시에 들어온 치어링 요청 중 하나만 200을 받고 AI도 한 번만 불린다", { concurrency: false }, async () => {
+  const context = await authenticatedWorker({ userId: "cheer-race-route-user" });
+  let providerCalls = 0;
+  const responses = await withMockFetch(companionReplyMock(() => { providerCalls += 1; }), () =>
+    Promise.all(Array.from({ length: 4 }, (_, index) =>
+      callCheer(context, { eventType: "celebrate", requestId: `race:${index}` }))));
+
+  const ok = responses.filter(({ response }) => response.status === 200);
+  const limited = responses.filter(({ response }) => response.status === 429);
+  assert.equal(ok.length, 1);
+  assert.equal(limited.length, 3);
+  assert.ok(limited.every(({ body }) => body.code === "CHEER_LIMIT_REACHED"));
+  // 상한에 걸린 요청은 provider를 부르지 않는다 — 비용이 발생하면 안 된다.
+  assert.equal(providerCalls, 1);
+});
+
+/* 자리잡기는 AI 호출보다 먼저다. 그 호출이 KV 오류로 던지면 예외가 try 밖으로
+   빠져나가 워커가 형식 없는 500을 내보낸다. 크레딧 예약이 실패했을 때와 같은
+   모양이어야 클라이언트가 같은 경로로 처리한다. */
+test("자리잡기가 KV 오류로 실패해도 형식을 갖춘 AI 오류로 응답한다", { concurrency: false }, async () => {
+  const context = await authenticatedWorker({ userId: "cheer-kv-fail-user" });
+  const originalPut = context.kv.put.bind(context.kv);
+  context.kv.put = async (key, value) => {
+    if (key === `user:${context.userId}`) throw new Error("KV write failed");
+    return originalPut(key, value);
+  };
+
+  let providerCalls = 0;
+  const { response, body } = await withMockFetch(companionReplyMock(() => { providerCalls += 1; }), () =>
+    callCheer(context, { eventType: "celebrate", requestId: "cheer-kv-fail:1" }));
+
+  assert.equal(response.status, 500);
+  assert.equal(body.ok, false);
+  assert.equal(body.code, "AI_REQUEST_FAILED");
+  // 자리를 잡지 못했으면 provider도 부르지 않는다 — 비용이 발생하면 안 된다.
+  assert.equal(providerCalls, 0);
+});
+
+test("유저가 먼저 말 거는 대화는 치어링 상한과 무관하게 크레딧을 쓴다", { concurrency: false }, async () => {
+  const context = await authenticatedWorker({ userId: "cheer-chat-user" });
+  await withMockFetch(companionReplyMock(), async () => {
+    for (const eventType of [undefined, "chat", "unknown-event"]) {
+      const chat = await callCheer(context, { eventType, message: "오늘 무엇부터 할까요?", requestId: `chat:${eventType}` });
+      assert.equal(chat.response.status, 200);
+      assert.equal(chat.body.chargedCredits, 1);
+      assert.ok(chat.body.usage);
+    }
+  });
+  // 대화는 치어링 로그를 건드리지 않는다
+  assert.equal((await context.kv.get(`user:${context.userId}`, "json")).cheerLog, undefined);
+});

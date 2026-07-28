@@ -53,22 +53,17 @@ test("Free and Pro policy values have one authoritative definition", () => {
 });
 
 test("every AI action has the exact server-side cost and a user-facing label", () => {
+  // 라우트가 있는 행동만 값을 가진다 — 값이 붙어 있으면 UI가 없는 기능을 광고하게 된다.
   assert.deepEqual(AI_CREDIT_COSTS, {
-    analyze_goal: 1,
     companion_chat: 1,
-    create_daily_step: 2,
     revise_plan: 2,
     recovery_plan: 3,
-    create_plan: 4,
     reschedule_plan: 4,
   });
   assert.deepEqual(AI_ACTION_LABELS, {
-    analyze_goal: "목표 이해 정리",
     companion_chat: "올리와 지금 대화",
-    create_daily_step: "오늘의 한 걸음 생성",
     revise_plan: "계획 일부 수정",
     recovery_plan: "회복 계획 생성",
-    create_plan: "새 목표 계획 생성",
     reschedule_plan: "전체 일정 재조정",
   });
   assert.equal(getAiCreditCost("recovery_plan"), 3);

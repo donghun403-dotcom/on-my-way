@@ -6,7 +6,6 @@ const port = Number(process.env.PORT || 8765);
 const host = "127.0.0.1";
 const root = path.resolve(__dirname);
 const aiCompanionChatModule = import("./ai-companion-chat.mjs");
-const aiGoalAnalysisModule = import("./ai-goal-analysis.mjs");
 const aiPlanRevisionModule = import("./ai-plan-revision.mjs");
 const aiCreditsServiceModule = import("./ai-credits-service.mjs");
 const authServiceModule = import("./auth-service.mjs");
@@ -178,9 +177,7 @@ const contentTypes = {
 };
 
 const AI_GENERATION_ROUTES = Object.freeze({
-  // 온보딩 1단계 자연어 → 이해 정리(저비용). 계획 생성은 2단계 확인 뒤 create_plan에서만 한다.
-  "/api/ai/goal-analyze": { action: "analyze_goal", kind: "analyze", maxBytes: 5_000 },
-  "/api/ai/goal-plan": { action: "create_plan", kind: "goal", maxBytes: 50_000 },
+  // 계획은 유저가 수동 빌더로 직접 만든다. AI는 이미 있는 계획을 다듬고 대화하는 데만 쓴다.
   "/api/ai/companion-chat": { action: "companion_chat", kind: "companion", maxBytes: 5_000 },
   "/api/ai/plan-revision": { action: "revise_plan", kind: "revision", maxBytes: 20_000 },
   "/api/ai/recovery-plan": { action: "recovery_plan", kind: "revision", maxBytes: 20_000 },
@@ -241,28 +238,6 @@ async function handleLocalAiGenerationRequest({ request, response, route }) {
 
   const user = await currentLocalUser(request).catch(() => null);
   if (!user) {
-    // 온보딩 1단계 분석은 로그인 전에도 거치므로 비회원에게도 열어 둔다(크레딧 차감 없음).
-    if (route.kind === "analyze") {
-      let input;
-      try {
-        input = await readJsonBody(request, route.maxBytes);
-      } catch (error) {
-        sendJson(response, error.status || 400, { ok: false, error: error.message || "요청 형식이 올바르지 않아요.", code: "INVALID_JSON" });
-        return;
-      }
-      try {
-        const { createGoalAnalysis } = await aiGoalAnalysisModule;
-        const result = await createGoalAnalysis(input, {
-          apiKey: localEnv.OPENAI_API_KEY,
-          model: localEnv.OPENAI_MODEL || "gpt-5.4-mini",
-        });
-        sendJson(response, 200, { ok: true, ...publicAiResult(result) });
-      } catch (error) {
-        console.error("Guest goal analysis failed", error);
-        sendJson(response, error?.status || 502, aiErrorBody(error));
-      }
-      return;
-    }
     sendJson(response, 401, { ok: false, error: "로그인 후 AI 기능을 이용할 수 있어요.", code: "AUTH_REQUIRED" });
     return;
   }
@@ -297,37 +272,35 @@ async function handleLocalAiGenerationRequest({ request, response, route }) {
     releaseAiCredits,
     reserveAiCredits,
   } = await aiCreditsServiceModule;
+  /* 개발 패리티: 자동 치어링은 운영과 마찬가지로 재화를 차감하지 않는다.
+     하루 각 1회 상한은 일부러 옮기지 않았다 — localUserStore도 파일로 getUser/putUser를
+     하므로 구현은 가능하지만, 그러면 개발자가 축하 문구를 한 번 보고 나서 다음 KST
+     자정까지 기다려야 한다. 상한 자체의 회귀는 worker-cheer.test.mjs가 지킨다. */
+  const { normalizeCheerEventType } = await aiCompanionChatModule;
+  const cheerEventType = route.kind === "companion" ? normalizeCheerEventType(input?.eventType) : "chat";
+  const isFreeCheer = cheerEventType !== "chat";
+
   let reservation = null;
   let providerCalled = false;
   const model = localEnv.OPENAI_MODEL || "gpt-5.4-mini";
 
   try {
-    reservation = await reserveAiCredits({
-      store: localUserStore,
-      userId: user.id,
-      action: route.action,
-      requestId,
-    });
+    if (!isFreeCheer) {
+      reservation = await reserveAiCredits({
+        store: localUserStore,
+        userId: user.id,
+        action: route.action,
+        requestId,
+      });
+    }
 
     let result;
-    if (route.kind === "goal") {
-      const { createGoalPlanForUser } = await workerModule;
-      const creditAwareUser = await localUserStore.getUser(user.id);
-      result = await createGoalPlanForUser({
-        input,
-        env: localEnv,
-        userStore: localUserStore,
-        user: creditAwareUser,
-      });
-    } else if (route.kind === "analyze") {
-      const { createGoalAnalysis } = await aiGoalAnalysisModule;
-      result = await createGoalAnalysis(input, { apiKey: localEnv.OPENAI_API_KEY, model });
-    } else if (route.kind === "companion") {
+    if (route.kind === "companion") {
       const { createCompanionReply } = await aiCompanionChatModule;
       result = await createCompanionReply(input, {
         apiKey: localEnv.OPENAI_API_KEY,
         model,
-        allowPersonalization: ["pro", "trial"].includes(reservation.usage.plan),
+        allowPersonalization: !isFreeCheer && ["pro", "trial"].includes(reservation.usage.plan),
       });
     } else {
       const { createAiPlanRevision } = await aiPlanRevisionModule;
@@ -337,6 +310,11 @@ async function handleLocalAiGenerationRequest({ request, response, route }) {
       });
     }
     providerCalled = true;
+
+    if (isFreeCheer) {
+      sendJson(response, 200, { ok: true, ...publicAiResult(result), requestId, eventType: cheerEventType, chargedCredits: 0 });
+      return;
+    }
 
     const committed = await commitAiCredits({
       store: localUserStore,

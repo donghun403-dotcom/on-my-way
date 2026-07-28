@@ -14,12 +14,7 @@ const diagnosisNextButton = document.querySelector("#diagnosisNextButton");
 const diagnosisStepTitle = document.querySelector("#diagnosisStepTitle");
 const diagnosisStepCount = document.querySelector("#diagnosisStepCount");
 const diagnosisProgressBar = document.querySelector("#diagnosisProgressBar");
-const goalAnalyzeButton = document.querySelector("#goalAnalyzeButton");
 const goalStoryCount = document.querySelector("#goalStoryCount");
-const analysisUnderstanding = document.querySelector("#analysisUnderstanding");
-const analysisQuestions = document.querySelector("#analysisQuestions");
-const analysisQuestionList = document.querySelector("#analysisQuestionList");
-const analysisEditGoalButton = document.querySelector("#analysisEditGoalButton");
 const wizardStepLabel = document.querySelector("#wizardStepLabel");
 const wizardProgressValue = document.querySelector("#wizardProgressValue");
 const wizardLiveGoal = document.querySelector("#wizardLiveGoal");
@@ -34,31 +29,23 @@ const goalExampleSuggestions = document.querySelector("#goalExampleSuggestions")
 const goalValidationMessage = document.querySelector("#goalValidationMessage");
 const heroPrimaryCta = document.querySelector("#heroPrimaryCta");
 const pricingAppReturn = document.querySelector("#pricingAppReturn");
-const birthDateInput = document.querySelector("#birthDate");
-const birthTimeInput = document.querySelector("#birthTime");
-const birthPlaceInput = document.querySelector("#birthPlace");
-const mbtiInput = document.querySelector("#mbti");
 const goalPeriodInput = document.querySelector("#goalPeriod");
-const currentContextInput = document.querySelector("#currentContext");
 const routineReadinessInput = document.querySelector("#routineReadiness");
 const routineTimeInput = document.querySelector("#routineTime");
-const materialModeInputs = document.querySelectorAll("input[name='materialMode']");
-const materialFields = document.querySelector("#materialFields");
-const materialNameInput = document.querySelector("#materialName");
-const materialRangeInput = document.querySelector("#materialRange");
-const materialProgressInput = document.querySelector("#materialProgress");
-const materialCompletionInput = document.querySelector("#materialCompletion");
-const materialUnitInput = document.querySelector("#materialUnit");
-const availableDayInputs = document.querySelectorAll("[data-available-day]");
-const difficultDayInputs = document.querySelectorAll("[data-difficult-day]");
-const planningPreferenceInputs = document.querySelectorAll("[data-planning-preference]");
-const sessionMinutesInput = document.querySelector("#sessionMinutes");
-const weeklyFrequencyInput = document.querySelector("#weeklyFrequency");
-const targetDateInput = document.querySelector("#targetDate");
-const planIntensityInput = document.querySelector("#planIntensity");
-const bufferDaysInput = document.querySelector("#bufferDays");
-const excludedDatesInput = document.querySelector("#excludedDates");
-const notificationTimeInput = document.querySelector("#notificationTime");
+// 수동 계획 빌더(온보딩 STEP 1~4). AI 온보딩이 쓰던 [data-available-day]와는
+// 별도 셀렉터를 쓴다 — 저쪽은 도달 불가 상태로 남겨둔 레거시 입력이다.
+const designDayInputs = document.querySelectorAll("[data-design-day]");
+const designWeekdayMinutesInput = document.querySelector("#designWeekdayMinutes");
+const designWeekendMinutesInput = document.querySelector("#designWeekendMinutes");
+const designOutcomeInput = document.querySelector("#designOutcome");
+const designResourcesInput = document.querySelector("#designResources");
+const taskBuilderListElement = document.querySelector("#taskBuilderList");
+const taskBuilderEmptyElement = document.querySelector("#taskBuilderEmpty");
+const taskBudgetHintElement = document.querySelector("#taskBudgetHint");
+const addTaskButton = document.querySelector("#addTaskButton");
+const refillTemplateButton = document.querySelector("#refillTemplateButton");
+const minimalStartButton = document.querySelector("#minimalStartButton");
+const wizardLiveTasks = document.querySelector("#wizardLiveTasks");
 const manseProfile = document.querySelector("#manseProfile");
 const mbtiProfile = document.querySelector("#mbtiProfile");
 const planningStyle = document.querySelector("#planningStyle");
@@ -84,18 +71,10 @@ const understoodAvailability = document.querySelector("#understoodAvailability")
 const understoodExclusions = document.querySelector("#understoodExclusions");
 const understoodIntensity = document.querySelector("#understoodIntensity");
 const understoodAssumptions = document.querySelector("#understoodAssumptions");
-const draftFeasibilityTitle = document.querySelector("#draftFeasibilityTitle");
-const draftFeasibilityCopy = document.querySelector("#draftFeasibilityCopy");
-const draftFeasibilityOptions = document.querySelector("#draftFeasibilityOptions");
 const roadmapSuccessCriterion = document.querySelector("#roadmapSuccessCriterion");
 const roadmapReality = document.querySelector("#roadmapReality");
 const roadmapNextInfo = document.querySelector("#roadmapNextInfo");
-const roadmapRevisionSummary = document.querySelector("#roadmapRevisionSummary");
-const roadmapRevisionBefore = document.querySelector("#roadmapRevisionBefore");
-const roadmapRevisionAfter = document.querySelector("#roadmapRevisionAfter");
-const roadmapRevisionConditions = document.querySelector("#roadmapRevisionConditions");
 const draftAdjustButton = document.querySelector("#draftAdjustButton");
-const discardDraftChangesButton = document.querySelector("#discardDraftChangesButton");
 const dashboardGoalPreview = document.querySelector("#dashboardGoalPreview");
 const dashboardProgressValue = document.querySelector("#dashboardProgressValue");
 const dashboardProgressBar = document.querySelector("#dashboardProgressBar");
@@ -299,11 +278,6 @@ const companionName = document.querySelector("#companionName");
 const DEFAULT_ROUTINE_READINESS = "계획이 있으면 실행해요";
 const TRIAL_ACCESS_KEY = "omwTrialAccess";
 const LEGACY_OLLIE_ENERGY_KEY = "omwOllieEnergy";
-const FREE_PLAN_GENERATED_KEY = "omwFreePlanGenerated";
-const PENDING_GOAL_DRAFT_KEY = "onmyway:pending-goal-draft";
-const PENDING_GOAL_PREVIEW_KEY = "onmyway:pending-goal-preview";
-const GUEST_GOAL_INITIAL_ATTEMPT_KEY = "onmyway:guest-goal-initial-attempt";
-const SCHEDULE_START_PREFERENCE_KEY = "onmyway:schedule-start-preference";
 const PENDING_AUTH_INTENT_KEY = "onmyway:pending-auth-intent";
 const FULL_PLAN_AUTH_INTENT_SOURCE = "anonymous-plan-preview";
 const FULL_PLAN_AUTH_INTENT_PURPOSE = "unlock-full-plan";
@@ -316,7 +290,6 @@ const LEGACY_ACCOUNT_STORAGE_SNAPSHOT_PREFIX = "omwAccountStorageSnapshot:";
 const EXECUTION_LEDGER_PLAN_KEY = "omwExecutionLedgerPlan";
 const ACCOUNT_SCOPED_STORAGE_KEYS = [
   TRIAL_ACCESS_KEY,
-  FREE_PLAN_GENERATED_KEY,
   "omwPersonalityProfile",
   "omwPersonalityNudgeDismissed",
   "omwExecutionPlan",
@@ -325,6 +298,9 @@ const ACCOUNT_SCOPED_STORAGE_KEYS = [
   "omwCompanionEvents",
   "omwFocusSession",
   "omwExecutionTheme",
+  // 오늘의 치어링(CHEER_STATE_KEY). 계정마다 따로 보관해야 다른 계정의 축하가 새어 나오지 않고,
+  // 게스트로 받은 축하는 첫 로그인 때 함께 승계된다. 하루짜리 값이라 서버 동기화 대상은 아니다.
+  "omwCheerState",
   EXECUTION_LEDGER_PLAN_KEY,
 ];
 const SERVER_SYNC_STORAGE_KEYS = [
@@ -339,6 +315,8 @@ try {
   // 실제 알림 전송 경로 없이 로컬에만 남던 이전 연락처·동의 캐시를 폐기한다.
   localStorage.removeItem("omwTrialLead");
   localStorage.removeItem("omwTrialReminderDismissed");
+  // 서버가 계획을 만들던 시절의 "무료 계획 1회" 표식. 계획을 유저가 직접 만드는 지금은 제한이 없다.
+  localStorage.removeItem("omwFreePlanGenerated");
 } catch {}
 
 function showBrandFontFailure() {
@@ -376,7 +354,6 @@ let aiUsageRequest = null;
 let aiUsageError = "";
 let paymentsEnabled = false;
 let pendingRevisionAction = "revise_plan";
-let selectedFeasibilityAdjustment = "";
 let pricingPolicyPromise = null;
 let pageLeaving = false;
 
@@ -764,22 +741,10 @@ function normalizeScheduleStartPreference(value) {
   return ["as-is", "change-days", "shorter"].includes(value) ? value : "as-is";
 }
 
-function previewRequiresAdjustment(preview) {
-  return preview?.scheduleContract?.requiresAdjustmentBeforeClaim === true;
-}
-
 function setTrialStartDisabled(disabled) {
   if (!trialStartInlineLink) return;
   trialStartInlineLink.classList.toggle("is-disabled", disabled);
   trialStartInlineLink.setAttribute("aria-disabled", String(disabled));
-}
-
-function readScheduleStartPreference() {
-  try {
-    return normalizeScheduleStartPreference(sessionStorage.getItem(SCHEDULE_START_PREFERENCE_KEY));
-  } catch {
-    return "as-is";
-  }
 }
 
 /* 온보딩에서 "이대로 시작 / 요일 바꾸기 / 시간 줄이기" 버튼을 걷어냈다.
@@ -816,59 +781,155 @@ function buildActivatedExecutionPlan(draftPlan, draftInput, scheduleStartPrefere
 }
 
 let goalDraftActivationPending = false;
-async function activateReviewedGoalDraft() {
+/* ===== 수동 계획의 가입 게이트 =====
+   계획은 saveManualPlan에서 이미 저장됐다. 여기서는 로그인 여부만 확인하고
+   main의 기존 핸드오프에 그대로 얹는다: 의도는 onmyway:pending-auth-intent에
+   담고, 체험 시작은 서버 권위(startTrialAccess → /api/ai/trial/start)를 쓰며,
+   게스트 데이터 승계는 switchAccountStorageScope의 allowAnonymousMerge가
+   맡는다. 이 함수들은 손대지 않는다. */
+const MANUAL_PLAN_AUTH_INTENT_RESUME = "manual-plan-continuation";
+
+function createManualPlanAuthIntent(planId) {
+  if (!planId) return null;
+  const intent = {
+    version: 1,
+    source: FULL_PLAN_AUTH_INTENT_SOURCE,
+    purpose: FULL_PLAN_AUTH_INTENT_PURPOSE,
+    returnTarget: "auth-provider-picker",
+    resumeTarget: MANUAL_PLAN_AUTH_INTENT_RESUME,
+    selectedProvider: null,
+    draftId: String(planId),
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+  try {
+    sessionStorage.setItem(PENDING_AUTH_INTENT_KEY, JSON.stringify(intent));
+    return intent;
+  } catch {
+    return null;
+  }
+}
+
+/* TTL 10분은 "로그인 창에서 돌아오지 않았다"고 보고 provider 선택 화면을 다시
+   띄울지 정하는 시간이다. 다 만든 계획이 로그인을 넘어 살아남을지 정하는 시간이
+   아니다 — 소셜 계정을 새로 만들면 문자 인증까지 10분을 넘기기 쉬운데, 수동
+   빌더는 폼 상태를 복원하지 않으므로 그 순간 유저는 빈 4단계를 마주하고 계획을
+   처음부터 다시 만들어야 한다. 이어가기 판정은 ignoreTtl로 이 시계를 건너뛴다.
+   의도 자체는 sessionStorage에 있어 탭이 닫히면 사라지고, 시트를 명시적으로
+   닫으면 closeAuthSheet가 지운다. 그 둘이 실제 수명 경계다. */
+function readManualPlanAuthIntent({ ignoreTtl = false } = {}) {
+  const intent = safeJsonParse(sessionStorage.getItem(PENDING_AUTH_INTENT_KEY), null);
+  const createdAt = Number(intent?.createdAt || 0);
+  const valid = intent?.source === FULL_PLAN_AUTH_INTENT_SOURCE
+    && intent?.purpose === FULL_PLAN_AUTH_INTENT_PURPOSE
+    && intent?.resumeTarget === MANUAL_PLAN_AUTH_INTENT_RESUME
+    && createdAt > 0
+    && createdAt <= Date.now()
+    && (ignoreTtl || Date.now() - createdAt <= FULL_PLAN_AUTH_INTENT_TTL_MS);
+  return valid ? intent : null;
+}
+
+/* 어떤 제공자를 골랐는지 남겨 두면, 로그인 창에서 그냥 돌아왔을 때
+   "카카오 로그인이 취소되었어요"처럼 이름을 붙여 안내할 수 있다. */
+function updateManualPlanAuthProvider(provider) {
+  const intent = readManualPlanAuthIntent();
+  if (!intent || !AUTH_PROVIDER_IDS.has(provider)) return null;
+  const updated = { ...intent, selectedProvider: provider, updatedAt: Date.now() };
+  try {
+    sessionStorage.setItem(PENDING_AUTH_INTENT_KEY, JSON.stringify(updated));
+    return updated;
+  } catch {
+    return intent;
+  }
+}
+
+function savedManualPlan() {
+  try {
+    const plan = readExecutionPlan();
+    return plan?.planSource === "manual" ? plan : null;
+  } catch {
+    // 저장본이 깨졌거나 코덱이 아직 초기화되기 전이면 "없음"으로 다룬다.
+    return null;
+  }
+}
+
+/* 로그인 직후에는 계정 스토리지 스코프 전환과 서버 상태 동기화가 함께 일어나서
+   게스트가 만든 계획이 잠깐 보이지 않을 수 있다. 승계 순서에 기대지 않도록
+   로그인 전에 저장본을 세션에 그대로 복사해 두고, 돌아왔을 때 없으면 되돌린다.
+   sessionStorage는 계정 스코프 전환의 대상이 아니라서 영향을 받지 않는다. */
+const MANUAL_PLAN_HANDOFF_KEY = "onmyway:manual-plan-handoff";
+
+function stashManualPlanForHandoff() {
+  try {
+    const raw = localStorage.getItem("omwExecutionPlan");
+    if (raw) sessionStorage.setItem(MANUAL_PLAN_HANDOFF_KEY, raw);
+  } catch {
+    /* session storage unavailable — 승계는 allowAnonymousMerge에만 의존한다 */
+  }
+}
+
+function restoreManualPlanFromHandoff() {
+  try {
+    const raw = sessionStorage.getItem(MANUAL_PLAN_HANDOFF_KEY);
+    if (!raw) return null;
+    localStorage.setItem("omwExecutionPlan", raw);
+    return savedManualPlan();
+  } catch {
+    return null;
+  }
+}
+
+function clearManualPlanHandoff() {
+  try {
+    sessionStorage.removeItem(MANUAL_PLAN_HANDOFF_KEY);
+  } catch {
+    /* 정리 실패는 다음 계획 저장 때 덮어써진다 */
+  }
+}
+
+function pendingManualPlanHandoff() {
+  try {
+    return Boolean(sessionStorage.getItem(MANUAL_PLAN_HANDOFF_KEY));
+  } catch {
+    return false;
+  }
+}
+
+async function activateManualPlan() {
   if (goalDraftActivationPending) return false;
   goalDraftActivationPending = true;
   trialStartInlineLink?.setAttribute("aria-busy", "true");
   try {
     await accountExperienceReady;
-    const draftInput = safeJsonParse(sessionStorage.getItem(PENDING_GOAL_DRAFT_KEY), null);
-    const previewRecord = safeJsonParse(sessionStorage.getItem(PENDING_GOAL_PREVIEW_KEY), null);
-    if (!draftInput || !previewRecord?.preview) throw new Error("저장할 계획 초안을 찾지 못했어요. 조건을 확인해 다시 만들어 주세요.");
-    if (previewRequiresAdjustment(previewRecord.preview)) {
-      throw new Error("현재 조건으로는 실행 일정을 만들 수 없어요. 조정안을 선택해 계획을 다시 확인해 주세요.");
-    }
-    if (previewRecord.draftPlanId && (
-      previewRecord.pendingDraftInput
-      || goalDraftSignature(draftInput) !== previewRecord.activeDraftSignature
-      || !previewRecord.activeInputHash
-      || !previewRecord.activeRevision
-    )) {
-      throw new Error("수정한 조건으로 AI 계획을 다시 만든 뒤 저장해 주세요. 현재 미리보기는 수정 전 조건 기준이에요.");
-    }
+    const plan = savedManualPlan() || restoreManualPlanFromHandoff();
+    if (!plan) throw new Error("저장된 계획을 찾지 못했어요. 계획을 다시 만들어 주세요.");
+
     if (!authUiState.user) {
-      createPendingFullPlanAuthIntent(draftInput);
-      // 온보딩 페이지에는 로그인 시트가 있으므로 이동 없이 열고, 로그인 후 저장을 자동으로 이어간다.
-      if (authSheet) openAuthSheet({ message: "로그인하면 지금 만든 계획을 그대로 저장하고 바로 시작해요." });
+      createManualPlanAuthIntent(plan.planId);
+      stashManualPlanForHandoff();
+      sendFunnelEvent("signup_gate_shown");
+      if (authSheet) openAuthSheet({ message: "간편 로그인하면 지금 만든 계획 그대로 무료 체험이 시작돼요." });
       else location.assign(`app.html?auth=login&return=${encodeURIComponent("/?resumeGoal=1")}`);
       return false;
     }
 
-    const scheduleStartPreference = readScheduleStartPreference();
-    const claimedDraft = previewRecord.draftPlanId ? await claimGuestGoalDraft(previewRecord, scheduleStartPreference) : null;
+    // 체험 시작 시각은 서버가 가입 계정 기준으로 확정한다.
     const usage = aiUsageState || await loadAiUsage().catch(() => null);
     if (usage?.plan === "free" && usage.trial?.eligible) {
       const started = await startTrialAccess();
       if (!started) return false;
     }
-    const draftPlan = claimedDraft?.activatedPlan || previewRecord.draftPlan;
-    if (!draftPlan) throw new Error("저장할 전체 계획 초안을 확인하지 못했어요.");
-    const activatedPlan = claimedDraft?.activatedPlan || buildActivatedExecutionPlan(draftPlan, draftInput, scheduleStartPreference);
-    writeExecutionPlan(activatedPlan);
-    resetExecutionStateForActivatedPlan(activatedPlan);
-    trackCompanionEvent("roadmap_locked", { revision: Number(previewRecord.activeRevision || 0) });
-    trackCompanionEvent("schedule_created", { source: "locked_roadmap" });
-    sessionStorage.removeItem(PENDING_GOAL_DRAFT_KEY);
-    sessionStorage.removeItem(PENDING_GOAL_PREVIEW_KEY);
-    sessionStorage.removeItem(SCHEDULE_START_PREFERENCE_KEY);
+
+    resetExecutionStateForActivatedPlan(plan);
+    trackCompanionEvent("schedule_created", { source: "manual_builder" });
     clearPendingFullPlanAuthIntent();
-    if (readTrialAccess()?.plan !== "pro") localStorage.setItem(FREE_PLAN_GENERATED_KEY, "true");
-    if (authUiState.user) authUiState.user.goalPlanGeneratedAt = authUiState.user.goalPlanGeneratedAt || Date.now();
+    clearManualPlanHandoff();
     await saveAccountStateToServer();
+    sendFunnelEvent("trial_start");
     location.assign("app.html?tab=today");
     return true;
   } catch (error) {
-    showToast(error.message || "계획을 저장하지 못했어요. 현재 계획은 바뀌지 않았습니다.");
+    showToast(error.message || "계획을 시작하지 못했어요. 잠시 후 다시 시도해 주세요.");
     return false;
   } finally {
     goalDraftActivationPending = false;
@@ -876,54 +937,27 @@ async function activateReviewedGoalDraft() {
   }
 }
 
-function pendingGoalDraftReadyForActivation() {
-  const draftInput = safeJsonParse(sessionStorage.getItem(PENDING_GOAL_DRAFT_KEY), null);
-  const previewRecord = readPendingGoalPreview();
-  if (!draftInput || !previewRecord?.preview) return false;
-  if (previewRequiresAdjustment(previewRecord.preview)) return false;
-  if (!previewRecord.draftPlanId) return true;
-  return !previewRecord.pendingDraftInput
-    && goalDraftSignature(draftInput) === previewRecord.activeDraftSignature
-    && Boolean(previewRecord.activeInputHash)
-    && Boolean(previewRecord.activeRevision);
-}
-
-// 로그인·회원가입을 마치고 온보딩으로 돌아오면 저장 버튼을 다시 누르게 하지 않고 그대로 이어간다.
+// 로그인·회원가입을 마치고 온보딩으로 돌아오면 시작 버튼을 다시 누르게 하지 않고 그대로 이어간다.
 async function resumeFullPlanActivationAfterAuth() {
-  if (!authUiState.user || !pendingGoalDraftReadyForActivation()) return;
-  clearPendingFullPlanAuthIntent();
+  if (!authUiState.user) return;
+  /* 의도를 여기서 미리 지우지 않는다. 체험 시작(/api/ai/trial/start)이 네트워크
+     오류로 실패하면 activateManualPlan이 false를 돌려주는데, 앞에서 지워 두면
+     그 한 번으로 이어가기 토큰이 사라진다. 온보딩은 저장된 계획으로 결과 화면을
+     다시 그리지 않아서 다시 누를 버튼도 남지 않는다. 성공 경로의
+     activateManualPlan이 핸드오프와 함께 소비한다. */
+  if (!readManualPlanAuthIntent({ ignoreTtl: true })) return;
+  if (!(savedManualPlan() || pendingManualPlanHandoff())) return;
   setTrialStartDisabled(true);
-  if (aiPreviewStatus) aiPreviewStatus.textContent = "로그인을 확인했어요. 계획을 저장하고 오늘 화면으로 이동할게요.";
-  showToast("로그인했어요 · 이 계획으로 바로 시작할게요.");
-  if (!(await activateReviewedGoalDraft())) setTrialStartDisabled(false);
+  if (aiPreviewStatus) aiPreviewStatus.textContent = "로그인을 확인했어요. 무료 체험을 시작하고 오늘 화면으로 이동할게요.";
+  showToast("로그인했어요 · 무료 체험을 시작할게요.");
+  if (!(await activateManualPlan())) setTrialStartDisabled(false);
 }
 
+// 온보딩의 유일한 시작 버튼. 계획은 이미 저장돼 있으므로 여기서는 가입 게이트만 통과시킨다.
 trialStartInlineLink?.addEventListener("click", async (event) => {
   event.preventDefault();
-  if (trialStartInlineLink.getAttribute("aria-disabled") === "true") {
-    // 조정안을 이미 고른 상태라면 다시 고르라고 되돌려보내지 말고, 그 조건으로 바로 계획을 다시 만든다.
-    if (selectedFeasibilityAdjustment && personalityForm) {
-      showToast("고른 조정안으로 계획을 다시 만들고 있어요.");
-      personalityForm.requestSubmit();
-      return;
-    }
-    // 아직 고르지 않았을 때만 조정안 카드로 안내한다.
-    const firstOption = draftFeasibilityOptions?.querySelector("[data-feasibility-adjustment]");
-    const target = firstOption || draftFeasibilityOptions?.closest(".draft-feasibility-card") || draftFeasibilityOptions;
-    if (target) {
-      const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-      target.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "center" });
-      const card = draftFeasibilityOptions?.closest(".draft-feasibility-card");
-      if (card) {
-        card.classList.add("is-attention");
-        window.setTimeout(() => card.classList.remove("is-attention"), 1600);
-      }
-      if (firstOption) window.setTimeout(() => firstOption.focus({ preventScroll: true }), reduceMotion ? 0 : 320);
-    }
-    showToast("먼저 위의 조정안을 하나 선택한 뒤 ‘계획에 반영하기’로 계획을 다시 만들어 주세요.");
-    return;
-  }
-  await activateReviewedGoalDraft();
+  if (trialStartInlineLink.getAttribute("aria-disabled") === "true") return;
+  await activateManualPlan();
 });
 
 function syncResultDetailsDisclosure({ reveal = false } = {}) {
@@ -1055,16 +1089,6 @@ personalityNudgeDismissButton?.addEventListener("click", () => {
   personalityNudgeCard.hidden = true;
 });
 
-// 홈 빌더의 성향 입력을 저장된 프로필로 미리 채운다 (다시 방문했을 때)
-(() => {
-  const profile = readPersonalityProfile();
-  if (!profile) return;
-  if (birthDateInput && !birthDateInput.value && profile.birthDate) birthDateInput.value = profile.birthDate;
-  if (birthTimeInput && !birthTimeInput.value && profile.birthTime) birthTimeInput.value = profile.birthTime;
-  if (birthPlaceInput && !birthPlaceInput.value && profile.birthPlace) birthPlaceInput.value = profile.birthPlace;
-  if (mbtiInput && !mbtiInput.value && profile.mbti) mbtiInput.value = profile.mbti;
-})();
-
 // ===== 회원 · 인증 =====
 const authUiState = { user: null, loaded: false, error: null };
 let authBootstrapPromise = null;
@@ -1161,13 +1185,6 @@ function syncServerPlanToLocal() {
     localStorage.removeItem(LEGACY_OLLIE_ENERGY_KEY);
   } catch (error) {
     console.warn("Unable to remove legacy client credit state", error);
-  }
-
-  try {
-    if (user.plan === "pro" || user.goalPlanGeneratedAt) localStorage.setItem(FREE_PLAN_GENERATED_KEY, "true");
-    else localStorage.removeItem(FREE_PLAN_GENERATED_KEY);
-  } catch (error) {
-    console.warn("Unable to sync goal plan allowance", error);
   }
 
   if (!document.body.classList.contains("execution-page")) return;
@@ -1320,8 +1337,6 @@ function renderAccountUi() {
     heroPrimaryCta.href = hasSavedPlan ? "app.html" : "#designFlow";
   }
 
-  syncGoalBuilderCta();
-  if (planPreviewPanel?.dataset.previewMode === "guest") setResultPreviewMode("guest");
   renderMyPageSheet();
 }
 
@@ -1378,7 +1393,7 @@ async function startOAuth(provider) {
     if (!authProviderAvailability.get(provider)) {
       throw new Error(`${AUTH_PROVIDER_LABELS[provider] || "소셜 로그인"} 설정이 아직 완료되지 않았습니다. 다른 로그인 방법을 선택해 주세요.`);
     }
-    updatePendingFullPlanAuthProvider(provider);
+    updateManualPlanAuthProvider(provider);
     const redirect = encodeURIComponent(authRedirectTarget());
     location.assign(`/api/auth/${provider}/start?redirect=${redirect}`);
   } catch (error) {
@@ -1399,7 +1414,8 @@ function openAuthSheet({ message = "", focusStatus = false } = {}) {
 }
 
 function closeAuthSheet() {
-  if (readPendingFullPlanAuthIntent()) {
+  // 명시적으로 닫는 것은 "이어가지 않겠다"는 뜻이므로 만료 여부와 무관하게 거둬들인다.
+  if (readManualPlanAuthIntent({ ignoreTtl: true })) {
     clearPendingFullPlanAuthIntent();
     // 온보딩 페이지에서는 이미 초안 화면 위에 떠 있으므로 새로고침 없이 닫기만 한다.
     if (document.body.classList.contains("home-page")) {
@@ -1418,12 +1434,12 @@ function closeAuthSheet() {
 }
 
 function restorePendingFullPlanAuthChooser({ authParam = "", provider = "", fromPageShow = false } = {}) {
-  const intent = readPendingFullPlanAuthIntent();
+  const intent = readManualPlanAuthIntent();
   if (!intent) return false;
-  if (authUiState.user) {
-    clearPendingFullPlanAuthIntent();
-    return false;
-  }
+  /* 이미 로그인한 상태면 provider 선택 화면을 띄울 이유가 없다. 의도를 여기서
+     지우지는 않는다 — 그건 "로그인하고 돌아왔다"는 신호라서 계획 이어가기가
+     받아야 한다. 소비는 체험 시작까지 성공한 activateManualPlan에서만 일어난다. */
+  if (authUiState.user) return false;
   if (authParam === "deletion_pending") {
     clearPendingFullPlanAuthIntent();
     return false;
@@ -1456,7 +1472,7 @@ function authRedirectTarget() {
   if (params.get("return") === "/delete-account") return "/delete-account";
   if (params.get("return") === "/?resumeGoal=1") return "/?resumeGoal=1";
   // 온보딩에서 바로 연 로그인도 돌아온 뒤 계획 저장을 이어가야 한다.
-  if (readPendingFullPlanAuthIntent()) return "/?resumeGoal=1";
+  if (readManualPlanAuthIntent()) return "/?resumeGoal=1";
   return location.pathname || "/app.html";
 }
 
@@ -1635,7 +1651,7 @@ function handleAuthQueryParams() {
     return;
   }
   configureAdminLoginMode(redirectToAdmin && !authUiState.user);
-  const pendingFullPlanAuth = readPendingFullPlanAuthIntent();
+  const pendingFullPlanAuth = readManualPlanAuthIntent();
   const restoredFullPlanChooser = pendingFullPlanAuth
     ? restorePendingFullPlanAuthChooser({ authParam: authParam || "", provider })
     : false;
@@ -2114,8 +2130,8 @@ async function ensureAiActionAvailable(action) {
   }
   if (Number(usage.daily.remaining) < cost) {
     const trialEnded = usage.plan === "free" && !usage.trial?.eligible && authUiState.user?.trialUsedAt;
-    showToast(trialEnded && action === "create_plan"
-      ? `무료 체험이 끝나 Free 플랜으로 이용 중이에요. 오늘 크레딧을 이미 사용해서 ${formatUsageTime(usage.daily.resetsAt, usage.timeZone)}에 ${cost}크레딧으로 다시 만들 수 있어요.`
+    showToast(trialEnded
+      ? `무료 체험이 끝나 Free 플랜으로 이용 중이에요. 오늘 크레딧을 이미 사용해서 ${formatUsageTime(usage.daily.resetsAt, usage.timeZone)}에 ${cost}크레딧으로 다시 시도할 수 있어요.`
       : `이 기능에는 ${cost}크레딧이 필요해요. 오늘 사용할 수 있는 크레딧이 부족하며 ${formatUsageTime(usage.daily.resetsAt, usage.timeZone)}에 다시 제공돼요.`);
     sendFunnelEvent("ai_credit_insufficient");
     openEnergyCharge();
@@ -2267,7 +2283,7 @@ goalInput?.addEventListener("input", () => {
 
 let diagnosisStepIndex = 0;
 
-const wizardStepLabels = ["목표 설정 중", "자료·일정 설정 중", "계획 초안 준비 중"];
+const wizardStepLabels = ["목표 정하는 중", "리듬 정하는 중", "할 일 담는 중", "마무리하는 중"];
 
 const goalTemplates = {
   exam: {
@@ -2403,174 +2419,8 @@ function selectedGoalTemplate() {
   return template && template.goal === designGoal?.value.trim() ? template : null;
 }
 
-function selectedMaterialMode() {
-  return [...materialModeInputs].find((input) => input.checked)?.value || "none";
-}
-
 function checkedValues(inputs) {
   return [...inputs].filter((input) => input.checked).map((input) => input.value);
-}
-
-function parseExcludedDates(value = excludedDatesInput?.value || "") {
-  return String(value).split(/[,\n]/).map((item) => item.trim()).filter(Boolean).slice(0, 30);
-}
-
-function collectGoalDraftInput() {
-  const materialMode = selectedMaterialMode();
-  return {
-    materialMode,
-    material: {
-      hasMaterial: materialMode === "yes",
-      name: materialNameInput?.value.trim() || "",
-      targetRange: materialRangeInput?.value.trim() || "",
-      currentProgress: materialProgressInput?.value.trim() || "",
-      completionRule: materialCompletionInput?.value.trim() || "",
-      unit: materialUnitInput?.value.trim() || "",
-    },
-    availability: {
-      availableDays: checkedValues(availableDayInputs),
-      sessionMinutes: Number(sessionMinutesInput?.value) || 0,
-      difficultDays: checkedValues(difficultDayInputs),
-      excludedDates: parseExcludedDates(),
-      targetDate: targetDateInput?.value || "",
-      weeklyFrequency: Number(weeklyFrequencyInput?.value) || 0,
-      intensity: planIntensityInput?.value || "균형 있게",
-      bufferDays: Number(bufferDaysInput?.value) || 0,
-      notificationTime: notificationTimeInput?.value || "",
-    },
-    planningPreferences: checkedValues(planningPreferenceInputs),
-    feasibilityAdjustment: selectedFeasibilityAdjustment,
-  };
-}
-
-function savePendingGoalDraft() {
-  try {
-    const existing = safeJsonParse(sessionStorage.getItem(PENDING_GOAL_DRAFT_KEY), null);
-    const conditions = collectGoalDraftInput();
-    const draft = {
-      draftId: existing?.draftId || globalThis.crypto?.randomUUID?.() || `goal-${Date.now()}`,
-      goal: designGoal?.value || "",
-      period: goalPeriodInput?.value || "",
-      currentContext: currentContextInput?.value.trim() || "",
-      routineReadiness: routineReadinessInput?.value || "",
-      routineTime: routineTimeInput?.value || "",
-      birthDate: birthDateInput?.value || "",
-      birthTime: birthTimeInput?.value || "",
-      birthPlace: birthPlaceInput?.value || "",
-      mbti: mbtiInput?.value || "",
-      category: selectedGoalCategory(),
-      ...conditions,
-      updatedAt: Date.now(),
-    };
-    sessionStorage.setItem(PENDING_GOAL_DRAFT_KEY, JSON.stringify(draft));
-    return draft;
-  } catch {
-    /* session storage unavailable — continue to login */
-    return null;
-  }
-}
-
-function goalDraftSignature(draft) {
-  if (!draft || typeof draft !== "object") return "";
-  const { updatedAt: _updatedAt, ...comparable } = draft;
-  return JSON.stringify(comparable);
-}
-
-function readPendingGoalPreview() {
-  try {
-    return safeJsonParse(sessionStorage.getItem(PENDING_GOAL_PREVIEW_KEY), null);
-  } catch {
-    return null;
-  }
-}
-
-function savePendingGoalPreview(preview, {
-  draftPlanId = "",
-  draftPlan = null,
-  activeDraftInput = null,
-  activeInput = null,
-  activeInputHash = "",
-  activeRevision = 0,
-  revisionSummary = null,
-} = {}) {
-  try {
-    sessionStorage.setItem(PENDING_GOAL_PREVIEW_KEY, JSON.stringify({
-      preview,
-      draftPlanId: String(draftPlanId || ""),
-      draftPlan: draftPlan && typeof draftPlan === "object" ? draftPlan : null,
-      activeDraftInput: activeDraftInput && typeof activeDraftInput === "object" ? activeDraftInput : null,
-      activeDraftSignature: goalDraftSignature(activeDraftInput),
-      activeInput: activeInput && typeof activeInput === "object" ? activeInput : null,
-      activeInputHash: String(activeInputHash || ""),
-      activeRevision: Number(activeRevision || 0),
-      revisionSummary: revisionSummary && typeof revisionSummary === "object" ? revisionSummary : null,
-      pendingDraftInput: null,
-      pendingDraftSignature: "",
-      pendingRevision: null,
-      createdAt: Date.now(),
-    }));
-    return true;
-  } catch {
-    /* session storage unavailable — the preview remains visible for this page */
-    return false;
-  }
-}
-
-function readPendingFullPlanAuthIntent() {
-  try {
-    const intent = safeJsonParse(sessionStorage.getItem(PENDING_AUTH_INTENT_KEY), null);
-    const draft = safeJsonParse(sessionStorage.getItem(PENDING_GOAL_DRAFT_KEY), null);
-    const preview = safeJsonParse(sessionStorage.getItem(PENDING_GOAL_PREVIEW_KEY), null);
-    const createdAt = Number(intent?.createdAt || 0);
-    const valid = intent?.source === FULL_PLAN_AUTH_INTENT_SOURCE
-      && intent?.purpose === FULL_PLAN_AUTH_INTENT_PURPOSE
-      && intent?.returnTarget === "auth-provider-picker"
-      && intent?.resumeTarget === "full-plan-continuation"
-      && Boolean(intent?.draftId)
-      && intent.draftId === draft?.draftId
-      && Boolean(preview?.preview)
-      && createdAt > 0
-      && createdAt <= Date.now()
-      && Date.now() - createdAt <= FULL_PLAN_AUTH_INTENT_TTL_MS;
-    if (valid) return intent;
-    if (intent) sessionStorage.removeItem(PENDING_AUTH_INTENT_KEY);
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-function createPendingFullPlanAuthIntent(draft) {
-  if (!draft?.draftId) return null;
-  const intent = {
-    version: 1,
-    source: FULL_PLAN_AUTH_INTENT_SOURCE,
-    purpose: FULL_PLAN_AUTH_INTENT_PURPOSE,
-    returnTarget: "auth-provider-picker",
-    resumeTarget: "full-plan-continuation",
-    selectedProvider: null,
-    draftId: draft.draftId,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  };
-  try {
-    sessionStorage.setItem(PENDING_AUTH_INTENT_KEY, JSON.stringify(intent));
-    return intent;
-  } catch {
-    return null;
-  }
-}
-
-function updatePendingFullPlanAuthProvider(provider) {
-  const intent = readPendingFullPlanAuthIntent();
-  if (!intent || !AUTH_PROVIDER_IDS.has(provider)) return null;
-  const updated = { ...intent, selectedProvider: provider, updatedAt: Date.now() };
-  try {
-    sessionStorage.setItem(PENDING_AUTH_INTENT_KEY, JSON.stringify(updated));
-    return updated;
-  } catch {
-    return intent;
-  }
 }
 
 function clearPendingFullPlanAuthIntent() {
@@ -2581,94 +2431,403 @@ function clearPendingFullPlanAuthIntent() {
   }
 }
 
-function restorePendingGoalPreview() {
-  try {
-    const record = safeJsonParse(sessionStorage.getItem(PENDING_GOAL_PREVIEW_KEY), null);
-    if (!record?.preview || Date.now() - Number(record.createdAt || 0) > 24 * 60 * 60 * 1000) {
-      sessionStorage.removeItem(PENDING_GOAL_PREVIEW_KEY);
-      return false;
-    }
-    renderAiPreview(record.preview);
-    renderRoadmapRevisionSummary(record.revisionSummary);
-    const changed = Boolean(record.pendingDraftInput);
-    const disabled = changed || previewRequiresAdjustment(record.preview);
-    if (aiPreviewStatus) aiPreviewStatus.textContent = changed
-      ? "변경한 조건으로 계획을 다시 만들어야 해요."
-      : "현재 계획과 조건이 일치해요.";
-    setTrialStartDisabled(disabled);
-    if (discardDraftChangesButton) discardDraftChangesButton.hidden = !changed;
-    setResultPreviewMode("guest");
-    openFirstStepResult();
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function applyGoalDraftToForm(draft) {
-  if (!draft || typeof draft !== "object") return false;
-  try {
-    if (designGoal) designGoal.value = String(draft.goal || "");
-    if (goalPeriodInput && draft.period) goalPeriodInput.value = String(draft.period);
-    if (currentContextInput) currentContextInput.value = String(draft.currentContext || "");
-    if (routineReadinessInput && draft.routineReadiness) routineReadinessInput.value = String(draft.routineReadiness);
-    if (routineTimeInput && draft.routineTime) routineTimeInput.value = String(draft.routineTime);
-    if (birthDateInput) birthDateInput.value = String(draft.birthDate || "");
-    if (birthTimeInput) birthTimeInput.value = String(draft.birthTime || "");
-    if (birthPlaceInput) birthPlaceInput.value = String(draft.birthPlace || "");
-    if (mbtiInput) mbtiInput.value = String(draft.mbti || "");
-    const materialMode = draft.material?.hasMaterial ? "yes" : draft.materialMode || "none";
-    materialModeInputs.forEach((input) => { input.checked = input.value === materialMode; });
-    if (materialFields) materialFields.hidden = materialMode !== "yes";
-    if (materialNameInput) materialNameInput.value = String(draft.material?.name || "");
-    if (materialRangeInput) materialRangeInput.value = String(draft.material?.targetRange || "");
-    if (materialProgressInput) materialProgressInput.value = String(draft.material?.currentProgress || "");
-    if (materialCompletionInput) materialCompletionInput.value = String(draft.material?.completionRule || "");
-    if (materialUnitInput) materialUnitInput.value = String(draft.material?.unit || "");
-    const available = new Set(draft.availability?.availableDays || []);
-    availableDayInputs.forEach((input) => { input.checked = available.has(input.value); });
-    const difficult = new Set(draft.availability?.difficultDays || []);
-    difficultDayInputs.forEach((input) => { input.checked = difficult.has(input.value); });
-    if (sessionMinutesInput) sessionMinutesInput.value = String(draft.availability?.sessionMinutes || 25);
-    if (weeklyFrequencyInput) weeklyFrequencyInput.value = String(draft.availability?.weeklyFrequency || 3);
-    if (targetDateInput) targetDateInput.value = String(draft.availability?.targetDate || "");
-    if (planIntensityInput) planIntensityInput.value = String(draft.availability?.intensity || "균형 있게");
-    if (bufferDaysInput) bufferDaysInput.value = String(draft.availability?.bufferDays ?? 2);
-    if (excludedDatesInput) excludedDatesInput.value = (draft.availability?.excludedDates || []).join(", ");
-    if (notificationTimeInput) notificationTimeInput.value = String(draft.availability?.notificationTime || "07:00");
-    const preferences = new Set(draft.planningPreferences || []);
-    planningPreferenceInputs.forEach((input) => { input.checked = preferences.has(input.value); });
-    selectedFeasibilityAdjustment = String(draft.feasibilityAdjustment || "");
-    setSelectedGoalCategory(String(draft.category || ""));
-    applyGoalCategoryGuidance(String(draft.category || ""));
-    diagnosisStepIndex = diagnosisSteps.length ? diagnosisSteps.length - 1 : 0;
-    renderDiagnosisStep();
-    return true;
-  } catch {
-    return false;
-  }
-}
-
+/* 수동 빌더는 계획을 이미 localStorage에 저장해 두므로 복원할 폼 상태가 없다.
+   로그인에서 돌아왔을 때 "이어갈 것이 있다"만 알린다. */
 function restorePendingGoalDraft() {
   if (!personalityForm) return false;
-  const resumeRequested = new URLSearchParams(location.search).get("resumeGoal") === "1";
-  if (!resumeRequested && !readPendingGoalPreview()?.preview) return false;
-  try {
-    const restored = applyGoalDraftToForm(safeJsonParse(sessionStorage.getItem(PENDING_GOAL_DRAFT_KEY), null));
-    return Boolean(restored && resumeRequested);
-  } catch {
-    return false;
+  if (new URLSearchParams(location.search).get("resumeGoal") !== "1") return false;
+  return Boolean(readManualPlanAuthIntent() && pendingManualPlanHandoff());
+}
+
+/* ===== 수동 계획 빌더 (온보딩 STEP 1~4, AI 호출 0회) =====
+   유저가 직접 담은 할 일을 main의 실행 계획 구조(scheduleOccurrences /
+   firstWeekSchedule)로 만들어 buildActivatedExecutionPlan seam에 그대로 넘긴다.
+   저장은 writeExecutionPlan을 거치므로 스케줄 코덱 왕복 검증을 통과해야 한다. */
+
+const STARTER_TASKS_BY_KIND = {
+  exam: [
+    { text: "기출문제 1세트 풀기", minutes: 30, rule: "채점과 오답 표시까지 하면 완료" },
+    { text: "오답 다시 보기", minutes: 15, rule: "틀린 문제를 다시 풀면 완료" },
+  ],
+  fitness: [
+    { text: "운동 30분", minutes: 30, rule: "정한 세트를 끝내면 완료" },
+    { text: "스트레칭", minutes: 10, rule: "전신을 한 바퀴 풀면 완료" },
+  ],
+  career: [
+    { text: "포트폴리오 한 조각 다듬기", minutes: 30, rule: "한 항목을 끝내면 완료" },
+    { text: "채용 공고 3건 확인", minutes: 10, rule: "지원할 곳을 정하면 완료" },
+  ],
+  habit: [
+    { text: "정한 습관 실행하기", minutes: 15, rule: "한 번이라도 하면 완료" },
+    { text: "오늘 기록 남기기", minutes: 5, rule: "한 줄이라도 적으면 완료" },
+  ],
+  money: [
+    { text: "지출 기록하기", minutes: 10, rule: "오늘 쓴 돈을 모두 적으면 완료" },
+    { text: "이번 주 예산 확인", minutes: 10, rule: "남은 예산을 확인하면 완료" },
+  ],
+  project: [
+    { text: "가장 작은 다음 산출물 만들기", minutes: 30, rule: "눈에 보이는 결과가 생기면 완료" },
+    { text: "진행 상황 정리", minutes: 10, rule: "다음 할 일을 정하면 완료" },
+  ],
+};
+
+const MANUAL_DAY_NAMES = ["일", "월", "화", "수", "목", "금", "토"];
+
+let builderTasks = [];
+let builderTasksTouched = false;
+let builderTemplateKind = "";
+
+function getDesignTimes() {
+  const timeSet = {
+    아침: ["07:00", "12:30", "21:00"],
+    점심: ["10:30", "13:00", "21:00"],
+    저녁: ["09:00", "18:30", "22:00"],
+    "자기 전": ["08:00", "20:30", "23:00"],
+  };
+  return timeSet[routineTimeInput?.value] || timeSet["아침"];
+}
+
+function getSelectedDesignDays() {
+  return checkedValues(designDayInputs);
+}
+
+function buildStarterTasks() {
+  const kind = getGoalKind(designGoal?.value.trim() || "");
+  const times = getDesignTimes();
+  const starters = STARTER_TASKS_BY_KIND[kind] || STARTER_TASKS_BY_KIND.project;
+  return starters.map((task, index) => ({
+    time: times[Math.min(index, times.length - 1)],
+    text: task.text,
+    minutes: task.minutes,
+    rule: task.rule,
+  }));
+}
+
+function ensureBuilderTasks({ force = false, refreshIfUntouched = false } = {}) {
+  if (!taskBuilderListElement) return;
+  const kind = getGoalKind(designGoal?.value.trim() || "");
+  const shouldFill =
+    force
+    || !builderTasks.length
+    || (refreshIfUntouched && !builderTasksTouched && kind !== builderTemplateKind);
+  if (!shouldFill) return;
+  builderTasks = buildStarterTasks();
+  builderTemplateKind = kind;
+  builderTasksTouched = false;
+  renderTaskBuilder();
+}
+
+function getBuilderTaskMinutesTotal() {
+  return builderTasks.reduce((sum, task) => sum + (Number(task.minutes) || 0), 0);
+}
+
+function updateTaskBudgetHint() {
+  if (!taskBudgetHintElement) return;
+  if (!builderTasks.length) {
+    taskBudgetHintElement.hidden = true;
+    return;
   }
+  const total = getBuilderTaskMinutesTotal();
+  const weekdayLimit = Number(designWeekdayMinutesInput?.value) || 0;
+  taskBudgetHintElement.hidden = false;
+  if (weekdayLimit && total > weekdayLimit) {
+    taskBudgetHintElement.classList.add("is-over");
+    taskBudgetHintElement.textContent = `하루 합계 ${total}분 · 가능 시간(${weekdayLimit}분)을 넘어요. 조금 줄이면 지키기 쉬워져요.`;
+    return;
+  }
+  taskBudgetHintElement.classList.remove("is-over");
+  taskBudgetHintElement.textContent = `하루 합계 약 ${total}분 · 이 정도면 충분히 지킬 수 있어요.`;
+}
+
+function renderTaskBuilder() {
+  if (!taskBuilderListElement) return;
+  const rows = builderTasks.map((task, index) => {
+    const row = document.createElement("article");
+    row.className = "task-builder-item";
+    row.dataset.taskIndex = String(index);
+
+    const timeLabel = document.createElement("label");
+    timeLabel.className = "task-time-field";
+    timeLabel.innerHTML = "<span>시간</span>";
+    const timeInput = document.createElement("input");
+    timeInput.type = "time";
+    timeInput.value = /^\d{2}:\d{2}$/.test(task.time) ? task.time : "07:00";
+    timeInput.dataset.taskField = "time";
+    timeLabel.append(timeInput);
+
+    const textLabel = document.createElement("label");
+    textLabel.className = "task-title-field";
+    textLabel.innerHTML = "<span>할 일</span>";
+    const textInput = document.createElement("input");
+    textInput.type = "text";
+    textInput.maxLength = 80;
+    textInput.placeholder = "예: 단어 40개 외우기";
+    textInput.value = task.text || "";
+    textInput.dataset.taskField = "text";
+    textLabel.append(textInput);
+
+    const minutesLabel = document.createElement("label");
+    minutesLabel.className = "task-minutes-field";
+    minutesLabel.innerHTML = "<span>분량(분)</span>";
+    const minutesInput = document.createElement("input");
+    minutesInput.type = "number";
+    minutesInput.min = "5";
+    minutesInput.max = "180";
+    minutesInput.step = "5";
+    minutesInput.inputMode = "numeric";
+    minutesInput.value = String(Number(task.minutes) || 15);
+    minutesInput.dataset.taskField = "minutes";
+    minutesLabel.append(minutesInput);
+
+    const ruleLabel = document.createElement("label");
+    ruleLabel.className = "task-rule-field";
+    ruleLabel.innerHTML = "<span>완료 기준 <small>선택</small></span>";
+    const ruleInput = document.createElement("input");
+    ruleInput.type = "text";
+    ruleInput.maxLength = 120;
+    ruleInput.placeholder = "예: 단어 20개를 외우면 완료";
+    ruleInput.value = task.rule || "";
+    ruleInput.dataset.taskField = "rule";
+    ruleLabel.append(ruleInput);
+
+    const removeButton = document.createElement("button");
+    removeButton.type = "button";
+    removeButton.className = "task-remove-button";
+    removeButton.dataset.taskRemove = "true";
+    removeButton.setAttribute("aria-label", `${task.text || "할 일"} 삭제`);
+    removeButton.textContent = "×";
+
+    row.append(timeLabel, textLabel, minutesLabel, ruleLabel, removeButton);
+    return row;
+  });
+  taskBuilderListElement.replaceChildren(...rows);
+  if (taskBuilderEmptyElement) taskBuilderEmptyElement.hidden = builderTasks.length > 0;
+  updateTaskBudgetHint();
+  updateWizardSummary();
+}
+
+function getTaskBuilderError() {
+  if (!getSelectedDesignDays().length) return "실행할 요일을 하루 이상 선택해 주세요.";
+  if (!builderTasks.some((task) => String(task.text || "").trim())) return "할 일을 한 개 이상 담아주세요.";
+  return "";
+}
+
+// 유저가 실행 성향을 고르면 계획 스타일 이름을 붙여준다 (성향 진단·AI 없이)
+function getManualPlanStyle(readiness = DEFAULT_ROUTINE_READINESS) {
+  const styleByReadiness = {
+    "바로 실행하는 편이에요": "몰입 추진형",
+    "계획이 있으면 실행해요": "루틴 점검형",
+    "시작 전 준비가 필요해요": "차분 준비형",
+    "자주 미뤄요": "작은 시작형",
+    "시작해도 쉽게 중단돼요": "다시 시작형",
+  };
+  return styleByReadiness[readiness] || "균형 실행형";
+}
+
+function collectManualPlanInput() {
+  return {
+    goal: designGoal?.value.trim() || "목표 미입력",
+    period: goalPeriodInput?.value || "90",
+    routineTime: routineTimeInput?.value || "아침",
+    readiness: routineReadinessInput?.value || DEFAULT_ROUTINE_READINESS,
+    days: getSelectedDesignDays(),
+    tasks: builderTasks,
+    outcome: designOutcomeInput?.value.trim() || "",
+    resources: designResourcesInput?.value.trim() || "",
+    weekdayMinutes: Number(designWeekdayMinutesInput?.value) || null,
+    weekendMinutes: Number(designWeekendMinutesInput?.value) || null,
+  };
+}
+
+// 유저가 담은 할 일로 온보딩 미리보기를 만든다. 앱 저장 구조와는 분리돼 있고
+// 여기서 만든 값은 plan.aiPreview 쪽 요약 필드로만 쓰인다.
+function buildManualPreview({ goal, period, readiness, days, tasks, outcome, resources }) {
+  const template = getGoalPlanTemplates(goal);
+  const periodDays = Number(period) || 90;
+  const style = getManualPlanStyle(readiness);
+  const namedTasks = tasks.filter((task) => String(task.text || "").trim());
+  const firstTask = namedTasks[0] || { text: template.firstAction, minutes: 15, time: "07:00", rule: "" };
+  const totalMinutes = namedTasks.reduce((sum, task) => sum + (Number(task.minutes) || 0), 0);
+  const phaseStartEnd = Math.min(7, Math.max(2, Math.round(periodDays * 0.2)));
+  const phaseGrowEnd = Math.min(periodDays - 1, Math.max(phaseStartEnd + 1, Math.round(periodDays * 0.7)));
+  const weekPlan = ["월", "화", "수", "목", "금", "토", "일"].map((day) =>
+    days.includes(day)
+      ? `${day}요일 · ${namedTasks.map((task) => task.text.trim()).slice(0, 2).join(", ")}${namedTasks.length > 2 ? " 외" : ""} (약 ${totalMinutes}분)`
+      : `${day}요일 · 계획된 휴식`,
+  );
+
+  return {
+    personalitySummary: outcome
+      ? `내가 정한 완료 기준: ${outcome}`
+      : "완료 기준은 앱에서 언제든 적어둘 수 있어요. 오늘의 실행이 먼저예요.",
+    resourceSummary: resources
+      ? `활용할 리소스: ${resources}`
+      : "가진 자료나 도구를 적어두면 올리가 조언할 때 참고해요.",
+    planningStyle: `${style} 계획`,
+    firstAction: firstTask.text.trim() || template.firstAction,
+    weekTitle: `주 ${days.length}일, 내가 정한 리듬으로 갑니다`,
+    weekPlan,
+    coachMessage: `직접 만든 계획이라 더 잘 맞을 거예요. 이번 주는 완벽함보다 ${days.length}일의 리듬을 지키는 것부터 함께해요.`,
+    dashboard: {
+      goal: goal.replace("하기", ""),
+      progress: 4,
+      pace: `${periodDays}일 여정 · 오늘부터 시작`,
+    },
+    todaySchedule: namedTasks.slice(0, 5).map((task) => ({
+      time: task.time || "오늘",
+      durationMinutes: Math.max(5, Math.min(360, Number(task.minutes) || 15)),
+      task: task.text.trim(),
+      completionRule: String(task.rule || "").trim() || "정한 분량을 끝내면 완료",
+    })),
+    fullSchedule: [
+      { phase: "시작", days: `1–${phaseStartEnd}일`, focus: "정한 시간과 요일에 그대로 실행하며 리듬을 몸에 붙입니다.", successMetric: `${phaseStartEnd}일 중 ${Math.max(1, Math.round(phaseStartEnd * 0.6))}일 이상 실행` },
+      { phase: "성장", days: `${phaseStartEnd + 1}–${phaseGrowEnd}일`, focus: "주간 완료율을 보며 분량과 난이도를 직접 조정합니다.", successMetric: "주간 계획의 70% 이상 완료" },
+      { phase: "완성", days: `${phaseGrowEnd + 1}–${periodDays}일`, focus: "완료 기준과 비교해 마지막 구간을 정리합니다.", successMetric: outcome || "목표 완료 기준 최종 점검" },
+    ],
+    checkInRules: ["실행 직후 완료 여부 체크", "못한 날은 5분 최소 행동으로 재시작", "7일마다 다음 주 분량 직접 조정"],
+    fallbackPlan: `계획대로 하기 어려운 날에는 ${firstTask.text.trim() || "첫 할 일"}을 5분만 실행합니다.`,
+  };
+}
+
+/* 요일 선택 + 할 일 목록 → main의 scheduleOccurrences(전체 기간 날짜별 전개).
+   항목 필드는 encodeScheduleItem이 아는 키만 쓴다. 모르는 키를 넣으면 extra로
+   빠져 코덱 왕복은 통과하더라도 buildSchedule이 읽지 못한다. */
+function buildManualScheduleOccurrences({ planId, periodDays, days, tasks, startDate }) {
+  const namedTasks = tasks.filter((task) => String(task.text || "").trim()).slice(0, 5);
+  return Array.from({ length: periodDays }, (_, index) => {
+    const date = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + index);
+    const dateKey = localScheduleDateKey(date);
+    const dayName = MANUAL_DAY_NAMES[date.getDay()];
+    const isRestDay = !days.includes(dayName) || !namedTasks.length;
+    return {
+      dayNumber: index + 1,
+      date: dateKey,
+      dayLabel: isRestDay ? "계획된 휴식" : `${dayName}요일 계획`,
+      isRestDay,
+      items: isRestDay ? [] : namedTasks.map((task, taskIndex) => {
+        const time = /^\d{2}:\d{2}$/.test(task.time) ? task.time : "07:00";
+        return {
+          id: `${planId}-d${index + 1}-t${taskIndex + 1}`,
+          planId,
+          type: "ACTION",
+          title: String(task.text).trim(),
+          time,
+          scheduledAt: `${dateKey}T${time}`,
+          durationMinutes: Math.max(5, Math.min(360, Number(task.minutes) || 15)),
+          sourceReference: "",
+          quantityOrRange: "",
+          completionRule: String(task.rule || "").trim() || "정한 분량을 끝내면 완료",
+          recurrenceGroupId: `${planId}-task-${taskIndex + 1}`,
+        };
+      }),
+    };
+  });
+}
+
+// 입력이 바뀔 때마다 미리보기만 갱신한다. 저장은 최종 제출에서만 하므로
+// 홈 화면을 여는 것만으로 기존 계획이 덮어써지지 않는다.
+function updateManualPreview() {
+  if (!personalityForm) return;
+  renderAiPreview(buildManualPreview(collectManualPlanInput()));
+  updateWizardSummary();
+}
+
+// 유저가 직접 만든 계획을 저장한다 (AI 호출 0회).
+function saveManualPlan() {
+  if (!personalityForm) return;
+  const builderError = getTaskBuilderError();
+  if (builderError) {
+    showToast(builderError);
+    announce(builderError);
+    diagnosisStepIndex = builderError.includes("요일") ? 1 : 2;
+    renderDiagnosisStep();
+    revealActiveDiagnosisStep();
+    return;
+  }
+
+  const input = collectManualPlanInput();
+  const preview = buildManualPreview(input);
+  const planId = `manual-${Date.now()}`;
+  const periodDays = Math.max(7, Math.min(Number(input.period) || 90, 365));
+  const now = new Date();
+  const startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const scheduleOccurrences = buildManualScheduleOccurrences({
+    planId, periodDays, days: input.days, tasks: input.tasks, startDate,
+  });
+
+  // AI 초안이 지나가는 것과 같은 seam을 그대로 통과시킨다. planSource만 수동으로 표시한다.
+  const draftPlan = {
+    ...preview,
+    planId,
+    periodDays,
+    firstWeekSchedule: scheduleOccurrences.slice(0, 7),
+    scheduleOccurrences,
+    outcome: input.outcome,
+    resources: input.resources,
+    availableDays: input.days,
+    weekdayMinutes: input.weekdayMinutes,
+    weekendMinutes: input.weekendMinutes,
+    style: getManualPlanStyle(input.readiness),
+  };
+  const draftInput = {
+    draftId: planId,
+    goal: input.goal,
+    period: periodDays,
+    routineReadiness: input.readiness,
+    routineTime: input.routineTime,
+    availability: { availableDays: input.days, weekdayMinutes: input.weekdayMinutes, weekendMinutes: input.weekendMinutes },
+    material: {},
+    planningPreferences: [],
+  };
+  const plan = { ...buildActivatedExecutionPlan(draftPlan, draftInput, "as-is"), planSource: "manual" };
+
+  try {
+    writeExecutionPlan(plan);
+  } catch (error) {
+    console.warn("Unable to save manual execution plan", error);
+    showToast(error?.code === "ACCOUNT_STATE_CAPACITY_EXCEEDED"
+      ? "계획이 너무 커요. 할 일 수나 기간을 줄이고 다시 시도해 주세요."
+      : "계획을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.");
+    return;
+  }
+
+  renderAiPreview(preview);
+  planPreviewPanel?.classList.add("is-ready");
+  if (aiPreviewStatus) aiPreviewStatus.textContent = "내가 직접 만든 나의 계획이에요";
+  // 계획 완성 → 로그인 → 체험 시작 흐름에 맞춘 카피. renderAiPreview가 기본값을
+  // 되돌려 놓으므로 그 뒤에 덮어쓴다.
+  const signedIn = Boolean(authUiState.user);
+  if (previewConversionAction) {
+    previewConversionAction.textContent = signedIn ? "이 계획으로 시작하기" : "간편 로그인하고 무료 체험 시작";
+    trialStartInlineLink?.setAttribute("aria-label", previewConversionAction.textContent);
+  }
+  const conversionKicker = document.querySelector("#previewConversionKicker");
+  const conversionCopy = document.querySelector("#previewConversionCopy");
+  if (conversionKicker) conversionKicker.textContent = signedIn ? "바로 시작" : "카드 등록 없음";
+  if (conversionCopy) {
+    conversionCopy.textContent = signedIn
+      ? "오늘 화면으로 이동해 첫 할 일부터 시작해요."
+      : "간편 로그인하면 이 계획 그대로 24시간 무료 체험이 시작돼요.";
+  }
+  sendFunnelEvent("plan_complete");
+  showToast(authUiState.user
+    ? "계획 완성! 오늘부터 올리와 함께 시작해요."
+    : "계획 완성! 간편 로그인하면 무료 체험이 시작돼요.");
+  openFirstStepResult();
 }
 
 function updateWizardSummary() {
   const goal = designGoal?.value.trim() || "목표를 입력해 주세요";
   const selectedPeriod = goalPeriodInput?.selectedOptions?.[0]?.textContent.split(" · ")[0] || "기간 미정";
-  const days = checkedValues(availableDayInputs);
-  const time = sessionMinutesInput?.value ? `회당 ${sessionMinutesInput.value}분` : routineTimeInput?.value || "시간 미정";
+  const days = getSelectedDesignDays();
+  const time = routineTimeInput?.value || "시간 미정";
 
   if (wizardLiveGoal) wizardLiveGoal.textContent = goal;
   if (wizardLiveTiming) wizardLiveTiming.textContent = `${selectedPeriod} · ${days.length ? days.join("·") : "요일 미정"} · ${time}`;
+  if (wizardLiveTasks) {
+    const taskCount = builderTasks.filter((task) => String(task.text || "").trim()).length;
+    wizardLiveTasks.textContent = taskCount ? `주 ${days.length}일 · 하루 ${taskCount}개` : "3단계에서 직접 담아요";
+  }
 }
 
 function updateGoalStepState() {
@@ -2676,146 +2835,50 @@ function updateGoalStepState() {
   const hasGoal = Boolean(designGoal.value.trim());
   if (diagnosisNextButton && diagnosisStepIndex === 0) diagnosisNextButton.disabled = !hasGoal;
   if (aiPreviewButton && diagnosisSteps.length === 1) aiPreviewButton.disabled = !hasGoal;
-  // 1단계 CTA도 목표 이야기를 적기 전에는 진행할 수 없다.
-  if (goalAnalyzeButton) goalAnalyzeButton.disabled = !hasGoal;
   if (goalValidationMessage) {
     goalValidationMessage.textContent = !hasGoal
       ? "달성하고 싶은 결과를 입력해 주세요."
-      : "목표를 확인했어요. 올리에게 계획을 부탁해 보세요.";
-  }
-}
-
-function syncGuestDraftConsistency(draft) {
-  const record = readPendingGoalPreview();
-  if (!record?.draftPlanId || !record.activeDraftSignature) return false;
-  const signature = goalDraftSignature(draft);
-  const changed = signature !== record.activeDraftSignature;
-  const next = {
-    ...record,
-    pendingDraftInput: changed ? draft : null,
-    pendingDraftSignature: changed ? signature : "",
-    pendingRevision: changed && record.pendingRevision?.signature === signature ? record.pendingRevision : null,
-  };
-  try { sessionStorage.setItem(PENDING_GOAL_PREVIEW_KEY, JSON.stringify(next)); } catch {}
-  if (discardDraftChangesButton) discardDraftChangesButton.hidden = !changed;
-  setTrialStartDisabled(changed || previewRequiresAdjustment(record.preview));
-  if (aiPreviewStatus) aiPreviewStatus.textContent = changed
-    ? "변경한 조건으로 계획을 다시 만들어야 해요."
-    : "현재 계획과 조건이 일치해요.";
-  syncGoalBuilderCta();
-  return changed;
-}
-
-function pendingGuestRevision(record, signature) {
-  assertGuestAttemptStorageAvailable();
-  if (record?.pendingRevision?.signature === signature && record.pendingRevision.idempotencyKey) return record.pendingRevision;
-  const pendingRevision = {
-    signature,
-    idempotencyKey: `revision:${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`}`,
-  };
-  try {
-    sessionStorage.setItem(PENDING_GOAL_PREVIEW_KEY, JSON.stringify({ ...record, pendingRevision }));
-  } catch {
-    throw blockGuestAttemptStorage();
-  }
-  return pendingRevision;
-}
-
-function newGuestAttemptKey(prefix) {
-  return `${prefix}:${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`}`;
-}
-
-let guestAttemptStorageBlocked = false;
-
-function guestAttemptStorageError() {
-  const error = new Error("브라우저 저장 공간을 사용할 수 없어 요청 상태를 안전하게 보관하지 못했어요. 저장 공간 설정을 확인한 뒤 다시 시도해 주세요.");
-  error.code = "GUEST_ATTEMPT_STORAGE_UNAVAILABLE";
-  return error;
-}
-
-function blockGuestAttemptStorage() {
-  guestAttemptStorageBlocked = true;
-  return guestAttemptStorageError();
-}
-
-function assertGuestAttemptStorageAvailable() {
-  if (guestAttemptStorageBlocked) throw guestAttemptStorageError();
-}
-
-function pendingGuestInitialAttempt(signature) {
-  assertGuestAttemptStorageAvailable();
-  try {
-    const existing = safeJsonParse(sessionStorage.getItem(GUEST_GOAL_INITIAL_ATTEMPT_KEY), null);
-    if (
-      existing
-      && existing.signature === signature
-      && /^initial:[A-Za-z0-9_-]{16,144}$/.test(existing.idempotencyKey || "")
-    ) {
-      return existing.idempotencyKey;
-    }
-    const created = newGuestAttemptKey("initial");
-    sessionStorage.setItem(GUEST_GOAL_INITIAL_ATTEMPT_KEY, JSON.stringify({
-      signature,
-      idempotencyKey: created,
-    }));
-    return created;
-  } catch {
-    throw blockGuestAttemptStorage();
-  }
-}
-
-function clearGuestInitialAttempt(idempotencyKey) {
-  assertGuestAttemptStorageAvailable();
-  try {
-    const existing = safeJsonParse(sessionStorage.getItem(GUEST_GOAL_INITIAL_ATTEMPT_KEY), null);
-    if (existing?.idempotencyKey === idempotencyKey) {
-      sessionStorage.removeItem(GUEST_GOAL_INITIAL_ATTEMPT_KEY);
-    }
-  } catch {
-    throw blockGuestAttemptStorage();
-  }
-}
-
-function clearGuestRevisionAttempt(idempotencyKey) {
-  assertGuestAttemptStorageAvailable();
-  try {
-    const record = readPendingGoalPreview();
-    if (record?.pendingRevision?.idempotencyKey !== idempotencyKey) return;
-    sessionStorage.setItem(PENDING_GOAL_PREVIEW_KEY, JSON.stringify({ ...record, pendingRevision: null }));
-  } catch {
-    throw blockGuestAttemptStorage();
+      : "목표를 확인했어요. 다음 단계에서 리듬을 정해요.";
   }
 }
 
 function getInvalidDiagnosisField() {
+  // 수동 빌더 4단계: 목표 → 리듬 → 할 일 → 마무리
   const fieldsByStep = [
-    [designGoal, goalPeriodInput],
-    [goalPeriodInput, routineTimeInput, sessionMinutesInput],
-    [birthDateInput, birthTimeInput, birthPlaceInput, mbtiInput],
+    [designGoal],
+    [goalPeriodInput, routineTimeInput, routineReadinessInput, designWeekdayMinutesInput],
+    [],
+    [],
   ];
   if (designGoal) {
     const message = designGoal.value.trim() ? "" : "달성하고 싶은 결과를 입력해 주세요.";
     designGoal.setCustomValidity(message);
   }
   if (diagnosisStepIndex === 1) {
-    const availableDays = checkedValues(availableDayInputs);
-    const needsMaterial = selectedMaterialMode() === "yes";
-    const message = !availableDays.length
-      ? "가능한 요일을 하나 이상 선택해 주세요."
-      : needsMaterial && (!materialNameInput?.value.trim() || !materialRangeInput?.value.trim())
-        ? "자료 이름과 목표 범위를 입력해 주세요."
-        : "";
-    sessionMinutesInput?.setCustomValidity(message);
+    designWeekdayMinutesInput?.setCustomValidity(
+      getSelectedDesignDays().length ? "" : "실행할 요일을 하루 이상 선택해 주세요.",
+    );
   }
   return (fieldsByStep[diagnosisStepIndex] || []).find((field) => field && !field.checkValidity()) || null;
 }
 
 function canLeaveDiagnosisStep() {
   const invalidField = getInvalidDiagnosisField();
-  if (!invalidField) return true;
-  invalidField.focus();
-  invalidField.reportValidity();
-  return false;
+  if (invalidField) {
+    invalidField.focus();
+    invalidField.reportValidity();
+    return false;
+  }
+  // 할 일 단계는 폼 유효성으로 표현할 수 없어 따로 막는다.
+  if (diagnosisStepIndex === 2) {
+    const builderError = getTaskBuilderError();
+    if (builderError) {
+      showToast(builderError);
+      announce(builderError);
+      return false;
+    }
+  }
+  return true;
 }
 
 function renderDiagnosisStep() {
@@ -2849,11 +2912,12 @@ function renderDiagnosisStep() {
   if (wizardStepLabel) wizardStepLabel.textContent = wizardStepLabels[diagnosisStepIndex] || "설정 중";
   if (wizardProgressValue) wizardProgressValue.textContent = `${progress}%`;
 
+  const isLastStep = diagnosisStepIndex === diagnosisSteps.length - 1;
   if (diagnosisBackButton) diagnosisBackButton.hidden = diagnosisStepIndex === 0;
-  // 각 단계는 자기 CTA(1단계 분석 요청 / 2단계 계획 생성)로만 진행한다.
-  if (diagnosisNextButton) diagnosisNextButton.hidden = true;
-  if (goalAnalyzeButton) goalAnalyzeButton.hidden = diagnosisStepIndex !== 0;
-  if (aiPreviewButton) aiPreviewButton.hidden = diagnosisStepIndex !== diagnosisSteps.length - 1;
+  // 수동 빌더는 "다음 단계"로 진행하고 마지막 단계에서만 계획을 완성한다.
+  if (diagnosisNextButton) diagnosisNextButton.hidden = isLastStep;
+  if (aiPreviewButton) aiPreviewButton.hidden = !isLastStep;
+  if (diagnosisStepIndex === 2) ensureBuilderTasks({ refreshIfUntouched: true });
   updateGoalStepState();
   updateWizardSummary();
 }
@@ -2896,275 +2960,9 @@ function queueDiagnosisAutoAdvance(delay = 1100) {
   diagnosisAutoAdvanceTimer = window.setTimeout(() => advanceDiagnosisStep({ auto: true }), delay);
 }
 
-// ===== 온보딩 1단계(자연어 이야기) → 2단계(올리가 정리한 이해 확인) =====
-const ANALYSIS_NOTE_PREFIX = "확인한 조건:";
-const analysisAnswers = new Map();
-// 2단계에서 올리가 한 줄로 정리한 목표. 3단계 목표 카드는 원문 대신 이 값을 씁니다.
-let analyzedGoalSummary = "";
-let goalAnalysisPending = false;
-
 function syncGoalStoryCounter() {
   if (goalStoryCount && designGoal) goalStoryCount.textContent = String(designGoal.value.length);
 }
-
-// 확인 질문 답변은 사용자가 직접 적은 내용을 덮지 않도록 관리 블록으로만 유지한다.
-function syncAnalysisAnswerNote() {
-  if (!currentContextInput) return;
-  const answers = [...analysisAnswers.values()].filter(Boolean);
-  const kept = currentContextInput.value
-    .split("\n")
-    .filter((line) => !line.startsWith(ANALYSIS_NOTE_PREFIX))
-    .join("\n")
-    .trim();
-  const note = answers.length ? `${ANALYSIS_NOTE_PREFIX} ${answers.join(" · ")}` : "";
-  currentContextInput.value = [kept, note].filter(Boolean).join("\n");
-}
-
-function applyTargetDateAnswer(value) {
-  const targetDateInput = document.querySelector("#targetDate");
-  if (targetDateInput) targetDateInput.value = value || "";
-  if (!value || !goalPeriodInput) return;
-  const days = Math.ceil((new Date(`${value}T00:00:00`).getTime() - Date.now()) / 86_400_000);
-  if (!Number.isFinite(days) || days <= 0) return;
-  const option = [30, 90, 180, 365].find((candidate) => candidate >= days) || 365;
-  goalPeriodInput.value = String(option);
-}
-
-const WEEKDAY_LABELS = ["월", "화", "수", "목", "금", "토", "일"];
-
-// 3단계 위저드는 요일·회당 시간·주당 횟수·기간 입력을 보여주지 않는다. 그래서
-// 그 입력들의 기본값(월·수·금 / 25분 / 주 3회 / 90일)이 사용자가 실제로 쓴
-// 내용을 덮어쓰고 AI에게 전달되고 있었다. "매일 20분"이라고 적어도 월·수·금
-// 계획이 나오던 원인이다. 2단계에서 올리가 정리한 내용으로 이 값을 채운다.
-function deriveConditionsFromAnalysis(analysis) {
-  const goalText = String(analysis?.goal || "");
-  const context = [goalText, ...(analysis?.availableTime || []), ...(analysis?.currentState || [])]
-    .filter(Boolean)
-    .join(" ");
-
-  let days = null;
-  if (/매일|날마다|하루도|every ?day/i.test(context)) days = [...WEEKDAY_LABELS];
-  else if (/평일/.test(context)) days = ["월", "화", "수", "목", "금"];
-  else if (/주말/.test(context)) days = ["토", "일"];
-  else {
-    const named = WEEKDAY_LABELS.filter((day) => new RegExp(`${day}요일`).test(context));
-    if (named.length) days = named;
-  }
-
-  const frequencyMatch = context.match(/주\s*([1-7])\s*(?:회|번)/);
-  const frequency = frequencyMatch ? Number(frequencyMatch[1]) : (days?.length || 0);
-
-  const hours = Number(context.match(/([0-9]+)\s*시간/)?.[1] || 0);
-  const minutes = Number(context.match(/([0-9]+)\s*분/)?.[1] || 0);
-  const sessionMinutes = hours * 60 + minutes;
-
-  const months = Number(goalText.match(/([0-9]+)\s*개월/)?.[1] || 0);
-  const weeks = Number(goalText.match(/([0-9]+)\s*주(?!\s*[1-7]\s*(?:회|번))/)?.[1] || 0);
-  const bareDays = Number(goalText.match(/([0-9]+)\s*일(?:\s*동안)?/)?.[1] || 0);
-  const periodDays = months * 30 || weeks * 7 || bareDays;
-
-  return { days, frequency, sessionMinutes, periodDays };
-}
-
-function applyAnalysisToConditions(analysis) {
-  // 서버(goal-analyze)가 구조화해 준 조건이 1순위다. 정규식 도출은 서버가
-  // 채우지 못한 필드(구버전 응답·모델이 놓친 표현)만 메우는 폴백이다.
-  const derived = deriveConditionsFromAnalysis(analysis);
-  const server = analysis?.conditions && typeof analysis.conditions === "object" ? analysis.conditions : {};
-  const serverDays = Array.isArray(server.availableDays)
-    ? WEEKDAY_LABELS.filter((day) => server.availableDays.includes(day))
-    : [];
-  const days = serverDays.length ? serverDays : derived.days;
-  const frequency = Number(server.weeklyFrequency) || derived.frequency || (days?.length || 0);
-  const sessionMinutes = Number(server.sessionMinutes) || derived.sessionMinutes;
-  const periodDays = Number(server.periodDays) || derived.periodDays;
-
-  if (days?.length && availableDayInputs?.length) {
-    availableDayInputs.forEach((input) => { input.checked = days.includes(input.value); });
-  }
-  if (frequency && weeklyFrequencyInput) {
-    const options = [...weeklyFrequencyInput.options].map((option) => Number(option.value)).filter(Boolean);
-    const match = options.find((value) => value >= frequency) || options.at(-1);
-    if (match) weeklyFrequencyInput.value = String(match);
-  }
-  if (sessionMinutes && sessionMinutesInput) {
-    sessionMinutesInput.value = String(Math.min(180, Math.max(5, sessionMinutes)));
-  }
-  if (periodDays && goalPeriodInput) {
-    // "두 달"이라고 말했는데 화면·API가 90일로 올림되면 사용자의 말과 화면
-    // 숫자가 어긋난다. 기존 옵션에 없는 기간은 옵션을 만들어 그대로 쓴다.
-    // (서버는 periodDays를 1~365로 클램프해서 받는다.)
-    const exact = [...goalPeriodInput.options].some((option) => Number(option.value) === periodDays);
-    if (!exact) {
-      goalPeriodInput.querySelector("option[data-derived-period]")?.remove();
-      const option = document.createElement("option");
-      option.value = String(periodDays);
-      option.dataset.derivedPeriod = "true";
-      option.textContent = periodOptionLabel(periodDays);
-      const next = [...goalPeriodInput.options].find((item) => Number(item.value) > periodDays) || null;
-      goalPeriodInput.insertBefore(option, next);
-    }
-    goalPeriodInput.value = String(periodDays);
-  }
-}
-
-function periodOptionLabel(days) {
-  if (days % 365 === 0) return `${days / 365}년`;
-  if (days % 30 === 0) return `${days / 30}개월`;
-  if (days < 30 && days % 7 === 0) return `${days / 7}주`;
-  return `${days}일`;
-}
-
-function renderGoalAnalysis(analysis) {
-  analysisAnswers.clear();
-  analyzedGoalSummary = String(analysis.goal || "").trim();
-  applyAnalysisToConditions(analysis);
-  if (analysisUnderstanding) {
-    const rows = [
-      ["목표", analysis.goal],
-      ["현재 상황", analysis.currentState.join(" · ")],
-      ["가능한 시간", analysis.availableTime.join(" · ")],
-    ].filter(([, value]) => value);
-    analysisUnderstanding.replaceChildren(...rows.flatMap(([term, value]) => {
-      const wrap = document.createElement("div");
-      const dt = document.createElement("dt");
-      dt.textContent = term;
-      const dd = document.createElement("dd");
-      dd.textContent = value;
-      wrap.append(dt, dd);
-      return [wrap];
-    }));
-  }
-
-  const questions = Array.isArray(analysis.questions) ? analysis.questions : [];
-  if (analysisQuestions) analysisQuestions.hidden = questions.length === 0;
-  if (!analysisQuestionList) return;
-  analysisQuestionList.replaceChildren(...questions.map((question, index) => {
-    const item = document.createElement("li");
-    const label = document.createElement("p");
-    label.className = "analysis-question-label";
-    label.textContent = `${index + 1}. ${question.question}`;
-    item.append(label);
-
-    if (question.type === "date") {
-      const field = document.createElement("div");
-      field.className = "analysis-question-controls";
-      const input = document.createElement("input");
-      input.type = "date";
-      input.id = `analysisAnswer-${question.id}`;
-      input.setAttribute("aria-label", question.question);
-      if (question.defaultValue) {
-        input.value = question.defaultValue;
-        analysisAnswers.set(question.id, `${question.question} ${question.defaultValue}`);
-        applyTargetDateAnswer(question.defaultValue);
-      }
-      const unknown = document.createElement("button");
-      unknown.type = "button";
-      unknown.dataset.analysisAnswer = question.id;
-      unknown.setAttribute("aria-pressed", "false");
-      unknown.textContent = "아직 미정";
-      input.addEventListener("change", () => {
-        unknown.setAttribute("aria-pressed", "false");
-        analysisAnswers.set(question.id, input.value ? `${question.question} ${input.value}` : "");
-        applyTargetDateAnswer(input.value);
-        syncAnalysisAnswerNote();
-      });
-      unknown.addEventListener("click", () => {
-        input.value = "";
-        unknown.setAttribute("aria-pressed", "true");
-        analysisAnswers.set(question.id, `${question.question} 아직 미정`);
-        applyTargetDateAnswer("");
-        syncAnalysisAnswerNote();
-      });
-      field.append(input, unknown);
-      item.append(field);
-    } else {
-      const options = document.createElement("div");
-      options.className = "analysis-question-controls";
-      question.options.forEach((option) => {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.dataset.analysisAnswer = question.id;
-        button.setAttribute("aria-pressed", String(question.defaultValue === option));
-        button.textContent = option;
-        if (question.defaultValue === option) analysisAnswers.set(question.id, `${question.question} ${option}`);
-        button.addEventListener("click", () => {
-          options.querySelectorAll("[data-analysis-answer]").forEach((control) => {
-            control.setAttribute("aria-pressed", String(control === button));
-          });
-          analysisAnswers.set(question.id, `${question.question} ${option}`);
-          syncAnalysisAnswerNote();
-        });
-        options.append(button);
-      });
-      item.append(options);
-    }
-    return item;
-  }));
-  syncAnalysisAnswerNote();
-}
-
-async function requestGoalAnalysis(goalText) {
-  const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), 45_000);
-  try {
-    const response = await fetch("/api/ai/goal-analyze", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        "X-Request-ID": `analyze_goal:${crypto.randomUUID()}`,
-      },
-      credentials: "same-origin",
-      body: JSON.stringify({ goalText }),
-      signal: controller.signal,
-    });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok || !result.analysis) {
-      throw new Error(result.error || "올리가 목표를 정리하지 못했어요. 잠시 후 다시 시도해 주세요.");
-    }
-    return result.analysis;
-  } catch (error) {
-    if (error.name === "AbortError") throw new Error("응답이 늦어지고 있어요. 잠시 후 다시 시도해 주세요.");
-    throw error;
-  } finally {
-    window.clearTimeout(timeoutId);
-  }
-}
-
-goalAnalyzeButton?.addEventListener("click", async () => {
-  if (goalAnalysisPending) return;
-  const goalText = designGoal?.value.trim() || "";
-  if (!goalText) {
-    updateGoalStepState();
-    designGoal?.focus();
-    return;
-  }
-  goalAnalysisPending = true;
-  goalAnalyzeButton.disabled = true;
-  goalAnalyzeButton.setAttribute("aria-busy", "true");
-  try {
-    const analysis = await requestGoalAnalysis(goalText);
-    renderGoalAnalysis(analysis);
-    diagnosisStepIndex = Math.min(diagnosisSteps.length - 1, 1);
-    renderDiagnosisStep();
-    revealActiveDiagnosisStep();
-    trackCompanionEvent("goal_analyzed", { questions: analysis.questions?.length || 0 });
-  } catch (error) {
-    showToast(error.message || "올리가 목표를 정리하지 못했어요.");
-  } finally {
-    goalAnalysisPending = false;
-    goalAnalyzeButton.disabled = false;
-    goalAnalyzeButton.removeAttribute("aria-busy");
-  }
-});
-
-analysisEditGoalButton?.addEventListener("click", () => {
-  diagnosisStepIndex = 0;
-  renderDiagnosisStep();
-  revealActiveDiagnosisStep();
-  designGoal?.focus();
-});
 
 designGoal?.addEventListener("input", syncGoalStoryCounter);
 syncGoalStoryCounter();
@@ -3179,11 +2977,10 @@ diagnosisBackButton?.addEventListener("click", () => {
 diagnosisNextButton?.addEventListener("click", () => advanceDiagnosisStep());
 
 // 단계별 선택형 입력: 전부 직접 확인해야 자동 진행 (하나만 고르고 넘어가지 않도록)
-const stepChoiceFieldIds = [[], [], []];
+const stepChoiceFieldIds = [[], [], [], []];
 const touchedChoiceFields = new Set();
 
 personalityForm?.addEventListener("change", (event) => {
-  selectedFeasibilityAdjustment = "";
   const step = event.target.closest?.(".diagnosis-step");
   if (!step || !step.classList.contains("active")) return;
   if (!event.target.matches("select, input[type='date'], input[type='time']")) return;
@@ -3209,10 +3006,6 @@ goalSuggestionButtons.forEach((button) => {
     updateWizardSummary();
     designGoal.focus({ preventScroll: true });
   });
-});
-
-personalityForm?.addEventListener("input", () => {
-  selectedFeasibilityAdjustment = "";
 });
 
 designGoal?.addEventListener("input", () => {
@@ -3423,64 +3216,6 @@ function decidePlanningStyle(manse, mbti) {
   return "균형 실행형";
 }
 
-function buildAiPlanPayload({
-  draftPlanId,
-  goal,
-  period,
-  currentState,
-  routineReadiness,
-  routineTime,
-  currentRoutine,
-  birthDate,
-  birthTime,
-  birthPlace,
-  mbti,
-  manse,
-  style,
-  material,
-  availability,
-  planningPreferences,
-  feasibilityAdjustment,
-}) {
-  return {
-    endpoint: "POST /api/ai/goal-plan",
-    modelRole: "goal_planning_coach",
-    input: {
-      draftPlanId,
-      goal,
-      periodDays: Number(period),
-      currentState,
-      routine: {
-        readiness: routineReadiness,
-        preferredTime: routineTime,
-        existingRoutine: currentRoutine,
-      },
-      birth: {
-        date: birthDate,
-        time: birthTime,
-        place: birthPlace,
-      },
-      mbti,
-      manseoryeok: manse,
-      recommendedPlanningStyle: style,
-      material,
-      availability,
-      planningPreferences,
-      feasibilityAdjustment,
-    },
-    instruction:
-      "만세력 기반 성향, MBTI 성향, 기존 루틴과 실행 성향을 함께 비교해 사용자가 목표를 달성하기 쉬운 계획 스타일을 정하고, 전체 기간 계획, 오늘의 스케줄, 체크인 방식, 성장 보상 메시지를 생성한다.",
-    outputSchema: {
-      personalitySummary: "string",
-      planningStyle: "string",
-      fullSchedule: "array",
-      todaySchedule: "array",
-      checkInRules: "array",
-      companionGrowthPlan: "array",
-    },
-  };
-}
-
 function getGoalKind(goal) {
   const text = goal.toLowerCase();
   if (text.includes("토익") || text.includes("시험") || text.includes("자격증")) return "exam";
@@ -3534,206 +3269,46 @@ function getGoalPlanTemplates(goal) {
   return templates[kind];
 }
 
-function buildLocalAiPreview(payload) {
-  const { goal, periodDays, currentState, mbti, manseoryeok, recommendedPlanningStyle, routine = {} } = payload.input;
-  const template = getGoalPlanTemplates(goal);
-  const period = Number(periodDays) || 90;
-  const progress = Math.max(12, Math.min(48, Math.round(1800 / period)));
-  const routineTime = routine.preferredTime || "아침";
-  const existingRoutine = routine.existingRoutine || "이미 하는 작은 행동";
-  const readiness = routine.readiness || DEFAULT_ROUTINE_READINESS;
-  const lowFriction = needsLowFrictionStart(readiness);
-  const routineAdvice = lowFriction
-    ? `${routineTime}에 ${existingRoutine} 직후 10분만 시작하고, 알림으로 다시 불러옵니다.`
-    : `${routineTime}에 ${existingRoutine}와 새 목표를 붙여 바로 실행 흐름을 만듭니다.`;
-  const personalityBits = [];
-  if (payload.input.birth?.date) personalityBits.push(`${manseoryeok.dayMaster.trait} 성향`);
-  if (mbti) personalityBits.push(`${mbti}의 유지 방식`);
-  const personalitySummary = personalityBits.length
-    ? `${personalityBits.join("과 ")}을 함께 보면, 처음부터 큰 계획을 밀어붙이기보다 오늘 실행할 단위를 선명하게 두는 편이 좋습니다.`
-    : "성향 정보는 건너뛰었어요. 목표와 기간을 기준으로, 처음부터 큰 계획보다 오늘 실행할 단위를 선명하게 두는 계획으로 시작합니다.";
+/* 오늘(또는 마지막 실행일)부터 거꾸로 센 연속 완주일. 할 일이 없는 날은 계획된 휴식이라
+   흐름을 끊지 않고 건너뛴다. 서버는 이 값이 있을 때만 축하 문구에 연속일을 언급한다. */
+function countCompletedStreakDays(bundle) {
+  const { day } = getTodayPlanContext(bundle);
+  let streak = 0;
+  for (let cursor = Number(day) || 1; cursor >= 1; cursor -= 1) {
+    const dayPlan = bundle.schedule[cursor - 1];
+    if (!dayPlan) break;
+    if (!dayPlan.tasks.length) continue;
+    if (getDayCompletion(dayPlan, bundle.state.checkedByDay).percent !== 100) break;
+    streak += 1;
+  }
+  return streak;
+}
 
-  const firstAction = lowFriction ? `${routineTime} 10분 루틴: ${template.firstAction}` : `${routineTime} 루틴: ${template.firstAction}`;
-  const firstDuration = lowFriction ? 10 : 20;
-  // 단계 구간을 기간에 비례해 계산 (7일 같은 짧은 목표에서도 구간이 겹치지 않게)
-  const phaseStartEnd = Math.min(7, Math.max(2, Math.round(period * 0.2)));
-  const phaseGrowEnd = Math.min(period - 1, Math.max(phaseStartEnd + 1, Math.round(period * 0.7)));
-  const weekPlan = [
-    routineAdvice,
-    ...template.weekPlan,
-    "놓친 날에는 분량을 보충하지 않고 5분 최소 행동으로 바로 다시 시작합니다.",
-    "7일째에는 완료 횟수와 어려웠던 구간을 확인해 다음 주 분량을 조정합니다.",
-  ].slice(0, 7);
-
+/* 올리가 축하·위로의 어조를 정하는 데 쓰는 실행 컨텍스트. 놓친 일정은 rolloverNotice가
+   가리키는 지난 실행일에서 체크되지 않은 것만 골라 최대 3개까지 보낸다. */
+function collectCompanionContext(bundle) {
+  const { dayPlan } = getTodayPlanContext(bundle);
+  const notice = bundle.state.rolloverNotice;
+  const missedDayPlan = notice ? bundle.schedule[Number(notice.day) - 1] : null;
+  const missedChecked = missedDayPlan ? bundle.state.checkedByDay[String(missedDayPlan.day)] || [] : [];
+  const memories = Array.isArray(bundle.state.dailyMemories) ? bundle.state.dailyMemories : [];
   return {
-    personalitySummary,
-    planningStyle: `${recommendedPlanningStyle} 계획`,
-    firstAction,
-    weekTitle: template.weekTitle,
-    weekPlan,
-    coachMessage: `${currentState || "현재 상태"}를 기준으로 보면, 이번 주는 완성보다 흐름을 만드는 것이 우선입니다. ${routineAdvice}`,
-    dashboard: {
-      goal: goal.replace("하기", ""),
-      progress,
-      pace: template.pace,
-    },
-    todaySchedule: [
-      { time: `${routineTime} · ${existingRoutine} 직후`, durationMinutes: firstDuration, task: firstAction, completionRule: "타이머를 켜고 정한 분량까지만 끝내면 완료" },
-      { time: "실행 직후", durationMinutes: 5, task: "오늘 실행 여부와 어려웠던 점 한 줄 기록", completionRule: "완료 체크와 한 줄 기록을 남기면 완료" },
-      { time: "하루 마무리", durationMinutes: 5, task: "내일 시작할 첫 행동을 눈에 보이게 준비", completionRule: "도구나 자료를 미리 꺼내두면 완료" },
-    ],
-    fullSchedule: [
-      { phase: "시작", days: `1–${phaseStartEnd}일`, focus: "실행 시간과 최소 행동을 고정합니다.", successMetric: `${phaseStartEnd}일 중 ${Math.max(1, Math.round(phaseStartEnd * 0.6))}일 이상 실행` },
-      { phase: "성장", days: `${phaseStartEnd + 1}–${phaseGrowEnd}일`, focus: "주간 결과를 확인하며 분량과 난이도를 조금씩 높입니다.", successMetric: "주간 계획의 70% 이상 완료" },
-      { phase: "완성", days: `${phaseGrowEnd + 1}–${period}일`, focus: "실전 점검과 약한 구간 보완에 집중합니다.", successMetric: "목표 지표 최종 점검 완료" },
-    ],
-    checkInRules: ["실행 직후 완료 여부 체크", "못한 날은 5분 최소 행동으로 재시작", "7일마다 다음 주 난이도 조정"],
-    fallbackPlan: `계획대로 하기 어려운 날에는 ${template.firstAction}을 5분만 실행합니다.`,
+    todayCompletion: dayPlan ? getDayCompletion(dayPlan, bundle.state.checkedByDay).percent : 0,
+    missedTasks: (missedDayPlan?.tasks || [])
+      .filter((_, index) => !missedChecked[index])
+      .map((task) => String(task.text || "").trim())
+      .filter(Boolean)
+      .slice(0, 3),
+    streakDays: countCompletedStreakDays(bundle),
+    mood: String(memories[memories.length - 1]?.mood || "").trim(),
   };
 }
 
-async function requestAiPlan(payload) {
-  if (!(await ensureAiActionAvailable("create_plan"))) {
-    const error = new Error("새 목표 계획을 만들 수 있는 AI 크레딧을 확인해 주세요.");
-    error.code = "AI_CREDIT_UNAVAILABLE";
-    throw error;
-  }
-  const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), 60000);
-  const requestId = newAiRequestId("create_plan");
-
-  try {
-    const response = await fetch("/api/ai/goal-plan", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json", "X-Request-ID": requestId },
-      credentials: "same-origin",
-      body: JSON.stringify(payload.input),
-      signal: controller.signal,
-    });
-    const result = await response.json().catch(() => ({}));
-    applyUsageFromApiResult(result);
-
-    if (!response.ok) {
-      const error = new Error(result.error || "AI 계획을 만드는 중 문제가 생겼어요.");
-      error.status = response.status;
-      error.code = result.code || "";
-      error.details = result.details || null;
-      throw error;
-    }
-    sendFunnelEvent("ai_credit_charged");
-    return result.plan || result;
-  } catch (error) {
-    if (error.name === "AbortError") throw new Error("AI 응답 시간이 길어졌어요. 잠시 후 다시 시도해 주세요.");
-    throw error;
-  } finally {
-    window.clearTimeout(timeoutId);
-  }
-}
-
-async function requestGuestAiPreview(payload, idempotencyKey) {
-  const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), 60000);
-  try {
-    const response = await fetch("/api/ai/goal-preview", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      credentials: "same-origin",
-      body: JSON.stringify({ ...payload.input, idempotencyKey }),
-      signal: controller.signal,
-    });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      const error = new Error(result.error || "AI 계획 미리보기를 만들지 못했어요.");
-      error.status = response.status;
-      error.code = result.code || "";
-      error.terminal = Boolean(result.terminal);
-      if (error.terminal) clearGuestInitialAttempt(idempotencyKey);
-      throw error;
-    }
-    if (!result.preview || !result.draftPlanId) throw new Error("AI 계획 초안을 확인하지 못했어요.");
-    return {
-      preview: result.preview,
-      draftPlanId: result.draftPlanId,
-      activeInput: result.activeInput,
-      activeInputHash: result.activeInputHash,
-      activeRevision: Number(result.activeRevision || 0),
-      cached: Boolean(result.cached),
-    };
-  } catch (error) {
-    if (error.name === "AbortError") throw new Error("AI 미리보기 응답이 늦어지고 있어요. 잠시 후 다시 시도해 주세요.");
-    throw error;
-  } finally {
-    window.clearTimeout(timeoutId);
-  }
-}
-
-async function requestGuestAiRevision(payload, previewRecord, idempotencyKey) {
-  const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), 60000);
-  try {
-    const response = await fetch("/api/ai/goal-draft/revise", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      credentials: "same-origin",
-      body: JSON.stringify({
-        draftPlanId: previewRecord.draftPlanId,
-        expectedRevision: previewRecord.activeRevision,
-        expectedInputHash: previewRecord.activeInputHash,
-        idempotencyKey,
-        input: payload.input,
-      }),
-      signal: controller.signal,
-    });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      const error = new Error(result.error || "수정한 조건으로 계획을 다시 만들지 못했어요.");
-      error.status = response.status;
-      error.code = result.code || "";
-      error.terminal = Boolean(result.terminal);
-      if (error.terminal) clearGuestRevisionAttempt(idempotencyKey);
-      throw error;
-    }
-    if (!result.preview || !result.activeInputHash || !result.activeRevision) throw new Error("수정된 AI 계획 초안을 확인하지 못했어요.");
-    return {
-      preview: result.preview,
-      draftPlanId: result.draftPlanId,
-      activeInput: result.activeInput,
-      activeInputHash: result.activeInputHash,
-      activeRevision: Number(result.activeRevision),
-      cached: Boolean(result.cached),
-      unchanged: Boolean(result.unchanged),
-    };
-  } catch (error) {
-    if (error.name === "AbortError") throw new Error("AI 계획 수정 응답이 늦어지고 있어요. 현재 미리보기는 그대로 유지됩니다.");
-    throw error;
-  } finally {
-    window.clearTimeout(timeoutId);
-  }
-}
-
-async function claimGuestGoalDraft(previewRecord, scheduleStartPreference = "as-is") {
-  const response = await fetch("/api/ai/goal-draft/claim", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    credentials: "same-origin",
-    body: JSON.stringify({
-      draftPlanId: previewRecord.draftPlanId,
-      expectedRevision: previewRecord.activeRevision,
-      expectedInputHash: previewRecord.activeInputHash,
-      scheduleStartPreference: normalizeScheduleStartPreference(scheduleStartPreference),
-    }),
-  });
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok || !result.activatedPlan) {
-    const error = new Error(result.error || "계획 초안을 저장하지 못했어요.");
-    error.code = result.code || "";
-    throw error;
-  }
-  return result;
-}
-
-async function requestCompanionReply(message) {
-  if (!(await ensureAiActionAvailable("companion_chat"))) {
+/* 자동 치어링(축하·위로)은 유료 재화를 쓰지 않으므로 크레딧 게이트를 지나지 않는다.
+   대신 서버가 하루 각 1회로 상한을 걸고, 초과분은 CHEER_LIMIT_REACHED로 돌려준다. */
+async function requestCompanionReply(message, { eventType = "chat" } = {}) {
+  const isCheer = eventType !== "chat";
+  if (!isCheer && !(await ensureAiActionAvailable("companion_chat"))) {
     const error = new Error("올리와 대화할 수 있는 AI 크레딧을 확인해 주세요.");
     error.code = "AI_CREDIT_UNAVAILABLE";
     throw error;
@@ -3752,10 +3327,12 @@ async function requestCompanionReply(message) {
       credentials: "same-origin",
       body: JSON.stringify({
         message,
+        eventType,
         context: {
           goal: bundle.plan?.goal || "",
           energy: companionState.energy || "",
           todayFocus: bundle.plan?.firstAction || "",
+          ...collectCompanionContext(bundle),
           personalization: {
             mbti: profile.mbti || bundle.plan?.mbti || "",
             planningStyle: bundle.plan?.style || "",
@@ -3776,7 +3353,7 @@ async function requestCompanionReply(message) {
     }
     const reply = String(result.reply || "").trim();
     if (!reply) throw new Error("올리가 답을 만들지 못했어요.");
-    sendFunnelEvent("ai_credit_charged");
+    if (!isCheer) sendFunnelEvent("ai_credit_charged");
     return { reply, headline: String(result.headline || "").trim() };
   } catch (error) {
     if (error.name === "AbortError") throw new Error("올리의 답이 늦어지고 있어요. 잠시 후 다시 말 걸어주세요.");
@@ -3786,135 +3363,119 @@ async function requestCompanionReply(message) {
   }
 }
 
-async function playAnalysisLoading() {
-  if (!aiPreviewStatus) return;
+// ===== 올리 치어링: 완료 축하 · 미완료 위로 (하루 각 1회 · 에너지 미차감) =====
+const CHEER_STATE_KEY = "omwCheerState";
+const cheerRequestsInFlight = new Set();
 
-  const steps = [
-    "목표를 실행 가능한 크기로 나누고 있어요",
-    "현재 루틴과 연결할 시간을 찾고 있어요",
-    "미루기 쉬운 구간에 대비책을 넣고 있어요",
-    "첫 주 계획을 만들고 있어요",
-  ];
-  const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+const LOCAL_CHEER_COPY = {
+  celebrate: [
+    { headline: "오늘 전부 해냈어요!", reply: "정한 일정을 끝까지 해낸 하루예요. 이 흐름, 올리가 꼭 기억해둘게요. 내일도 같은 시간에 만나요!" },
+    { headline: "완주 축하해요!", reply: "오늘 계획을 모두 완료했어요. 스스로 정한 약속을 지킨 하루라서 더 값져요. 오늘의 기분을 기록 탭에 남겨볼까요?" },
+    { headline: "대단해요, 올클리어!", reply: "오늘의 체크가 전부 채워졌어요. 이런 날이 하나씩 쌓여서 목표까지 가는 거예요. 푹 쉬어요, 내일도 함께해요!" },
+  ],
+  comfort: [
+    { headline: "괜찮아요, 다시 가요.", reply: "놓친 일정은 실패가 아니라 조정 신호예요. 아래 회복 버튼으로 내일 계획에 가볍게 다시 담아볼까요?" },
+    { headline: "오늘은 여기까지도 충분해요.", reply: "다 못한 날도 우리 여정의 일부예요. 5분짜리 가장 작은 행동 하나만 다시 시작해도 흐름은 이어져요." },
+  ],
+};
 
-  if (reducedMotion) {
-    aiPreviewStatus.textContent = steps.at(-1);
-    return;
-  }
-
-  for (const step of steps) {
-    aiPreviewStatus.textContent = step;
-    await new Promise((resolve) => setTimeout(resolve, 320));
-  }
+function cheerKicker(eventType) {
+  return eventType === "celebrate" ? "OLLIE CHEER · 오늘의 축하" : "OLLIE CHEER · 다시 시작 응원";
 }
 
-function applyFeasibilityAdjustment(option) {
-  const supported = new Set([
-    "keep_current_plan",
-    "extend_duration",
-    "reduce_scope",
-    "increase_frequency",
-    "increase_session_duration",
-  ]);
-  if (!supported.has(option)) return;
-  selectedFeasibilityAdjustment = option;
-  if (option === "extend_duration" && goalPeriodInput) {
-    const current = Number(goalPeriodInput.value) || 30;
-    const next = [...goalPeriodInput.options]
-      .map((entry) => Number(entry.value))
-      .filter((value) => value > current)
-      .sort((left, right) => left - right)[0];
-    if (next) goalPeriodInput.value = String(next);
-  }
-  if (option === "increase_session_duration" && sessionMinutesInput) {
-    sessionMinutesInput.value = String(Math.min(180, (Number(sessionMinutesInput.value) || 5) + 15));
-  }
-  if (option === "increase_frequency" && weeklyFrequencyInput) {
-    const difficult = new Set(checkedValues(difficultDayInputs));
-    const extraDay = [...availableDayInputs].find((input) => !input.checked && !difficult.has(input.value));
-    if (extraDay) extraDay.checked = true;
-    const availableCount = checkedValues(availableDayInputs).length;
-    const current = Number(weeklyFrequencyInput.value) || 1;
-    weeklyFrequencyInput.value = String(Math.max(1, Math.min(7, availableCount, current + 1)));
-  }
-  const draft = savePendingGoalDraft();
-  if (draft) syncGuestDraftConsistency(draft);
-  updateWizardSummary();
-  if (aiPreviewStatus) aiPreviewStatus.textContent = "선택한 조정안으로 계획을 다시 확인해 주세요.";
+function cheerImage(eventType) {
+  return eventType === "celebrate" ? "assets/ollie-celebrate.png" : "assets/ollie-comfort.png";
 }
 
+function readCheerState() {
+  const state = readStorageObject(CHEER_STATE_KEY, {});
+  return state.date === getTodayKey() ? state : { date: getTodayKey() };
+}
+
+/* 치어링은 AI 응답이 도착한 시점에 저절로 뜬다 — 완료 체크나 페이지 진입에서
+   몇 초 뒤다. 그래서 시선을 끌어가지 않는다: 열려 있는 대화 시트를 닫지도,
+   말풍선으로 강제 스크롤하지도 않는다. 읽던 화면이 제멋대로 끌려가는 편이
+   축하를 놓치는 것보다 나쁘다. 코치 카드에 남으므로 나중에 봐도 된다.
+   "대화에서 남은 한마디"(#memoryConversation)에는 쓰지 않는다. 그 카드는
+   companion_dialogue 이벤트만 읽는 renderMemoryCards가 소유하고 있어서,
+   여기서 넣어도 숨김이 풀리지 않고 다음 렌더에 바로 덮인다. */
+function displayCheer(eventType, cheer) {
+  showOllieReaction(cheer.reply, cheer.headline, { stealFocus: false });
+  if (dailyCoachKicker) dailyCoachKicker.textContent = cheerKicker(eventType);
+  if (dailyCoachTitle) dailyCoachTitle.textContent = cheer.headline;
+  if (dailyCoachMessage) dailyCoachMessage.textContent = cheer.reply;
+  setImageSource(dailyCoachImage, cheerImage(eventType));
+  announce(cheer.reply);
+}
+
+/* 축하·위로를 AI로 시도하고, 실패(비로그인·상한 도달·오류)하면 로컬 문구로 조용히 대체한다.
+   에너지는 차감하지 않으며, 표시 여부는 로컬에서도 하루 각 1회로 제한한다 (서버 상한과 이중 안전망). */
+async function triggerOllieCheer(eventType, detail = {}) {
+  if (!document.body.classList.contains("execution-page")) return;
+  if (!LOCAL_CHEER_COPY[eventType]) return;
+  if (readCheerState()[eventType]) return;
+  if (cheerRequestsInFlight.has(eventType)) return;
+  cheerRequestsInFlight.add(eventType);
+
+  const pool = LOCAL_CHEER_COPY[eventType];
+  const fallback = pool[Math.floor(Math.random() * pool.length)];
+  let cheer = fallback;
+  let source = "local";
+  const message =
+    eventType === "celebrate"
+      ? `오늘 계획 ${detail.total || "전부"}개를 방금 모두 완료했어요!`
+      : `지난 접속에서 일정 ${detail.missedCount || "몇"}개를 완료하지 못했어요.`;
+
+  // AI 치어링은 로그인 회원에게만 시도한다 (서버가 401을 반환하므로 게스트는 바로 로컬 문구)
+  if (authUiState.user) {
+    try {
+      const { reply, headline } = await requestCompanionReply(message, { eventType });
+      cheer = { reply, headline: headline || fallback.headline };
+      source = "ai";
+    } catch (error) {
+      /* 하루 상한(CHEER_LIMIT_REACHED)·네트워크 오류 → 로컬 문구로 대체 */
+    }
+  }
+  cheerRequestsInFlight.delete(eventType);
+
+  const nextState = readCheerState();
+  if (nextState[eventType]) return;
+  nextState[eventType] = { headline: cheer.headline, reply: cheer.reply, source, at: new Date().toISOString() };
+  writeStorageObject(CHEER_STATE_KEY, nextState);
+  displayCheer(eventType, cheer);
+  trackCompanionEvent("ollie_cheer_shown", { eventType, source });
+}
+
+/* 결과 화면의 "올리가 이해한 내용" 카드. 유저가 직접 담은 값만 되읽어 준다 —
+   AI가 조건을 추론하던 시절의 실현 가능성 판정과 조정안은 함께 걷어냈다. */
 function renderDraftUnderstanding(preview) {
-  const draft = collectGoalDraftInput();
-  const days = draft.availability.availableDays;
-  if (understoodGoal) understoodGoal.textContent = analyzedGoalSummary || designGoal?.value.trim() || "입력한 목표";
+  const input = collectManualPlanInput();
+  const namedTasks = input.tasks.filter((task) => String(task.text || "").trim());
+  const totalMinutes = namedTasks.reduce((sum, task) => sum + (Number(task.minutes) || 0), 0);
+  if (understoodGoal) understoodGoal.textContent = input.goal;
   if (understoodMaterial) {
-    understoodMaterial.textContent = draft.material.hasMaterial
-      ? `${draft.material.name || "자료 이름 미입력"} · ${draft.material.targetRange || "목표 범위 미입력"}`
-      : "사용 자료 없음 · 일반 계획으로 구성";
+    understoodMaterial.textContent = input.resources || "따로 정한 자료 없음";
   }
-  if (understoodAvailability) understoodAvailability.textContent = `${days.join("·") || "가능 요일 미입력"} · 회당 ${draft.availability.sessionMinutes || 0}분`;
-  if (understoodExclusions) understoodExclusions.textContent = draft.availability.excludedDates.join(", ") || "없음";
-  if (understoodIntensity) understoodIntensity.textContent = `${draft.availability.intensity} · 주 ${draft.availability.weeklyFrequency || days.length}회`;
-  if (understoodAssumptions) understoodAssumptions.textContent = (preview.assumptions || []).join(" · ") || "입력하지 않은 정보는 임의로 단정하지 않아요.";
+  if (understoodAvailability) {
+    understoodAvailability.textContent = `${input.days.join("·") || "실행 요일 미선택"} · 하루 약 ${totalMinutes}분`;
+  }
+  if (understoodExclusions) {
+    const restDays = MANUAL_DAY_NAMES.filter((day) => !input.days.includes(day));
+    understoodExclusions.textContent = restDays.length ? `${restDays.join("·")}요일은 계획된 휴식` : "쉬는 요일 없음";
+  }
+  if (understoodIntensity) {
+    understoodIntensity.textContent = `${input.readiness} · 할 일 ${namedTasks.length}개 · ${input.period}일`;
+  }
+  if (understoodAssumptions) {
+    understoodAssumptions.textContent = input.outcome || (preview.assumptions || []).join(" · ") || "직접 담은 내용만 계획에 들어갔어요.";
+  }
   if (roadmapNextInfo) {
     const nextInfo = [];
-    if (!currentContextInput?.value.trim()) nextInfo.push("지금 어디까지 왔는지");
-    if (!draft.material.hasMaterial) nextInfo.push("꼭 쓰고 싶은 자료가 있는지");
+    if (!input.outcome) nextInfo.push("끝났을 때 어떤 상태이고 싶은지");
+    if (!input.resources) nextInfo.push("꼭 쓰고 싶은 자료가 있는지");
     nextInfo.push("쉬어야 하는 요일이나 기간");
     roadmapNextInfo.textContent = nextInfo.join(" · ");
   }
-
-  if (!draftFeasibilityTitle || !draftFeasibilityCopy || !draftFeasibilityOptions) return;
-  const requested = draft.availability.weeklyFrequency || days.length;
-  const usableDays = days.filter((day) => !draft.availability.difficultDays.includes(day)).length;
-  const fallbackTight = requested > days.length || usableDays < Math.min(requested, 2);
-  const feasibility = preview?.feasibility && typeof preview.feasibility === "object" ? preview.feasibility : null;
-  const constrained = feasibility
-    ? ["constrained", "infeasible_as_requested"].includes(feasibility.status)
-    : fallbackTight;
-  draftFeasibilityTitle.textContent = constrained ? "조정안을 고르면 현실적인 길로 시작할 수 있어요" : "현재 조건으로 시작할 수 있어요";
-  draftFeasibilityCopy.textContent = feasibility?.summary
-    || `${days.length}개 가능 요일, 회당 ${draft.availability.sessionMinutes}분 기준으로 첫 주 실행 리듬을 만들었어요.`;
-  const optionLabels = {
-    keep_current_plan: `현재 조건으로 시작하고 7일째에 다시 확인하기`,
-    extend_duration: "목표 기간을 늘려 한 번의 부담을 낮추기",
-    reduce_scope: "이번 기간의 목표 범위를 줄이기",
-    increase_frequency: "가능한 실행 요일을 더 확보하기",
-    increase_session_duration: "회당 실행 시간을 늘리기",
-  };
-  const options = (feasibility?.adjustmentOptions || [])
-    .map((option) => ({ option, text: optionLabels[option] }))
-    .filter((entry) => entry.text);
-  // 계획이 멀쩡하면 조정 UI를 아예 띄우지 않는다. 조정안은 "지금 조건으로는
-  // 무리"일 때만 의미가 있고, 그때는 진행의 전제 조건이라 접어두지 않는다.
-  if (!constrained) {
-    draftFeasibilityOptions.replaceChildren();
-    return;
-  }
-  if (!options.length && requested > days.length) options.push({ option: "", text: `주 ${requested}회 대신 가능한 ${days.length}회부터 시작하기` });
-  if (!options.length && draft.availability.difficultDays.some((day) => days.includes(day))) options.push({ option: "", text: "어려운 요일에는 짧은 복습이나 휴식을 우선하기" });
-  if (!options.length && draft.material.hasMaterial && !draft.material.currentProgress) options.push({ option: "", text: "현재 진도는 첫 실행 뒤 확인해 다음 주에 보정하기" });
-  if (!options.length) options.push({ option: "", text: `주 ${requested}회 실행 후 7일째에 분량 다시 확인하기` });
-  draftFeasibilityOptions.replaceChildren(...options.map(({ option, text }) => {
-    const item = document.createElement("li");
-    if (!option) {
-      item.textContent = text;
-      return item;
-    }
-    const button = document.createElement("button");
-    button.type = "button";
-    button.dataset.feasibilityAdjustment = option;
-    button.setAttribute("aria-pressed", String(selectedFeasibilityAdjustment === option));
-    button.textContent = `${feasibility?.recommendedOption === option ? "추천 · " : ""}${text}`;
-    button.addEventListener("click", () => {
-      applyFeasibilityAdjustment(option);
-      draftFeasibilityOptions.querySelectorAll("[data-feasibility-adjustment]").forEach((control) => {
-        control.setAttribute("aria-pressed", String(control === button));
-      });
-    });
-    item.append(button);
-    return item;
-  }));
 }
 
 function renderAiPreview(preview) {
@@ -4049,14 +3610,11 @@ function renderAiPreview(preview) {
   renderDraftUnderstanding(preview);
 }
 
-// "전체 로드맵" 옆의 기한 표시. 완료 희망일이 있으면 날짜로, 없으면 마지막
-// 단계의 기간을 씁니다. 둘 다 없으면 아무것도 쓰지 않습니다 — 날짜를 지어내지 않아요.
+/* "전체 로드맵" 옆의 기한 표시. 마지막 단계의 기간을 쓰고, 없으면 유저가 고른
+   전체 기간을 쓴다. 둘 다 없으면 아무것도 쓰지 않는다 — 날짜를 지어내지 않는다.
+   완료 희망일(#targetDate)을 날짜로 보여주던 분기는 수동 빌더가 그 입력을 받지
+   않게 되면서 도달할 수 없어졌다(collectManualPlanInput에 targetDate가 없다). */
 function roadmapDeadlineLabel(roadmapPhases) {
-  const targetDate = document.querySelector("#targetDate")?.value || "";
-  const parsed = targetDate ? new Date(`${targetDate}T00:00:00`) : null;
-  if (parsed && !Number.isNaN(parsed.getTime())) {
-    return `(${parsed.getMonth() + 1}월 ${parsed.getDate()}일까지)`;
-  }
   const finalDays = roadmapPhases.at(-1)?.days || "";
   if (finalDays) return `(총 ${finalDays})`;
   // 단계가 잠긴 게스트 화면에서도 기간만큼은 사실대로 보여준다.
@@ -4086,328 +3644,6 @@ weekPreviewToggle?.addEventListener("click", () => {
   syncWeekPreviewToggle(aiVisibleWeekPlan.children.length);
 });
 
-function roadmapLeadStep(preview) {
-  const phase = Array.isArray(preview?.fullSchedule) ? preview.fullSchedule[0] : null;
-  return [phase?.phase, phase?.focus, phase?.successMetric].filter(Boolean).join(" · ")
-    || preview?.firstAction
-    || "첫 행동부터 시작하는 길";
-}
-
-function renderRoadmapRevisionSummary(summary) {
-  if (!roadmapRevisionSummary) return;
-  const safeSummary = summary && typeof summary === "object" ? summary : null;
-  roadmapRevisionSummary.hidden = !safeSummary;
-  if (!safeSummary) return;
-  if (roadmapRevisionBefore) roadmapRevisionBefore.textContent = String(safeSummary.before || "기존 큰 길");
-  if (roadmapRevisionAfter) roadmapRevisionAfter.textContent = String(safeSummary.after || "조정된 큰 길");
-  if (roadmapRevisionConditions) roadmapRevisionConditions.textContent = String(safeSummary.conditions || "사용자가 말한 조건");
-}
-
-function setAiPreviewButtonLabel(label, { showCost = true } = {}) {
-  if (!aiPreviewButton) return;
-  aiPreviewButton.replaceChildren(document.createTextNode(label));
-  if (!showCost) return;
-  const cost = document.createElement("span");
-  cost.className = "button-energy-cost";
-  cost.textContent = ` · ${aiCreditCost("create_plan") || "—"}크레딧`;
-  aiPreviewButton.append(cost);
-}
-
-function syncGoalBuilderCta() {
-  if (!aiPreviewButton) return;
-  if (!authUiState.user) {
-    const previewRecord = readPendingGoalPreview();
-    setAiPreviewButtonLabel(
-      previewRecord?.draftPlanId && previewRecord.pendingDraftInput
-        ? "말한 내용으로 큰 길 다시 그리기"
-        : "AI로 큰 계획 보기",
-      { showCost: false },
-    );
-    return;
-  }
-  const plan = aiUsageState?.plan || authUiState.user.plan || "free";
-  setAiPreviewButtonLabel(plan === "pro" ? "AI 전체 계획 만들기" : "24시간 무료 체험으로 전체 계획 만들기");
-}
-
-function setResultPreviewMode(mode) {
-  if (!planPreviewPanel) return;
-  planPreviewPanel.dataset.previewMode = mode;
-  const isGuest = mode === "guest";
-  if (resultDetailsDisclosure) resultDetailsDisclosure.hidden = isGuest;
-  if (isGuest) {
-    if (previewConversionKicker) previewConversionKicker.textContent = "큰 길을 확인했다면";
-    if (previewConversionCopy) {
-      previewConversionCopy.textContent = authUiState.user
-        ? "이 큰 길을 고정하고 첫 7일의 실행 일정을 만들어요."
-        : "로그인·회원가입 후 이 큰 길을 그대로 고정하고 첫 7일 일정을 만들어요.";
-    }
-    if (previewConversionAction) {
-      previewConversionAction.textContent = "이 계획으로 시작하기";
-    }
-    trialStartInlineLink?.setAttribute("aria-label", previewConversionAction?.textContent || "전체 계획 이어서 만들기");
-    return;
-  }
-  if (previewConversionKicker) previewConversionKicker.textContent = "검토 후 결정";
-  if (previewConversionCopy) previewConversionCopy.textContent = "저장하기 전에는 현재 계획이나 회원 데이터가 바뀌지 않아요.";
-  if (previewConversionAction) previewConversionAction.textContent = "이 계획으로 시작하기";
-  trialStartInlineLink?.setAttribute("aria-label", "이 계획으로 시작하기");
-}
-
-async function runPersonalityAnalysis({ showLoading = false } = {}) {
-  if (!personalityForm) return;
-
-  let guestPreviewRequest = false;
-  const draftRecord = savePendingGoalDraft();
-  const existingGuestPreview = readPendingGoalPreview();
-  const guestInputChanged = existingGuestPreview?.draftPlanId
-    ? syncGuestDraftConsistency(draftRecord)
-    : false;
-  if (!showLoading && existingGuestPreview?.draftPlanId) return;
-  if (showLoading) {
-    await accountExperienceReady;
-    if (!authUiState.user) {
-      guestPreviewRequest = true;
-    } else {
-      const usage = await loadAiUsage().catch(() => null);
-      if (usage?.plan === "free" && usage.trial?.eligible) {
-        const trial = await startTrialAccess();
-        if (!trial) return;
-      }
-    }
-  }
-
-  if (showLoading && !guestPreviewRequest && (aiUsageState?.plan || authUiState.user?.plan) === "free") {
-    try {
-      const serverSaysGenerated = Boolean(authUiState.user?.goalPlanGeneratedAt);
-      if (serverSaysGenerated) {
-        if (aiPreviewStatus) aiPreviewStatus.textContent = "무료 목표 계획 1개를 이미 만들었어요";
-        planPreviewPanel?.classList.add("is-ready");
-        showToast("Free 플랜은 목표와 활성 계획을 1개까지 이용할 수 있어요. 기존 계획을 AI 크레딧으로 수정해 보세요.");
-        openFirstStepResult();
-        return;
-      }
-    } catch (error) {
-      /* storage unavailable — continue */
-    }
-  }
-
-  const goal = designGoal.value.trim() || goalInput?.value.trim() || "목표 미입력";
-  const period = goalPeriodInput.value;
-  const currentState = currentContextInput?.value.trim() || "";
-  const routineReadiness = routineReadinessInput?.value || DEFAULT_ROUTINE_READINESS;
-  const routineTime = routineTimeInput?.value || "아침";
-  const currentRoutine = "";
-  const conditions = collectGoalDraftInput();
-  const birthDate = birthDateInput?.value || "";
-  const birthTime = birthTimeInput?.value || "";
-  const birthPlace = birthPlaceInput?.value.trim() || "";
-  const mbti = mbtiInput?.value || "";
-  const hasBirthInfo = Boolean(birthDate);
-  const safeBirthDate = birthDate || "1995-01-01";
-  const safeBirthTime = birthTime || "12:00";
-
-  const rawManse = calculateSimpleManse(safeBirthDate, safeBirthTime);
-  const manse = hasBirthInfo ? rawManse : { ...rawManse, summary: "" };
-  const mbtiSummary = mbti ? analyzeMbti(mbti) : "성향 정보 없이 목표와 실행 스타일을 기준으로 계획합니다.";
-  const style = decidePlanningStyle(rawManse, mbti);
-  const payload = buildAiPlanPayload({
-    draftPlanId: draftRecord?.draftId || "",
-    goal,
-    period,
-    currentState,
-    routineReadiness,
-    routineTime,
-    currentRoutine,
-    birthDate,
-    birthTime,
-    birthPlace,
-    mbti,
-    manse,
-    style,
-    material: conditions.material,
-    availability: conditions.availability,
-    planningPreferences: conditions.planningPreferences,
-    feasibilityAdjustment: conditions.feasibilityAdjustment,
-  });
-  const guestRevisionRequest = Boolean(guestPreviewRequest && guestInputChanged && existingGuestPreview?.draftPlanId);
-
-  if (showLoading) {
-    aiPreviewStatus.textContent = guestRevisionRequest
-      ? "수정한 조건에 맞춰 계획을 다시 만들고 있어요."
-      : guestPreviewRequest ? "올리가 목표까지 갈 큰 길을 그리는 중" : "AI가 목표 설계 중";
-    aiPreviewButton.disabled = true;
-    setAiPreviewButtonLabel(guestRevisionRequest
-      ? "수정한 조건을 반영하는 중..."
-      : guestPreviewRequest ? "올리가 큰 길을 그리는 중..." : "올리가 오늘 계획을 만드는 중...", { showCost: false });
-    trackCompanionEvent(guestRevisionRequest ? "roadmap_revision_started" : "roadmap_generation_started");
-    await playAnalysisLoading();
-  }
-
-  let preview;
-  let generatedDraftPlan = null;
-  let generatedDraftPlanId = "";
-  let generatedActiveInput = null;
-  let generatedActiveInputHash = "";
-  let generatedActiveRevision = 0;
-  let revisionSummary = null;
-  let usedFallback = false;
-  try {
-    if (showLoading && guestRevisionRequest) {
-      const signature = goalDraftSignature(draftRecord);
-      const revision = pendingGuestRevision(existingGuestPreview, signature);
-      const guestResult = await requestGuestAiRevision(payload, existingGuestPreview, revision.idempotencyKey);
-      preview = guestResult.preview;
-      generatedDraftPlanId = guestResult.draftPlanId;
-      generatedActiveInput = guestResult.activeInput;
-      generatedActiveInputHash = guestResult.activeInputHash;
-      generatedActiveRevision = guestResult.activeRevision;
-      revisionSummary = {
-        before: roadmapLeadStep(existingGuestPreview?.preview),
-        after: roadmapLeadStep(preview),
-        conditions: draftRecord?.currentContext || "입력한 목표와 기간",
-      };
-      if (!savePendingGoalPreview(preview, {
-        draftPlanId: generatedDraftPlanId,
-        activeDraftInput: draftRecord,
-        activeInput: generatedActiveInput,
-        activeInputHash: generatedActiveInputHash,
-        activeRevision: generatedActiveRevision,
-        revisionSummary,
-      })) {
-        throw blockGuestAttemptStorage();
-      }
-    } else if (showLoading && guestPreviewRequest) {
-      const idempotencyKey = pendingGuestInitialAttempt(goalDraftSignature(draftRecord));
-      const guestResult = await requestGuestAiPreview(
-        payload,
-        idempotencyKey,
-      );
-      preview = guestResult.preview;
-      generatedDraftPlan = guestResult.draftPlan;
-      generatedDraftPlanId = guestResult.draftPlanId;
-      generatedActiveInput = guestResult.activeInput;
-      generatedActiveInputHash = guestResult.activeInputHash;
-      generatedActiveRevision = guestResult.activeRevision;
-      if (!savePendingGoalPreview(preview, {
-        draftPlanId: generatedDraftPlanId,
-        draftPlan: generatedDraftPlan,
-        activeDraftInput: draftRecord,
-        activeInput: generatedActiveInput,
-        activeInputHash: generatedActiveInputHash,
-        activeRevision: generatedActiveRevision,
-      })) {
-        throw blockGuestAttemptStorage();
-      }
-      clearGuestInitialAttempt(idempotencyKey);
-    } else if (showLoading) {
-      generatedDraftPlan = await requestAiPlan(payload);
-      preview = generatedDraftPlan;
-    } else {
-      preview = buildLocalAiPreview(payload);
-    }
-  } catch (error) {
-    if (showLoading) trackCompanionEvent(guestRevisionRequest ? "roadmap_revision_failed" : "roadmap_generation_failed", { code: String(error.code || "UNKNOWN").slice(0, 80) });
-    if (error.code === "GOAL_PLAN_LIMIT_REACHED") {
-      if (aiPreviewStatus) aiPreviewStatus.textContent = "무료 목표 계획 1개를 이미 만들었어요";
-      if (aiPreviewButton) {
-        aiPreviewButton.disabled = false;
-        syncGoalBuilderCta();
-      }
-      planPreviewPanel?.classList.add("is-ready");
-      showToast(error.message);
-      openFirstStepResult();
-      return;
-    }
-    if (showLoading && error.code === "GUEST_REVISION_LIMIT_REACHED") {
-      if (aiPreviewStatus) {
-        aiPreviewStatus.textContent = "무료로 다듬을 수 있는 횟수를 모두 사용했어요. 마지막으로 만든 계획은 그대로 보관 중이에요.";
-      }
-      if (aiPreviewButton) {
-        aiPreviewButton.disabled = false;
-        setAiPreviewButtonLabel("수정한 조건으로 계획 다시 만들기", { showCost: false });
-      }
-      planPreviewPanel?.classList.add("is-ready");
-      showToast(error.message || "무료 계획 다듬기를 모두 사용했어요. 로그인하면 이어서 조정할 수 있어요.");
-      // 로그인 왕복(취소 포함) 후에도 초안 이어가기가 복원되도록 intent를 남긴다.
-      createPendingFullPlanAuthIntent(draftRecord);
-      openAuthSheet({
-        message: "지금까지 만든 계획은 저장돼 있어요. 로그인하면 그대로 저장하고 무료 체험 크레딧으로 이어서 조정할 수 있어요.",
-      });
-      return;
-    }
-    if (showLoading && error.code === "AI_CREDIT_UNAVAILABLE") {
-      // ensureAiActionAvailable 이 이미 이유를 안내하고 로그인/크레딧 시트를 열었다.
-      if (aiPreviewStatus) aiPreviewStatus.textContent = "AI 크레딧을 확인한 뒤 계획을 다시 만들 수 있어요. 적어둔 내용은 그대로 보관했어요.";
-      if (aiPreviewButton) {
-        aiPreviewButton.disabled = false;
-        syncGoalBuilderCta();
-      }
-      return;
-    }
-    if (showLoading && ["DAILY_AI_CREDIT_LIMIT_EXCEEDED", "MONTHLY_AI_CREDITS_EXHAUSTED", "TRIAL_AI_CREDITS_EXHAUSTED", "AI_ACTION_NOT_AVAILABLE"].includes(error.code)) {
-      openEnergyCharge();
-    }
-    if (showLoading) {
-      if (aiPreviewStatus) aiPreviewStatus.textContent = guestRevisionRequest
-        ? "이번에는 계획을 바꾸지 못했어요. 기존 길은 그대로 두었어요."
-        : error.message || "계획을 완성하지 못했어요. 적어둔 내용은 그대로 보관했어요.";
-      if (aiPreviewButton) {
-        aiPreviewButton.disabled = false;
-        setAiPreviewButtonLabel(
-          guestRevisionRequest ? "수정한 조건으로 계획 다시 만들기" : guestPreviewRequest ? "AI 계획 미리보기 다시 시도" : "AI 계획 다시 만들기",
-          { showCost: !guestPreviewRequest },
-        );
-      }
-      showToast(`${error.message || "AI 계획을 만들지 못했어요."} 실패한 요청은 AI 크레딧으로 확정 차감되지 않아요.`);
-      return;
-    }
-    preview = buildLocalAiPreview(payload);
-    usedFallback = true;
-  }
-  renderAiPreview(preview);
-  renderRoadmapRevisionSummary(revisionSummary);
-  if (showLoading) trackCompanionEvent(guestRevisionRequest ? "roadmap_revision_completed" : "roadmap_generation_completed", { revision: generatedActiveRevision || 0 });
-  if (showLoading) planPreviewPanel?.classList.add("is-ready");
-
-  if (aiPreviewStatus) {
-    aiPreviewStatus.textContent = guestPreviewRequest
-      ? "현재 계획과 조건이 일치해요."
-      : usedFallback
-        ? "AI 연결 없이 제공하는 기본 계획 템플릿"
-        : "올리가 AI로 만든 맞춤 계획";
-  }
-  if (aiPreviewButton) {
-    aiPreviewButton.disabled = false;
-    syncGoalBuilderCta();
-    updateGoalStepState();
-  }
-
-  if (showLoading && guestPreviewRequest) {
-    if (discardDraftChangesButton) discardDraftChangesButton.hidden = true;
-    setTrialStartDisabled(previewRequiresAdjustment(preview));
-    setResultPreviewMode("guest");
-    openFirstStepResult();
-    return;
-  }
-
-  if (showLoading) {
-    savePendingGoalPreview(preview, { draftPlanId: generatedDraftPlanId, draftPlan: generatedDraftPlan || preview });
-  }
-  if (showLoading) setResultPreviewMode("draft");
-
-  if (showLoading) {
-    if (birthDate || birthPlace || mbti) {
-      try {
-        localStorage.setItem(PERSONALITY_PROFILE_KEY, JSON.stringify({ birthDate, birthTime, birthPlace, mbti, updatedAt: new Date().toISOString() }));
-      } catch (error) {
-        /* storage unavailable — ignore */
-      }
-    }
-  }
-  if (showLoading && usedFallback) showToast("AI 연결에 실패해 기본 계획 템플릿을 보여드려요 · 나중에 AI 계획을 다시 만들 수 있어요");
-  if (showLoading) openFirstStepResult();
-}
-
 function openFirstStepResult() {
   planPreviewPanel?.classList.add("is-ready");
   if (window.location.hash === "#firstStep") {
@@ -4418,61 +3654,101 @@ function openFirstStepResult() {
   window.setTimeout(() => planPreviewPanel?.focus({ preventScroll: true }), 80);
 }
 
-let goalAnalysisSubmitPending = false;
-async function submitGoalAnalysis() {
-  if (goalAnalysisSubmitPending || !personalityForm?.reportValidity()) return;
-  goalAnalysisSubmitPending = true;
+// 마지막 단계의 "내 계획 완성하기"는 AI가 아니라 수동 저장으로 간다.
+let manualSavePending = false;
+
+function submitManualPlan() {
+  if (manualSavePending) return;
+  if (!personalityForm?.reportValidity()) return;
+  manualSavePending = true;
   try {
-    await runPersonalityAnalysis({ showLoading: true });
+    saveManualPlan();
   } finally {
-    goalAnalysisSubmitPending = false;
+    manualSavePending = false;
   }
 }
 
+// click에서 기본 동작을 막으므로 submit은 Enter 키 경로에서만 발생한다 (이중 저장 없음).
 aiPreviewButton?.addEventListener("click", (event) => {
   event.preventDefault();
-  void submitGoalAnalysis();
-});
-
-aiPreviewButton?.addEventListener("pointerup", (event) => {
-  if (event.button !== 0 || event.isPrimary === false) return;
-  void submitGoalAnalysis();
+  submitManualPlan();
 });
 
 personalityForm?.addEventListener("submit", (event) => {
   event.preventDefault();
   if (diagnosisSteps.length && diagnosisStepIndex < diagnosisSteps.length - 1) {
-    canLeaveDiagnosisStep();
+    if (canLeaveDiagnosisStep()) advanceDiagnosisStep();
     return;
   }
   if (event.submitter && event.submitter !== aiPreviewButton) return;
-  void submitGoalAnalysis();
+  submitManualPlan();
 });
 
-materialModeInputs.forEach((input) => {
-  input.addEventListener("change", () => {
-    const hasMaterial = selectedMaterialMode() === "yes";
-    if (materialFields) materialFields.hidden = !hasMaterial;
-    [materialNameInput, materialRangeInput].forEach((field) => {
-      if (field) field.required = hasMaterial;
-    });
-    updateWizardSummary();
-  });
-});
-
+// 수동 빌더 입력은 미리보기만 로컬로 갱신한다 (AI 호출 없음).
 [
-  birthDateInput, birthTimeInput, birthPlaceInput, mbtiInput, goalPeriodInput,
-  routineReadinessInput, routineTimeInput, designGoal, currentContextInput, materialNameInput,
-  materialRangeInput, materialProgressInput, materialCompletionInput, materialUnitInput,
-  sessionMinutesInput, weeklyFrequencyInput, targetDateInput, planIntensityInput,
-  bufferDaysInput, excludedDatesInput, notificationTimeInput,
-  ...availableDayInputs, ...difficultDayInputs, ...planningPreferenceInputs,
+  goalPeriodInput, routineReadinessInput, routineTimeInput, designGoal,
+  designOutcomeInput, designResourcesInput, designWeekdayMinutesInput, designWeekendMinutesInput,
+  ...designDayInputs,
 ].forEach(
   (field) => {
-    field?.addEventListener("change", runPersonalityAnalysis);
+    field?.addEventListener("change", updateManualPreview);
     field?.addEventListener("input", updateWizardSummary);
   },
 );
+
+// 목표가 바뀌면 아직 손대지 않은 초안만 새 목표 유형에 맞춰 다시 채운다.
+designGoal?.addEventListener("input", () => ensureBuilderTasks({ refreshIfUntouched: true }));
+routineTimeInput?.addEventListener("change", () => {
+  if (builderTasksTouched) return;
+  ensureBuilderTasks({ force: true });
+});
+
+taskBuilderListElement?.addEventListener("input", (event) => {
+  const row = event.target.closest?.(".task-builder-item");
+  const field = event.target.dataset?.taskField;
+  if (!row || !field) return;
+  const index = Number(row.dataset.taskIndex);
+  if (!builderTasks[index]) return;
+  builderTasksTouched = true;
+  builderTasks[index][field] = field === "minutes" ? Number(event.target.value) || 0 : event.target.value;
+  if (field === "minutes") updateTaskBudgetHint();
+  if (field === "text") updateWizardSummary();
+});
+
+taskBuilderListElement?.addEventListener("click", (event) => {
+  const removeButton = event.target.closest?.("[data-task-remove]");
+  if (!removeButton) return;
+  const index = Number(removeButton.closest(".task-builder-item")?.dataset.taskIndex);
+  if (!builderTasks[index]) return;
+  builderTasksTouched = true;
+  builderTasks.splice(index, 1);
+  renderTaskBuilder();
+});
+
+addTaskButton?.addEventListener("click", () => {
+  if (builderTasks.length >= 5) {
+    showToast("할 일은 하루 5개까지가 좋아요. 작게 시작할수록 오래가요.");
+    return;
+  }
+  builderTasksTouched = true;
+  const times = getDesignTimes();
+  builderTasks.push({ time: times[Math.min(builderTasks.length, times.length - 1)], text: "", minutes: 15, rule: "" });
+  renderTaskBuilder();
+  taskBuilderListElement?.querySelector(".task-builder-item:last-child [data-task-field='text']")?.focus();
+});
+
+refillTemplateButton?.addEventListener("click", () => {
+  ensureBuilderTasks({ force: true });
+  showToast("목표에 맞는 초안으로 다시 채웠어요. 자유롭게 고쳐주세요.");
+});
+
+minimalStartButton?.addEventListener("click", () => {
+  const first = builderTasks.find((task) => String(task.text || "").trim()) || buildStarterTasks()[0];
+  builderTasks = [{ ...first, minutes: Math.min(10, Number(first.minutes) || 10) }];
+  builderTasksTouched = true;
+  renderTaskBuilder();
+  showToast("좋아요, 하루 10분 하나로 시작해요. 작은 시작이 제일 힘이 세요.");
+});
 
 draftAdjustButton?.addEventListener("click", () => {
   diagnosisStepIndex = Math.min(1, Math.max(0, diagnosisSteps.length - 1));
@@ -4482,33 +3758,8 @@ draftAdjustButton?.addEventListener("click", () => {
   revealActiveDiagnosisStep();
 });
 
-discardDraftChangesButton?.addEventListener("click", () => {
-  const record = readPendingGoalPreview();
-  if (!record?.activeDraftInput) return;
-  const restoredRecord = {
-    ...record,
-    pendingDraftInput: null,
-    pendingDraftSignature: "",
-    pendingRevision: null,
-  };
-  try {
-    sessionStorage.setItem(PENDING_GOAL_DRAFT_KEY, JSON.stringify(record.activeDraftInput));
-    sessionStorage.setItem(PENDING_GOAL_PREVIEW_KEY, JSON.stringify(restoredRecord));
-  } catch {}
-  applyGoalDraftToForm(record.activeDraftInput);
-  renderAiPreview(record.preview);
-  renderRoadmapRevisionSummary(record.revisionSummary);
-  discardDraftChangesButton.hidden = true;
-  if (aiPreviewStatus) aiPreviewStatus.textContent = "현재 계획과 조건이 일치해요.";
-  setTrialStartDisabled(previewRequiresAdjustment(record.preview));
-  syncGoalBuilderCta();
-  showToast("수정 내용을 버리고 AI가 만든 마지막 계획으로 돌아왔어요.");
-});
-
-runPersonalityAnalysis();
-if (!resumedPendingGoal && window.location.hash === "#firstStep" && readPendingGoalPreview()?.preview) {
-  restorePendingGoalPreview();
-}
+ensureBuilderTasks();
+updateManualPreview();
 
 const adminDashboard = document.querySelector("#adminDashboard");
 const memberTableBody = document.querySelector("#memberTableBody");
@@ -4999,6 +4250,25 @@ function writeExecutionPlan(plan) {
 function isPlainObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
+
+/* E2E 검증용 읽기 전용 훅. 저장된 계획을 디코드해 보여주고 스케줄 코덱 왕복을
+   다시 확인한다. 쓰기 기능은 노출하지 않는다. */
+window.__omwTest = Object.freeze({
+  readExecutionPlan,
+  planCodecRoundTrip() {
+    const plan = readExecutionPlan();
+    const reDecoded = decodeExecutionPlanFromStorage(
+      JSON.parse(JSON.stringify(encodeExecutionPlanForStorage(plan))),
+    );
+    const same = (left, right) =>
+      JSON.stringify(canonicalJsonValue(left)) === JSON.stringify(canonicalJsonValue(right));
+    return {
+      ok: Boolean(plan?.planId),
+      scheduleOccurrences: same(plan?.scheduleOccurrences, reDecoded?.scheduleOccurrences),
+      firstWeekSchedule: same(plan?.firstWeekSchedule, reDecoded?.firstWeekSchedule),
+    };
+  },
+});
 
 const LEGACY_OLLIE_GROWTH_FIELD = ["ol", "lyGrowthState"].join("");
 
@@ -7064,13 +6334,16 @@ function pulseBondCompanion(rewardText = "♥") {
   }
 }
 
-function showOllieReaction(message, headline) {
+/* 기본값은 "지금 이걸 보세요"다 — 유저가 올리에게 말을 건 직후라 열려 있던 대화
+   시트를 닫고 말풍선으로 시선을 옮기는 게 맞다. 치어링처럼 유저가 부르지 않았는데
+   저절로 도착하는 반응은 stealFocus:false로 내용과 반짝임만 남긴다. */
+function showOllieReaction(message, headline, { stealFocus = true } = {}) {
   if (message && companionMessage) companionMessage.textContent = message;
   if (headline && companionMoodLine) companionMoodLine.textContent = headline;
-  closeCompanionChat();
+  if (stealFocus) closeCompanionChat();
   const speech = document.querySelector("#companionHome .companion-speech");
   window.setTimeout(() => {
-    speech?.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (stealFocus) speech?.scrollIntoView({ behavior: "smooth", block: "center" });
     pulseCompanion();
     if (!speech) return;
     speech.classList.remove("is-reacting");
@@ -7940,6 +7213,7 @@ function completeFocusTask() {
   if (newlyRecorded) showOllieStarShower(dayPlan.tasks[taskIndex]?.text);
   showToast(newlyRecorded ? `일정 하나를 완료했어요 · 올리가 ${10 + completionBonus} XP를 받았어요` : completionBonus ? "오늘 계획을 모두 완료했어요 · 올리가 8 XP를 받았어요" : wasUnchecked ? "완료 상태를 다시 표시했어요 · XP는 중복 지급되지 않아요" : "이미 완료된 일정이에요");
   trackCompanionEvent("focus_completed", { day: dayPlan.day, taskIndex, rewarded: Boolean(newlyRecorded || completionBonus), completionBonus });
+  if (completionBonus) triggerOllieCheer("celebrate", { total: dayPlan.tasks.length });
   renderExecutionPage(bundle);
   if (newlyRecorded) openCompletionReflection(bundle.state, dayPlan, taskIndex, startFocusButton);
 }
@@ -9002,6 +8276,8 @@ function renderRecoveryPrompt(state, selectedCompletion) {
   if (recoverySummary && notice) {
     recoverySummary.textContent = "원래 계획을 다 하지 않아도 괜찮아요. 지금 가능한 크기로 다시 이어가요.";
   }
+  // 놓친 일정이 보이는 날에는 올리가 하루 한 번 먼저 위로를 건넨다 (자책 방지 · 재시작 유도)
+  if (shouldShow) triggerOllieCheer("comfort", { missedCount: notice.missedCount });
 }
 
 function renderCompanionExperience({ plan, selectedCompletion, remainingTasks, completedDays, overallProgress }) {
@@ -9238,6 +8514,23 @@ function renderDailyCoach(state, selectedCompletion, dayPlan) {
   } else if (selectedCompletion.percent === 100) {
     kicker = "OLLIE COACH · 오늘 일정 완료";
     copy = { title: "오늘 스케줄을 모두 해냈어요. 이 흐름을 올리가 기억할게요!", message: "오늘의 기분과 잘된 점을 추억 카드에 남기면 내일 계획을 더 정확하게 맞출 수 있어요.", image: "assets/ollie-celebrate.png" };
+  }
+
+  // 오늘 이미 전한 올리의 축하·위로가 있으면 코치 카드에 유지한다 (새로고침·재렌더에도 사라지지 않게)
+  const cheerState = readCheerState();
+  const activeCheerType =
+    dayPlan?.tasks?.length && selectedCompletion.percent === 100 && cheerState.celebrate
+      ? "celebrate"
+      : state.rolloverNotice && selectedCompletion.percent < 100 && cheerState.comfort
+        ? "comfort"
+        : "";
+  if (activeCheerType) {
+    kicker = cheerKicker(activeCheerType);
+    copy = {
+      title: cheerState[activeCheerType].headline,
+      message: cheerState[activeCheerType].reply,
+      image: cheerImage(activeCheerType),
+    };
   }
 
   if (dailyCoachKicker) dailyCoachKicker.textContent = kicker;
@@ -9843,6 +9136,7 @@ executionChecklist?.addEventListener("change", (event) => {
   } else if (event.target.checked && wasUnchecked) {
     showToast("완료 상태를 다시 표시했어요 · XP는 중복 지급되지 않아요");
   }
+  if (completionBonus) triggerOllieCheer("celebrate", { total: dayPlan.tasks.length });
   renderExecutionPage(bundle);
 });
 
@@ -9883,6 +9177,7 @@ completeTodayButton?.addEventListener("click", () => {
   } else if (restoredCompleted > 0) {
     showToast("오늘 계획의 완료 상태를 복원했어요 · XP는 중복 지급되지 않아요");
   }
+  if (completionBonus) triggerOllieCheer("celebrate", { total: dayPlan.tasks.length });
   renderExecutionPage(bundle);
 });
 
@@ -10536,8 +9831,12 @@ function markAppReady() {
 accountExperienceReady
   .then((ready) => {
     if (ready) {
-      if (!document.body?.classList.contains("execution-page") && resumedPendingGoal) {
-        restorePendingGoalPreview();
+      /* resumeGoal 파라미터는 handleAuthQueryParams가 이 시점 전에 URL에서 지운다.
+         그래서 첫 복귀 뒤 새로고침하면 resumedPendingGoal은 항상 false가 된다.
+         체험 시작이 한 번 실패했을 때 새로고침으로 다시 시도할 수 있도록,
+         넘겨둔 계획이 남아 있으면 파라미터 없이도 이어가기를 부른다. 실제 판정은
+         resumeFullPlanActivationAfterAuth가 로그인 여부·의도·계획으로 다시 한다. */
+      if (!document.body?.classList.contains("execution-page") && (resumedPendingGoal || pendingManualPlanHandoff())) {
         void resumeFullPlanActivationAfterAuth();
       }
       initializeExecutionPage();

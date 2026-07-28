@@ -1,6 +1,27 @@
 const { test, expect } = require("@playwright/test");
 const { captureAcceptance, createUsageResponse, mockAccountExperience, monitorPage, prepareApp, waitForAppReady } = require("./helpers");
 
+/* 앱은 "오늘"을 브라우저의 로컬 날짜로 정한다(getLocalDateKey는 getFullYear/
+   getMonth/getDate를 쓴다). 그래서 시각만 고정하면 호스트 시간대가 서쪽으로
+   갈수록 같은 순간이 전날이 된다 — 2026-07-27T03:00Z는 UTC-4 이서에서 07-26이다.
+   서버가 KST로 하루를 자르는 서비스이므로 이 파일은 브라우저 시간대까지 KST로
+   못 박아 실행 위치와 무관하게 같은 날짜를 보게 한다. */
+test.use({ timezoneId: "Asia/Seoul" });
+
+/* 이 픽스처는 "1일차 = 2026-07-27(월)"이라는 달력 위에 서 있다. 화요일이 2·9일차라
+   difficultDays로 빠지고, 4일차(목)가 excludedDates로 빠지며, 6일차가 2026-08-01이다.
+   실행한 날에 따라 오늘이 몇 일차인지 달라지면 그 전제가 통째로 무너지므로(짝수 일차는
+   휴식일이라 오늘의 ACTION이 사라진다) 페이지 시계를 1일차 정오(KST)에 고정한다.
+   setFixedTime은 Date만 고정하고 타이머는 그대로 둔다. */
+const ROADMAP_PREFERENCE_START = "2026-07-27";
+const ROADMAP_PREFERENCE_NOW = new Date(`${ROADMAP_PREFERENCE_START}T03:00:00.000Z`);
+
+function roadmapPreferenceDate(dayNumber) {
+  return new Date(Date.parse(`${ROADMAP_PREFERENCE_START}T00:00:00.000Z`) + (dayNumber - 1) * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
+}
+
 function createRoadmapPreferencePlan(scheduleStartPreference) {
   const planId = "schedule-start-preference-plan";
   const firstWeekSchedule = Array.from({ length: 7 }, (_, index) => ({
@@ -29,7 +50,7 @@ function createRoadmapPreferencePlan(scheduleStartPreference) {
   }));
   const scheduleOccurrences = Array.from({ length: 14 }, (_, index) => {
     const source = firstWeekSchedule[index % 7];
-    const date = new Date(Date.UTC(2026, 6, 27 + index)).toISOString().slice(0, 10);
+    const date = roadmapPreferenceDate(index + 1);
     return {
       dayNumber: index + 1,
       date,
@@ -48,22 +69,23 @@ function createRoadmapPreferencePlan(scheduleStartPreference) {
     planId,
     firstAction: "선택 보존 행동 1",
     scheduleStartPreference,
-    planStartDate: "2026-07-27",
+    planStartDate: ROADMAP_PREFERENCE_START,
     availability: {
       availableDays: ["월", "화", "수", "목", "금", "토", "일"],
-      difficultDays: ["화"],
-      excludedDates: ["2026-07-30"],
+      difficultDays: ["화"],                          // 2·9일차
+      excludedDates: [roadmapPreferenceDate(4)],      // 목요일 하루를 통째로 비운다
       weeklyFrequency: 4,
       sessionMinutes: 25,
     },
     planSource: "ai-reviewed-draft",
-    createdAt: new Date().toISOString(),
+    createdAt: ROADMAP_PREFERENCE_NOW.toISOString(),
     aiPreview: { firstWeekSchedule, scheduleOccurrences },
   };
 }
 
 test.beforeEach(async ({ page }, testInfo) => {
   const roadmapPreference = testInfo.annotations.find(({ type }) => type === "roadmap-preference")?.description;
+  if (roadmapPreference) await page.clock.setFixedTime(ROADMAP_PREFERENCE_NOW);
   const storage = roadmapPreference
     ? { omwExecutionPlan: createRoadmapPreferencePlan(roadmapPreference) }
     : {};
@@ -165,7 +187,7 @@ test("Roadmap 고정 요일 변경은 AI 재호출 없이 hard constraint를 적
   expect(scheduledDays.every(({ taskKey }) => taskKey.startsWith("preference-action-"))).toBe(true);
   expect(new Set(scheduledDays.map(({ taskKey }) => taskKey)).size).toBe(scheduledDays.length);
   expect(scheduledDays.find(({ dayNumber }) => dayNumber === 6)?.time).toContain("07:00");
-  expect(scheduledDays.find(({ dayNumber }) => dayNumber === 6)?.scheduledAt).toContain("2026-08-01");
+  expect(scheduledDays.find(({ dayNumber }) => dayNumber === 6)?.scheduledAt).toContain(roadmapPreferenceDate(6));
   expect(aiRequests).toEqual([]);
 });
 

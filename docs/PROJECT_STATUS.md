@@ -2,9 +2,101 @@
 
 ## 기준
 
-- 기준일: 2026-07-16 (KST)
+- 기준일: 2026-07-28 (KST)
 - 판단 기준: 현재 소스와 작업 트리 → 테스트/CI → Git 커밋·PR → 배포 근거 → 기존 문서
 - 인증 안정화 변경은 전용 `fix/omw-auth-stabilization` 브랜치와 PR #9에서만 수행하며, 혼합 worktree와 외부 복구 백업은 수정하지 않는다.
+
+## 수동 온보딩 + 올리 치어링 포팅 완료 (2026-07-28)
+
+브랜치 `feature/manual-onboarding-on-main`, main 대비 `34 files, +2,890 / −5,939`.
+`feature/manual-onboarding`(main과 갈라진 실험 브랜치)의 결과물을 main 구조 위에 다시 얹는 작업이었다.
+브랜치를 병합하는 대신 **의도만 옮기고 코드는 main 규약으로 다시 썼다** — 실험 브랜치는 main이
+그 뒤 6개월간 쌓은 v5 완료 원장·크레딧 서비스·계정 스코프 저장소를 모르기 때문이다.
+
+### 단계별 요약
+
+| 단계 | 커밋 | 내용 |
+| --- | --- | --- |
+| 1 | `1cac5df` | 온보딩을 AI 위저드 → 수동 4단계 빌더(목표 → 리듬 → 할 일 → 마무리)로 교체. 계획은 유저가 직접 만들고 AI를 한 번도 부르지 않는다. |
+| 2 | `1cac5df` | 로그인 핸드오프 연결: `onmyway:pending-auth-intent` + 계획 stash로 게스트가 만든 계획이 첫 로그인에 승계된다. |
+| 3 | `4afaad2` | 게스트 AI 온보딩 서버 계약 4종과 사장된 클라이언트 코드 제거 (worker 1421 → 549줄, script.js 최상위 선언 94개). |
+| 4 | `fd98f39` | 올리 치어링(완료 축하·미완료 위로) 이식. 무차감 + KST 하루 각 1회 서버 상한. 사장된 `/api/ai/goal-plan` 정리. |
+| 5 | `698fd41` | 재화 목록·안내 문구를 실제 제공 기능에 맞춤, 날짜 의존 테스트 수리, 문서 정리. 병합 전 리뷰에서 잡은 치어링 상한 TOCTOU 수정. |
+| 6 | (PR #29 후속) | 1차 리뷰에서 세션 한도로 검증하지 못한 17건을 직접 검증. 로그인 핸드오프 결함 2건과 치어링 UX·죽은 코드 4건 수정. |
+
+### 병합 전 리뷰에서 잡아 고친 것
+
+- **치어링 하루 상한 TOCTOU** — 확인만 하고 AI를 부른 뒤 기록해서, 겹쳐 들어온 요청이 전부 사전 확인을 통과하고 락 안의 재판정 결과는 버려진 채 200을 돌려주고 있었다. 상한이 동시 요청 수만큼 뚫리고 provider 비용도 중복됐다. 크레딧과 같은 "선점 후 되돌리기"(`claimDailyCheer` / `releaseDailyCheer`)로 바꾸고 동시 요청 회귀 테스트 3종을 추가했다.
+- **가짜 회원 레코드 생성** — `getUser(...) || user` 폴백이 관리자 비밀번호 세션(합성 객체, KV 레코드 없음)을 그대로 저장해 `user:admin:password`를 새로 만들었다. 저장된 레코드가 없으면 자리를 잡지 않는다.
+- **사라진 기능을 계속 광고하던 카피** — 첫 화면 기능 카드·전환 경로·FAQ·성향 요약 자리표시자와 README의 재화 표·서버 제한 서술. 마크업 회귀 가드를 `onboarding.spec.js`에 추가했다.
+- **디버깅 프로브 3종** — 1~2단계에서 만든 `tmp-overflow-repro`·`zz-overflow-probe`·`zz-repro-authintent`가 커밋되지 않은 채 작업 트리에 남아 매 Playwright 실행마다 9개 테스트 × 5개 프로젝트로 돌고 있었다. 삭제했다.
+
+### 2차 리뷰에서 잡아 고친 것 (미검증 17건 직접 확인)
+
+1차 적대적 리뷰는 21건을 올렸고 그중 4건만 검증을 마쳤다 — 검증 에이전트 17개가 세션 한도로 죽었다.
+남은 17건을 심각도 순으로 하나씩 확인해 **6건 확인·수정 / 8건 반박 / 3건 확인 후 보류**로 정리했다.
+
+- **로그인 이어가기 토큰을 성공 전에 소비** (`resumeFullPlanActivationAfterAuth`) — 체험 시작(`/api/ai/trial/start`)이 네트워크 오류로 실패하면 의도가 이미 사라진 뒤였다. 온보딩은 저장된 계획으로 결과 화면을 다시 그리지 않으므로 다시 누를 버튼도 없고, `resumeGoal` 파라미터도 `handleAuthQueryParams`가 이미 지운 뒤라 새로고침으로도 못 돌아온다. 성공 경로에서만 소비하도록 바꾸고, 넘겨둔 계획이 남아 있으면 파라미터 없이도 이어가기를 부른다.
+- **10분 TTL이 계획의 수명을 결정** — 의도 TTL은 발급 시각 기준이라 소셜 계정을 새로 만들며 문자 인증에 10분을 넘기면 다 만든 계획이 버려졌다. main에서는 폼 상태가 복원돼 그나마 목표 문장이라도 남았지만 수동 빌더는 빈 4단계로 돌아간다. 이어가기 판정만 TTL을 건너뛰게 하고(`ignoreTtl`), 실제 수명 경계는 sessionStorage와 `closeAuthSheet`의 명시적 취소로 남겼다.
+- **치어링이 읽던 화면을 끌어감** — `displayCheer` → `showOllieReaction`이 열려 있던 대화 시트를 닫고 말풍선으로 강제 스크롤했다. 치어링은 AI 응답이 도착하는 몇 초 뒤에 저절로 뜨므로 유저가 부른 반응이 아니다. `stealFocus: false`로 내용과 반짝임만 남긴다.
+- **`#memoryConversation` 쓰기가 죽은 코드** — 값은 넣지만 숨김을 풀지 않고, `renderMemoryCards`가 `companion_dialogue` 이벤트만 읽어 다음 렌더에 덮어쓴다. 제거했다.
+- **삭제된 `#targetDate`를 계속 조회** — `roadmapDeadlineLabel`의 날짜 분기가 도달 불가였고 바로 위 주석이 사실과 달랐다.
+- **자리잡기 실패가 형식 없는 500** — `claimDailyCheer`가 `try` 밖에 있어 KV 오류가 그대로 워커 밖으로 나갔다. 크레딧 예약 실패와 같은 모양(`aiErrorBody`)으로 응답하도록 안으로 옮겼다.
+
+반박한 것 중 기록할 만한 것: `recovery_plan`·`reschedule_plan`이 **서버에서** 플랜 기능으로 게이트된다
+(`AI_ACTION_REQUIRED_FEATURE` → `reserveAiCredits`의 403). 클라이언트 전용 게이트라는 지적은 사실이 아니고,
+따라서 "Free가 한 번에 하루 한도를 다 쓰는 경계"는 커버리지가 빠진 게 아니라 **존재하지 않는다**.
+
+확인했지만 보류: 고아 모듈 `ai-goal-plan.mjs`(386줄, 테스트만 import), 잔존 고아 CSS 12개 선택자군,
+`GUEST_PLAN_DRAFTS` 판정. 앞의 둘은 사용자가 정한 정리 범위 밖이고 병합 직전에 죽은 코드를 더 도려내는
+위험이 이득보다 크다. 세 번째는 DO 클래스 삭제에 `deleted_classes` 마이그레이션이 필요해 별도 작업이다.
+
+### 검증 근거
+
+- 유닛: `npm test` **261/261, 0 fail / 0 skip**
+- 새 회귀 테스트는 수정 전 코드에서 실제로 실패하는 것까지 확인했다 (핸드오프 3/4, 워커 1/1).
+- E2E 전체: **545 passed / 9 skipped / 0 failed (34.3m)** — 이 머신에서 8회 시도 만에 처음 나온 0 fail이다.
+- 거기까지 온 경위: 2차 리뷰에서 테스트 22개를 더했더니 실패가 1건 → 10건으로 늘었다(10건 중 8건은 손대지 않은 스펙, 내 것 2건은 격리 실행에서 통과). 핸드오프 복구 4종이 하나하나 빌더 4단계를 걷고 페이지를 두세 번 넘기는 무거운 테스트인데 4개 프로젝트에 다 걸었던 게 원인이다. 저장소·내비게이션 계약이라 뷰포트가 아니라 엔진만 다르면 되므로 Chromium 1개 + WebKit 1개로 축소했다(추가 실행 16회 → 8회). 9 skipped가 그것이다.
+- **한 번의 0 fail이 플레이크가 사라졌다는 증거는 아니다.** 같은 커밋으로도 1~4건씩 흔들려 온 머신이고, 실패는 늘 순수 타임아웃이었다. 특히 `iphone-webkit`이 경합에 약해서 전 프로젝트 병렬에서는 이 PR 이전부터 있던 `onboarding.spec.js:112`까지 90초 타임아웃으로 떨어지지만, webkit 단독 실행에서는 같은 파일이 12/12 통과한다. 손대지 않은 `origin/main`도 같은 머신에서 5건 실패한다(그중 4건이 이 브랜치가 고친 날짜 폭탄).
+- **CI(2 workers, retries=2) 재확인은 그대로 병합 조건이다.**
+- 저장소 전체 `goal-analyze`·`goal-preview`·`goal-draft` 참조 **0건** (문서 제외)
+- 수동 회귀: 온보딩 4단계 → 가입 게이트 → 로그인 → 체험 시작(서버 권위) → 계획 승계 → 오늘 전부 완료 → 치어링 표시 · 재화 불변
+- 치어링 서버 계약: 상한 초과는 AI 호출 전 429, AI 실패는 상한 미소진(재시도 가능), 크레딧 원장 미개시 — `worker-cheer.test.mjs`
+
+### 제거한 계약
+
+| 대상 | 이유 |
+| --- | --- |
+| `POST /api/ai/goal-analyze` | 온보딩이 유저 입력을 그대로 쓴다 |
+| `POST /api/ai/goal-preview` | 게스트 미리보기가 없다 |
+| `POST /api/ai/goal-draft/revise` · `/claim` | 게스트 초안 자체가 없다 |
+| `POST /api/ai/goal-plan` + `createGoalPlanForUser` | 클라이언트 호출자가 사라졌다 |
+| `ai-goal-analysis.mjs` | 자기 테스트만 import하던 고아 모듈 |
+| `AI_CREDIT_COSTS`의 `analyze_goal`·`create_plan`·`create_daily_step` | 라우트가 없는데 UI가 광고하고 있었다 |
+| `omwFreePlanGenerated` | "무료 계획 1회 제한"이 수동 온보딩에서 무의미 (읽는 곳이 없었다) |
+
+제거한 라우트는 정적 자산으로 폴백하지 않고 **JSON 404**로 끝난다. `guest-ai-routes-removed.test.mjs`가
+ASSETS·Durable Object·레이트리미터를 건드리지 않는 것까지 고정한다.
+
+### 의도적으로 보존한 것
+
+| 대상 | 이유 |
+| --- | --- |
+| `GuestPlanDraftObject` export + `guest-plan-draft-object.mjs` | wrangler 설정 4개가 DO 바인딩과 SQLite 마이그레이션에서 클래스 이름을 참조한다. 지우면 배포가 깨진다. |
+| `getGuestAiReadiness` | `/api/health`의 `services.ai`가 쓰고 스테이징 배포가 그 값으로 게이트한다. |
+| `env.AI_RATE_LIMITER` | 관리자 로그인 공용 |
+| `ai-goal-plan.mjs` | 라우트는 사라졌지만 `GOAL_PLAN_SCHEMA`·`validateGeneratedPlan`을 출력 계약 테스트가 쓴다 |
+| KV 유저 레코드의 `goalPlanGeneratedAt` | 기존 계정에 남은 값. 쓰는 곳이 없어 무해하며, 지우면 마이그레이션이 필요하다. |
+
+### 남은 결정 사항
+
+1. **치어링 대상** — 현재 로그인 회원 전체(체험 포함). `docs/pricing-system-v2.md`를 이에 맞게 고쳤다. PRO 전용으로 좁히려면 `handleAiGenerationRequest`의 `isFreeCheer` 분기에 플랜 조건을 더하면 된다.
+2. **가격 문서와 구현 불일치** — PRO 가격(2,900 vs 4,900), 월 에너지(300 vs 250), 계획 다듬기(3 vs 2), 주간 최적화(5 vs 4). `docs/pricing-system-v2.md`의 "미정" 표에 정리했다. 결정 전까지 코드 값이 사실이다.
+3. **`create_daily_step`("오늘의 한 걸음 생성")** — 재화 표와 UI에서 뺐다. 기능을 실제로 만들 계획이면 라우트와 함께 되살려야 한다.
+4. **Preview 소셜 로그인** — 로컬 검증은 dev login으로만 했다. 병합 전에 Preview에서 카카오·네이버·구글 실제 OAuth 왕복과 게스트 계획 승계를 확인해야 한다. 특히 새 계정 가입에 10분 이상 걸리는 경로를 한 번은 밟아 볼 것(2차 리뷰에서 고친 TTL 경로).
+5. **병합 후 정리 후보** — 2차 리뷰에서 죽은 코드로 확인했지만 병합 직전 위험 때문에 남겨 둔 것들. (a) `ai-goal-plan.mjs` 386줄 + `ai-goal-plan.test.mjs`: 지우려면 `ai-output-contract.test.mjs`·`ai-plan-output-policy.test.mjs`가 이 모듈에서 가져오는 `GOAL_PLAN_SCHEMA`·`validateGeneratedPlan` 의존을 먼저 끊어야 한다. (b) styles.css 고아 선택자 12개 군(`.home-page .personality-fields` 등 — app.html의 `app-personality-fields`는 별개 클래스다). (c) `getGuestAiReadiness` 이름이 남은 실체와 맞지 않는다.
+
+다음 사이클 스펙은 `docs/ollie-chat-diary-spec.md`(올리 대화 다이어리 C1~C6)에 있다.
 
 ## 최신 검증
 

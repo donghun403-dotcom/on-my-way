@@ -16,3 +16,20 @@ blob-report/
 debug.log
 .wrangler/preview-dry-run/
 .wrangler/production-dry-run/
+
+# Brand, marketing and logo source assets. Kept on disk but out of the repo:
+# they are large binaries (~24MB) with no build-time role. Deployment already
+# excludes them via .assetsignore.
+brand/
+marketing/
+On My Way 로고/
+
+# Local backups, agent work dirs, generated outputs (never commit)
+.backups/
+.patch-backups/
+.codex-artifacts/
+.codex-backups/
+.worktrees/
+_to_delete/
+output/
+outputs/

@@ -33,11 +33,13 @@ test("비로그인 가격표는 확정 정책과 체험 조건을 표시하고 �
   await expect(proCard.locator('[data-policy-field="trial-credits"]')).toHaveText("15개");
 
   const creditCosts = pricing.locator("[data-policy-cost]");
-  await expect(creditCosts).toHaveCount(6);
+  await expect(creditCosts).toHaveCount(4);
   await expect(creditCosts).toHaveText(Object.values(AI_CREDIT_COSTS).map((cost) => `${cost}크레딧`));
+  await expect(pricing.getByText("매일 축하·위로")).toBeVisible();
 
   const pricingCopy = await pricing.innerText();
-  expect(pricingCopy).not.toMatch(/2,900|300\s*(?:에너지|크레딧)|올리 에너지|AI 무제한|무제한 AI|추가 에너지|주간 최적화|목표 전체 재설계/);
+  // 라우트가 사라진 기능을 가격표가 계속 광고하지 않는지 함께 고정한다.
+  expect(pricingCopy).not.toMatch(/2,900|300\s*(?:에너지|크레딧)|올리 에너지|AI 무제한|무제한 AI|추가 에너지|주간 최적화|목표 전체 재설계|새 목표 계획 생성|오늘의 한 걸음 생성/);
   await expect(page.locator("#pricingPaymentState")).toContainText("운영 결제는 비활성화");
   await expect(page.locator("#pricingProCta")).toHaveText("무료 체험 시작하기");
   await expectNoHorizontalOverflow(page);

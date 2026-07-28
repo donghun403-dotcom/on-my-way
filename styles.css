@@ -691,17 +691,6 @@ footer p {
   color: rgba(255, 255, 255, 0.82);
 }
 
-.steps {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.steps span {
-  display: inline-flex;
-  margin-bottom: var(--space-4);
-  color: var(--red);
-  font-weight: 900;
-}
-
 .result-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 340px;
@@ -2062,10 +2051,6 @@ footer p {
   box-shadow: 0 26px 54px rgba(91, 106, 151, 0.28) !important;
 }
 
-.home-page .steps span {
-  color: var(--app-mint);
-}
-
 .home-page .result-layout {
   gap: 10px;
 }
@@ -2446,43 +2431,6 @@ footer p {
   display: grid;
   gap: 6px;
   color: var(--app-muted);
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.personality-fields {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  padding: 12px;
-  background: var(--n-25);
-  border: 1px solid var(--routine-line);
-  border-radius: var(--r-md);
-}
-
-.profile-intro {
-  grid-column: 1 / -1;
-}
-
-.profile-intro span {
-  display: block;
-  color: var(--routine-green-dark);
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.profile-intro p {
-  margin: 4px 0 0;
-  color: var(--routine-muted);
-  font-size: 12px;
-  font-weight: 800;
-  line-height: 1.45;
-}
-
-.personality-fields label {
-  display: grid;
-  gap: 6px;
-  color: var(--routine-muted);
   font-size: 12px;
   font-weight: 800;
 }
@@ -3807,17 +3755,6 @@ footer p {
   background: var(--blue-50);
   border-radius: 999px;
   font-size: var(--text-2xs);
-}
-
-.privacy-note {
-  margin: 0;
-  padding: 12px;
-  color: var(--routine-muted);
-  background: var(--n-50);
-  border: 1px solid var(--routine-line);
-  border-radius: var(--r-sm);
-  font-size: 12px;
-  line-height: 1.5;
 }
 
 .today-card {
@@ -5348,13 +5285,6 @@ body.sheet-open {
 
 .home-page .personality-fields,
 .home-page .profile-intro p,
-.home-page .personality-fields label {
-  color: var(--routine-muted) !important;
-}
-
-.home-page .profile-intro span {
-  color: var(--routine-green-dark) !important;
-}
 
 .home-page .ollie-goal-card input,
 .home-page .ollie-goal-card select,
@@ -6005,43 +5935,6 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 }
 
 .home-page .story-flow .compact-fields label,
-.home-page .story-flow .personality-fields label {
-  display: grid;
-  align-content: start;
-  gap: 7px;
-  min-width: 0;
-  min-height: 0;
-  padding: 0;
-  color: var(--routine-muted) !important;
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-  font-size: 12px;
-  font-weight: 900;
-  line-height: 1.2;
-}
-
-.home-page .story-flow .personality-fields {
-  gap: 12px;
-  padding: 14px;
-}
-
-.home-page .story-flow .profile-intro {
-  padding: 0 0 2px;
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-}
-
-.home-page .story-flow .profile-intro span {
-  color: var(--routine-green-dark) !important;
-  line-height: 1.2;
-}
-
-.home-page .story-flow .profile-intro p {
-  margin-top: 6px;
-  line-height: 1.45;
-}
 
 .home-page .story-flow input,
 .home-page .story-flow select {
@@ -6729,28 +6622,10 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .home-page .goal-builder-shell .builder-field input,
 .home-page .goal-builder-shell .builder-field select,
 .home-page .goal-builder-shell .personality-fields input,
-.home-page .goal-builder-shell .personality-fields select {
-  width: 100%;
-  min-height: 50px;
-  padding: 0 15px !important;
-  color: var(--blue-900) !important;
-  background: rgba(255, 255, 255, 0.96) !important;
-  border: 1px solid var(--blue-200) !important;
-  border-radius: var(--r-sm);
-  box-shadow: var(--shadow-sm);
-  outline: none;
-  font-size: 14px;
-  font-weight: 700;
-  transition: border-color 160ms ease, box-shadow 160ms ease;
-}
 
 .home-page .goal-builder-shell .builder-field input:focus,
 .home-page .goal-builder-shell .builder-field select:focus,
 .home-page .goal-builder-shell .personality-fields input:focus,
-.home-page .goal-builder-shell .personality-fields select:focus {
-  border-color: var(--blue-500) !important;
-  box-shadow: 0 0 0 4px rgba(117, 163, 191, 0.12);
-}
 
 .home-page .goal-builder-shell .builder-field-large input {
   min-height: 58px;
@@ -6900,46 +6775,6 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   font-size: 11px;
   font-weight: 700;
   line-height: 1.55;
-}
-
-.home-page .goal-builder-shell .personality-fields {
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-4) 14px;
-  padding: 0;
-  background: transparent !important;
-  border: 0 !important;
-}
-
-.home-page .goal-builder-shell .personality-fields label {
-  gap: 8px;
-  color: var(--blue-800) !important;
-  font-size: 12px;
-}
-
-.refined-profile-intro {
-  padding: 16px 18px !important;
-  background: var(--blue-50) !important;
-  border: 1px solid var(--blue-100) !important;
-  border-radius: 16px !important;
-}
-
-.privacy-note {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  color: var(--blue-700);
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.privacy-note span {
-  display: grid;
-  width: 20px;
-  height: 20px;
-  place-items: center;
-  color: #ffffff;
-  background: var(--brand-solid);
-  border-radius: 50%;
 }
 
 .review-card {
@@ -8277,49 +8112,8 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   font-size: var(--text-2xs);
 }
 
-.optional-settings {
-  overflow: hidden;
-  background: rgba(246, 248, 251, 0.88);
-  border: 1px solid var(--blue-100);
-  border-radius: var(--r-md);
-}
-
-.optional-settings summary {
-  display: flex;
-  min-height: 48px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 0 var(--space-4);
-  color: var(--blue-700);
-  font-size: 11px;
-  font-weight: 800;
-  cursor: pointer;
-  list-style: none;
-}
-
-.optional-settings summary::-webkit-details-marker { display: none; }
-.optional-settings summary::after {
-  margin-left: auto;
-  color: var(--blue-700);
-  content: "+";
-  font-size: 16px;
-}
-.optional-settings[open] summary::after { content: "−"; }
-.optional-settings summary small {
-  order: 2;
-  padding: 4px 7px;
-  color: var(--blue-700);
-  background: #ffffff;
-  border-radius: 999px;
-  font-size: var(--text-2xs);
-}
 .optional-settings > .builder-field,
 .optional-settings > .personality-fields,
-.optional-settings > .privacy-note {
-  margin: 0 14px 14px;
-}
-.personality-optional-settings > .personality-fields { padding-top: 2px; }
 
 .home-page .story-flow:not(.showing-first-step) .ollie-goal-card {
   grid-template-rows: auto auto auto auto auto;
@@ -13745,20 +13539,11 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 /* Plan experience overhaul: shared draft, action-only checklists, and direct editing. */
 .home-page .material-fields,
 .home-page .schedule-detail-grid,
-.home-page .notification-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-.home-page .material-fields { margin-top: 14px; }
 .home-page .weekday-choice-row { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
 .home-page .weekday-choice-row label span { display: grid; min-height: 44px; padding: 4px; place-items: center; border: 1px solid rgba(107, 122, 166, .15); border-radius: var(--r-sm); }
 .home-page .weekday-choice-row input { position: absolute; opacity: 0; }
 .home-page .weekday-choice-row input:checked + span { color: var(--blue-700); background: var(--blue-50); border-color: var(--blue-500); box-shadow: inset 0 0 0 1px var(--blue-500); }
-.home-page .preference-choice-list { display: grid; gap: 8px; }
-.home-page .preference-choice-list label { display: flex; gap: 9px; align-items: center; min-height: 46px; padding: 10px 12px; background: rgba(255,255,255,.72); border: 1px solid rgba(107,122,166,.12); border-radius: var(--r-sm); }
 .home-page .draft-understanding-card,
-.home-page .draft-feasibility-card { padding: 20px; background: rgba(255,255,255,.76); border: 1px solid rgba(107,122,166,.12); border-radius: var(--r-lg); }
 .home-page .draft-understanding-card dl { display: grid; gap: 9px; margin: 14px 0 0; }
 .home-page .draft-understanding-card dl div { display: grid; grid-template-columns: 92px minmax(0,1fr); gap: 10px; }
 .home-page .draft-understanding-card dt { color: var(--blue-700); font-size: 12px; font-weight: 800; }
@@ -13810,38 +13595,11 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   font-weight: 800;
 }
 
-.home-page .draft-feasibility-card { transition: box-shadow .25s ease, transform .25s ease; }
-.home-page .draft-feasibility-card.is-attention {
-  box-shadow: 0 0 0 2px var(--blue-500), 0 18px 40px rgba(91,106,151,.18);
-  transform: translateY(-1px);
-}
 @media (prefers-reduced-motion: reduce) {
   .home-page .draft-feasibility-card { transition: none; }
   .home-page .draft-feasibility-card.is-attention { transform: none; }
 }
-.home-page .draft-feasibility-card > span { color: var(--blue-700); font-size: var(--text-2xs); font-weight: 900; letter-spacing: .08em; }
-.home-page .draft-feasibility-card > strong { display: block; margin-top: 5px; color: var(--blue-800); }
 .home-page .draft-feasibility-card p,
-.home-page .draft-feasibility-card li { color: var(--blue-700); font-size: 12px; line-height: 1.55; }
-.home-page #draftFeasibilityOptions { list-style: none; margin: 10px 0 0; padding: 0; }
-.home-page .draft-feasibility-card li { list-style: none; }
-.home-page .draft-feasibility-card li + li { margin-top: 6px; }
-.home-page .draft-feasibility-card li button {
-  width: 100%;
-  min-height: 40px;
-  padding: 8px 10px;
-  color: inherit;
-  background: rgba(255,255,255,.68);
-  border: 1px solid rgba(107,122,166,.14);
-  border-radius: var(--r-xs);
-  font: inherit;
-  text-align: left;
-}
-.home-page .draft-feasibility-card li button[aria-pressed="true"] {
-  color: var(--blue-800);
-  background: var(--blue-50);
-  border-color: var(--blue-500);
-}
 .home-page .draft-week-list > li { display: grid; gap: 10px; padding: 14px; }
 .home-page .draft-week-list > li > div:first-child { display: flex; justify-content: space-between; gap: 10px; }
 .home-page .draft-week-list > li > div:first-child span { color: var(--blue-700); font-size: var(--text-2xs); font-weight: 900; }
@@ -13976,14 +13734,6 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 }
 
 .home-page .roadmap-period-field,
-.home-page .roadmap-context-field {
-  margin-top: 16px;
-}
-
-.home-page .roadmap-context-field textarea {
-  min-height: 92px;
-  resize: vertical;
-}
 
 .home-page .goal-builder-shell #aiPreviewButton,
 .home-page #trialStartInlineLink {
@@ -14227,39 +13977,6 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 
 .execution-page .execution-app {
   padding-bottom: 120px;
-}
-
-.roadmap-revision-summary {
-  padding: var(--space-5);
-  border: 1px solid rgba(83, 127, 183, 0.24);
-  border-radius: var(--r-xl);
-  background: linear-gradient(145deg, rgba(244, 247, 250, 0.96), rgba(255, 255, 255, 0.94));
-}
-
-.roadmap-revision-summary dl {
-  display: grid;
-  gap: 10px;
-  margin: 16px 0 0;
-}
-
-.roadmap-revision-summary dl > div {
-  display: grid;
-  grid-template-columns: minmax(72px, auto) 1fr;
-  gap: 12px;
-  align-items: start;
-}
-
-.roadmap-revision-summary dt {
-  color: var(--blue-700);
-  font-family: var(--font-brand-ui);
-  font-synthesis: none;
-}
-
-.roadmap-revision-summary dd {
-  margin: 0;
-  color: var(--blue-800);
-  line-height: 1.65;
-  overflow-wrap: anywhere;
 }
 
 .schedule-start-options {
@@ -17296,130 +17013,12 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 }
 
 /* --- step 2: what Ollie understood --- */
-.home-page .analysis-understanding-card { margin-top: var(--space-1); }
-
-.home-page .analysis-understanding-list {
-  display: grid;
-  gap: var(--space-3);
-  margin: var(--space-3) 0 0;
-}
-
-.home-page .analysis-understanding-list > div {
-  display: grid;
-  grid-template-columns: 84px minmax(0, 1fr);
-  gap: var(--space-3);
-  align-items: start;
-  padding: var(--space-3) var(--space-4);
-  background: var(--surface-brand-soft);
-  border-radius: var(--r-md);
-}
-
-.home-page .analysis-understanding-list dt {
-  color: var(--ink-muted);
-  font-size: var(--text-xs);
-  font-weight: 800;
-}
-
-.home-page .analysis-understanding-list dd {
-  margin: 0;
-  color: var(--ink);
-  font-size: var(--text-sm);
-  font-weight: 700;
-  line-height: 1.55;
-  overflow-wrap: anywhere;
-}
-
-.home-page .analysis-questions { margin-top: var(--space-4); }
-
-.home-page .analysis-questions-title {
-  margin: 0 0 var(--space-3);
-  color: var(--ink-secondary);
-  font-size: var(--text-sm);
-  font-weight: 800;
-}
-
-.home-page .analysis-question-list {
-  display: grid;
-  gap: var(--space-4);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.home-page .analysis-question-label {
-  margin: 0 0 var(--space-2);
-  color: var(--ink-secondary);
-  font-size: var(--text-sm);
-  font-weight: 700;
-  line-height: 1.5;
-}
-
-.home-page .analysis-question-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.home-page .analysis-question-controls input[type="date"] {
-  min-height: 44px;
-  padding: var(--space-2) var(--space-3);
-  color: var(--ink);
-  background: var(--surface);
-  border: 1px solid var(--border-default);
-  border-radius: var(--r-sm);
-  font: inherit;
-}
-
-.home-page .analysis-question-controls button {
-  min-height: 44px;
-  padding: var(--space-2) var(--space-4);
-  color: var(--ink-secondary);
-  background: var(--surface-translucent);
-  border: 1px solid var(--border-default);
-  border-radius: var(--r-sm);
-  font: inherit;
-  cursor: pointer;
-  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
-}
-
-.home-page .analysis-question-controls button:hover {
-  background: var(--surface-brand-soft);
-}
-
-.home-page .analysis-question-controls button[aria-pressed="true"] {
-  color: var(--ink-brand);
-  background: var(--surface-brand-soft);
-  border-color: var(--border-brand);
-  font-weight: 800;
-}
 
 /* --- shared wizard actions --- */
 .home-page .wizard-actions { display: grid; gap: var(--space-3); }
 
-.home-page #goalAnalyzeButton {
-  min-height: 58px;
-  /* same primary treatment as the other onboarding CTAs: pastel brand
-     gradient carrying navy, never white */
-  color: var(--ink-on-brand);
-  background: var(--brand-gradient);
-  border: 0;
-  border-radius: var(--r-lg);
-  box-shadow: var(--shadow-md);
-  font-family: var(--font-brand-ui);
-  font-synthesis: none;
-  font-size: clamp(16px, 2vw, 20px);
-  font-weight: 400;
-  cursor: pointer;
-}
-
-.home-page #goalAnalyzeButton[disabled] { opacity: 0.6; cursor: progress; }
-
 .home-page .wizard-back:focus-visible,
 .home-page .analysis-question-controls button:focus-visible,
-.home-page #goalAnalyzeButton:focus-visible {
-  outline: 3px solid var(--brand-solid);
-  outline-offset: 2px;
-}
 
 @media (max-width: 430px) {
   .home-page .analysis-understanding-list > div {
@@ -17537,12 +17136,6 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .home-page .story-flow .wizard-actions > button {
   width: 100%;
   min-height: 56px;
-}
-
-.home-page #goalAnalyzeButton {
-  min-height: 56px;
-  padding: 0 var(--space-4);
-  font-size: clamp(17px, 4.4vw, 20px);
 }
 
 /* ============================================================
@@ -17809,33 +17402,6 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .plan-week-more:hover { text-decoration: underline; }
 
 /* --- 가능성 한마디 --- */
-.plan-feasibility-note {
-  display: grid;
-  grid-template-columns: 24px minmax(0, 1fr);
-  gap: var(--space-3);
-  padding: var(--space-4);
-  background: var(--amber-100);
-  border: 1px solid var(--amber-300);
-  border-radius: var(--r-md);
-}
-
-.plan-feasibility-icon { font-size: 17px; line-height: 1.35; }
-
-.plan-feasibility-note > div { display: grid; gap: 2px; min-width: 0; }
-
-.plan-feasibility-note strong {
-  color: var(--ink);
-  font-size: var(--text-sm);
-  font-weight: 800;
-  line-height: 1.45;
-}
-
-.plan-feasibility-note p {
-  margin: 0;
-  color: var(--ink-secondary);
-  font-size: var(--text-sm);
-  line-height: 1.5;
-}
 
 /* --- 시작 / 조금 바꿀래요 --- */
 .plan-result-cta {
@@ -17910,10 +17476,6 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .plan-roadmap-stepper > li > small,
 .plan-goal-card strong,
 .plan-feasibility-note strong,
-.plan-feasibility-note p {
-  word-break: keep-all;
-  overflow-wrap: break-word;
-}
 
 .plan-goal-card { align-items: start; }
 
@@ -17960,33 +17522,8 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   border-color: var(--border-brand);
 }
 
-.home-page .personality-form #analysisEditGoalButton {
-  min-height: 44px;
-  grid-column: auto;
-  padding: 0 var(--space-4);
-  color: var(--ink-brand);
-  background: var(--surface);
-  border: 1px solid var(--border-default);
-  border-radius: var(--r-pill);
-  box-shadow: none;
-  font: inherit;
-  font-size: var(--text-sm);
-  font-weight: 700;
-}
-
-.home-page .personality-form #analysisEditGoalButton:hover {
-  background: var(--surface-brand-soft);
-  border-color: var(--border-brand);
-}
-
 /* 확인 질문의 답변은 선택지라 알약으로 나란히 놓습니다. 전체 폭 버튼 3개가
    쌓이면 어느 것이 다음 단계인지 읽히지 않습니다. */
-.home-page .personality-form .analysis-question-controls button {
-  grid-column: auto;
-  flex: 0 1 auto;
-  border-radius: var(--r-pill);
-  box-shadow: none;
-}
 
 @media (max-width: 430px) {
   .home-page .personality-form .analysis-question-controls > button { flex: 0 1 auto; }
@@ -18001,54 +17538,6 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
    ⭐ 카드 안에 바로 펼쳐집니다 — 그때는 선택이 진행의 전제 조건이라
    접어두면 안 됩니다.
    ============================================================ */
-.plan-feasibility-options {
-  display: grid;
-  gap: var(--space-2);
-  margin: var(--space-3) 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.plan-feasibility-options:empty { display: none; }
-
-.plan-feasibility-options > li {
-  color: var(--ink-secondary);
-  font-size: var(--text-sm);
-  line-height: 1.5;
-}
-
-.plan-feasibility-options button {
-  width: 100%;
-  min-height: 44px;
-  padding: var(--space-2) var(--space-4);
-  color: var(--ink-secondary);
-  background: var(--surface);
-  border: 1px solid var(--amber-300);
-  border-radius: var(--r-sm);
-  font: inherit;
-  font-size: var(--text-sm);
-  line-height: 1.45;
-  text-align: left;
-  cursor: pointer;
-}
-
-.plan-feasibility-options button:hover {
-  color: var(--ink-brand);
-  background: var(--surface-brand-soft);
-  border-color: var(--border-brand);
-}
-
-.plan-feasibility-options button[aria-pressed="true"] {
-  color: var(--ink-brand);
-  background: var(--surface-brand-soft);
-  border-color: var(--border-brand);
-  font-weight: 700;
-}
-
-.plan-feasibility-options button:focus-visible {
-  outline: 3px solid var(--brand-solid);
-  outline-offset: 2px;
-}
 
 /* --- 잠긴 로드맵 --- */
 .plan-roadmap-card[data-locked] { background: var(--surface-sunken); }
@@ -18069,21 +17558,6 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .plan-roadmap-locked[hidden] { display: none; }
 
 /* --- 수정 내용 버리기 --- */
-.plan-discard-changes {
-  min-height: 44px;
-  padding: 0 var(--space-4);
-  color: var(--ink-muted);
-  background: none;
-  border: 0;
-  font: inherit;
-  font-size: var(--text-sm);
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.plan-discard-changes:hover { color: var(--ink-brand); text-decoration: underline; }
-
-.plan-discard-changes[hidden] { display: none; }
 
 /* ============================================================
    탭 스와이프 전환
@@ -18113,5 +17587,205 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   .execution-page .app-view.is-active[data-enter="left"],
   .execution-page .app-view.is-active[data-enter="right"] {
     animation: none;
+  }
+}
+
+/* ===== 수동 계획 빌더 (온보딩 STEP 2~3) =====
+   참조 구현(feature/manual-onboarding)의 할 일 빌더·요일 칩을 main의 토큰
+   레이어로 번역해 옮겼다. 참조판 전용 토큰(--font-title, --font-card-title)은
+   쓰지 않고 main 정의를 따른다. */
+
+.builder-choice-section {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.builder-choice-section > legend {
+  padding: 0;
+  margin-bottom: var(--space-2);
+  color: var(--ink-secondary);
+  font-size: var(--text-xs);
+  font-weight: 900;
+}
+
+.builder-days-hint {
+  margin: var(--space-2) 0 0;
+  color: var(--ink-muted);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+}
+
+.session-minute-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.session-minute-field input {
+  flex: 1;
+  min-width: 0;
+}
+
+.session-minute-field em {
+  flex: none;
+  color: var(--ink-muted);
+  font-style: normal;
+  font-size: var(--text-xs);
+  font-weight: 800;
+}
+
+.task-builder {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.task-builder-list {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.task-builder-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) 84px;
+  grid-template-areas:
+    "time title minutes"
+    "rule rule rule";
+  gap: var(--space-2) var(--space-3);
+  padding: 14px 40px 14px 14px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-xs);
+}
+
+.task-builder-item .task-time-field { grid-area: time; }
+.task-builder-item .task-title-field { grid-area: title; }
+.task-builder-item .task-minutes-field { grid-area: minutes; }
+.task-builder-item .task-rule-field { grid-area: rule; }
+
+.task-builder-item label {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  color: var(--ink-secondary);
+  font-size: var(--text-2xs);
+  font-weight: 900;
+}
+
+.task-builder-item label small {
+  color: var(--ink-muted);
+  font-weight: 700;
+}
+
+.task-builder-item input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 10px;
+  color: var(--ink);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-sm);
+  outline: none;
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.task-builder-item input:focus-visible {
+  border-color: var(--border-brand);
+  background: var(--surface);
+  box-shadow: 0 0 0 3px var(--surface-brand-soft);
+}
+
+.task-remove-button {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  color: var(--ink-muted);
+  background: var(--surface-muted);
+  border: 0;
+  border-radius: var(--r-circle);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  font-weight: 900;
+}
+
+.task-remove-button:hover {
+  color: var(--ink-inverse);
+  background: var(--ink-danger);
+}
+
+.task-builder-empty {
+  margin: 0;
+  padding: 18px 14px;
+  color: var(--ink-secondary);
+  background: var(--surface-muted);
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--r-lg);
+  text-align: center;
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.task-builder-budget {
+  margin: 0;
+  padding: 10px 14px;
+  color: var(--ink-success);
+  background: var(--surface-success-soft);
+  border-radius: var(--r-sm);
+  font-size: var(--text-xs);
+  font-weight: 800;
+}
+
+.task-builder-budget.is-over {
+  color: var(--ink-danger);
+  background: var(--surface-danger-soft);
+}
+
+.task-builder-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.builder-ghost {
+  min-height: 44px;
+  padding: 11px 14px;
+  color: var(--ink);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-pill);
+  cursor: pointer;
+  font-size: var(--text-xs);
+  font-weight: 900;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.builder-ghost:hover {
+  border-color: var(--border-brand);
+  background: var(--surface-muted);
+}
+
+/* 기본 동작(할 일 추가)만 브랜드 그라디언트로 강조한다. 그라디언트가 파스텔이라
+   흰 글자는 대비가 부족해 main 규칙대로 네이비(--ink-on-brand)를 얹는다. */
+.task-builder-actions #addTaskButton {
+  color: var(--ink-on-brand);
+  background: var(--brand-gradient);
+  border-color: transparent;
+  box-shadow: var(--shadow-sm);
+}
+
+@media (max-width: 640px) {
+  .task-builder-item {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "title title"
+      "time minutes"
+      "rule rule";
   }
 }

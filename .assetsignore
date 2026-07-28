@@ -11,6 +11,8 @@ test-results/
 playwright-report/
 blob-report/
 On My Way 로고/
+brand/
+marketing/
 .gitignore
 .assetsignore
 *.mjs

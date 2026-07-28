@@ -1,5 +1,5 @@
 const { test, expect } = require("@playwright/test");
-const { captureAcceptance, expectNoHorizontalOverflow, mockAccountExperience, monitorPage, prepareApp, waitForAppReady, waitForBootstrap } = require("./helpers");
+const { captureAcceptance, completeManualPlan, expectNoHorizontalOverflow, mockAccountExperience, monitorPage, prepareApp, waitForAppReady, waitForBootstrap } = require("./helpers");
 
 const viewports = [
   [320, 568],
@@ -38,6 +38,38 @@ for (const [width, height] of [[320, 568], [390, 844], [430, 932], [768, 1024]])
     diagnostics.expectClean();
   });
 }
+
+/* origin/main은 미리보기가 그려진 뒤 #firstStep의 가로 넘침을 봤다(scrollWidth <=
+   clientWidth). 이 브랜치가 결과 화면 마크업과 스타일을 다시 쓰면서 그 단언이
+   사라졌고, 위 루프는 빌더 1단계에서 멈춰 결과 화면을 좁은 화면에서 한 번도 보지
+   않는다. 가장 좁은 320px에서 결과 카드가 넘치면 유저는 자기 계획을 확인하지 못한
+   채 시작 버튼을 눌러야 한다. */
+test("320x568 수동 빌더 결과 화면이 가로로 넘치지 않는다", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 568 });
+  const diagnostics = monitorPage(page);
+  await mockAccountExperience(page);
+
+  await page.goto("/index.html#designFlow");
+  await waitForBootstrap(page);
+  await completeManualPlan(page, {
+    goal: "3개월 안에 토익 900점 달성하기",
+    tasks: [
+      { time: "07:00", text: "단어 40개 외우기", minutes: 20, rule: "테스트에서 35개 이상 맞히면 완료" },
+      { time: "21:00", text: "기출 1세트 풀기", minutes: 40, rule: "채점과 오답 표시까지 하면 완료" },
+    ],
+  });
+
+  await expectNoHorizontalOverflow(page);
+  const firstStepOverflow = await page.locator("#firstStep")
+    .evaluate((element) => element.scrollWidth - element.clientWidth);
+  expect(firstStepOverflow, "#firstStep horizontal overflow").toBeLessThanOrEqual(1);
+
+  // 접어 둔 상세(주간 일정 표)를 펼쳐도 화면을 밀지 않는다.
+  await page.locator(".result-details-disclosure summary").click();
+  await expect(page.locator(".result-details-disclosure")).toHaveAttribute("open", "");
+  await expectNoHorizontalOverflow(page);
+  diagnostics.expectClean();
+});
 
 for (const [width, height] of viewports) {
   test(`${width}x${height} 기준 화면 6종`, async ({ page }, testInfo) => {
