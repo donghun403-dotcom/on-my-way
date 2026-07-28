@@ -213,11 +213,13 @@ switchAccountStorageScope(getAccountStorageScope(authUiState.user),
 승계 조건은 script.js:628 — `allowAnonymousMerge && 대상이 user: && 익명 데이터 있음
 && 대상 스코프가 비어 있음`. 조건이 맞으면 익명 스냅샷을 계정 스냅샷으로 복사한다.
 
-스코프 대상 키는 `ACCOUNT_SCOPED_STORAGE_KEYS`(script.js:317-329):
-`omwTrialAccess`, `omwFreePlanGenerated`, `omwPersonalityProfile`,
-`omwPersonalityNudgeDismissed`, `omwExecutionPlan`, `omwExecutionState`,
+스코프 대상 키는 `ACCOUNT_SCOPED_STORAGE_KEYS`(script.js:291-304):
+`omwTrialAccess`, `omwPersonalityProfile`, `omwExecutionPlan`, `omwExecutionState`,
 `omwCompanionState`, `omwCompanionEvents`, `omwFocusSession`, `omwExecutionTheme`,
-`omwExecutionLedgerPlan`. 계획과 기록이 모두 포함되므로 승계 범위는 충분하다.
+`omwCheerState`, `omwExecutionLedgerPlan`. 계획과 기록이 모두 포함되므로 승계 범위는 충분하다.
+
+> 작성 시점(2026-07-28) 이후 목록이 바뀌었다. `omwFreePlanGenerated`는 수동 온보딩 포팅에서,
+> `omwPersonalityNudgeDismissed`는 성향 넛지 카드 삭제와 함께 빠졌고 `omwCheerState`가 들어왔다.
 
 **3) 로그인 의도 보존 — 이미 구현됨**
 `PENDING_AUTH_INTENT_KEY = "onmyway:pending-auth-intent"`(script.js:307)를

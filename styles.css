@@ -13520,7 +13520,6 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   .execution-page #view-today .today-card > .card-title .today-add-button strong { display: none; }
   .execution-page #view-today .execution-checklist:not(.is-expanded) .task-row:nth-child(n+4) { display: none; }
   .execution-page #view-today .execution-checklist .task-row { min-height: 68px; }
-  .execution-page #view-today .personality-nudge-card { order: 8; }
   .execution-page #view-today .recovery-card { order: 5; }
   .execution-page #view-today .progress-card { order: 6; }
   .execution-page #view-today .coach-card { box-shadow: none; background: transparent; }
@@ -14486,7 +14485,6 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .execution-page .today-add-button strong { font-size: var(--text-2xs); }
 
 .execution-page #view-today .trial-reminder-card,
-.execution-page #view-today .personality-nudge-card,
 .execution-page #view-today .recovery-card { order: 6; }
 
 .execution-page .add-schedule-sheet { width: min(460px, calc(100vw - 24px)); }
@@ -15662,11 +15660,6 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 
 .execution-page #personalitySheet .auth-sheet-terms {
   padding: 4px 4px 0;
-}
-
-.personality-nudge-card {
-  display: grid;
-  gap: 10px;
 }
 
 @media (max-width: 640px) {

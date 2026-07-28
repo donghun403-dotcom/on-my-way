@@ -98,6 +98,26 @@ ASSETS·Durable Object·레이트리미터를 건드리지 않는 것까지 고�
 
 다음 사이클 스펙은 `docs/ollie-chat-diary-spec.md`(올리 대화 다이어리 C1~C6)에 있다.
 
+## 성향 넛지 카드 삭제 (2026-07-28)
+
+오늘 탭의 "성향을 입력하면 계획이 더 정교해져요" 카드를 마크업·기능·스타일까지 전부 제거했다
+(브랜치 `feature/manual-onboarding-on-main`, 3파일 −54줄 / +0줄).
+
+| 파일 | 제거한 것 |
+| --- | --- |
+| `app.html` | `#personalityNudgeCard` 섹션(제목·"나중에"·"1분 만에 성향 입력하기") |
+| `script.js` | `initializePersonalityNudge()`와 `initializeTrialAccess()`의 호출 2곳, 넛지 전용이라 같이 죽은 `hasPersonalityInfo()`, 버튼 리스너 2개·엘리먼트 참조 3개, `PERSONALITY_NUDGE_DISMISSED_KEY`, `savePersonalityProfileFromSheet()`·`renderPlanFeatureAccess()`의 카드 숨김 줄 |
+| `styles.css` | `.personality-nudge-card` 규칙과 모바일·데스크톱 `order` 지정 2곳 |
+
+- **저장 키 `omwPersonalityNudgeDismissed`를 `ACCOUNT_SCOPED_STORAGE_KEYS`에서도 뺐다.** 쓰는 곳도
+  읽는 곳도 없어졌으므로 기존 기기에 남은 값은 스코프 밖에 방치돼도 무해하다(마이그레이션 불필요).
+- **성향 기능 자체는 유지된다.** `#personalitySheet`와 좌측 메뉴 "성향 설정" 진입점은 그대로다.
+  삭제된 것은 오늘 탭에서 그 시트로 유도하던 넛지 카드뿐이다.
+- 이에 따라 아래 3A 항목(2026-07-20)의 "오늘 정보 구조 … → 성향 안내"는 더 이상 현재 구조가 아니다.
+  지금 오늘 탭은 진행률·올리 통합 요약에서 끝난다.
+- 검증: `npm test` 261/261, `node --check script.js` 통과, 로컬 `app.html`에서 넛지 노드 0개·콘솔 에러
+  없음, 예전 표시 조건(목표 있음 + 성향 정보 없음)을 재현해도 카드가 뜨지 않는 것까지 확인.
+
 ## 최신 검증
 
 ### 조건 추출 안정화 — 교정기 도입과 프로브 인코딩 사건 (2026-07-27)
