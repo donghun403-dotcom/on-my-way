@@ -291,7 +291,6 @@ const EXECUTION_LEDGER_PLAN_KEY = "omwExecutionLedgerPlan";
 const ACCOUNT_SCOPED_STORAGE_KEYS = [
   TRIAL_ACCESS_KEY,
   "omwPersonalityProfile",
-  "omwPersonalityNudgeDismissed",
   "omwExecutionPlan",
   "omwExecutionState",
   "omwCompanionState",
@@ -724,7 +723,6 @@ function initializeTrialAccess() {
   const access = readTrialAccess();
   if (!authUiState.user || access?.plan === "pro" || access?.plan === "free") {
     if (trialStatusBanner) trialStatusBanner.hidden = true;
-    initializePersonalityNudge();
     return;
   }
   if (!access?.expiresAt) return;
@@ -733,7 +731,6 @@ function initializeTrialAccess() {
     return;
   }
   updateTrialStatus(Number(access.expiresAt));
-  initializePersonalityNudge();
   window.setInterval(() => updateTrialStatus(Number(access.expiresAt)), 60 * 1000);
 }
 
@@ -986,7 +983,6 @@ syncResultDetailsDisclosure();
 
 // ===== 성향 프로필: 앱 안에서 언제든 입력·수정 =====
 const PERSONALITY_PROFILE_KEY = "omwPersonalityProfile";
-const PERSONALITY_NUDGE_DISMISSED_KEY = "omwPersonalityNudgeDismissed";
 const personalitySheet = document.querySelector("#personalitySheet");
 const closePersonalitySheetButton = document.querySelector("#closePersonalitySheet");
 const savePersonalityButton = document.querySelector("#savePersonalityButton");
@@ -995,9 +991,6 @@ const profileBirthTimeInput = document.querySelector("#profileBirthTime");
 const profileBirthPlaceInput = document.querySelector("#profileBirthPlace");
 const profileMbtiInput = document.querySelector("#profileMbti");
 const drawerPersonalityButton = document.querySelector("#drawerPersonality");
-const personalityNudgeCard = document.querySelector("#personalityNudgeCard");
-const personalityNudgeOpenButton = document.querySelector("#personalityNudgeOpen");
-const personalityNudgeDismissButton = document.querySelector("#personalityNudgeDismiss");
 const memoryPatternPanel = document.querySelector("#memoryPatternPanel");
 const memoryPatternLock = document.querySelector("#memoryPatternLock");
 
@@ -1007,13 +1000,6 @@ function readPersonalityProfile() {
   } catch (error) {
     return null;
   }
-}
-
-function hasPersonalityInfo() {
-  const profile = readPersonalityProfile();
-  if (profile && (profile.birthDate || profile.mbti)) return true;
-  const plan = readExecutionPlan();
-  return Boolean(plan.mbti || plan.manseSummary);
 }
 
 function openPersonalitySheet() {
@@ -1060,34 +1046,13 @@ function savePersonalityProfileFromSheet() {
   } catch (error) {
     console.warn("Unable to save personality profile", error);
   }
-  if (personalityNudgeCard) personalityNudgeCard.hidden = true;
   setSheetOpen(personalitySheet, accountSheetOverlay, false);
   showToast("성향을 저장했어요 · 다음 계획 조정부터 반영돼요");
-}
-
-function initializePersonalityNudge() {
-  if (!personalityNudgeCard) return;
-  if (!planHasFeature("companionPersonalization")) {
-    personalityNudgeCard.hidden = true;
-    return;
-  }
-  if (localStorage.getItem(PERSONALITY_NUDGE_DISMISSED_KEY) === "true") return;
-  if (hasPersonalityInfo() || !readExecutionPlan().goal) return;
-  personalityNudgeCard.hidden = false;
 }
 
 drawerPersonalityButton?.addEventListener("click", openPersonalitySheet);
 closePersonalitySheetButton?.addEventListener("click", () => setSheetOpen(personalitySheet, accountSheetOverlay, false));
 savePersonalityButton?.addEventListener("click", savePersonalityProfileFromSheet);
-personalityNudgeOpenButton?.addEventListener("click", openPersonalitySheet);
-personalityNudgeDismissButton?.addEventListener("click", () => {
-  try {
-    localStorage.setItem(PERSONALITY_NUDGE_DISMISSED_KEY, "true");
-  } catch (error) {
-    /* storage unavailable — ignore */
-  }
-  personalityNudgeCard.hidden = true;
-});
 
 // ===== 회원 · 인증 =====
 const authUiState = { user: null, loaded: false, error: null };
@@ -2096,7 +2061,6 @@ function renderPlanFeatureAccess() {
     drawerPersonalityButton.setAttribute("aria-disabled", personalization ? "false" : "true");
     drawerPersonalityButton.title = personalization ? "성향 설정" : "Pro 또는 무료 체험 중에 이용할 수 있어요";
   }
-  if (!personalization && personalityNudgeCard) personalityNudgeCard.hidden = true;
 }
 
 async function ensureAiActionAvailable(action) {
