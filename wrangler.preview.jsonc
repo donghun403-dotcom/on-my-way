@@ -40,6 +40,10 @@
       {
         "name": "GUEST_PLAN_DRAFTS",
         "class_name": "GuestPlanDraftObject"
+      },
+      {
+        "name": "ENERGY_LEDGER",
+        "class_name": "EnergyLedgerObject"
       }
     ]
   },
@@ -47,6 +51,10 @@
     {
       "tag": "guest-plan-drafts-v1",
       "new_sqlite_classes": ["GuestPlanDraftObject"]
+    },
+    {
+      "tag": "energy-ledger-v1",
+      "new_sqlite_classes": ["EnergyLedgerObject"]
     }
   ]
 }

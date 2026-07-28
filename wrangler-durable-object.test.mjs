@@ -18,16 +18,23 @@ async function config(file) {
   return JSON.parse(await readFile(new URL(file, import.meta.url), "utf8"));
 }
 
-test("모든 Worker 환경은 같은 SQLite GuestPlanDraftObject binding과 migration을 사용한다", async () => {
+test("모든 Worker 환경은 같은 SQLite Durable Object binding과 migration을 사용한다", async () => {
   for (const file of CONFIG_FILES) {
     const value = await config(file);
     assert.deepEqual(value.durable_objects?.bindings, [{
       name: "GUEST_PLAN_DRAFTS",
       class_name: "GuestPlanDraftObject",
+    }, {
+      // 에너지 원장은 유저별 단일 실행이 필요해 DO여야 한다 (KV에는 CAS가 없다).
+      name: "ENERGY_LEDGER",
+      class_name: "EnergyLedgerObject",
     }], file);
     assert.deepEqual(value.migrations, [{
       tag: "guest-plan-drafts-v1",
       new_sqlite_classes: ["GuestPlanDraftObject"],
+    }, {
+      tag: "energy-ledger-v1",
+      new_sqlite_classes: ["EnergyLedgerObject"],
     }], file);
     assert.equal("exports" in value, false, `${file}: migrations와 exports를 혼용하지 않음`);
     assert.equal(value.vars.PAYMENTS_ENABLED, "false", file);
@@ -63,7 +70,9 @@ test("Every AI-enabled Worker config defines the canonical rate limiter contract
   assert.notEqual(values.get("wrangler.staging.jsonc"), values.get("wrangler.production.jsonc"));
 });
 
-test("GuestPlanDraftObject config class is exported by the Worker entry", async () => {
+test("Durable Object config classes are exported by the Worker entry", async () => {
+  // 클래스 이름이 wrangler migration과 정확히 맞아야 배포가 깨지지 않는다.
   const worker = await readFile(new URL("worker.mjs", import.meta.url), "utf8");
-  assert.match(worker, /export\s*\{\s*GuestPlanDraftObject\s*\}/);
+  assert.match(worker, /export\s*\{[^}]*\bGuestPlanDraftObject\b[^}]*\}/);
+  assert.match(worker, /export\s*\{[^}]*\bEnergyLedgerObject\b[^}]*\}/);
 });
