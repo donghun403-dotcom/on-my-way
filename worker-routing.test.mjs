@@ -28,6 +28,10 @@ function guestAiHealthFixture(overrides = {}) {
         idFromName(name) { return name; },
         get() { return { async fetch() { return new Response(); } }; },
       },
+      ENERGY_LEDGER: {
+        idFromName(name) { return name; },
+        get() { return { async fetch() { return new Response(); } }; },
+      },
       PAYMENTS_ENABLED: "false",
       ...overrides,
     },
@@ -80,6 +84,8 @@ test("health AI readiness matches the dependencies required by the in-app AI rou
     { name: "API key only", overrides: { AI_RATE_LIMITER: null, GUEST_PLAN_DRAFTS: null, SESSION_SECRET: "" } },
     { name: "limiter missing", overrides: { AI_RATE_LIMITER: null } },
     { name: "Durable Object missing", overrides: { GUEST_PLAN_DRAFTS: null } },
+    // 에너지 원장 DO가 없으면 유료 재화를 안전하게 셀 수 없으므로 AI는 준비 안 됨이다.
+    { name: "energy ledger missing", overrides: { ENERGY_LEDGER: null } },
     { name: "account storage missing", overrides: { USERS_KV: null } },
     { name: "server secret missing", overrides: { SESSION_SECRET: "" } },
     { name: "server secret invalid", overrides: { SESSION_SECRET: "short" } },

@@ -16,6 +16,10 @@ import {
   startAiTrial,
   withAiCreditUserLock,
 } from "./ai-credits-service.mjs";
+// 에너지 원장은 유저별 Durable Object가 권위다. KV read-modify-write로는 서로 다른
+// 아이솔레이트의 동시 요청을 직렬화할 수 없어 이중 차감을 막지 못한다.
+import { EnergyLedgerObject } from "./energy-ledger-object.mjs";
+import { createEnergyLedgerClient, describeTrial, resolveUserPlan } from "./energy-ledger-client.mjs";
 import {
   handleAccountApi,
   parseCookies,
@@ -188,6 +192,9 @@ export function getGuestAiReadiness(env = {}) {
   requireBinding("GUEST_PLAN_DRAFTS", env.GUEST_PLAN_DRAFTS, (value) => (
     typeof value?.idFromName === "function" && typeof value?.get === "function"
   ));
+  requireBinding("ENERGY_LEDGER", env.ENERGY_LEDGER, (value) => (
+    typeof value?.idFromName === "function" && typeof value?.get === "function"
+  ));
   return {
     ready: missingDependencies.length === 0 && invalidDependencies.length === 0,
     missingDependencies,
@@ -303,6 +310,12 @@ async function handleAiGenerationRequest({ request, env, accountContext, route }
   const cheerEventType = route.kind === "companion" ? normalizeCheerEventType(input?.eventType) : "chat";
   const isFreeCheer = cheerEventType !== "chat";
 
+  // 원장 바인딩이 있으면 그쪽이 권위다. 없으면(로컬·구버전 환경) 기존 KV 경로로
+  // 물러난다 — 배포 환경에는 항상 있고 CI 설정 검증이 그것을 고정한다.
+  const ledger = createEnergyLedgerClient(env);
+  const userPlan = resolveUserPlan(user);
+  const userTrial = describeTrial(user);
+
   let reservation = null;
   let providerCalled = false;
   let cheerClaimed = false;
@@ -319,6 +332,8 @@ async function handleAiGenerationRequest({ request, env, accountContext, route }
       if (!cheerClaimed) {
         return json({ ok: false, error: "오늘의 무료 응원은 이미 전해드렸어요. 내일 또 만나요!", code: "CHEER_LIMIT_REACHED" }, 429);
       }
+    } else if (ledger) {
+      reservation = await ledger.reserve(user.id, { plan: userPlan, action: route.action, requestId, trial: userTrial });
     } else {
       reservation = await reserveAiCredits({ store: userStore, userId: user.id, action: route.action, requestId });
     }
@@ -350,12 +365,14 @@ async function handleAiGenerationRequest({ request, env, accountContext, route }
       return json({ ok: true, ...publicAiResult(result), requestId, eventType: cheerEventType, chargedCredits: 0 });
     }
 
-    const committed = await commitAiCredits({
-      store: userStore,
-      userId: user.id,
-      requestId,
-      ...providerMetadata(result, model),
-    });
+    const committed = ledger
+      ? await ledger.commit(user.id, { plan: userPlan, requestId, meta: { model }, trial: userTrial })
+      : await commitAiCredits({
+        store: userStore,
+        userId: user.id,
+        requestId,
+        ...providerMetadata(result, model),
+      });
     return json({
       ok: true,
       ...publicAiResult(result),
@@ -385,16 +402,25 @@ async function handleAiGenerationRequest({ request, env, accountContext, route }
     }
     if (reservation?.shouldExecute) {
       try {
-        await releaseAiCredits({
-          store: userStore,
-          userId: user.id,
-          requestId,
-          providerCalled: error?.providerCalled ?? providerCalled,
-          providerUsage: error?.providerUsage || {},
-          providerRequestId: error?.providerRequestId || "",
-          errorCode: error?.code || "AI_REQUEST_FAILED",
-          model,
-        });
+        if (ledger) {
+          await ledger.release(user.id, {
+            plan: userPlan,
+            requestId,
+            errorCode: error?.code || "AI_REQUEST_FAILED",
+            trial: userTrial,
+          });
+        } else {
+          await releaseAiCredits({
+            store: userStore,
+            userId: user.id,
+            requestId,
+            providerCalled: error?.providerCalled ?? providerCalled,
+            providerUsage: error?.providerUsage || {},
+            providerRequestId: error?.providerRequestId || "",
+            errorCode: error?.code || "AI_REQUEST_FAILED",
+            model,
+          });
+        }
       } catch (releaseError) {
         console.error("AI credit reservation release failed", {
           correlationId: aiCorrelationId,
@@ -402,7 +428,9 @@ async function handleAiGenerationRequest({ request, env, accountContext, route }
         });
       }
     }
-    const usage = await getAiCreditUsage({ store: userStore, userId: user.id }).catch(() => null);
+    const usage = ledger
+      ? await ledger.usage(user.id, { plan: userPlan, trial: userTrial }).catch(() => null)
+      : await getAiCreditUsage({ store: userStore, userId: user.id }).catch(() => null);
     return json(aiErrorBody(error, usage), error?.status || 500);
   }
 }
@@ -499,6 +527,9 @@ async function handleFetch(request, env) {
       const user = await currentSessionUser(accountContext);
       if (!user) return json({ ok: false, error: "로그인 후 사용량을 확인할 수 있어요.", code: "AUTH_REQUIRED" }, 401);
       try {
+        // 조회 전용. 클라이언트가 만질 수 있는 에너지 표면은 이것뿐이다.
+        const ledger = createEnergyLedgerClient(env);
+        if (ledger) return json(await ledger.usage(user.id, { plan: resolveUserPlan(user), trial: describeTrial(user) }));
         return json(await getAiCreditUsage({ store: accountContext.store, userId: user.id }));
       } catch (error) {
         return json(aiErrorBody(error), error?.status || 500);
@@ -513,6 +544,14 @@ async function handleFetch(request, env) {
       try {
         const result = await startAiTrial({ store: accountContext.store, userId: user.id });
         const refreshedUser = await accountContext.store.getUser(user.id);
+        // 체험이 시작되면 원장을 체험 플랜 기준으로 다시 세운다. 이 시점에 지급이
+        // 일어나야 체험 크레딧이 잔량에 실제로 들어온다.
+        const trialLedger = createEnergyLedgerClient(env);
+        if (trialLedger && refreshedUser) {
+          await trialLedger
+            .reset(user.id, { plan: resolveUserPlan(refreshedUser), reason: "trial_start" })
+            .catch((error) => console.error("Trial ledger grant failed", { errorCategory: error?.code || "LEDGER_RESET_FAILED" }));
+        }
         return json({ ...result, user: refreshedUser ? {
           id: refreshedUser.id,
           name: refreshedUser.name,
@@ -571,7 +610,7 @@ async function handleFetch(request, env) {
     return fetchStaticAsset(request, env);
 }
 
-export { GuestPlanDraftObject };
+export { GuestPlanDraftObject, EnergyLedgerObject };
 
 export default {
   async fetch(request, env) {
