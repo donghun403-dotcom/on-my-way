@@ -278,7 +278,6 @@ const companionName = document.querySelector("#companionName");
 const DEFAULT_ROUTINE_READINESS = "계획이 있으면 실행해요";
 const TRIAL_ACCESS_KEY = "omwTrialAccess";
 const LEGACY_OLLIE_ENERGY_KEY = "omwOllieEnergy";
-const FREE_PLAN_GENERATED_KEY = "omwFreePlanGenerated";
 const PENDING_AUTH_INTENT_KEY = "onmyway:pending-auth-intent";
 const FULL_PLAN_AUTH_INTENT_SOURCE = "anonymous-plan-preview";
 const FULL_PLAN_AUTH_INTENT_PURPOSE = "unlock-full-plan";
@@ -291,7 +290,6 @@ const LEGACY_ACCOUNT_STORAGE_SNAPSHOT_PREFIX = "omwAccountStorageSnapshot:";
 const EXECUTION_LEDGER_PLAN_KEY = "omwExecutionLedgerPlan";
 const ACCOUNT_SCOPED_STORAGE_KEYS = [
   TRIAL_ACCESS_KEY,
-  FREE_PLAN_GENERATED_KEY,
   "omwPersonalityProfile",
   "omwPersonalityNudgeDismissed",
   "omwExecutionPlan",
@@ -317,6 +315,8 @@ try {
   // 실제 알림 전송 경로 없이 로컬에만 남던 이전 연락처·동의 캐시를 폐기한다.
   localStorage.removeItem("omwTrialLead");
   localStorage.removeItem("omwTrialReminderDismissed");
+  // 서버가 계획을 만들던 시절의 "무료 계획 1회" 표식. 계획을 유저가 직접 만드는 지금은 제한이 없다.
+  localStorage.removeItem("omwFreePlanGenerated");
 } catch {}
 
 function showBrandFontFailure() {
@@ -1173,13 +1173,6 @@ function syncServerPlanToLocal() {
     localStorage.removeItem(LEGACY_OLLIE_ENERGY_KEY);
   } catch (error) {
     console.warn("Unable to remove legacy client credit state", error);
-  }
-
-  try {
-    if (user.plan === "pro" || user.goalPlanGeneratedAt) localStorage.setItem(FREE_PLAN_GENERATED_KEY, "true");
-    else localStorage.removeItem(FREE_PLAN_GENERATED_KEY);
-  } catch (error) {
-    console.warn("Unable to sync goal plan allowance", error);
   }
 
   if (!document.body.classList.contains("execution-page")) return;
@@ -2124,8 +2117,8 @@ async function ensureAiActionAvailable(action) {
   }
   if (Number(usage.daily.remaining) < cost) {
     const trialEnded = usage.plan === "free" && !usage.trial?.eligible && authUiState.user?.trialUsedAt;
-    showToast(trialEnded && action === "create_plan"
-      ? `무료 체험이 끝나 Free 플랜으로 이용 중이에요. 오늘 크레딧을 이미 사용해서 ${formatUsageTime(usage.daily.resetsAt, usage.timeZone)}에 ${cost}크레딧으로 다시 만들 수 있어요.`
+    showToast(trialEnded
+      ? `무료 체험이 끝나 Free 플랜으로 이용 중이에요. 오늘 크레딧을 이미 사용해서 ${formatUsageTime(usage.daily.resetsAt, usage.timeZone)}에 ${cost}크레딧으로 다시 시도할 수 있어요.`
       : `이 기능에는 ${cost}크레딧이 필요해요. 오늘 사용할 수 있는 크레딧이 부족하며 ${formatUsageTime(usage.daily.resetsAt, usage.timeZone)}에 다시 제공돼요.`);
     sendFunnelEvent("ai_credit_insufficient");
     openEnergyCharge();

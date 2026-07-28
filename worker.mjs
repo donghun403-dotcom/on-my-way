@@ -104,13 +104,41 @@ function funnelDateKey(now = Date.now()) {
 
 // 무료 치어링(축하·위로)은 올리 에너지를 차감하지 않는 대신 KST 기준 하루 각 1회로 서버가 상한을 건다.
 // (docs/pricing-system-v2.md의 비용 가드레일 — 클라이언트 상한만 믿지 않는다)
-// 순수 함수라 "쓸 수 있는지"만 보는 사전 확인과 "썼다"고 기록하는 사후 확정에 같은 판정을 쓴다.
 export function checkDailyCheerAllowance(user, eventType, now = Date.now()) {
   const dateKey = funnelDateKey(now);
   const log = user?.cheerLog && user.cheerLog.date === dateKey ? { ...user.cheerLog } : { date: dateKey };
   if (log[eventType]) return { allowed: false, user };
   log[eventType] = now;
   return { allowed: true, user: { ...user, cheerLog: log } };
+}
+
+/* 오늘의 무료 응원을 "선점"한다. 크레딧과 같은 유저 락 안에서 읽고 쓰기 때문에
+   동시에 들어온 요청 중 하나만 true를 받는다. 확인만 하고 AI를 부른 뒤 기록하면
+   겹친 요청이 전부 통과해 provider 비용이 중복 발생하므로, 크레딧과 똑같이
+   "먼저 잡고 실패하면 되돌린다"로 간다.
+   세션은 유효하지만 저장된 회원 레코드가 없는 경우(관리자 비밀번호 세션)는
+   회계할 대상이 없으므로 잡지 않는다 — 없는 레코드를 새로 만들지 않기 위해서다. */
+export function claimDailyCheer({ store, userId, eventType, now = Date.now() }) {
+  return withAiCreditUserLock(userId, async () => {
+    const latest = await store.getUser(userId);
+    if (!latest) return false;
+    const claimed = checkDailyCheerAllowance(latest, eventType, now);
+    if (!claimed.allowed) return false;
+    await store.putUser(claimed.user);
+    return true;
+  });
+}
+
+/* 잡아 둔 오늘의 응원을 되돌린다. AI가 답을 만들지 못했으면 다시 시도할 수 있어야 한다. */
+export function releaseDailyCheer({ store, userId, eventType, now = Date.now() }) {
+  return withAiCreditUserLock(userId, async () => {
+    const latest = await store.getUser(userId);
+    if (!latest?.cheerLog || latest.cheerLog.date !== funnelDateKey(now) || !latest.cheerLog[eventType]) return false;
+    const log = { ...latest.cheerLog };
+    delete log[eventType];
+    await store.putUser({ ...latest, cheerLog: log });
+    return true;
+  });
 }
 
 export async function recordFunnelEvent({ step, kv, now = Date.now() }) {
@@ -273,11 +301,15 @@ async function handleAiGenerationRequest({ request, env, accountContext, route }
   }
 
   // 자동 치어링(축하·위로)은 유료 재화를 쓰지 않는 대신 하루 각 1회라는 별도 상한을 탄다.
-  // AI를 부르기 전에 먼저 막아야 상한 초과 요청이 비용을 만들지 않는다.
+  // AI를 부르기 전에 자리를 잡아야 상한 초과 요청이 provider 비용을 만들지 않는다.
   const cheerEventType = route.kind === "companion" ? normalizeCheerEventType(input?.eventType) : "chat";
   const isFreeCheer = cheerEventType !== "chat";
-  if (isFreeCheer && !checkDailyCheerAllowance(user, cheerEventType).allowed) {
-    return json({ ok: false, error: "오늘의 무료 응원은 이미 전해드렸어요. 내일 또 만나요!", code: "CHEER_LIMIT_REACHED" }, 429);
+  let cheerClaimed = false;
+  if (isFreeCheer) {
+    cheerClaimed = await claimDailyCheer({ store: userStore, userId: user.id, eventType: cheerEventType });
+    if (!cheerClaimed) {
+      return json({ ok: false, error: "오늘의 무료 응원은 이미 전해드렸어요. 내일 또 만나요!", code: "CHEER_LIMIT_REACHED" }, 429);
+    }
   }
 
   let reservation = null;
@@ -313,13 +345,7 @@ async function handleAiGenerationRequest({ request, env, accountContext, route }
     }
 
     if (isFreeCheer) {
-      // AI가 실제로 답을 만든 뒤에만 오늘의 무료 응원을 소진 처리한다 (실패했으면 다시 시도할 수 있어야 한다).
-      // 사전 확인과 이 확정 사이의 경합은 크레딧과 같은 유저 락 안에서 다시 판정해 막는다.
-      await withAiCreditUserLock(user.id, async () => {
-        const latest = (await userStore.getUser(user.id)) || user;
-        const claimed = checkDailyCheerAllowance(latest, cheerEventType);
-        if (claimed.allowed) await userStore.putUser(claimed.user);
-      });
+      // 자리는 이미 잡아 뒀다. 답이 나왔으니 그대로 소진 상태로 둔다.
       return json({ ok: true, ...publicAiResult(result), requestId, eventType: cheerEventType, chargedCredits: 0 });
     }
 
@@ -345,6 +371,17 @@ async function handleAiGenerationRequest({ request, env, accountContext, route }
       latencyMs: aiStartedAt ? Date.now() - aiStartedAt : 0,
       maxOutputTokens: route.kind === "revision" ? PLAN_REVISION_MAX_OUTPUT_TOKENS : 0,
     }));
+    if (cheerClaimed) {
+      // AI가 답을 만들지 못했으면 잡아 둔 오늘의 응원을 돌려준다 (다시 시도할 수 있어야 한다).
+      try {
+        await releaseDailyCheer({ store: userStore, userId: user.id, eventType: cheerEventType });
+      } catch (releaseError) {
+        console.error("Daily cheer release failed", {
+          correlationId: aiCorrelationId,
+          errorCategory: releaseError?.code || "CHEER_RELEASE_FAILED",
+        });
+      }
+    }
     if (reservation?.shouldExecute) {
       try {
         await releaseAiCredits({

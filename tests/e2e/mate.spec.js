@@ -70,9 +70,12 @@ test("AI 크레딧 안내는 서버 제공량과 기능별 비용만 표시하�
   await page.getByRole("button", { name: "AI 크레딧 이용 안내" }).click();
   const creditDialog = page.getByRole("dialog", { name: "AI 크레딧 이용 안내" });
   await expect(creditDialog).toBeVisible();
-  await expect(creditDialog.locator(".credit-cost-summary > span")).toHaveCount(6);
+  // 무료 치어링 1행 + 크레딧을 쓰는 행동 4행. 라우트 없는 기능은 여기 없어야 한다.
+  await expect(creditDialog.locator(".credit-cost-summary > span")).toHaveCount(5);
+  await expect(creditDialog.locator(".credit-cost-summary > span").first()).toContainText("매일 축하·위로 0크레딧");
   const costValues = creditDialog.locator("[data-ai-credit-cost]");
   await expect(costValues).toHaveText(Object.values(AI_CREDIT_COSTS).map(String));
+  await expect(creditDialog).not.toContainText("새 목표 계획 생성");
   await expect(creditDialog.locator(".energy-pack")).toHaveCount(0);
   await expect(creditDialog).toContainText("추가 크레딧 판매는 현재 제공하지 않습니다");
   await expect(page.locator("#ollieEnergyBalance")).toHaveText(beforeCredits);

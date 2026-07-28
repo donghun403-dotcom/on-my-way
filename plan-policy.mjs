@@ -12,9 +12,9 @@ export const PLAN_CONFIG = deepFreeze({
   free: {
     displayName: "Free",
     priceKRW: 0,
-    // dailyCreditLimit must stay >= AI_CREDIT_COSTS.create_plan so a post-trial
-    // Free user can regenerate an onboarding plan once per day instead of
-    // hitting a permanent wall. monthlyCredits is the loss cap per free user.
+    // dailyCreditLimit stays at 2 x AI_CREDIT_COSTS.revise_plan so a Free user can
+    // still adjust their own plan twice a day — the only paid action they can reach
+    // without Pro. monthlyCredits is the loss cap per free user.
     monthlyCredits: 10,
     dailyCreditLimit: 4,
     maxGoals: 1,
@@ -51,23 +51,19 @@ export const PLAN_CONFIG = deepFreeze({
   },
 });
 
+// 계획 생성과 목표 이해 정리는 수동 온보딩으로 대체돼 라우트가 사라졌다.
+// 여기 남는 것은 실제로 호출할 수 있는 행동뿐이다 — 매일 축하·위로는 무료라 값이 없다.
 export const AI_CREDIT_COSTS = deepFreeze({
-  analyze_goal: 1,
   companion_chat: 1,
-  create_daily_step: 2,
   revise_plan: 2,
   recovery_plan: 3,
-  create_plan: 4,
   reschedule_plan: 4,
 });
 
 export const AI_ACTION_LABELS = deepFreeze({
-  analyze_goal: "목표 이해 정리",
   companion_chat: "올리와 지금 대화",
-  create_daily_step: "오늘의 한 걸음 생성",
   revise_plan: "계획 일부 수정",
   recovery_plan: "회복 계획 생성",
-  create_plan: "새 목표 계획 생성",
   reschedule_plan: "전체 일정 재조정",
 });
 

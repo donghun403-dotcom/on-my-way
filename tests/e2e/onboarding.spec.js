@@ -29,6 +29,23 @@ function acceptStorageMergePrompt(page) {
   page.on("dialog", (dialog) => dialog.accept());
 }
 
+/* 라우트를 지워도 카피가 남으면 유저에게는 기능이 살아 있는 것처럼 보인다.
+   "AI가 계획을 만들어 준다"는 약속이 첫 화면 어디에도 없어야 한다. */
+test("첫 화면은 사라진 AI 계획 생성을 광고하지 않는다", async ({ page }) => {
+  const diagnostics = monitorPage(page);
+  await mockAccountExperience(page);
+  await page.goto("/");
+  await waitForBootstrap(page);
+
+  // 섹션 대부분이 data-page-view로 숨겨져 있어 innerText로는 안 잡힌다. 마크업 전체를 본다.
+  const landingMarkup = await page.content();
+  expect(landingMarkup).not.toMatch(/AI가 목표를 쪼개|올리가 계획을 만들어|AI 스케줄|새 목표 계획 생성|오늘의 한 걸음 생성/);
+  // 실제로 남아 있는 AI 기능(대화·계획 다듬기)까지 지워버리지는 않았는지 함께 본다.
+  expect(landingMarkup).toMatch(/올리와 지금 대화/);
+  expect(landingMarkup).toMatch(/매일 축하·위로/);
+  diagnostics.expectClean();
+});
+
 test("수동 4단계로 계획을 만들면 AI 호출 없이 실행 계획이 저장된다", async ({ page }) => {
   const diagnostics = monitorPage(page);
   const goalAiRequests = trackGoalAiRequests(page);

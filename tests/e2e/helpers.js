@@ -15,19 +15,15 @@ const testPlan = {
 
 const AI_CREDIT_COSTS = {
   companion_chat: 1,
-  create_daily_step: 2,
   revise_plan: 2,
   recovery_plan: 3,
-  create_plan: 4,
   reschedule_plan: 4,
 };
 
 const AI_ACTION_LABELS = {
   companion_chat: "올리와 지금 대화",
-  create_daily_step: "오늘의 한 걸음 생성",
   revise_plan: "계획 일부 수정",
   recovery_plan: "회복 계획 생성",
-  create_plan: "새 목표 계획 생성",
   reschedule_plan: "전체 일정 재조정",
 };
 
@@ -96,13 +92,24 @@ async function mockExternalAssets(page) {
 
 /* 수동 빌더 4단계(목표 → 리듬 → 할 일 → 마무리)를 끝까지 진행한다.
    AI 호출은 한 번도 일어나지 않는다. tasks를 주면 3단계 초안을 덮어쓴다. */
+/* 단계가 바뀌면 revealActiveDiagnosisStep()이 requestAnimationFrame 안에서 폼을 스크롤해
+   올린다. 그 프레임과 다음 클릭이 겹치면 Playwright가 잡아둔 좌표에서 버튼이 비켜나 탭이
+   빗나가고, 위저드가 그 단계에 그대로 머문다(부하가 걸린 병렬 실행에서만 드물게 재현).
+   단계가 활성화된 뒤 한 프레임을 흘려보내 스크롤이 끝난 좌표에서 클릭하게 한다. */
+async function settleWizardStep(page, stepTitle) {
+  await expect(page.locator(".diagnosis-step.active")).toHaveAttribute("data-step-title", stepTitle);
+  await page.evaluate(() => new Promise((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(resolve));
+  }));
+}
+
 async function completeManualPlan(page, { goal = "3개월 안에 토익 900점 달성하기", tasks = null } = {}) {
   await page.locator("#designGoal").fill(goal);
   const next = page.locator("#diagnosisNextButton");
   await next.click();                       // 1 → 2 (리듬)
-  await expect(page.locator(".diagnosis-step.active")).toHaveAttribute("data-step-title", "언제, 얼마나 해볼까요?");
+  await settleWizardStep(page, "언제, 얼마나 해볼까요?");
   await next.click();                       // 2 → 3 (할 일)
-  await expect(page.locator(".diagnosis-step.active")).toHaveAttribute("data-step-title", "어떤 일을 하면 될까요?");
+  await settleWizardStep(page, "어떤 일을 하면 될까요?");
   await page.locator("#taskBuilderList .task-builder-item").first().waitFor();
 
   if (tasks) {
@@ -123,7 +130,7 @@ async function completeManualPlan(page, { goal = "3개월 안에 토익 900점 �
   }
 
   await next.click();                       // 3 → 4 (마무리)
-  await expect(page.locator(".diagnosis-step.active")).toHaveAttribute("data-step-title", "이대로 시작해볼까요?");
+  await settleWizardStep(page, "이대로 시작해볼까요?");
   await page.locator("#aiPreviewButton").click();
   await expect(page.locator("#firstStep")).toBeVisible();
 }

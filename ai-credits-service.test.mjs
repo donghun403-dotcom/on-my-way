@@ -175,32 +175,36 @@ test("Free reservations enforce exact costs and both daily and monthly accountin
   assert.equal(usage.actionUsage.companion_chat.lifetimeChargedCredits, 4);
 });
 
-test("a Free user can afford exactly one four-credit plan generation per day", async () => {
+// Free가 도달할 수 있는 유료 행동은 대화(1)와 계획 다듬기(2)뿐이다.
+// 하루 한도 4는 "계획 다듬기 2회"로 잡혀 있고, 세 번째는 막혀야 한다.
+test("a Free user can afford exactly two plan revisions per day", async () => {
   const store = memoryStore(freeUser());
-  const reserved = await reserveAiCredits({
-    store,
-    userId: "free-user",
-    action: "create_plan",
-    requestId: "daily-plan",
-    now: SEOUL_JAN_15_NOON,
-    plan: "pro",
-    creditCost: 0,
-  });
-  assert.equal(reserved.cost, 4);
-  assert.equal(reserved.usage.dailyRemaining, 0);
-  await commitAiCredits({ store, userId: "free-user", requestId: "daily-plan", now: SEOUL_JAN_15_NOON + 1 });
+  for (const [index, requestId] of ["daily-revision-1", "daily-revision-2"].entries()) {
+    const reserved = await reserveAiCredits({
+      store,
+      userId: "free-user",
+      action: "revise_plan",
+      requestId,
+      now: SEOUL_JAN_15_NOON + index * 2,
+      plan: "pro",
+      creditCost: 0,
+    });
+    assert.equal(reserved.cost, 2);
+    assert.equal(reserved.usage.dailyRemaining, 2 - index * 2);
+    await commitAiCredits({ store, userId: "free-user", requestId, now: SEOUL_JAN_15_NOON + index * 2 + 1 });
+  }
 
   await expectCode(
     reserveAiCredits({
       store,
       userId: "free-user",
-      action: "create_plan",
-      requestId: "second-daily-plan",
-      now: SEOUL_JAN_15_NOON + 2,
+      action: "revise_plan",
+      requestId: "third-daily-revision",
+      now: SEOUL_JAN_15_NOON + 4,
     }),
     "DAILY_AI_CREDIT_LIMIT_EXCEEDED",
   );
-  const usage = await getAiCreditUsage({ store, userId: "free-user", now: SEOUL_JAN_15_NOON + 3 });
+  const usage = await getAiCreditUsage({ store, userId: "free-user", now: SEOUL_JAN_15_NOON + 5 });
   assert.equal(usage.daily.used, 4);
   assert.equal(usage.daily.reserved, 0);
   assert.equal(usage.monthly.remaining, 6);
@@ -394,7 +398,7 @@ test("a retained pseudonymous trial marker blocks immediate trial reissue after 
 test("using all 15 trial credits ends the trial immediately and discards no charge history", async () => {
   const store = memoryStore(freeUser());
   await startAiTrial({ store, userId: "free-user", now: SEOUL_JAN_15_NOON });
-  const actions = ["create_plan", "create_plan", "create_plan", "recovery_plan"];
+  const actions = ["reschedule_plan", "reschedule_plan", "reschedule_plan", "recovery_plan"];
   let finalCommit;
   for (const [index, action] of actions.entries()) {
     const requestId = `trial-exhaust-${index}`;
@@ -422,7 +426,7 @@ test("duplicate requestId reservation and commit never reserve or charge twice",
   const first = await reserveAiCredits({
     store,
     userId: "pro-user",
-    action: "create_plan",
+    action: "reschedule_plan",
     requestId: "same-request",
     now: SEOUL_JAN_15_NOON,
   });
@@ -431,7 +435,7 @@ test("duplicate requestId reservation and commit never reserve or charge twice",
     reserveAiCredits({
       store,
       userId: "pro-user",
-      action: "create_plan",
+      action: "reschedule_plan",
       requestId: "same-request",
       now: SEOUL_JAN_15_NOON + 1,
     }),
@@ -457,7 +461,7 @@ test("duplicate requestId reservation and commit never reserve or charge twice",
     reserveAiCredits({
       store,
       userId: "pro-user",
-      action: "create_plan",
+      action: "reschedule_plan",
       requestId: "same-request",
       now: SEOUL_JAN_15_NOON + 3,
     }),
