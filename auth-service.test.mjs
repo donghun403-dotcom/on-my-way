@@ -14,7 +14,11 @@ import {
 } from "./auth-service.mjs";
 import { commitAiCredits, getAiCreditUsage, reserveAiCredits, startAiTrial } from "./ai-credits-service.mjs";
 import { createBillingLedger, createMemoryBillingDb } from "./billing-ledger.mjs";
+import { PLAN_CONFIG } from "./plan-policy.mjs";
 import worker from "./worker.mjs";
+
+// 승인 금액 픽스처는 정책에서 읽는다. 여기에 숫자를 다시 적으면 가격이 바뀔 때 갈라진다.
+const PRO_PRICE_KRW = PLAN_CONFIG.pro.priceKRW;
 
 function memoryStore(seed = []) {
   const users = new Map(seed.map((user) => [user.id, user]));
@@ -81,7 +85,7 @@ function initialPaymentFixture(overrides = {}) {
   return {
     status: "DONE",
     type: "BILLING",
-    totalAmount: 4900,
+    totalAmount: PRO_PRICE_KRW,
     currency: "KRW",
     orderId: "order-fixture",
     customerKey: "customer-fixture",
@@ -117,7 +121,7 @@ async function failedExternalApprovalFixture() {
     userId: user.id,
     customerKey: user.customerKey,
     purpose: "initial_subscription",
-    amount: 4900,
+    amount: PRO_PRICE_KRW,
     currency: "KRW",
     logicalRequestKey: "approved-external-fixture",
     now: now - 3,
@@ -911,11 +915,11 @@ test("결제가 비활성화되면 빌링키·D1 주문·Pro 권한을 만들지
 });
 
 test("최초 자동결제 Payment는 totalAmount와 서버 주문 정책을 엄격히 검증한다", () => {
-  const expected = { orderId: "order-fixture", customerKey: "customer-fixture", amount: 4900 };
+  const expected = { orderId: "order-fixture", customerKey: "customer-fixture", amount: PRO_PRICE_KRW };
   const valid = initialPaymentFixture();
   assert.equal(validateInitialPayment(valid, expected), valid);
 
-  const amountOnly = initialPaymentFixture({ totalAmount: undefined, amount: 4900 });
+  const amountOnly = initialPaymentFixture({ totalAmount: undefined, amount: PRO_PRICE_KRW });
   const cases = [
     ["totalAmount mismatch", initialPaymentFixture({ totalAmount: 1 }), "PAYMENT_AMOUNT_MISMATCH"],
     ["legacy amount fallback", amountOnly, "PAYMENT_AMOUNT_MISMATCH"],
@@ -993,7 +997,7 @@ test("외부 승인된 failed 주문과 무료 체험 사용자를 추가 청구
 
 test("외부 Payment 검증 실패는 failed 원장과 무료 체험 사용자를 변경하지 않는다", async (t) => {
   const cases = [
-    ["totalAmount mismatch", { totalAmount: 1, amount: 4900 }, "PAYMENT_AMOUNT_MISMATCH"],
+    ["totalAmount mismatch", { totalAmount: 1, amount: PRO_PRICE_KRW }, "PAYMENT_AMOUNT_MISMATCH"],
     ["not done", { status: "CANCELED" }, "PAYMENT_NOT_SUCCEEDED"],
     ["paymentKey missing", { paymentKey: "" }, "PAYMENT_KEY_MISSING"],
     ["orderId mismatch", { orderId: "other-order" }, "PAYMENT_ORDER_MISMATCH"],
@@ -1041,7 +1045,7 @@ test("무료 체험 중 최초 결제가 성공하면 승인 시각에 체험을
     if (url.includes("/authorizations/issue")) return Response.json({ billingKey: "billing-key", customerKey: config.json.customerKey });
     if (url.includes("/v1/billing/")) {
       const orderId = JSON.parse(options.body || "{}").orderId;
-      return Response.json({ status: "DONE", type: "BILLING", totalAmount: 4900, currency: "KRW", customerKey: config.json.customerKey, paymentKey: "payment-key", orderId, approvedAt });
+      return Response.json({ status: "DONE", type: "BILLING", totalAmount: PRO_PRICE_KRW, currency: "KRW", customerKey: config.json.customerKey, paymentKey: "payment-key", orderId, approvedAt });
     }
     throw new Error("unexpected payment lookup");
   };
@@ -1125,7 +1129,7 @@ test("첫 결제 응답이 유실돼도 주문 조회로 복구하고 다시 청
       return Response.json({ code: "TEMPORARY_ERROR", message: "timeout" }, { status: 500 });
     }
     const orderId = decodeURIComponent(url.split("/").at(-1));
-    return Response.json({ status: "DONE", type: "BILLING", totalAmount: 4900, currency: "KRW", customerKey: config.json.customerKey, paymentKey: "payment-key", orderId });
+    return Response.json({ status: "DONE", type: "BILLING", totalAmount: PRO_PRICE_KRW, currency: "KRW", customerKey: config.json.customerKey, paymentKey: "payment-key", orderId });
   };
   const activated = await handleAccountApi(context({
     path: "/api/billing/activate",
@@ -1156,7 +1160,7 @@ test("성공한 최초 주문을 같은 logical request로 다시 호출해도 T
     if (url.includes("/authorizations/issue")) return Response.json({ billingKey: "billing-key" });
     if (url.includes("/v1/billing/")) {
       chargeCalls += 1;
-      return Response.json({ status: "DONE", type: "BILLING", totalAmount: 4900, currency: "KRW", customerKey: config.json.customerKey, paymentKey: "payment-key", orderId: JSON.parse(options.body || "{}").orderId });
+      return Response.json({ status: "DONE", type: "BILLING", totalAmount: PRO_PRICE_KRW, currency: "KRW", customerKey: config.json.customerKey, paymentKey: "payment-key", orderId: JSON.parse(options.body || "{}").orderId });
     }
     throw new Error("unexpected payment lookup");
   };

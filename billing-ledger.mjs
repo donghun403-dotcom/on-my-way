@@ -1,3 +1,5 @@
+import { PLAN_CONFIG } from "./plan-policy.mjs";
+
 const VALID_PURPOSES = new Set(["initial_subscription", "renewal"]);
 const VALID_STATUSES = new Set(["created", "pending", "succeeded", "failed", "unknown", "cancelled"]);
 const TRANSITIONS = new Map([
@@ -254,7 +256,11 @@ export function createBillingLedger(db) {
     const normalizedPaymentKey = assertText(paymentKey, "paymentKey");
     const order = await getOrder(normalizedOrderId);
     if (!order) throw new Error("billing order not found");
-    if (order.purpose !== "initial_subscription" || order.amount !== 4900 || order.currency !== "KRW") {
+    /* 복구 대상은 정책 가격으로 만들어진 최초 구독 주문뿐이다. 가격이 바뀌면 이전 가격의
+       주문은 이 경로로 복구되지 않는다 — 네 wrangler 설정 모두 PAYMENTS_ENABLED=false라
+       복구할 실주문이 없어서 지금은 문제가 없지만, 구독자가 있는 상태로 가격을 바꾼다면
+       그 시점의 주문 금액을 함께 허용하도록 넓혀야 한다. */
+    if (order.purpose !== "initial_subscription" || order.amount !== PLAN_CONFIG.pro.priceKRW || order.currency !== "KRW") {
       const error = new Error("billing order is not eligible for external approval reconciliation");
       error.code = "BILLING_RECONCILIATION_POLICY_CONFLICT";
       error.status = 409;
@@ -316,8 +322,8 @@ export function createBillingLedger(db) {
     } else {
       await adapter.atomic([
         {
-          sql: "UPDATE billing_orders SET status = 'succeeded', payment_key = ?1, failure_code = NULL, failure_message = NULL, updated_at = ?2, completed_at = ?3 WHERE order_id = ?4 AND status = ?5 AND payment_key IS NULL AND purpose = 'initial_subscription' AND amount = 4900 AND currency = 'KRW'",
-          values: [normalizedPaymentKey, now, completedAt, order.orderId, order.status],
+          sql: "UPDATE billing_orders SET status = 'succeeded', payment_key = ?1, failure_code = NULL, failure_message = NULL, updated_at = ?2, completed_at = ?3 WHERE order_id = ?4 AND status = ?5 AND payment_key IS NULL AND purpose = 'initial_subscription' AND amount = ?6 AND currency = 'KRW'",
+          values: [normalizedPaymentKey, now, completedAt, order.orderId, order.status, PLAN_CONFIG.pro.priceKRW],
         },
         {
           sql: "INSERT INTO billing_events (event_id, order_id, user_id, previous_status, new_status, event_type, metadata_json, created_at) SELECT ?1, ?2, ?3, ?4, 'succeeded', 'order_reconciled_succeeded', ?5, ?6 WHERE EXISTS (SELECT 1 FROM billing_orders WHERE order_id = ?7 AND status = 'succeeded' AND payment_key = ?8) AND NOT EXISTS (SELECT 1 FROM billing_events WHERE order_id = ?9 AND event_type = 'order_reconciled_succeeded')",

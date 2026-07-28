@@ -1,13 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createBillingLedger, createMemoryBillingDb } from "./billing-ledger.mjs";
+import { PLAN_CONFIG } from "./plan-policy.mjs";
+
+// 주문 금액 픽스처는 정책에서 읽는다. 여기에 숫자를 다시 적으면 가격이 바뀔 때 갈라진다.
+const PRO_PRICE_KRW = PLAN_CONFIG.pro.priceKRW;
 
 test("동일 사용자와 logical request는 하나의 주문과 Idempotency-Key를 재사용한다", async () => {
   const db = createMemoryBillingDb();
   const ledger = createBillingLedger(db);
   await ledger.getOrCreateBillingAccount({ userId: "user-a", customerKey: "omw_customer_a" });
-  const first = await ledger.createOrReusePaymentOrder({ userId: "user-a", customerKey: "omw_customer_a", amount: 4900, logicalRequestKey: "auth-a" });
-  const second = await ledger.createOrReusePaymentOrder({ userId: "user-a", customerKey: "omw_customer_a", amount: 4900, logicalRequestKey: "auth-a" });
+  const first = await ledger.createOrReusePaymentOrder({ userId: "user-a", customerKey: "omw_customer_a", amount: PRO_PRICE_KRW, logicalRequestKey: "auth-a" });
+  const second = await ledger.createOrReusePaymentOrder({ userId: "user-a", customerKey: "omw_customer_a", amount: PRO_PRICE_KRW, logicalRequestKey: "auth-a" });
   assert.equal(second.orderId, first.orderId);
   assert.equal(second.idempotencyKey, first.idempotencyKey);
   assert.equal(db.orders.size, 1);
@@ -18,8 +22,8 @@ test("사용자 A와 B의 주문 및 customerKey는 서로 격리된다", async 
   const ledger = createBillingLedger(db);
   await ledger.getOrCreateBillingAccount({ userId: "user-a", customerKey: "omw_customer_a" });
   await ledger.getOrCreateBillingAccount({ userId: "user-b", customerKey: "omw_customer_b" });
-  const a = await ledger.createOrReusePaymentOrder({ userId: "user-a", customerKey: "omw_customer_a", amount: 4900, logicalRequestKey: "auth-a" });
-  const b = await ledger.createOrReusePaymentOrder({ userId: "user-b", customerKey: "omw_customer_b", amount: 4900, logicalRequestKey: "auth-b" });
+  const a = await ledger.createOrReusePaymentOrder({ userId: "user-a", customerKey: "omw_customer_a", amount: PRO_PRICE_KRW, logicalRequestKey: "auth-a" });
+  const b = await ledger.createOrReusePaymentOrder({ userId: "user-b", customerKey: "omw_customer_b", amount: PRO_PRICE_KRW, logicalRequestKey: "auth-b" });
   assert.notEqual(a.orderId, b.orderId);
   assert.notEqual(a.idempotencyKey, b.idempotencyKey);
   await assert.rejects(() => ledger.getOrCreateBillingAccount({ userId: "user-c", customerKey: "omw_customer_a" }), /already linked|conflict/i);
@@ -29,7 +33,7 @@ test("주문 상태 전이는 append-only event를 남기고 허용되지 않은
   const db = createMemoryBillingDb();
   const ledger = createBillingLedger(db);
   await ledger.getOrCreateBillingAccount({ userId: "user-a", customerKey: "omw_customer_a" });
-  const order = await ledger.createOrReusePaymentOrder({ userId: "user-a", customerKey: "omw_customer_a", amount: 4900, logicalRequestKey: "auth-a" });
+  const order = await ledger.createOrReusePaymentOrder({ userId: "user-a", customerKey: "omw_customer_a", amount: PRO_PRICE_KRW, logicalRequestKey: "auth-a" });
   await ledger.markOrderPending({ orderId: order.orderId });
   await ledger.markOrderSucceeded({ orderId: order.orderId, paymentKey: "payment-a" });
   assert.equal((await ledger.getPaymentOrder(order.orderId)).status, "succeeded");
@@ -41,7 +45,7 @@ test("일반 상태 전이는 failed 주문을 succeeded로 되돌릴 수 없다
   const db = createMemoryBillingDb();
   const ledger = createBillingLedger(db);
   await ledger.getOrCreateBillingAccount({ userId: "user-a", customerKey: "omw_customer_a" });
-  const order = await ledger.createOrReusePaymentOrder({ userId: "user-a", customerKey: "omw_customer_a", amount: 4900, logicalRequestKey: "auth-failed" });
+  const order = await ledger.createOrReusePaymentOrder({ userId: "user-a", customerKey: "omw_customer_a", amount: PRO_PRICE_KRW, logicalRequestKey: "auth-failed" });
   await ledger.markOrderPending({ orderId: order.orderId });
   await ledger.markOrderFailed({ orderId: order.orderId, failureCode: "PAYMENT_AMOUNT_MISMATCH" });
   await assert.rejects(
@@ -56,7 +60,7 @@ test("외부 승인 복구 전용 메서드는 failed 최초 주문만 원자적
   const db = createMemoryBillingDb();
   const ledger = createBillingLedger(db);
   await ledger.getOrCreateBillingAccount({ userId: "user-a", customerKey: "omw_customer_a" });
-  const order = await ledger.createOrReusePaymentOrder({ userId: "user-a", customerKey: "omw_customer_a", amount: 4900, logicalRequestKey: "auth-reconcile" });
+  const order = await ledger.createOrReusePaymentOrder({ userId: "user-a", customerKey: "omw_customer_a", amount: PRO_PRICE_KRW, logicalRequestKey: "auth-reconcile" });
   await ledger.markOrderPending({ orderId: order.orderId });
   await ledger.markOrderFailed({ orderId: order.orderId, failureCode: "PAYMENT_AMOUNT_MISMATCH", failureMessage: "amount mismatch" });
   const approvedAt = Date.parse("2026-07-17T10:20:30.000Z");
@@ -86,7 +90,7 @@ test("이미 정상 succeeded인 주문의 외부 승인 복구는 같은 paymen
   const db = createMemoryBillingDb();
   const ledger = createBillingLedger(db);
   await ledger.getOrCreateBillingAccount({ userId: "user-a", customerKey: "omw_customer_a" });
-  const order = await ledger.createOrReusePaymentOrder({ userId: "user-a", customerKey: "omw_customer_a", amount: 4900, logicalRequestKey: "auth-succeeded" });
+  const order = await ledger.createOrReusePaymentOrder({ userId: "user-a", customerKey: "omw_customer_a", amount: PRO_PRICE_KRW, logicalRequestKey: "auth-succeeded" });
   await ledger.markOrderPending({ orderId: order.orderId });
   await ledger.markOrderSucceeded({ orderId: order.orderId, paymentKey: "payment-a" });
   const eventCount = db.events.length;

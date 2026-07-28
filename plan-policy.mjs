@@ -30,7 +30,7 @@ export const PLAN_CONFIG = deepFreeze({
   },
   pro: {
     displayName: "Pro",
-    priceKRW: 4_900,
+    priceKRW: 3_900,
     monthlyCredits: 250,
     dailyCreditLimit: 30,
     maxGoals: null,

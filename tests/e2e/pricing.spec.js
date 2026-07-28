@@ -3,11 +3,17 @@ const {
   AI_CREDIT_COSTS,
   createUsageResponse,
   expectNoHorizontalOverflow,
+  formatPriceSymbol,
+  formatPriceWon,
   mockAccountExperience,
   monitorPage,
+  readProPriceKRW,
   waitForBootstrap,
   waitForAppReady,
 } = require("./helpers");
+
+// 화면에 보이는 금액 표기. 정책과 어긋나면 여기서 잡힌다.
+const VISIBLE_PRICE = /₩\s*\d{1,3},\d{3}|\d{1,3},\d{3}\s*원/g;
 
 test("비로그인 가격표는 확정 정책과 체험 조건을 표시하고 결제로 오인시키지 않는다", async ({ page }) => {
   const diagnostics = monitorPage(page);
@@ -21,8 +27,9 @@ test("비로그인 가격표는 확정 정책과 체험 조건을 표시하고 �
   const proCard = page.locator("#pricingProCard");
   await expect(pricing).toBeVisible();
   await expect(page.locator("#pricingPolicyStatus")).toContainText("Free와 Pro 정책을 확인했어요");
+  const proPrice = await readProPriceKRW(page);
   await expect(page.locator("#pricingFreePrice")).toHaveText("₩0");
-  await expect(page.locator("#pricingProPrice")).toHaveText("₩4,900");
+  await expect(page.locator("#pricingProPrice")).toHaveText(formatPriceSymbol(proPrice));
   await expect(freeCard.locator('[data-policy-field="monthly-credits"]')).toHaveText("10개");
   await expect(freeCard.locator('[data-policy-field="daily-limit"]')).toHaveText("4크레딧");
   await expect(freeCard.locator('[data-policy-field="trial-duration"]')).toHaveText("24시간");
@@ -39,7 +46,9 @@ test("비로그인 가격표는 확정 정책과 체험 조건을 표시하고 �
 
   const pricingCopy = await pricing.innerText();
   // 라우트가 사라진 기능을 가격표가 계속 광고하지 않는지 함께 고정한다.
-  expect(pricingCopy).not.toMatch(/2,900|300\s*(?:에너지|크레딧)|올리 에너지|AI 무제한|무제한 AI|추가 에너지|주간 최적화|목표 전체 재설계|새 목표 계획 생성|오늘의 한 걸음 생성/);
+  expect(pricingCopy).not.toMatch(/300\s*(?:에너지|크레딧)|올리 에너지|AI 무제한|무제한 AI|추가 에너지|주간 최적화|목표 전체 재설계|새 목표 계획 생성|오늘의 한 걸음 생성/);
+  // 가격표에 보이는 금액은 전부 정책 값이어야 한다. 다른 숫자가 남아 있으면 여기서 걸린다.
+  expect(pricingCopy.match(VISIBLE_PRICE) || []).toEqual([formatPriceSymbol(proPrice)]);
   await expect(page.locator("#pricingPaymentState")).toContainText("운영 결제는 비활성화");
   await expect(page.locator("#pricingProCta")).toHaveText("무료 체험 시작하기");
   await expectNoHorizontalOverflow(page);
@@ -159,7 +168,14 @@ test("Free 회원은 무료 체험을 한 번 시작한 뒤 같은 CTA로 Pro �
 
   const billingDialog = page.locator("#billingConfirmDialog");
   await expect(billingDialog).toBeVisible();
-  await expect(page.locator("#billingConfirmButton")).toHaveText("4,900원 결제하고 Pro 시작");
+  const proPrice = await readProPriceKRW(page);
+  await expect(page.locator("#billingConfirmButton")).toHaveText(`${formatPriceWon(proPrice)} 결제하고 Pro 시작`);
+  await expect(page.locator("#billingConfirmTitle")).toHaveText(`월 ${formatPriceWon(proPrice)}으로 Pro를 시작할까요?`);
+  // 결제 동의 화면의 금액은 서버가 청구할 금액과 같은 정책에서 나와야 한다.
+  expect((await billingDialog.innerText()).match(VISIBLE_PRICE) || []).toEqual([
+    formatPriceWon(proPrice),
+    formatPriceWon(proPrice),
+  ]);
   await expect(page.locator("#billingContinueTrialButton")).toHaveText("체험 계속하기");
   await page.locator("#billingContinueTrialButton").click();
   await expect(billingDialog).not.toBeVisible();
@@ -316,6 +332,29 @@ test("유료 Pro 회원은 현재 이용 중 상태로 중복 결제를 막는�
   await expect(proCta).toBeDisabled();
   await proCta.evaluate((button) => button.click());
   expect(billingRequests).toEqual([]);
+  diagnostics.expectClean();
+});
+
+test("앱 화면의 PRO 금액은 모두 정책 값 하나를 따른다", async ({ page }) => {
+  const diagnostics = monitorPage(page);
+  await mockAccountExperience(page, {
+    user: { id: "usr_price_copy", provider: "google", name: "가격 문구 회원", email: "price-copy@example.com", plan: "free", role: "member" },
+    usage: createUsageResponse({ plan: "free", trialEligible: false }),
+    paymentsEnabled: false,
+  });
+  await page.goto("/app.html");
+  await waitForAppReady(page);
+
+  const proPrice = await readProPriceKRW(page);
+  await page.locator("#menuToggle").click();
+  await page.locator("#drawerMyPage").click();
+  await expect(page.locator("#myPageSheet")).toBeVisible();
+  // 정책이 붙기 전 자리표시자("월 요금 확인 중")가 그대로 남지 않는지까지 본다.
+  await expect(page.locator("#myPageSubscribe em")).toHaveText(`월 ${formatPriceSymbol(proPrice)}`);
+
+  const visible = (await page.locator("body").innerText()).match(VISIBLE_PRICE) || [];
+  const wrong = visible.filter((token) => token !== formatPriceSymbol(proPrice) && token !== formatPriceWon(proPrice));
+  expect(wrong).toEqual([]);
   diagnostics.expectClean();
 });
 
