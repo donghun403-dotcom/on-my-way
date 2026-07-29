@@ -139,12 +139,42 @@ async function harness({ plan = "pro", userId = "energy-user", aiHandler } = {})
         body: JSON.stringify({ message, context: { goal: "테스트" } }),
       }), env);
     },
+    book(requestId, monthKey = "2026-07") {
+      return worker.fetch(new Request("https://app.example/api/ai/diary-book", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: `omw_session=${token}`,
+          "x-request-id": requestId,
+        },
+        body: JSON.stringify({ monthKey, goal: "테스트 목표", summary: { entryCount: 3, averageCompletion: 50 } }),
+      }), env);
+    },
     usage() {
       return worker.fetch(new Request("https://app.example/api/ai/usage", {
         headers: { cookie: `omw_session=${token}` },
       }), env);
     },
   };
+}
+
+/* 다이어리 북은 머리말과 편지 두 번을 부른다. 두 응답 모두 같은 mock으로 돌려준다 —
+   스키마 이름으로 갈라 주지 않아도 두 필드가 다 있으면 각자 필요한 것만 읽는다. */
+function bookAiHandler({ failLetter = false } = {}) {
+  let calls = 0;
+  const handler = async (url, options = {}) => {
+    calls += 1;
+    const body = JSON.parse(options?.body || "{}");
+    const isLetter = body.text?.format?.name === "diary_book_letter";
+    if (isLetter && failLetter) return new Response("letter boom", { status: 500 });
+    const payload = isLetter ? { letter: "그 달의 편지예요." } : { title: "작게 시작한 달", foreword: "둥실, 이 달의 이야기예요." };
+    return new Response(JSON.stringify({ output_text: JSON.stringify(payload), usage: { input_tokens: 10, output_tokens: 10 } }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+  handler.callCount = () => calls;
+  return handler;
 }
 
 test("에너지 조회는 DO 원장의 잔량을 돌려준다", async () => {
@@ -290,6 +320,109 @@ test("잔량이 바닥나면 AI를 부르지 않고 거절한다", async () => {
       providerCalls <= limit,
       `한도를 넘은 요청은 provider를 부르면 안 되는데 ${providerCalls}회 호출됨`,
     );
+  } finally {
+    app.restore();
+  }
+});
+
+/* ---------- 다이어리 북 (C5) ---------- */
+
+test("PRO의 첫 다이어리 북은 무료로 나가고 잔량이 그대로다", async () => {
+  const app = await harness({ plan: "pro", aiHandler: bookAiHandler() });
+  try {
+    const body = await (await app.book("book-free")).json();
+    assert.equal(body.ok, true);
+    assert.equal(body.chargedCredits, 0);
+    assert.equal(body.entitlement, "monthly_diary_book");
+    assert.equal(body.title, "작게 시작한 달");
+    assert.equal(body.letter, "그 달의 편지예요.");
+    assert.equal(body.usage.balance, PLAN_CONFIG.pro.monthlyCredits, "무료 권은 잔량을 건드리지 않는다");
+    assert.equal(body.usage.diaryBook.freeAvailable, false);
+  } finally {
+    app.restore();
+  }
+});
+
+test("무료 권을 쓴 뒤 두 번째 북은 에너지 10을 차감한다", async () => {
+  const app = await harness({ plan: "pro", aiHandler: bookAiHandler() });
+  try {
+    await app.book("book-1");
+    const body = await (await app.book("book-2")).json();
+    assert.equal(body.chargedCredits, AI_CREDIT_COSTS.diary_book);
+    assert.equal(body.usage.balance, PLAN_CONFIG.pro.monthlyCredits - 10);
+
+    const after = await (await app.usage()).json();
+    assert.equal(after.balance, body.usage.balance, "조회 잔량과 응답 잔량이 일치해야 한다");
+  } finally {
+    app.restore();
+  }
+});
+
+test("북 생성이 실패하면 에너지도 무료 권도 원복된다", async () => {
+  const app = await harness({ plan: "pro", aiHandler: bookAiHandler({ failLetter: true }) });
+  try {
+    // 무료 권을 먼저 소진해서 이번 실패가 에너지 10짜리 요청이 되게 한다.
+    const okHandler = bookAiHandler();
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = okHandler;
+    await app.book("book-warmup");
+    globalThis.fetch = originalFetch;
+
+    const before = await (await app.usage()).json();
+    assert.equal(before.balance, PLAN_CONFIG.pro.monthlyCredits);
+
+    const response = await app.book("book-boom");
+    assert.notEqual(response.status, 200);
+
+    const after = await (await app.usage()).json();
+    assert.equal(after.balance, PLAN_CONFIG.pro.monthlyCredits, "실패한 발급은 에너지를 먹지 않는다");
+    assert.equal(after.reserved, 0, "예약이 남아 있으면 안 된다");
+    assert.equal(after.daily.used, 0);
+  } finally {
+    app.restore();
+  }
+});
+
+test("실패한 무료 발급은 그 달의 무료 권을 태우지 않는다", async () => {
+  const app = await harness({ plan: "pro", aiHandler: bookAiHandler({ failLetter: true }) });
+  try {
+    const response = await app.book("book-fail-free");
+    assert.notEqual(response.status, 200);
+    const after = await (await app.usage()).json();
+    assert.equal(after.diaryBook.freeAvailable, true, "쓰지 못한 무료 권은 남아 있어야 한다");
+  } finally {
+    app.restore();
+  }
+});
+
+test("Free는 하루 상한에 걸려 북을 만들 수 없고 AI도 부르지 않는다", async () => {
+  const handler = bookAiHandler();
+  const app = await harness({ plan: "free", userId: "free-book-user", aiHandler: handler });
+  try {
+    const response = await app.book("book-free-plan");
+    assert.equal(response.status, 429);
+    const body = await response.json();
+    assert.equal(body.code, "DAILY_AI_CREDIT_LIMIT_EXCEEDED");
+    assert.equal(handler.callCount(), 0, "재화가 모자라면 provider 비용을 만들지 않는다");
+  } finally {
+    app.restore();
+  }
+});
+
+test("달 표기가 틀린 요청은 AI를 부르지 않고 에너지도 그대로 둔다", async () => {
+  const handler = bookAiHandler();
+  const app = await harness({ plan: "pro", userId: "bad-month-user", aiHandler: handler });
+  try {
+    // 무료 권을 먼저 쓴다 — 남아 있으면 비용이 0이라 "에너지가 그대로"가 아무것도 증명하지 못한다.
+    await app.book("book-warmup");
+    const response = await app.book("book-bad", "2026-13");
+    assert.equal(response.status, 400);
+    assert.equal((await response.json()).code, "INVALID_DIARY_BOOK_MONTH");
+    assert.equal(handler.callCount(), 2, "머리말·편지 호출이 늘지 않아야 한다(정상 1권 = 2회)");
+
+    const after = await (await app.usage()).json();
+    assert.equal(after.balance, PLAN_CONFIG.pro.monthlyCredits, "형식 오류는 재화를 먹지 않는다");
+    assert.equal(after.reserved, 0);
   } finally {
     app.restore();
   }

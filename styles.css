@@ -13019,6 +13019,109 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 }
 .execution-page .day-page-erase-buttons button.is-destructive { color: #fff; background: var(--lilac-600); border-color: var(--lilac-600); }
 
+/* ===== 다이어리 북 카드 (스펙 4장) ===== */
+
+.execution-page .diary-book-card {
+  display: grid;
+  gap: 12px;
+  margin-top: var(--space-3);
+  padding: 16px;
+  background: linear-gradient(145deg,rgba(228, 238, 248,.8),rgba(247,243,249,.86));
+  border: 1px solid rgba(107,122,166,.14);
+  border-radius: var(--r-md);
+}
+.execution-page .diary-book-head { display: grid; grid-template-columns: 52px minmax(0,1fr); gap: 12px; align-items: start; }
+.execution-page .diary-book-head img { width: 52px; height: 58px; object-fit: contain; }
+.execution-page .diary-book-head small { color: var(--n-600); font-size: var(--text-2xs); font-weight: 900; letter-spacing: .08em; }
+.execution-page .diary-book-head h2 { margin: 1px 0 0; color: var(--blue-800); font-size: 15px; }
+.execution-page .diary-book-head p { margin: 3px 0 0; color: var(--blue-700); font-size: 11px; font-weight: 700; line-height: 1.6; }
+
+.execution-page .diary-book-form { display: grid; gap: 10px; }
+.execution-page .diary-book-month { display: grid; gap: 5px; }
+.execution-page .diary-book-month > span { color: var(--n-600); font-size: var(--text-2xs); font-weight: 900; }
+.execution-page .diary-book-month select {
+  min-height: 44px;
+  padding: 0 10px;
+  color: var(--blue-800);
+  background: rgba(255,255,255,.92);
+  border: 1px solid rgba(107,122,166,.16);
+  border-radius: var(--r-sm);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+}
+.execution-page .diary-book-contents { margin: 0; color: var(--blue-700); font-size: 11px; font-weight: 800; }
+.execution-page .diary-book-notice { margin: 0; color: var(--n-600); font-size: 11px; font-weight: 700; line-height: 1.55; }
+.execution-page .diary-book-empty p { margin: 0; color: var(--n-600); font-size: 11px; font-weight: 700; line-height: 1.6; }
+
+.execution-page .diary-book-create {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 48px;
+  padding: 0 14px;
+  color: #fff;
+  background: var(--n-500);
+  border: 0;
+  border-radius: var(--r-sm);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+.execution-page .diary-book-create:disabled { opacity: .55; cursor: default; }
+.execution-page .diary-book-create b { flex: 0 0 auto; padding: 4px 8px; background: rgba(255,255,255,.2); border-radius: 999px; font-size: 11px; }
+.execution-page .diary-book-status { margin: 0; min-height: 0; color: var(--blue-700); font-size: 11px; font-weight: 800; line-height: 1.5; }
+.execution-page .diary-book-status[data-tone="warn"] { color: #7a5a1f; }
+.execution-page .diary-book-status[data-tone="done"] { color: var(--blue-800); }
+
+.execution-page .diary-book-done { display: grid; gap: 10px; padding-top: 10px; border-top: 1px dashed rgba(107,122,166,.18); }
+.execution-page .diary-book-done > p { margin: 0; color: var(--blue-800); font-size: 11px; font-weight: 800; line-height: 1.6; }
+.execution-page .diary-book-done-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.execution-page .diary-book-done-actions button {
+  min-height: 44px;
+  padding: 0 14px;
+  color: #fff;
+  background: var(--n-500);
+  border: 0;
+  border-radius: var(--r-sm);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+}
+.execution-page .diary-book-done-actions button.is-quiet {
+  color: var(--lilac-600);
+  background: rgba(255,255,255,.9);
+  border: 1px solid rgba(107,122,166,.16);
+}
+.execution-page .diary-book-tidy {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  background: rgba(253,246,236,.92);
+  border: 1px solid #edd6ad;
+  border-radius: var(--r-sm);
+}
+.execution-page .diary-book-tidy p { display: grid; gap: 3px; margin: 0; }
+.execution-page .diary-book-tidy strong { color: #7a5a1f; font-size: 12px; }
+.execution-page .diary-book-tidy span { color: #7a5a1f; font-size: 11px; font-weight: 800; line-height: 1.55; }
+.execution-page .diary-book-tidy-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.execution-page .diary-book-tidy-buttons button {
+  min-height: 44px;
+  padding: 0 14px;
+  color: var(--blue-700);
+  background: rgba(255,255,255,.92);
+  border: 1px solid rgba(107,122,166,.16);
+  border-radius: var(--r-sm);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+}
+.execution-page .diary-book-tidy-buttons button.is-destructive { color: #fff; background: var(--lilac-600); border-color: var(--lilac-600); }
+
 .execution-page .memory-pattern-panel { display: grid; gap: 12px; margin-top: var(--space-3); padding: 16px; background: linear-gradient(145deg,rgba(234, 239, 245,.82),rgba(247,243,249,.82)); }
 .execution-page .memory-pattern-head { display: grid; justify-content: stretch; gap: 3px; }
 .execution-page .memory-pattern-head > span { color: var(--blue-700); font-size: var(--text-2xs); font-weight: 900; letter-spacing: .08em; }
@@ -18574,4 +18677,113 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
       "time minutes"
       "rule rule";
   }
+}
+
+/* ===== 다이어리 북 조판 (스펙 4장) =====
+   조판과 PDF 변환은 클라이언트가 한다. 새 의존성을 넣지 않는 대신 브라우저 인쇄
+   파이프라인을 쓰므로, 이 블록이 곧 "책의 디자인"이다.
+   화면에서는 늘 숨어 있고 body.is-printing-book일 때만 앱을 가리고 이 노드만 남는다. */
+
+.diary-book-print { display: none; }
+
+@media print {
+  body.is-printing-book > *:not(.diary-book-print) { display: none !important; }
+  body.is-printing-book { background: #ffffff; }
+  body.is-printing-book .diary-book-print {
+    display: block;
+    color: #21324d;
+    background: #ffffff;
+    /* 표지·편지의 옅은 배경이 인쇄에서 날아가지 않게 한다 */
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  @page { size: A4; margin: 14mm; }
+
+  .diary-book-print .book-page { break-after: page; page-break-after: always; }
+  .diary-book-print .book-page:last-child { break-after: auto; page-break-after: auto; }
+  .diary-book-print .book-page h2 {
+    margin: 0 0 10mm;
+    color: #2f4a72;
+    font-size: 15pt;
+    letter-spacing: .02em;
+  }
+  .diary-book-print .book-body-text {
+    margin: 0;
+    font-size: 11.5pt;
+    line-height: 1.9;
+    white-space: pre-wrap;
+  }
+
+  /* 표지 — 소장 가치를 만드는 자리라 한 장을 통째로 쓴다 */
+  .diary-book-print .book-cover {
+    display: flex;
+    flex-direction: column;
+    gap: 6mm;
+    align-items: center;
+    justify-content: center;
+    min-height: 240mm;
+    padding: 18mm 12mm;
+    text-align: center;
+    background: linear-gradient(160deg, #eef4fb 0%, #f7f3f9 100%);
+    border: 1.2pt solid #cfd9ea;
+    border-radius: 4mm;
+  }
+  .diary-book-print .book-cover img { width: 46mm; height: auto; }
+  .diary-book-print .book-cover-brand { color: #6b7aa6; font-size: 9.5pt; font-weight: 800; letter-spacing: .28em; }
+  .diary-book-print .book-cover-title { margin: 0; color: #1f3358; font-size: 26pt; line-height: 1.3; }
+  .diary-book-print .book-cover-month { margin: 0; color: #4a6289; font-size: 13pt; font-weight: 700; }
+  .diary-book-print .book-cover-goal { margin: 4mm 0 0; padding-top: 4mm; color: #6b7aa6; font-size: 10pt; border-top: .8pt solid #cfd9ea; }
+
+  .diary-book-print .book-foreword,
+  .diary-book-print .book-letter { padding: 6mm 0; }
+  .diary-book-print .book-foreword img,
+  .diary-book-print .book-letter img { display: block; width: 26mm; height: auto; margin: 0 0 6mm; }
+  .diary-book-print .book-letter { background: #fbf8f3; border-radius: 3mm; padding: 10mm; }
+  .diary-book-print .book-letter-sign { margin: 8mm 0 0; color: #6b7aa6; font-size: 10.5pt; text-align: right; }
+
+  /* 그 달의 숫자 — 성적표가 아니라 기록이므로 담백하게 */
+  .diary-book-print .book-stats dl {
+    display: grid;
+    grid-template-columns: 45mm 1fr;
+    gap: 3mm 6mm;
+    margin: 0;
+    font-size: 11pt;
+  }
+  .diary-book-print .book-stats dt { color: #6b7aa6; font-weight: 700; }
+  .diary-book-print .book-stats dd { margin: 0; color: #21324d; font-weight: 700; }
+  .diary-book-print .book-moods { margin: 8mm 0 0; padding-top: 5mm; color: #4a6289; font-size: 10.5pt; border-top: .8pt solid #dfe5f0; }
+
+  /* 날짜별 본문 — 한 날이 페이지 경계에서 두 동강 나지 않게 한다 */
+  .diary-book-print .book-day {
+    padding: 5mm 0;
+    border-bottom: .6pt solid #e6ebf3;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .diary-book-print .book-day:last-child { border-bottom: 0; }
+  .diary-book-print .book-day header {
+    display: flex;
+    gap: 4mm;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 2mm;
+  }
+  .diary-book-print .book-day header strong { color: #2f4a72; font-size: 11.5pt; }
+  .diary-book-print .book-day header span { color: #6b7aa6; font-size: 9.5pt; font-weight: 700; }
+  .diary-book-print .book-day h3 { margin: 0 0 2mm; color: #1f3358; font-size: 12pt; }
+  .diary-book-print .book-day-note {
+    margin: 0;
+    padding: 3mm 4mm;
+    color: #21324d;
+    background: #f8f4ef;
+    border-radius: 2mm;
+    font-size: 10.5pt;
+    line-height: 1.75;
+    white-space: pre-wrap;
+  }
+  .diary-book-print .book-day-talk { margin-top: 3mm; padding-left: 4mm; border-left: 1.2pt solid #dfe5f0; }
+  .diary-book-print .book-turn { margin: 0 0 1.5mm; font-size: 10pt; line-height: 1.7; }
+  .diary-book-print .book-turn b { color: #6b7aa6; font-size: 9pt; }
+  .diary-book-print .book-turn.is-ollie b { color: #2f7a63; }
 }

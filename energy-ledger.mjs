@@ -17,6 +17,7 @@ import {
   PLAN_CONFIG,
   PLAN_LABELS,
   getPlanConfig,
+  hasMonthlyFreeDiaryBook,
 } from "./plan-policy.mjs";
 
 export const ENERGY_LEDGER_SCHEMA_VERSION = 1;
@@ -39,6 +40,12 @@ export const RESERVATION_TTL_MS = 10 * 60 * 1_000;
 
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/;
 const ORDER_ID_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/;
+
+/* PRO의 "매월 다이어리 북 1권 무료"는 통화가 아니라 자격이다. 에너지를 10 얹어 주면
+   대화에 쓸 수 있게 되어 혜택의 모양이 달라진다. 그래서 잔액을 건드리지 않고 월 키
+   하나로 소진 여부만 기록한다 — lazy-grant와 같은 원리다. */
+export const DIARY_BOOK_ACTION = "diary_book";
+export const MONTHLY_DIARY_BOOK_ENTITLEMENT = "monthly_diary_book";
 
 export class EnergyLedgerError extends Error {
   constructor(code, message, status = 400, details = undefined) {
@@ -141,6 +148,8 @@ export function emptyLedgerState(now = Date.now(), timeZone = DEFAULT_TIME_ZONE)
     purchasedBalance: 0,
     // 이번 달 정기 지급 여부. lazy-grant 판정에 쓴다.
     lastGrantMonthKey: "",
+    // 이번 달 무료 다이어리 북을 이미 받았는지. 비어 있으면 아직 안 받았다는 뜻이다.
+    freeDiaryBookMonthKey: "",
     // 일일 속도 제한. 키가 바뀌면 0으로 리셋한다.
     daily: { key: "", spent: 0, reserved: 0 },
     // 진행 중/최근 예약. requestId 멱등 처리를 겸한다.
@@ -168,6 +177,9 @@ function normalizeRequests(value) {
       updatedAt: finiteTimestamp(raw.updatedAt),
       txnId: String(raw.txnId || ""),
       fromPurchased: nonNegativeInteger(raw.fromPurchased),
+      // 무료 자격으로 잡은 예약인지, 확정하며 어느 달의 자격을 썼는지.
+      entitlement: String(raw.entitlement || ""),
+      entitlementMonthKey: String(raw.entitlementMonthKey || ""),
       errorCode: String(raw.errorCode || ""),
     };
   }
@@ -200,6 +212,7 @@ export function normalizeLedgerState(value, now = Date.now(), timeZone = DEFAULT
     reserved: nonNegativeInteger(value.reserved),
     purchasedBalance: Math.min(nonNegativeInteger(value.purchasedBalance), nonNegativeInteger(value.balance)),
     lastGrantMonthKey: String(value.lastGrantMonthKey || ""),
+    freeDiaryBookMonthKey: String(value.freeDiaryBookMonthKey || ""),
     daily: {
       key: String(daily.key || ""),
       spent: nonNegativeInteger(daily.spent),
@@ -228,6 +241,17 @@ export function dailySpendLimit(plan) {
   return config ? config.dailyCreditLimit : 0;
 }
 
+/* 이번 달 무료 다이어리 북이 아직 남아 있는가. 자격을 쓰는 시점은 예약이 아니라 확정이다 —
+   AI가 실패한 요청이 그 달의 유일한 무료 권을 태워 버리면 안 된다. */
+export function hasFreeDiaryBook(state, { plan, period }) {
+  return hasMonthlyFreeDiaryBook(plan) && state.freeDiaryBookMonthKey !== period.monthKey;
+}
+
+export function resolveActionCost(state, { plan, action, period }) {
+  if (action === DIARY_BOOK_ACTION && hasFreeDiaryBook(state, { plan, period })) return 0;
+  return AI_CREDIT_COSTS[action];
+}
+
 /* ---------- 거래 기록 (append-only) ----------
    거래는 상태 레코드 안에 배열로 쌓지 않고 `txn:<seq>` 개별 키로 append한다.
    상태 레코드를 작게 유지해야 매 요청의 읽기·쓰기가 커지지 않고, 이미 쓴 거래를
@@ -240,11 +264,13 @@ function txnKey(seq) {
 async function appendTransaction(storage, { type, amount, reason, at, balanceAfter, meta }) {
   const seq = nonNegativeInteger(await storage.get(SEQ_KEY)) + 1;
   const txnId = `t${String(seq).padStart(12, "0")}`;
+  const value = Number(amount);
   const record = {
     txnId,
     seq,
     type,
-    amount: Number(amount),
+    // 0원짜리 거래(무료 자격 소진)에서 -0이 남지 않게 한다 — 감사 기록에 부호만 붙은 0은 잡음이다.
+    amount: Object.is(value, -0) ? 0 : value,
     reason: String(reason || ""),
     at: Number(at),
     balanceAfter: Number(balanceAfter),
@@ -382,6 +408,13 @@ export function buildUsageView(state, { plan, period, trial = null } = {}) {
     },
     creditCosts: { ...AI_CREDIT_COSTS },
     actionLabels: { ...AI_ACTION_LABELS },
+    /* 클라이언트가 버튼에 "이번 달 무료"와 "에너지 10" 중 무엇을 쓸지 정할 근거.
+       판정 자체는 서버가 하고, 클라이언트는 결과만 읽는다. */
+    diaryBook: {
+      cost: AI_CREDIT_COSTS[DIARY_BOOK_ACTION],
+      monthlyFree: hasMonthlyFreeDiaryBook(plan),
+      freeAvailable: hasFreeDiaryBook(state, { plan, period }),
+    },
   };
 }
 
@@ -435,6 +468,7 @@ export async function reserveEnergy(storage, { plan, action, requestId, now = Da
       requestId: id,
       action,
       cost: existing.cost,
+      entitlement: existing.entitlement,
       status: existing.status,
       idempotent: true,
       shouldExecute: false,
@@ -442,7 +476,8 @@ export async function reserveEnergy(storage, { plan, action, requestId, now = Da
     };
   }
 
-  const cost = AI_CREDIT_COSTS[action];
+  const cost = resolveActionCost(state, { plan, action, period });
+  const entitlement = cost === 0 && action === DIARY_BOOK_ACTION ? MONTHLY_DIARY_BOOK_ENTITLEMENT : "";
   const dailyLimit = dailySpendLimit(plan);
   if (dailyLimit - state.daily.spent - state.daily.reserved < cost) {
     await saveState(storage, state, now);
@@ -470,6 +505,8 @@ export async function reserveEnergy(storage, { plan, action, requestId, now = Da
     createdAt: now,
     updatedAt: now,
     txnId: "",
+    entitlement,
+    entitlementMonthKey: "",
     errorCode: "",
   };
   await saveState(storage, state, now);
@@ -479,6 +516,7 @@ export async function reserveEnergy(storage, { plan, action, requestId, now = Da
     requestId: id,
     action,
     cost,
+    entitlement,
     status: "reserved",
     idempotent: false,
     shouldExecute: true,
@@ -514,13 +552,24 @@ export async function commitEnergy(storage, { plan, requestId, now = Date.now(),
   state.balance = Math.max(0, state.balance - request.cost);
   state.purchasedBalance = Math.max(0, state.purchasedBalance - fromPurchased);
 
+  /* 무료 자격으로 만든 요청은 여기서 그 달의 자격을 소진한다. 잔액은 0원어치 움직이지만
+     거래는 남긴다 — "이번 달 무료 권을 언제 썼는지"가 CS 분쟁의 대상이기 때문이다. */
+  if (request.entitlement === MONTHLY_DIARY_BOOK_ENTITLEMENT) {
+    request.entitlementMonthKey = period.monthKey;
+    state.freeDiaryBookMonthKey = period.monthKey;
+  }
+
   const txn = await appendTransaction(storage, {
     type: TXN_TYPES.SPEND,
     amount: -request.cost,
     reason: request.action,
     at: now,
     balanceAfter: state.balance,
-    meta: { requestId: id, ...(meta || {}) },
+    meta: {
+      requestId: id,
+      ...(request.entitlement ? { entitlement: request.entitlement, month: period.monthKey } : {}),
+      ...(meta || {}),
+    },
   });
   request.status = "committed";
   request.txnId = txn.txnId;
@@ -529,7 +578,15 @@ export async function commitEnergy(storage, { plan, requestId, now = Date.now(),
   request.updatedAt = now;
   await saveState(storage, state, now);
 
-  return { ok: true, requestId: id, chargedCredits: request.cost, idempotent: false, txnId: txn.txnId, usage: buildUsageView(state, { plan, period, trial }) };
+  return {
+    ok: true,
+    requestId: id,
+    chargedCredits: request.cost,
+    entitlement: request.entitlement,
+    idempotent: false,
+    txnId: txn.txnId,
+    usage: buildUsageView(state, { plan, period, trial }),
+  };
 }
 
 // 원복: AI가 실패했을 때 잡아 둔 몫을 놓아 준다. 잔액을 건드린 적이 없으므로
@@ -547,6 +604,11 @@ export async function releaseEnergy(storage, { plan, requestId, now = Date.now()
     return { ok: true, requestId: id, releasedCredits: 0, idempotent: true, usage: buildUsageView(state, { plan, period, trial }) };
   }
   if (request.status === "committed") {
+    /* 무료 자격으로 만든 건을 되돌리면 자격도 돌려준다. 그러지 않으면 실패한 발급 하나로
+       그 달의 무료 권이 사라진다. 그 사이 다른 요청이 이미 자격을 가져갔으면 건드리지 않는다. */
+    if (request.entitlement === MONTHLY_DIARY_BOOK_ENTITLEMENT && state.freeDiaryBookMonthKey === request.entitlementMonthKey) {
+      state.freeDiaryBookMonthKey = "";
+    }
     // 이미 확정된 건은 환불 거래로 되돌린다 (기록을 지우지 않는다).
     state.balance += request.cost;
     // 나간 주머니 그대로 돌려준다 — 구매분에서 나갔으면 구매분으로 복구해야
