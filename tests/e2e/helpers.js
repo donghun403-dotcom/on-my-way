@@ -151,6 +151,12 @@ async function completeManualPlan(page, { goal = "3개월 안에 토익 900점 �
   await expect(page.locator("#firstStep")).toBeVisible();
 }
 
+/* 대화 기능은 최초 사용 시점에 별도 동의를 받는다(개인정보 정책 프레임 7장 1항).
+   동의 화면 자체를 보는 테스트가 아니면 "이미 동의한 기기"로 시작한다. */
+const CHAT_CONSENT_STORAGE = Object.freeze({
+  omwChatConsent: { agreed: true, agreedAt: "2026-07-29T00:00:00.000Z", version: 1 },
+});
+
 async function prepareApp(page, storage = {}) {
   await mockExternalAssets(page);
   await page.addInitScript(
@@ -595,6 +601,7 @@ async function readStored(page, key) {
 
 module.exports = {
   AI_CREDIT_COSTS,
+  CHAT_CONSENT_STORAGE,
   captureAcceptance,
   createUsageResponse,
   expectNoDuplicateIds,

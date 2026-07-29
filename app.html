@@ -358,6 +358,7 @@
             <p class="eyebrow" id="dailyCoachKicker">OLLIE COACH · 오늘의 응원</p>
             <h2 id="dailyCoachTitle">오늘 할 수 있는 한 가지부터 시작해요.</h2>
             <p id="dailyCoachMessage">어제의 기록과 오늘의 스케줄을 살펴보고 올리가 가장 필요한 응원을 전해드려요.</p>
+            <button class="coach-card-chat" data-open-companion-chat data-chat-entry="continue" type="button">이야기 이어가기 <b aria-hidden="true">→</b></button>
               </div>
             </div>
           </details>
@@ -772,7 +773,7 @@
               <h2 id="memoryConversationTitle">대화에서 남은 한마디</h2>
               <p id="memoryConversation"></p>
             </div>
-            <button id="openCompanionChat" data-chat-entry="continue" type="button">올리와 대화 이어가기</button>
+            <button id="openCompanionChat" data-chat-entry="talk" type="button">올리와 이야기하기</button>
           </section>
 
           <details class="memory-history-disclosure">
@@ -828,39 +829,82 @@
     </footer>
 
     <div class="sheet-overlay" id="chatOverlay" hidden></div>
-    <aside class="companion-chat-sheet" id="companionChatSheet" role="dialog" aria-modal="true" aria-labelledby="companionChatTitle" tabindex="-1" hidden>
+    <aside class="companion-chat-sheet chat-sheet" id="companionChatSheet" role="dialog" aria-modal="true" aria-labelledby="companionChatTitle" tabindex="-1" hidden>
       <div class="sheet-handle" aria-hidden="true"></div>
-      <div class="sheet-title-row">
+
+      <!-- ① 헤더 — 에너지 잔량을 상시 표시한다 -->
+      <div class="sheet-title-row chat-header">
         <div>
-          <span id="companionChatKicker">올리와 오늘 이야기하기</span>
-          <h2 id="companionChatTitle">지금 마음을 알려주세요</h2>
+          <h2 id="companionChatTitle">올리와 대화해요</h2>
+          <p id="companionChatSubtitle">오늘 어땠는지 이야기해요</p>
         </div>
-        <button id="closeCompanionChat" type="button" aria-label="대화 닫기">×</button>
-      </div>
-      <div class="chat-ollie" id="companionChatOllie">
-        <img class="mascot-art" id="companionChatOllieImage" src="assets/ollie-action.png" alt="" />
-        <div class="chat-bubble">
-          <span>올리</span>
-          <p class="chat-response" id="companionChatResponse">메시지를 보내면 기능별 AI 크레딧을 사용해 올리가 직접 답해줘요. 계획을 바꾸는 요청은 계획 탭의 변경안에도 함께 담아둬요.</p>
-          <p class="chat-thinking" id="companionChatThinking" hidden><i aria-hidden="true"></i><i aria-hidden="true"></i><i aria-hidden="true"></i><span>생각하는 중</span></p>
+        <!-- 닫기가 DOM에서 먼저다 — 시트가 열릴 때 첫 초점은 다른 시트와 같이 닫기여야 한다.
+             화면에서는 row-reverse로 에너지가 왼쪽, 닫기가 오른쪽에 놓인다. -->
+        <div class="chat-header-side">
+          <button id="closeCompanionChat" type="button" aria-label="대화 닫기">×</button>
+          <button class="chat-energy" id="chatEnergyBadge" type="button" aria-label="남은 에너지 안내 열기">
+            <span class="energy-leaf" aria-hidden="true">◆</span>
+            <b id="chatEnergyBalance">확인 중</b>
+          </button>
         </div>
       </div>
-      <div class="energy-options" aria-label="오늘 상태 선택">
-        <button type="button" data-energy="good">좋아요</button>
-        <button type="button" data-energy="normal">보통이에요</button>
-        <button type="button" data-energy="tired">지쳤어요</button>
+
+      <!-- 대화 기능 최초 사용 동의 (개인정보 처리방침 별도 고지) -->
+      <section class="chat-consent" id="chatConsent" aria-labelledby="chatConsentTitle" hidden>
+        <h3 id="chatConsentTitle">대화를 시작하기 전에</h3>
+        <ul>
+          <li>올리와 나눈 <strong>대화 내용과 그날의 감정 기록</strong>을 <strong>이 기기에</strong> 저장해요. 기록 탭의 하루 페이지로 남고, <strong>최근 90일</strong>까지 보관합니다.</li>
+          <li>답을 만들기 위해 대화가 <strong>외부 AI 처리자(OpenAI)</strong>에 전송돼요. 그쪽에는 저장하지 않는 설정을 씁니다.</li>
+          <li>지금은 <strong>서버에 대화 원문을 따로 저장하지 않아요.</strong> 서버 보관을 시작하게 되면 미리 알리고 다시 여쭤볼게요.</li>
+          <li>운영자는 대화 원문을 열람하지 않아요. 로그아웃하거나 탈퇴하면 이 기기의 대화 기록도 함께 지웁니다.</li>
+        </ul>
+        <p class="chat-consent-link"><a href="/privacy" target="_blank" rel="noopener">개인정보 처리방침 전문 보기</a></p>
+        <div class="chat-consent-actions">
+          <button class="chat-consent-agree" id="chatConsentAgree" type="button">동의하고 대화 시작하기</button>
+          <button class="chat-consent-decline" id="chatConsentDecline" type="button">지금은 안 할래요</button>
+        </div>
+      </section>
+
+      <div class="chat-body" id="chatBody">
+        <!-- ② 기분 칩 — AI 호출 없음(에너지 0). 기존 에너지 체크인이 이 자리로 옮겨왔다 -->
+        <div class="chat-mood" role="group" aria-label="오늘 기분">
+          <span class="chat-mood-label">오늘 기분</span>
+          <div class="chat-mood-options">
+            <button type="button" data-energy="good">좋음</button>
+            <button type="button" data-energy="normal">보통</button>
+            <button type="button" data-energy="tired">힘듦</button>
+          </div>
+        </div>
+
+        <!-- ③ 대화 영역 — 올리는 좌, 유저는 우. 오늘의 대화가 위로 쌓인다 -->
+        <div class="chat-thread" id="chatThread" role="log" aria-live="polite" aria-label="오늘 올리와 나눈 대화">
+          <div class="chat-turn is-ollie is-thinking" id="companionChatThinking" hidden>
+            <img class="mascot-art chat-turn-face" id="companionChatOllieImage" src="assets/ollie-thinking.png" alt="" />
+            <div class="chat-bubble">
+              <p class="chat-thinking"><i aria-hidden="true"></i><i aria-hidden="true"></i><i aria-hidden="true"></i><span>올리가 생각하는 중</span></p>
+            </div>
+          </div>
+        </div>
+
+        <!-- ④ 액션 칩 — 맥락에 맞을 때만 나타난다 -->
+        <div class="chat-actions" id="chatActionChips" aria-label="올리가 제안한 다음 행동" hidden></div>
       </div>
-      <div class="quick-adjustments" aria-label="빠른 계획 조정">
-        <button type="button" data-chat-action="shorten">더 짧게</button>
-        <button type="button" data-chat-action="move-evening">저녁으로 이동</button>
-        <button type="button" data-chat-action="encourage">응원해줘</button>
-        <button type="button" data-chat-action="one-task">하나만 남기기</button>
+
+      <!-- ⑤ 입력창 — 에너지가 없으면 충전 안내로 전환된다 -->
+      <div class="chat-composer" id="chatComposer">
+        <label class="chat-input-label" for="companionChatInput">
+          <span class="chat-input-cost">메시지 1개 = 에너지 <b data-ai-credit-cost="companion_chat">—</b></span>
+          <textarea id="companionChatInput" rows="2" placeholder="예: 오늘은 피곤했지만 첫 일정은 끝냈어."></textarea>
+        </label>
+        <button class="chat-send-button" id="sendCompanionMessage" type="button">보내기</button>
       </div>
-      <label class="chat-input-label" for="companionChatInput">
-        <span>올리에게 하고 싶은 말</span>
-        <textarea id="companionChatInput" rows="4" placeholder="예: 오늘은 피곤했지만 그래도 첫 일정은 끝냈어."></textarea>
-      </label>
-      <button class="chat-send-button" id="sendCompanionMessage" type="button">올리에게 보내기 · <span data-ai-credit-cost="companion_chat">—</span>크레딧</button>
+      <div class="chat-recharge" id="chatRecharge" role="status" hidden>
+        <p id="chatRechargeMessage">이번 달 에너지를 다 썼어요. 다음 제공일에 다시 채워져요.</p>
+        <a class="chat-recharge-link" href="index.html#pricing">Pro는 월 <span data-policy-plan="pro" data-policy-field="price-won">—</span> · 매달 에너지 <span data-policy-plan="pro" data-policy-field="monthly-credits">—</span> <b aria-hidden="true">→</b></a>
+      </div>
+
+      <!-- ⑥ 다이어리 안내 -->
+      <p class="chat-diary-note">오늘 나눈 이야기는 <strong>기록 탭의 오늘 페이지</strong>에 그대로 남아요.</p>
     </aside>
 
     <div class="sheet-overlay" id="energyChargeOverlay" hidden></div>
