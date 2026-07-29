@@ -120,18 +120,48 @@ PAYMENTS_ENABLED가 true이고 실결제가 검증되기 전에 켜면 결제할
 "올리의 북 만들기 — 체험: Pro 전용 / Pro: 에너지 10"이다.
 `terms.html` 3조도 새 체험 기간·종료 후 조건으로 고쳤다.
 
-### 7. 검증
+### 7. 플랜 판정 전수 점검 (재발 방지)
+
+`plan` / `features` / `getPlanConfig`로 권한을 판정하는 지점 전부. **(a)는 체험이 PRO와 같아도 되는
+것이고 (b)는 PRO만이어야 하는 것**이다. 현재 (b)는 북과 인쇄/PDF **둘뿐**이다.
+
+**(b) PRO 전용 — `resolveEffectivePlan(...) === "pro"` 문자열 비교로만**
+
+| 지점 | 판정 | 비고 |
+| --- | --- | --- |
+| `worker.mjs` `route.proOnly` (diary-book) | `allowsProOnlyFeature(userPlan)` | 예약 전 403, provider 0, 원장 무변경 |
+| `energy-ledger.mjs` `reserveEnergy` | `isProOnlyAiAction` + `allowsProOnlyFeature` | 원장 층 방어 |
+| `ai-credits-service.mjs` `reserveAiCredits` | 같음 | 레거시 KV 경로 방어 |
+| `energy-ledger.mjs` `buildUsageView.diaryBook.allowed` | `allowsProOnlyFeature(plan)` | 클라이언트가 읽는 유일한 근거 |
+| `script.js` `canCreateDiaryBook()` | `usage.diaryBook.allowed === true` | usage를 못 읽으면 잠근다 |
+| `script.js` `printDiaryBook()` | `canCreateDiaryBook()` | `body.is-printing-book` 진입 자체를 막는다 |
+
+**(a) 체험 = PRO — `features` / `getPlanConfig`를 쓰는 것이 맞는 자리**
+
+| 지점 | 판정 | 왜 체험이 통과해도 되는가 |
+| --- | --- | --- |
+| `ai-credits-service.mjs` `AI_ACTION_REQUIRED_FEATURE` | `config.features[...]` | `recoveryPlan`·`fullReschedule`은 체험이 PRO를 미리 보는 대상이다 |
+| `script.js` `planHasFeature()` | `getPlanConfig(plan).features[...]` | `detailedInsights`·`companionPersonalization` 동일 |
+| `script.js` `ensureAiActionAvailable()` | 같음 | 같음 |
+| `worker.mjs` `allowPersonalization` | `["pro","trial"].includes(...)` | 대화 개인화는 체험의 핵심 체험 대상 |
+| `energy-ledger.mjs` `monthlyGrantAmount` | `plan === "trial"` → 15 | 지급액은 갈라야 한다(체험 15 / PRO 250) |
+| `energy-ledger.mjs` `dailySpendLimit` | `getPlanConfig(plan)` | 체험도 하루 30 — 15를 하루에 다 쓸 수 있어야 한다 |
+
+**권한이 아닌 판정** (기록·표시용이라 이 표의 대상이 아니다): `auth-service.mjs`의 구독 수명주기
+처리(`subscriptionStatus`·`currentPeriodEnd` 갱신), `ai-credits-service.mjs`의 체험 상태 미러링,
+`describeTrial`의 체험 자격 표시.
+
+### 8. 검증
 
 | 대상 | 결과 |
 | --- | --- |
-| `npm test` | **369 pass / 0 fail** |
-| `plan-policy.test.mjs` | 12건 — 경계 23:59:59/00:00:00, 해지·유예 전이, 체험 1회, 플래그 기본값, free 참조 0 |
-| `worker-energy-ledger.test.mjs` | AI 라우트 5종 402 차단(provider 호출 0), 플래그 off 동작 동일, 북 PRO 전용 403 |
-| `auth-service.test.mjs` | 60건 — 재가입 체험 차단, 만료 계정의 열람·결제·탈퇴 |
-| `tests/e2e/paywall.spec.js` | 10건 (신규) · desktop 10/10 통과 |
-| Playwright desktop 전체 | 176 pass / 5 fail → 3건은 픽스처 수정 후 통과, `today.spec.js:609,637`은 부하 시에만 나는 기존 flake (단독 36/36 통과) |
-| Playwright mobile-chromium | paywall·pricing·mate·tap-targets 25/25 |
-| Playwright iphone-webkit · tablet | paywall 19/20 — 실패 1건은 병렬 부하 시 flake (단독 1/1 통과) |
+| `node --test *.test.mjs` | **368 pass / 0 fail** |
+| Playwright desktop-chromium | **184 pass / 0 fail** |
+| Playwright mobile-chromium | **180 pass / 0 fail** |
+
+`plan-policy.test.mjs`에 새로 고정한 것: PRO 전용 판정이 `"pro"`에만 참이고 `getPlanConfig("trial")`이
+`PLAN_CONFIG.pro`여도 열리지 않는다는 것, 체험 크레딧 15, `PLAN_CONFIG.free` 참조 0, 그리고
+**폐지한 편지·무료 북 자격 이름의 저장소 전수 참조 0**.
 
 에너지 흐름은 실제 worker + `EnergyLedgerObject` 경로로 확인했다(OpenAI만 스텁).
 
@@ -139,26 +169,46 @@ PAYMENTS_ENABLED가 true이고 실결제가 검증되기 전에 켜면 결제할
 | --- | --- | --- | --- |
 | 차단 ON · 만료 계정 · AI 라우트 5종 | 0 유지 | 0 | **0** |
 | 차단 OFF · 만료 계정 | 10 → 대화 후 9 | 0 | 1 |
-| 차단 ON · 편지 1회 | 0 유지 (자격 소진) | 0 | 1 |
-| 차단 ON · 편지 재요청 | 0 유지 | 0 | **0** (409) |
-| 차단 ON · 편지 실패 | 0 유지, **자격 남음** | 0 | 1 |
+| 체험 계정 · 북 라우트 | **15 유지** | 0 | **0** (403) |
+| 만료 계정 · 북 라우트 (차단 OFF) | 10 유지 | 0 | **0** (403) |
+| PRO · 북 1권 | 250 → 240 | 0 | 2 |
+| PRO · 북 2권 | 240 → 230 | 0 | 2 |
+| **PRO · 북 생성 실패** | **250 유지** | 0 | 1 |
 
-### 결정이 필요한 것
+### 확정된 것
 
-**① 체험 크레딧 15는 새 기간에 비해 적을 수 있다.** 기간이 24시간 고정에서 24~48시간으로 늘었는데
-크레딧은 그대로다. 대화 1 · 계획 수정 2 · 회복 3 · 재조정 4이므로 15는 "대화 몇 번 + 계획 한두 번"
-분량이고, 이틀을 받은 사람은 하루치만 써 보고 끝난다. **제안: 20~25.** 다만 체험은 이제 전환의
-유일한 입구라 값이 곧 획득 비용이므로 값을 바꾸지 않고 보고만 한다.
+**① 체험 크레딧은 15로 유지한다.** (20~25로 올리자는 앞선 제안은 철회됐다.)
+체험은 **시간**으로 끝나므로 에너지는 벽이 아니다. 예산은 창을 채울 만큼이 아니라 루프를 한 번
+보여줄 만큼이면 된다. 매일 축하·위로는 무료라 에너지를 다 쓴 유저도 체크하면 올리가 계속 반응하므로
+둘째 날이 비지 않는다. 그리고 체험 크레딧은 전환하지 않는 사람 몫까지 전부 마케팅 비용이고,
+다중 provider 우회를 의도적으로 막지 않으므로 1인당 최대 4배로 증폭된다.
+대신 채팅 헤더의 남은 에너지 표시를 또렷하게 둬서 유저가 스스로 페이스를 조절할 수 있게 한다.
 
-**② 만료 계정은 다이어리 북을 만들 수 없다.** 북은 10인데 차단을 켜면 만료 계정 한도는 0이고,
-꺼도 하루 상한이 4다. C5에서 보고한 Free의 문제가 이름만 바뀌어 그대로 남아 있다. 만료 후
-"내 기록을 책으로 남기고 싶다"가 결제로 이어지는 자리이므로 **의도된 퍼널일 수 있다.**
-`plan-policy.test.mjs`가 이 관계를 테스트로 묶어 두어 값을 건드리면 먼저 걸린다.
+**② 북은 PRO 전용이다** — 만료·체험 계정이 북을 만들 수 없는 것은 한도의 산술적 결과가 아니라
+**정책이다.** 게이트가 유효 플랜 문자열로 막으므로 한도를 올려도 열리지 않는다.
 
-**③ `HARD_PAYWALL_ENABLED`는 4개 wrangler 설정 모두에서 `"false"`다.** 지시대로 켜지 않았다.
+**③ `HARD_PAYWALL_ENABLED`는 4개 wrangler 설정 모두에서 `"false"`다.** 켜지 않았다.
 켜기 전 선행 조건: `PAYMENTS_ENABLED=true` + 실결제 검증. 켜는 순간 만료 계정의 월 지급이
 `PAYWALL_OFF_EXPIRED_GRANT`(10/4)에서 0으로 바뀐다. 지급은 lazy-grant라 달 중간에 켜면 그 달 이미
-받은 몫은 남고 다음 달 첫 요청부터 0이 된다.
+받은 몫은 남고 다음 달 첫 요청부터 0이 된다 — **소급 회수는 표시광고법 문제라 하지 않는다.**
+
+### 차단을 켜기 전 확인한 운영 숫자 (2026-07-30, 프로덕션 KV)
+
+| 항목 | 값 |
+| --- | --- |
+| 가입 계정 | **7** |
+| 그중 pro 결제자 | **0** |
+| 최근 30일 활성(`lastLoginAt`) | **7** (가장 오래된 가입이 2026-07-16) |
+| 유효 플랜 분포 | `expired` **7** — `resolveEffectivePlan` 기준 전원 만료 |
+| provider 분포 | naver 3 · google 2 · kakao 2 |
+| 체험 이력 있는 계정 | 7 / 7 |
+
+**차단을 지금 켜면 유저 100%가 잠긴다.** 결제자가 0이라 나갈 길이 검증된 사람도 0이다.
+플래그를 끈 채 두는 결정의 근거가 이 표다.
+
+반대로 사전 고지 부담은 작다. 대상이 7명이고 그중 결제 관계가 있는 사람은 없다. 저장된 `plan`이
+아직 `"free"`인 레코드가 5건 남아 있으나 `PLAN_CONFIG.free`가 없어도 `resolveEffectivePlan`이
+`trialExpiresAt`만 보고 `expired`로 판정하므로 마이그레이션 없이 안전하다.
 
 ### 체험 재발급 우회 가능 경로
 
@@ -170,9 +220,24 @@ PAYMENTS_ENABLED가 true이고 실결제가 검증되기 전에 켜면 결제할
 | 같은 계정에서 `/api/ai/trial/start` 반복 | 막힌다 | `startAiTrial`이 `trial.usedAt` + 마커를 본다. 가입이 이미 체험을 시작했으므로 이 라우트는 이제 멱등 응답만 돌려준다 |
 | 클라이언트가 `plan`을 위조 | 막힌다 | 서버가 회원 레코드만 보고 판정한다(`worker-ai-credits.test.mjs`의 위조 테스트) |
 
-**가장 현실적인 우회는 다른 소셜 계정이다.** 한 사람이 카카오·네이버·구글·애플로 최대 4번 체험을
-받을 수 있다. 지금 막으려면 이메일 또는 휴대전화 기반 식별이 필요하고, 둘 다 별도 결정이 필요한
-개인정보 수집이라 이번 범위에서 손대지 않았다.
+**가장 현실적인 우회는 다른 소셜 계정이고, 이것은 막지 않기로 확정했다.** 한 사람이
+카카오·네이버·구글·애플로 최대 4번 체험을 받을 수 있다.
+
+막지 않는 이유는 두 가지다. ① 오탐 비용이 누락 비용보다 크다 — 이메일로 묶으면 정상 신규 유저가
+체험을 못 받는 일이 생기고, provider마다 이메일 검증 수준이 다르며 Apple 비공개 릴레이처럼 이메일이
+없는 계정도 있다. ② cross-provider 동일인 판정을 위한 이메일 정규화·보관은 **새로운 처리 목적**이라
+개인정보처리방침 개정과 동의 항목이 붙는다. 방어 하나를 위해 처리 범위를 넓히는 거래는 맞지 않는다.
+
+대신 **계측만 넣었다.** `recordTrialStartByProvider`가 KST 일자별로 provider 이름과 횟수만 센다
+(`trial-starts:<YYYY-MM-DD>`). 실제로 새로 시작된 건만 세므로 멱등 재호출이 수를 부풀리지 않고,
+`userId`·이메일·`providerUserId`를 어떤 형태로도 남기지 않는다 — 남기면 그 자체가 cross-provider
+추적이 되어 막지 않기로 한 이유와 모순된다. 이 성질을 `trial-start-metrics.test.mjs`가 고정한다.
+
+### 체험 이력 마커 고지
+
+`ai-trial-used:<userId>`는 탈퇴 후에도 1년 남는다. 목적·항목·보유기간은 처리방침 4장과 탈퇴 화면에
+이미 있었으나 **"탈퇴해도 남는다"가 흐릿해** 같은 문서의 "탈퇴 시 삭제" 안내와 모순되게 읽혔다.
+두 곳 모두 그 문장을 굵게 명시하고, 그 값으로는 이름·이메일을 되살릴 수 없다는 사실을 덧붙였다.
 
 ## C5 완료 — 다이어리 북: 한 달을 한 권으로 (2026-07-29)
 
