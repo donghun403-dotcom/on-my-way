@@ -56,8 +56,8 @@ async function mockAccountApi(page, state = { user: null, configured: true }) {
   }));
   await page.route("**/api/ai/usage", (route) => {
     if (!state.user) return route.fulfill({ status: 401, contentType: "application/json", body: '{"ok":false,"error":"로그인이 필요합니다."}' });
-    const plan = state.user.plan || "free";
-    const usage = createUsageResponse({ plan, trialEligible: plan === "free", trialActive: plan === "trial" });
+    const plan = state.user.plan || "expired";
+    const usage = createUsageResponse({ plan, trialEligible: plan === "expired", trialActive: plan === "trial" });
     if (plan === "trial") {
       usage.trial.startedAt = new Date(state.user.trialStartedAt).toISOString();
       usage.trial.endsAt = new Date(state.user.trialExpiresAt).toISOString();

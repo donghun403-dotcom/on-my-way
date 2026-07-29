@@ -2,9 +2,177 @@
 
 ## 기준
 
-- 기준일: 2026-07-29 (KST)
+- 기준일: 2026-07-30 (KST)
 - 판단 기준: 현재 소스와 작업 트리 → 테스트/CI → Git 커밋·PR → 배포 근거 → 기존 문서
 - 인증 안정화 변경은 전용 `fix/omw-auth-stabilization` 브랜치와 PR #9에서만 수행하며, 혼합 worktree와 외부 복구 백업은 수정하지 않는다.
+
+## P1 완료 — 무료 티어 폐지와 하드 페이월 (2026-07-30)
+
+브랜치 `feature/hard-paywall-p1`. 영구 무료 티어를 없애고 플랜 상태를 `trial · expired · pro`
+세 가지로 줄였다. **차단 동작 전체는 `HARD_PAYWALL_ENABLED` 뒤에 있고 기본값은 꺼짐이다** —
+PAYMENTS_ENABLED가 true이고 실결제가 검증되기 전에 켜면 결제할 방법이 없는 유저가 잠긴다.
+
+### 1. 단일 상태 머신 — `resolveEffectivePlan(user, now)`
+
+`plan-policy.mjs`에 두고 **`trialExpiresAt`을 읽는 유일한 지점**으로 삼았다. 플랜 판정이 필요한
+곳은 전부 이 함수를 거친다.
+
+| 경유지 | 이전 | 이후 |
+| --- | --- | --- |
+| `energy-ledger-client.resolveUserPlan` | 자체 판정 (`plan === "pro"`면 무조건 pro) | `resolveEffectivePlan` 위임 |
+| `ai-credits-service.resolvePlan` | 자체 판정 (같은 규칙을 두 번째로 구현) | `resolveEffectivePlan` + 체험 크레딧 소진만 추가 판정 |
+| `auth-service.publicUser` | 저장된 `user.plan` 그대로 | 판정 결과를 내보냄 |
+| 에너지 원장 월 지급 | worker가 넘긴 plan | 같은 판정 결과 |
+
+**여기서 잡은 버그.** 기존 `resolveUserPlan`은 `user.plan === "pro"`면 `currentPeriodEnd`와
+`subscriptionStatus`를 보지 않고 즉시 `"pro"`를 돌려줬다. 즉 해지했고 결제 기간도 끝난 계정이
+**야간 크론이 돌 때까지 PRO 에너지를 계속 썼다.** 이제 판정이 `currentPeriodEnd`를 직접 보므로
+크론이 늦어도 권한이 새지 않는다 (`worker-energy-ledger.test.mjs`의 "해지된 PRO는 기간이 끝나면
+크론을 기다리지 않고 라우트에서 막힌다").
+
+### 상태 전이표
+
+| 사건 | 이전 | 이후 |
+| --- | --- | --- |
+| 가입 | `plan="free"`, 체험은 `/api/ai/trial/start`로 별도 시작 | **`plan="trial"`, 가입 시점에 시작** (머무를 무료 티어가 없다) |
+| 체험 만료 | `free` | `expired` |
+| 체험 재발급 | 마커(`ai-trial-used:*`)로 차단 | 동일 + 가입 시점에도 마커를 먼저 확인 |
+| 결제 | `pro` + `currentPeriodEnd` | 동일 (+ `paymentGraceUntil` 초기화) |
+| 해지 | 저장은 기간 끝까지 `pro`, **판정은 즉시 pro로 새어 나감** | 판정이 `currentPeriodEnd`를 봄 → 기간 후 `expired` |
+| 결제 실패 1~2회 | `past_due`, `plan="pro"` 유지 (유예 개념 없음) | 동일 + **첫 실패에 3일 유예 창(`paymentGraceUntil`)을 한 번만 연다** |
+| 결제 실패 3회 | `payment_failed`, `plan="free"` (즉시 강등) | `payment_failed`, `plan="pro"` 유지 — **차단 시점은 유예 창이 정한다** |
+| 구독 갱신 실패 후 유예 종료 | — | `expired` |
+| 관리자 강등 | `body.plan === "free" \|\| "trial"` → `free` | `body.plan === "expired"` → `expired` |
+
+유예 창을 첫 실패에만 여는 이유: 재시도마다 다시 열면 실패가 반복되는 계정이 영원히 PRO로 남는다.
+
+### 2. 삭제한 `free` 참조
+
+`PLAN_CONFIG.free`를 지우고 `PLAN_CONFIG.expired`(월 0 · 일 0)를 넣었다. **남은 참조가 없다는 것을
+테스트가 지킨다** — `plan-policy.test.mjs`의 "PLAN_CONFIG.free 참조가 소스에 하나도 없다"가 저장소
+전체(`*.mjs|js|cjs|html`)를 훑어 `PLAN_CONFIG.free` / `PLAN_CONFIG["free"]` / `data-policy-plan="free"`를
+찾는다.
+
+| 파일 | 무엇을 지웠나 |
+| --- | --- |
+| `plan-policy.mjs` | `PLAN_CONFIG.free` 블록, `PLAN_LABELS.free` |
+| `admin.html` | 헬스 카드의 Free 한도, 크레딧 정책 카드의 Free 행, 요금제 필터 `<option value="free">`, 하드코딩 목업 행 2건(`data-plan="free"`) |
+| `index.html` | Free 요금제 카드 → **무료 체험 카드**, 비교표 8행의 `Free` 열 → `체험` 열, "종료 후 Free 플랜으로 이어져요" 등 카피 |
+| `styles.css` | `.plan-pill.free` → `.plan-pill.expired` |
+| `script.js` | `plan \|\| "free"` 폴백 7곳, `usesFreePlan`, 가격표 CTA 라벨, 마이페이지·드로어 배지, 크레딧 부족 안내 문구 |
+| `ai-credits-service.mjs` | `resolvePlan`의 `"free"` 반환, `planLimits`의 Free 분기 |
+| `auth-service.mjs` | 가입 기본 `plan: "free"`, 강등 4곳 |
+| 테스트 6종 | `plan: "free"` 픽스처 → `plan: "expired"` |
+
+`sourcePlan: ["free", ...]`(ai-credits-service)만 남겼다. 예전 요청 레코드에 남아 있는 값을 **읽기만**
+하고 새로 만들지는 않는다.
+
+### 3. 체험 기간 — 가입 다음 날 23:59:59.999 KST
+
+`resolveTrialEndsAt(startedAt)`. 경계는 `DEFAULT_TIME_ZONE`으로 잡고, KST에 서머타임이 없어
+오프셋을 한 번만 재도 되는 전제를 주석에 남겼다. 결과적으로 **체험 길이는 24~48시간 사이에서
+가입 시각에 따라 달라진다** — 밤 11시에 가입한 사람이 한 시간짜리 체험을 받는 일이 없고, 종료
+시점을 날짜로 말할 수 있어 가입 화면에 적을 수 있다.
+
+**⚠ 체험 크레딧(`PLAN_CONFIG.pro.trial.credits = 15`)은 값을 바꾸지 않았다. 조정 제안은 아래 "결정이
+필요한 것" 참조.**
+
+### 4. 만료 후에도 열려 있는 것 (법적 요건, 타협 불가)
+
+차단 게이트는 `/api/ai/*`에만 붙어 있다. 계정·결제 API는 애초에 그 게이트를 지나지 않으므로
+`HARD_PAYWALL_ENABLED`와 무관하게 열린다. 구조가 아니라 실제 응답으로 확인했다
+(`auth-service.test.mjs` 3건).
+
+| 통로 | 잠금 화면에서 | 서버 |
+| --- | --- | --- |
+| 기록 열람 | `#paywallBrowseRecords` — 잠금을 내리고 기록 탭을 열며 복귀 줄이 뜬다 | 게이트 없음 |
+| 원본 내보내기 | `#paywallExportRecords` — **`.md` 텍스트** 다운로드, **AI 0회·에너지 0·서버 미경유** | 해당 없음 |
+| 탈퇴 | `#paywallDeleteAccount` → `delete-account.html` | `/api/account/delete` 열림 |
+| 결제 | `#trialPaywallAction` → 가격표 | `/api/billing/*` 열림 |
+
+경계 원칙은 **무료는 데이터, 유료는 작품**이다. 무료 쪽은 `.md` 하나뿐이고 서식이 없다.
+인쇄·PDF는 전부 PRO 전용이라 무료 경로가 없다.
+
+### 5. 잠금 화면 — 요약 한 줄 + 샘플 북
+
+위에서 아래로 ① 체험 기록 요약 한 줄 ② 샘플 북 미리보기 ③ "매달 내 기록이 이런 책이 됩니다" +
+결제 CTA ④ 무료 내보내기·탈퇴 경로.
+
+**체험 종료 편지는 폐지했다.** 하루~이틀 기록으로 만든 생성물은 품질이 안 나오고, 차별점이어야 할
+북의 인상을 미리 깎는다. 체험의 목적은 애착 형성이 아니라 흥미 유발이다.
+
+그 자리에는 두 가지가 들어간다.
+
+- **요약 한 줄**(`describeTrialFootprint`) — 로컬 데이터만 읽는다. AI 0회이므로 품질 위험도 비용도
+  없고, 생성물이 아니라 사실이라 틀릴 수가 없다. 아무것도 없는 계정에는 "0일 0번"을 보여 주지 않는다.
+- **샘플 북**(`sample-diary-book.js`) — 가상의 한 달 기록으로 만든 고정 콘텐츠. AI 0회.
+  실제 북과 **같은 조판 함수**(`buildDiaryBookPages`)로 그린다 — 둘이 갈라지면 "샘플과 같은 것이
+  나온다"는 약속이 조용히 거짓이 된다. 화면에 **"샘플" 배지와 "내 기록으로 만든 책이 아니에요"**를
+  함께 띄운다(표시광고법). 노출 위치는 잠금 화면과 기록 탭의 북 진입점 두 곳이다.
+
+### 6. 카피 (표시광고법)
+
+가입 게이트(`#authSheetGateNotice`)와 가격표 체험 카드에 **같은 화면 안에** 세 가지를 명시했다:
+종료 시점("가입 다음 날 밤 11시 59분까지"), 종료 후 조건("Pro를 결제해야 AI 기능을 이어서 쓸 수
+있어요"), 결제 수단 미수집("지금 결제 수단을 받지 않으니 자동으로 결제되는 일은 없어요").
+잠금 화면에는 무료 `.md` 내보내기와 탈퇴 경로를 함께 뒀고, "무료로 내보내기(텍스트)"와
+"올리의 북 만들기(PRO)"가 서로 다른 것으로 읽히게 문구를 갈랐다. 요금제 비교표의 북 항목은
+"올리의 북 만들기 — 체험: Pro 전용 / Pro: 에너지 10"이다.
+`terms.html` 3조도 새 체험 기간·종료 후 조건으로 고쳤다.
+
+### 7. 검증
+
+| 대상 | 결과 |
+| --- | --- |
+| `npm test` | **369 pass / 0 fail** |
+| `plan-policy.test.mjs` | 12건 — 경계 23:59:59/00:00:00, 해지·유예 전이, 체험 1회, 플래그 기본값, free 참조 0 |
+| `worker-energy-ledger.test.mjs` | AI 라우트 5종 402 차단(provider 호출 0), 플래그 off 동작 동일, 북 PRO 전용 403 |
+| `auth-service.test.mjs` | 60건 — 재가입 체험 차단, 만료 계정의 열람·결제·탈퇴 |
+| `tests/e2e/paywall.spec.js` | 10건 (신규) · desktop 10/10 통과 |
+| Playwright desktop 전체 | 176 pass / 5 fail → 3건은 픽스처 수정 후 통과, `today.spec.js:609,637`은 부하 시에만 나는 기존 flake (단독 36/36 통과) |
+| Playwright mobile-chromium | paywall·pricing·mate·tap-targets 25/25 |
+| Playwright iphone-webkit · tablet | paywall 19/20 — 실패 1건은 병렬 부하 시 flake (단독 1/1 통과) |
+
+에너지 흐름은 실제 worker + `EnergyLedgerObject` 경로로 확인했다(OpenAI만 스텁).
+
+| 상황 | 잔량 | 예약 | provider 호출 |
+| --- | --- | --- | --- |
+| 차단 ON · 만료 계정 · AI 라우트 5종 | 0 유지 | 0 | **0** |
+| 차단 OFF · 만료 계정 | 10 → 대화 후 9 | 0 | 1 |
+| 차단 ON · 편지 1회 | 0 유지 (자격 소진) | 0 | 1 |
+| 차단 ON · 편지 재요청 | 0 유지 | 0 | **0** (409) |
+| 차단 ON · 편지 실패 | 0 유지, **자격 남음** | 0 | 1 |
+
+### 결정이 필요한 것
+
+**① 체험 크레딧 15는 새 기간에 비해 적을 수 있다.** 기간이 24시간 고정에서 24~48시간으로 늘었는데
+크레딧은 그대로다. 대화 1 · 계획 수정 2 · 회복 3 · 재조정 4이므로 15는 "대화 몇 번 + 계획 한두 번"
+분량이고, 이틀을 받은 사람은 하루치만 써 보고 끝난다. **제안: 20~25.** 다만 체험은 이제 전환의
+유일한 입구라 값이 곧 획득 비용이므로 값을 바꾸지 않고 보고만 한다.
+
+**② 만료 계정은 다이어리 북을 만들 수 없다.** 북은 10인데 차단을 켜면 만료 계정 한도는 0이고,
+꺼도 하루 상한이 4다. C5에서 보고한 Free의 문제가 이름만 바뀌어 그대로 남아 있다. 만료 후
+"내 기록을 책으로 남기고 싶다"가 결제로 이어지는 자리이므로 **의도된 퍼널일 수 있다.**
+`plan-policy.test.mjs`가 이 관계를 테스트로 묶어 두어 값을 건드리면 먼저 걸린다.
+
+**③ `HARD_PAYWALL_ENABLED`는 4개 wrangler 설정 모두에서 `"false"`다.** 지시대로 켜지 않았다.
+켜기 전 선행 조건: `PAYMENTS_ENABLED=true` + 실결제 검증. 켜는 순간 만료 계정의 월 지급이
+`PAYWALL_OFF_EXPIRED_GRANT`(10/4)에서 0으로 바뀐다. 지급은 lazy-grant라 달 중간에 켜면 그 달 이미
+받은 몫은 남고 다음 달 첫 요청부터 0이 된다.
+
+### 체험 재발급 우회 가능 경로
+
+| 경로 | 막히나 | 근거 |
+| --- | --- | --- |
+| 같은 소셜 계정으로 탈퇴 후 재가입 | **막힌다 (1년)** | `userId`가 `provider:providerUserId`의 HMAC이라 재가입해도 같다. 회원 레코드는 지워져도 `ai-trial-used:<userId>` 마커는 남는다. 가입 시점에 이 마커를 먼저 확인한다 |
+| 마커 만료 후(1년) 재가입 | **뚫린다 (의도된 설계)** | `TRIAL_ABUSE_RETENTION_MS = 365일`. 개인정보 최소보유와의 균형이며 기존 결정이다 |
+| **다른 소셜 계정 연결** (같은 사람이 카카오→구글) | **뚫린다** | `userId`가 provider별로 갈리므로 다른 계정이 된다. 이메일로 묶는 방법은 있으나 provider마다 이메일 검증 수준이 다르고, 이메일 미제공 계정(Apple 비공개 릴레이)이 있어 오탐이 난다 |
+| 같은 계정에서 `/api/ai/trial/start` 반복 | 막힌다 | `startAiTrial`이 `trial.usedAt` + 마커를 본다. 가입이 이미 체험을 시작했으므로 이 라우트는 이제 멱등 응답만 돌려준다 |
+| 클라이언트가 `plan`을 위조 | 막힌다 | 서버가 회원 레코드만 보고 판정한다(`worker-ai-credits.test.mjs`의 위조 테스트) |
+
+**가장 현실적인 우회는 다른 소셜 계정이다.** 한 사람이 카카오·네이버·구글·애플로 최대 4번 체험을
+받을 수 있다. 지금 막으려면 이메일 또는 휴대전화 기반 식별이 필요하고, 둘 다 별도 결정이 필요한
+개인정보 수집이라 이번 범위에서 손대지 않았다.
 
 ## C5 완료 — 다이어리 북: 한 달을 한 권으로 (2026-07-29)
 
@@ -41,6 +209,7 @@ Ctrl+P로 앱을 인쇄하는 동작은 영향받지 않는다.**
 ### 한 권의 구성
 
 표지(올리 일러스트 + AI 제목 + 달 + 목표) → 올리의 머리말 → 그 달의 숫자 → 날짜별 본문 → 올리의 편지.
+샘플 북도 같은 함수로 같은 순서를 그린다(`buildDiaryBookPages`).
 일러스트는 기존 에셋 3종(`ollie-celebrate` / `ollie-action` / `ollie-comfort`)을 쓴다. 날짜별 항목은
 `break-inside: avoid`로 페이지 경계에서 두 동강 나지 않는다.
 
@@ -59,22 +228,39 @@ Ctrl+P로 앱을 인쇄하는 동작은 영향받지 않는다.**
 (하이라이트 8·대화 5·턴당 140자). 뽑기는 **고르게 흩어 뽑는다** — 앞쪽만 자르면 올리가 그 달의
 초반만 기억하게 된다.
 
-### 비용·권한 — 에너지 10, PRO 월 1권 무료
+### 비용·권한 — 항상 에너지 10, PRO 전용
 
-무료 권은 **통화가 아니라 자격**이다. 에너지를 10 얹어 주면 대화에 쓸 수 있게 되어 혜택의 모양이
-달라지므로, 잔액을 건드리지 않고 `freeDiaryBookMonthKey` 하나로 소진 여부만 기록한다 — lazy-grant와
-같은 원리다. 잔액이 0원어치 움직여도 **거래는 남긴다**("이번 달 무료 권을 언제 썼는지"가 CS 분쟁의 대상).
+**월 1권 무료 엔타이틀먼트는 폐지했다.** 북은 플랜과 무관하게 언제나 `AI_CREDIT_COSTS.diary_book`
+= 10을 소비한다.
 
-**자격은 예약이 아니라 확정에서 소진된다.** 실패한 발급 하나가 그 달의 유일한 무료 권을 태우면 안 된다.
-확정 후 환불에서는 자격도 돌아온다.
+이유: 에너지 원장은 AI 비용의 **상한 장치**다. 엔타이틀먼트는 그 상한 **밖에서** 발급을 일으켜
+판매한 에너지보다 실비가 커지는 구멍을 만든다. 북은 앱에서 가장 비싼 단일 동작이라 그 구멍이 가장 크다.
+PRO는 월 250이므로 10은 실질 장벽이 아니고, 회계만 정직해진다. 원장에는 이제 **어떤 종류의 무료
+자격도 남아 있지 않다**(`trialLetterUsedAt`·`freeDiaryBookMonthKey` 모두 제거).
 
-### ⚠ Free는 북을 만들 수 없다 (정책의 결과, 결정 필요)
+**예약 → 커밋 구조는 유지한다.** 실패한 생성이 10을 태우면 안 된다. 실패 시 잔액을 건드린 적이
+없으므로 `spend` 거래조차 남지 않는다.
 
-북은 10인데 **Free의 하루 상한은 4**다(`PLAN_CONFIG.free.dailyCreditLimit`). 즉 Free는 월 10을
-다 갖고 있어도 하루 상한에 막혀 북을 만들 수 없다. 이건 버그가 아니라 현재 정책의 산술적 결과이고,
-90일 만료 안내가 PRO·팩 구매로 이어지는 자리이기도 하다. **정책 값을 임의로 바꾸지 않았고**,
-`plan-policy.test.mjs`에 이 관계를 테스트로 고정해 값을 건드리면 테스트가 먼저 걸리게 했다.
-Free도 만들 수 있게 하려면 `dailyCreditLimit` 상향이나 diary_book 예외가 필요하다 — 대표 결정 사항.
+### 북과 인쇄/PDF는 PRO 전용 — 판정은 문자열 비교로만
+
+`resolveEffectivePlan(user, now) === "pro"`일 때만 허용한다(`allowsProOnlyFeature`).
+**`features`나 `getPlanConfig`로 판정하면 안 된다** — `getPlanConfig("trial")`은 `PLAN_CONFIG.pro`를
+그대로 돌려주므로 체험 계정이 전부 통과한다. 이 함정을 `plan-policy.test.mjs`에 테스트로 고정했다.
+
+게이트는 세 층에 있다.
+
+| 층 | 위치 | 동작 |
+| --- | --- | --- |
+| 라우트 | `worker.mjs` `route.proOnly` | 예약 전에 403 `PRO_ONLY_ACTION`. provider 호출 0, 원장 무변경 |
+| 원장 | `energy-ledger.mjs` `reserveEnergy` | 새 호출 경로가 라우트 게이트를 빠뜨려도 여기서 걸린다 |
+| 레거시 KV | `ai-credits-service.mjs` `reserveAiCredits` | 원장 바인딩이 없는 환경의 같은 방어 |
+
+클라이언트는 스스로 판단하지 않고 서버 판정(`usage.diaryBook.allowed`)만 읽는다. PRO가 아니면
+북 진입점은 **실제 생성을 시도하지 않고 샘플만 연다**. `printDiaryBook`도 같은 판정으로 막아
+`body.is-printing-book` 진입 자체가 불가능하다 — 이 클래스가 붙는 순간 조판된 책이 PDF로 나간다.
+
+이 게이트는 `HARD_PAYWALL_ENABLED`와 **무관하다.** 플래그가 막는 것은 "만료 계정의 잠금"이고 그것은
+실결제 검증 전에 켤 수 없다. 북이 PRO 전용인 것은 잠금이 아니라 기능 경계이므로 플래그를 보지 않는다.
 
 ### 만료 흐름 완성 (C3의 뒷부분)
 

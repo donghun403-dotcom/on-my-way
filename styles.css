@@ -1497,7 +1497,7 @@ footer {
 .plan-pill { display: inline-flex; padding: 5px 8px; border-radius: 999px; font-size: var(--text-2xs); font-weight: 900; }
 .plan-pill.pro { color: var(--lilac-700); background: var(--lilac-100); }
 .plan-pill.trial { color: var(--blush-600); background: var(--blush-100); }
-.plan-pill.free { color: var(--blue-700); background: var(--blue-50); }
+.plan-pill.expired { color: var(--blue-700); background: var(--blue-50); }
 .admin-table-note { margin: 12px 0 0; color: var(--blue-700); font-size: var(--text-2xs); font-weight: 700; line-height: 1.5; }
 .admin-security-section { margin-top: 16px; }
 .admin-password-change-form { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)) auto; gap: 12px; align-items: end; margin-top: 20px; }
@@ -10361,6 +10361,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   display: flex;
   align-items: end;
   gap: 10px;
+  width: 100%;
   margin-top: var(--space-4);
   padding: 11px 16px;
   background: var(--blue-50);
@@ -10415,6 +10416,145 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   color: var(--blue-700);
   font-size: var(--text-2xs);
   line-height: 1.5;
+}
+
+/* ===== 샘플 북 안내와 항상 열린 통로 (하드 페이월) =====
+   체험 종료 편지는 폐지했다. 그 자리에는 샘플 북 진입점이 들어간다. */
+
+.paywall-sample {
+  width: 100%;
+  margin: 6px 0 12px;
+  padding: 14px 16px;
+  text-align: left;
+  background: #fbf8f3;
+  border-radius: var(--r-md);
+}
+
+.paywall-sample > strong {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--blue-800);
+  font-size: 14px;
+  font-weight: 900;
+}
+
+/* "샘플"이라는 사실은 흐릿하게 두면 안 된다 — 본인 기록으로 만든 것처럼 읽히면
+   표시광고법 문제가 된다. 그래서 b가 본문보다 진하다. */
+.paywall-sample > p {
+  margin: 0 0 10px;
+  color: var(--n-600);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.paywall-sample > p b {
+  color: var(--blue-700);
+  font-weight: 900;
+}
+
+.paywall-sample-open {
+  width: 100%;
+  min-height: 44px;
+  color: var(--blue-800);
+  background: #ffffff;
+  border: 1px solid var(--blue-100);
+  border-radius: var(--r-md);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+/* 결제와 무관하게 항상 열려 있어야 하는 통로. 잠금 화면에서 눈에 띄어야 한다. */
+.trial-paywall-open {
+  width: 100%;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--blue-100);
+  text-align: left;
+}
+
+.trial-paywall-open > strong {
+  display: block;
+  margin-bottom: 9px;
+  color: var(--blue-800);
+  font-size: var(--text-2xs);
+  font-weight: 900;
+}
+
+.trial-paywall-open-actions {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+}
+
+.trial-paywall-open-actions > button,
+.trial-paywall-open-actions > a {
+  display: grid;
+  min-height: 44px;
+  padding: 0 10px;
+  place-items: center;
+  color: var(--blue-700);
+  background: #ffffff;
+  border: 1px solid var(--blue-100);
+  border-radius: var(--r-md);
+  box-shadow: none;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+  cursor: pointer;
+}
+
+/* 탭바(bottom:14px, min-height:46px) 위에 얹는다 — 탭을 가리면 기록을 넘겨볼 수 없다. */
+.paywall-return-bar {
+  position: fixed;
+  inset: auto 12px calc(74px + env(safe-area-inset-bottom));
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  color: #ffffff;
+  background: rgba(42, 49, 69, 0.94);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-md);
+  font-size: var(--text-2xs);
+}
+
+.paywall-return-bar[hidden] {
+  display: none;
+}
+
+.paywall-return-bar > button {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 0 14px;
+  color: var(--blue-800);
+  background: #ffffff;
+  border: 0;
+  border-radius: var(--r-sm);
+  font: inherit;
+  font-size: var(--text-2xs);
+  font-weight: 900;
+  cursor: pointer;
+}
+
+/* 가입 게이트의 표시광고법 고지. 약관 줄보다 먼저, 읽히는 크기로 둔다. */
+.auth-sheet-gate-notice {
+  margin: 12px 0 6px;
+  padding: 11px 12px;
+  color: var(--blue-700);
+  background: var(--blue-50);
+  border-radius: var(--r-md);
+  font-size: var(--text-2xs);
+  line-height: 1.75;
+}
+
+.auth-sheet-gate-notice b {
+  color: var(--blue-800);
+  font-weight: 900;
 }
 
 .billing-confirm-dialog {
@@ -18786,4 +18926,262 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   .diary-book-print .book-turn { margin: 0 0 1.5mm; font-size: 10pt; line-height: 1.7; }
   .diary-book-print .book-turn b { color: #6b7aa6; font-size: 9pt; }
   .diary-book-print .book-turn.is-ollie b { color: #2f7a63; }
+}
+
+/* ===== 다이어리 북 잠금 (PRO 전용) =====
+   PRO가 아닌 계정이 기록 탭의 북 자리에서 보는 것. 실제 생성을 시도하지 않고 샘플만 연다. */
+
+.diary-book-locked {
+  display: grid;
+  gap: 12px;
+  margin-top: var(--space-3);
+  padding: 16px;
+  background: var(--blue-50);
+  border: 1px solid var(--blue-100);
+  border-radius: var(--r-md);
+}
+
+.diary-book-locked > p {
+  margin: 0;
+  color: var(--blue-800);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.6;
+}
+
+.diary-book-locked-actions {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 1fr 1fr;
+}
+
+.diary-book-locked-actions button,
+.diary-book-locked-actions a {
+  display: grid;
+  min-height: 44px;
+  place-items: center;
+  border-radius: var(--r-sm);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.diary-book-locked-actions button {
+  color: var(--blue-800);
+  background: #ffffff;
+  border: 1px solid var(--blue-100);
+}
+
+.diary-book-locked-actions a {
+  color: var(--ink-on-brand);
+  background: var(--brand-gradient);
+  border: 1px solid transparent;
+  box-shadow: var(--shadow-sm);
+}
+
+@media (max-width: 400px) {
+  .diary-book-locked-actions { grid-template-columns: 1fr; }
+}
+
+/* ===== 샘플 북 화면 미리보기 =====
+   조판 DOM은 실제 북과 같은 함수(buildDiaryBookPages)가 만든다. 여기서는 그 구조를
+   화면 크기로 다시 입히기만 한다 — 인쇄 블록은 mm/pt 단위라 화면에서 쓸 수 없다.
+   색과 배치는 인쇄본과 같게 유지한다. 둘이 달라 보이면 "샘플과 같은 것이 나온다"가 거짓이 된다. */
+
+.sample-book {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  display: grid;
+  padding: 16px;
+  place-items: center;
+  background: rgba(20, 32, 56, 0.62);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.sample-book[hidden] { display: none; }
+
+.sample-book-card {
+  display: grid;
+  width: 100%;
+  max-width: 520px;
+  max-height: min(88vh, 900px);
+  grid-template-rows: auto 1fr auto;
+  background: #ffffff;
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+.sample-book-head {
+  display: flex;
+  gap: 12px;
+  align-items: start;
+  justify-content: space-between;
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid var(--blue-100);
+}
+
+.sample-book-head h2 {
+  margin: 4px 0 3px;
+  color: var(--blue-800);
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.sample-book-head p {
+  margin: 0;
+  color: var(--n-600);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+/* 표시광고법: 이것이 유저 본인의 기록이 아니라는 사실이 스크롤 없이 보여야 한다. */
+.sample-book-badge {
+  display: inline-block;
+  padding: 3px 9px;
+  color: #ffffff;
+  background: var(--blue-600);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.sample-book-head button {
+  flex: 0 0 auto;
+  min-width: 52px;
+  min-height: 36px;
+  color: var(--blue-700);
+  background: var(--blue-50);
+  border: 1px solid var(--blue-100);
+  border-radius: var(--r-sm);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.sample-book-pages {
+  padding: 16px;
+  color: #21324d;
+  background: var(--surface-muted);
+  overflow-y: auto;
+}
+
+.sample-book-pages .book-page {
+  margin: 0 0 14px;
+  padding: 18px 16px;
+  background: #ffffff;
+  border: 1px solid #e6ebf3;
+  border-radius: var(--r-md);
+}
+
+.sample-book-pages .book-page:last-child { margin-bottom: 0; }
+
+.sample-book-pages .book-page h2 {
+  margin: 0 0 14px;
+  color: #2f4a72;
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+}
+
+.sample-book-pages .book-body-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.85;
+  white-space: pre-wrap;
+}
+
+.sample-book-pages .book-cover {
+  display: grid;
+  gap: 8px;
+  padding: 30px 18px;
+  place-items: center;
+  text-align: center;
+  background: linear-gradient(160deg, #eef4fb 0%, #f7f3f9 100%);
+  border-color: #cfd9ea;
+}
+
+.sample-book-pages .book-cover img { width: 96px; height: auto; }
+.sample-book-pages .book-cover-brand { color: #6b7aa6; font-size: 10px; font-weight: 800; letter-spacing: 0.28em; }
+.sample-book-pages .book-cover-title { margin: 0; color: #1f3358; font-size: 22px; line-height: 1.3; }
+.sample-book-pages .book-cover-month { margin: 0; color: #4a6289; font-size: 13px; font-weight: 700; }
+.sample-book-pages .book-cover-goal { margin: 8px 0 0; padding-top: 8px; color: #6b7aa6; font-size: 11px; border-top: 1px solid #cfd9ea; }
+
+.sample-book-pages .book-foreword img,
+.sample-book-pages .book-letter img { display: block; width: 58px; height: auto; margin: 0 0 12px; }
+.sample-book-pages .book-letter { background: #fbf8f3; border-color: #ece3d6; }
+.sample-book-pages .book-letter-sign { margin: 14px 0 0; color: #6b7aa6; font-size: 11px; text-align: right; }
+
+.sample-book-pages .book-stats dl {
+  display: grid;
+  gap: 6px 12px;
+  grid-template-columns: 1fr auto;
+  margin: 0;
+  font-size: 12px;
+}
+.sample-book-pages .book-stats dt { color: #6b7aa6; font-weight: 700; }
+.sample-book-pages .book-stats dd { margin: 0; color: #21324d; font-weight: 800; text-align: right; }
+.sample-book-pages .book-moods { margin: 14px 0 0; padding-top: 10px; color: #4a6289; font-size: 11px; border-top: 1px solid #dfe5f0; }
+
+.sample-book-pages .book-day { padding: 12px 0; border-bottom: 1px solid #e6ebf3; }
+.sample-book-pages .book-day:last-child { border-bottom: 0; padding-bottom: 0; }
+.sample-book-pages .book-day header {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 5px;
+}
+.sample-book-pages .book-day header strong { color: #2f4a72; font-size: 12px; font-weight: 900; }
+.sample-book-pages .book-day header span { color: #6b7aa6; font-size: 10px; font-weight: 700; }
+.sample-book-pages .book-day h3 { margin: 0 0 5px; color: #1f3358; font-size: 13px; font-weight: 800; }
+.sample-book-pages .book-day-note {
+  margin: 0;
+  padding: 9px 11px;
+  color: #21324d;
+  background: #f8f4ef;
+  border-radius: var(--r-xs);
+  font-size: 12px;
+  line-height: 1.75;
+  white-space: pre-wrap;
+}
+.sample-book-pages .book-day-talk { margin-top: 8px; padding-left: 10px; border-left: 2px solid #dfe5f0; }
+.sample-book-pages .book-turn { margin: 0 0 4px; font-size: 12px; line-height: 1.7; }
+.sample-book-pages .book-turn b { color: #6b7aa6; font-size: 10px; }
+.sample-book-pages .book-turn.is-ollie b { color: #2f7a63; }
+
+.sample-book-foot {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border-top: 1px solid var(--blue-100);
+}
+
+.sample-book-foot p {
+  margin: 0;
+  color: var(--n-600);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.sample-book-foot a {
+  display: grid;
+  min-height: 48px;
+  place-items: center;
+  color: #ffffff;
+  background: linear-gradient(135deg, var(--blue-600), var(--blue-500));
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-md);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+/* 인쇄는 PRO 전용이다. 샘플이 떠 있는 상태로 인쇄 창이 열려도 샘플이 종이에 나가지 않게 한다. */
+@media print {
+  .sample-book { display: none !important; }
 }

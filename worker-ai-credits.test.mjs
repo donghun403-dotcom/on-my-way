@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createSessionToken } from "./auth-service.mjs";
 import worker from "./worker.mjs";
+import { resolveTrialEndsAt } from "./plan-policy.mjs";
 
 const TEST_SECRET = "worker-ai-credit-test-secret-that-is-long-enough";
 
@@ -30,7 +31,7 @@ function memoryKv() {
   };
 }
 
-async function authenticatedWorker({ plan = "free", userId = `user-${plan}` } = {}) {
+async function authenticatedWorker({ plan = "expired", userId = `user-${plan}` } = {}) {
   const kv = memoryKv();
   const now = Date.now();
   const sessionId = `session-${userId}`;
@@ -169,12 +170,12 @@ async function withMockFetch(mock, operation) {
 }
 
 test("인증된 사용자는 usage를 조회하고 무료 체험을 명시적으로 한 번만 시작한다", { concurrency: false }, async () => {
-  const context = await authenticatedWorker({ plan: "free", userId: "usage-trial-user" });
+  const context = await authenticatedWorker({ plan: "expired", userId: "usage-trial-user" });
 
   const initial = await callApi(context, "/api/ai/usage");
   assert.equal(initial.response.status, 200);
   assert.equal(initial.body.ok, true);
-  assert.equal(initial.body.plan, "free");
+  assert.equal(initial.body.plan, "expired");
   assert.equal(initial.body.daily.limit, 4);
   assert.equal(initial.body.monthly.limit, 10);
   assert.equal(initial.body.trial.eligible, true);
@@ -184,7 +185,7 @@ test("인증된 사용자는 usage를 조회하고 무료 체험을 명시적으
   assert.equal(first.body.started, true);
   assert.equal(first.body.user.plan, "trial");
   assert.equal(first.body.usage.trial.remainingCredits, 15);
-  assert.equal(first.body.user.trialExpiresAt - first.body.user.trialStartedAt, 24 * 60 * 60 * 1_000);
+  assert.equal(first.body.user.trialExpiresAt, resolveTrialEndsAt(first.body.user.trialStartedAt));
 
   const second = await callApi(context, "/api/ai/trial/start", { method: "POST" });
   assert.equal(second.response.status, 200);
@@ -219,7 +220,7 @@ test("AI 경로는 고정 비용을 사용하고 클라이언트 plan·creditCos
     }
 
     // Free 하루 한도는 4. 위조한 plan이 통했다면 3번째(누적 6크레딧)도 통과했을 것이다.
-    const freeContext = await authenticatedWorker({ plan: "free", userId: "spoofed-free-user" });
+    const freeContext = await authenticatedWorker({ plan: "expired", userId: "spoofed-expired-user" });
     for (const attempt of [1, 2]) {
       const charged = await callApi(freeContext, "/api/ai/plan-revision", {
         method: "POST",
@@ -276,7 +277,7 @@ test("AI 요청 제한은 클라이언트 userId가 아니라 인증된 세션 �
 
 test("올리 개인화 문맥은 실제 Pro·체험 사용자에게만 공급자로 전달한다", { concurrency: false }, async () => {
   const proContext = await authenticatedWorker({ plan: "pro", userId: "personalized-pro-user" });
-  const freeContext = await authenticatedWorker({ plan: "free", userId: "personalization-spoof-user" });
+  const freeContext = await authenticatedWorker({ plan: "expired", userId: "personalization-spoof-user" });
   const calls = [];
   const input = {
     message: "내 방식에 맞춰 알려 주세요",

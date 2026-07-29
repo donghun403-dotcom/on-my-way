@@ -58,10 +58,13 @@ export class EnergyLedgerObject {
     const url = new URL(request.url);
     const body = await readJson(request);
     const now = Number.isFinite(Number(body.now)) ? Number(body.now) : Date.now();
-    const plan = String(body.plan || "free");
+    const plan = String(body.plan || "expired");
     const timeZone = body.timeZone ? String(body.timeZone) : undefined;
     // 체험 상태는 회원 레코드의 사실이라 worker가 넘겨준다.
     const trial = body.trial && typeof body.trial === "object" ? body.trial : undefined;
+    /* 차단 여부도 원장의 사실이 아니라 배포 설정이라 worker가 넘겨준다. 기본값을 true로 두는
+       이유는 안전한 쪽이 "지급하지 않는다"이기 때문이다 — 값이 빠지면 만료 계정은 0을 받는다. */
+    const paywallEnabled = body.paywallEnabled !== false;
 
     try {
       // 모든 연산을 storage.transaction 안에서 돈다. DO가 이미 단일 실행이라
@@ -71,11 +74,11 @@ export class EnergyLedgerObject {
         const storage = wrapStorage(txn);
         switch (url.pathname) {
           case "/reserve":
-            return reserveEnergy(storage, { plan, action: String(body.action || ""), requestId: body.requestId, now, timeZone, trial });
+            return reserveEnergy(storage, { plan, action: String(body.action || ""), requestId: body.requestId, now, timeZone, trial, paywallEnabled });
           case "/commit":
-            return commitEnergy(storage, { plan, requestId: body.requestId, now, timeZone, meta: body.meta, trial });
+            return commitEnergy(storage, { plan, requestId: body.requestId, now, timeZone, meta: body.meta, trial, paywallEnabled });
           case "/release":
-            return releaseEnergy(storage, { plan, requestId: body.requestId, now, timeZone, errorCode: body.errorCode, trial });
+            return releaseEnergy(storage, { plan, requestId: body.requestId, now, timeZone, errorCode: body.errorCode, trial, paywallEnabled });
           case "/purchase":
             return purchaseEnergy(storage, {
               plan,
@@ -85,11 +88,12 @@ export class EnergyLedgerObject {
               now,
               timeZone,
               meta: body.meta,
+              paywallEnabled,
             });
           case "/usage":
-            return getEnergyUsage(storage, { plan, now, timeZone, trial });
+            return getEnergyUsage(storage, { plan, now, timeZone, trial, paywallEnabled });
           case "/reset":
-            return resetLedgerForPlan(storage, { plan, now, timeZone, reason: String(body.reason || "migration") });
+            return resetLedgerForPlan(storage, { plan, now, timeZone, reason: String(body.reason || "migration"), paywallEnabled });
           case "/transactions":
             return { ok: true, transactions: await listTransactions(storage, { limit: body.limit }) };
           default:

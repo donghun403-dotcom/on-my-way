@@ -130,8 +130,8 @@ test("게스트가 계획을 완성하면 로그인 게이트가 열리고, 로�
     body: "<!doctype html><title>Kakao OAuth</title><p>Provider handoff</p>",
   }));
 
-  account.user = { id: "usr_manual_gate", provider: "kakao", name: "수동 계획 사용자", email: "manual@example.com", plan: "free", role: "member" };
-  account.usage = createUsageResponse({ plan: "free", trialEligible: true });
+  account.user = { id: "usr_manual_gate", provider: "kakao", name: "수동 계획 사용자", email: "manual@example.com", plan: "expired", role: "member" };
+  account.usage = createUsageResponse({ plan: "expired", trialEligible: true });
 
   await Promise.all([
     page.waitForURL(/\/api\/auth\/kakao\/start/),
@@ -168,8 +168,8 @@ async function buildPlanAndOpenSignupGate(page, task) {
 
 // 소셜 로그인을 마치고 돌아온 상태를 모킹 계정에 반영한다.
 function signInAfterGate(account) {
-  account.user = { id: "usr_manual_gate", provider: "kakao", name: "수동 계획 사용자", email: "manual@example.com", plan: "free", role: "member" };
-  account.usage = createUsageResponse({ plan: "free", trialEligible: true });
+  account.user = { id: "usr_manual_gate", provider: "kakao", name: "수동 계획 사용자", email: "manual@example.com", plan: "expired", role: "member" };
+  account.usage = createUsageResponse({ plan: "expired", trialEligible: true });
 }
 
 // 의도를 발급 시각 기준으로 늙힌다 (TTL은 10분).
@@ -331,8 +331,8 @@ test("이미 로그인한 사용자는 게이트 없이 바로 체험을 시작�
   const diagnostics = monitorPage(page);
   const goalAiRequests = trackGoalAiRequests(page);
   const account = await mockAccountExperience(page, {
-    user: { id: "usr_signed_in", provider: "kakao", name: "기존 사용자", email: "signed@example.com", plan: "free", role: "member" },
-    usage: createUsageResponse({ plan: "free", trialEligible: true }),
+    user: { id: "usr_signed_in", provider: "kakao", name: "기존 사용자", email: "signed@example.com", plan: "expired", role: "member" },
+    usage: createUsageResponse({ plan: "expired", trialEligible: true }),
   });
 
   await page.goto("/index.html#designFlow");

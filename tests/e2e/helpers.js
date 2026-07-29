@@ -18,6 +18,7 @@ const AI_CREDIT_COSTS = {
   revise_plan: 2,
   recovery_plan: 3,
   reschedule_plan: 4,
+  diary_book: 10,
 };
 
 const AI_ACTION_LABELS = {
@@ -25,17 +26,22 @@ const AI_ACTION_LABELS = {
   revise_plan: "계획 일부 수정",
   recovery_plan: "회복 계획 생성",
   reschedule_plan: "전체 일정 재조정",
+  diary_book: "다이어리 북 만들기",
 };
 
+const PRO_ONLY_LOCK_REASON = "PRO로 전환하면 내 기록으로 만들 수 있어요.";
+
 function createUsageResponse({
-  plan = "free",
+  plan = "expired",
   dailyUsed = 0,
   monthlyUsed = 0,
-  trialEligible = plan === "free",
+  trialEligible = false,
   trialActive = plan === "trial",
+  // 차단 여부는 배포 설정이라 서버가 알려 준다. 기본값은 꺼짐 — 실제 기본 배포와 같다.
+  paywallEnabled = false,
 } = {}) {
-  const dailyLimit = plan === "free" ? 2 : 30;
-  const monthlyLimit = plan === "free" ? 5 : plan === "trial" ? 15 : 250;
+  const dailyLimit = plan === "expired" ? 2 : 30;
+  const monthlyLimit = plan === "expired" ? 5 : plan === "trial" ? 15 : 250;
   const trialStartedAt = trialActive ? new Date(Date.now() - 60 * 1000).toISOString() : null;
   const trialEndsAt = trialActive ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : null;
   return {
@@ -44,7 +50,7 @@ function createUsageResponse({
     policyVersion: "2026-07-15.v1",
     timeZone: "Asia/Seoul",
     plan,
-    planLabel: plan === "trial" ? "무료 체험 중" : plan === "pro" ? "Pro" : "Free",
+    planLabel: plan === "trial" ? "무료 체험 중" : plan === "pro" ? "Pro" : "이용 종료",
     trial: {
       eligible: trialEligible,
       active: trialActive,
@@ -68,6 +74,15 @@ function createUsageResponse({
     },
     creditCosts: { ...AI_CREDIT_COSTS },
     actionLabels: { ...AI_ACTION_LABELS },
+    paywallEnabled,
+    /* 북은 PRO 전용이고 판정은 서버가 한다 — allowed는 유효 플랜이 정확히 "pro"인지다.
+       체험도 false여야 한다(getPlanConfig("trial")이 pro 설정을 돌려주는 함정과 무관하게). */
+    diaryBook: {
+      cost: AI_CREDIT_COSTS.diary_book,
+      proOnly: true,
+      allowed: plan === "pro",
+      lockReason: plan === "pro" ? "" : PRO_ONLY_LOCK_REASON,
+    },
     actionUsage: {},
     metrics: {
       apiCalls: 0,
@@ -213,7 +228,7 @@ async function waitForBootstrap(page) {
 
 async function mockAccountExperience(page, {
   user = null,
-  usage = user ? createUsageResponse({ plan: user.plan || "free" }) : null,
+  usage = user ? createUsageResponse({ plan: user.plan || "expired" }) : null,
   paymentsEnabled = false,
 } = {}) {
   await mockExternalAssets(page);
@@ -601,6 +616,7 @@ async function readStored(page, key) {
 
 module.exports = {
   AI_CREDIT_COSTS,
+  PRO_ONLY_LOCK_REASON,
   CHAT_CONSENT_STORAGE,
   captureAcceptance,
   createUsageResponse,

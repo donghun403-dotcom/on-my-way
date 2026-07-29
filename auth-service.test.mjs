@@ -14,7 +14,7 @@ import {
 } from "./auth-service.mjs";
 import { commitAiCredits, getAiCreditUsage, reserveAiCredits, startAiTrial } from "./ai-credits-service.mjs";
 import { createBillingLedger, createMemoryBillingDb } from "./billing-ledger.mjs";
-import { PLAN_CONFIG } from "./plan-policy.mjs";
+import { PAYMENT_FAILURE_GRACE_MS, PLAN_CONFIG, resolveEffectivePlan, resolveTrialEndsAt } from "./plan-policy.mjs";
 import worker from "./worker.mjs";
 
 // 승인 금액 픽스처는 정책에서 읽는다. 여기에 숫자를 다시 적으면 가격이 바뀔 때 갈라진다.
@@ -161,7 +161,8 @@ test("배포 기본값에서는 데모 로그인을 허용하지 않는다", asy
   assert.equal(result.status, 403);
 });
 
-test("신규 소셜 회원은 체험을 자동 시작하지 않고 Free로 생성된다", async () => {
+/* 영구 무료 티어가 없으므로 가입과 체험 시작 사이에 머물 상태가 없다. 가입이 곧 체험 시작이다. */
+test("신규 소셜 회원은 가입과 동시에 체험이 시작된다", async () => {
   const store = memoryStore();
   const result = await handleAccountApi(context({
     path: "/api/auth/dev-login",
@@ -171,12 +172,32 @@ test("신규 소셜 회원은 체험을 자동 시작하지 않고 Free로 생�
     body: { provider: "kakao", name: "테스트", email: "member@example.com" },
   }));
   assert.equal(result.status, 200);
-  assert.equal(result.json.user.plan, "free");
-  assert.equal(result.json.user.trialStartedAt, null);
-  assert.equal(result.json.user.trialExpiresAt, null);
-  assert.equal(result.json.user.trialUsedAt, null);
+  assert.equal(result.json.user.plan, "trial");
+  assert.ok(result.json.user.trialStartedAt > 0);
+  assert.equal(result.json.user.trialExpiresAt, resolveTrialEndsAt(result.json.user.trialStartedAt));
+  assert.equal(result.json.user.trialUsedAt, result.json.user.trialStartedAt);
   assert.match(result.cookies[0], /HttpOnly/);
   assert.match(result.cookies[0], /Secure/);
+});
+
+/* 체험 재발급 우회의 가장 현실적인 경로 — 탈퇴 후 같은 소셜 계정으로 재가입.
+   회원 레코드는 지워져도 체험 사용 마커는 남으므로 두 번째 가입은 체험을 받지 못한다. */
+test("탈퇴 후 같은 소셜 계정으로 재가입해도 체험은 다시 열리지 않는다", async () => {
+  const store = memoryStore();
+  const env = testEnv({ ALLOW_DEV_LOGIN: "true" });
+  const body = { provider: "kakao", name: "테스트", email: "rejoin@example.com" };
+  const first = await handleAccountApi(context({ path: "/api/auth/dev-login", method: "POST", env, store, body }));
+  assert.equal(first.json.user.plan, "trial");
+
+  // 탈퇴 뒤 purge까지 끝난 상태를 만든다 — 마커(setting)는 남기고 회원·신원 레코드만 지운다.
+  const userId = first.json.user.id;
+  store.users.delete(userId);
+  store.identities?.clear?.();
+  assert.ok(store.settings.get(`ai-trial-used:${userId}`), "체험 사용 마커는 회원 레코드와 함께 지워지지 않는다");
+
+  const second = await handleAccountApi(context({ path: "/api/auth/dev-login", method: "POST", env, store, body }));
+  assert.equal(second.json.user.plan, "expired", "재가입 계정은 체험 없이 만료 상태로 시작한다");
+  assert.equal(second.json.user.trialStartedAt, null);
 });
 
 test("KV 저장소는 삭제 tombstone과 체험 표식에 절대 만료 시각을 적용한다", async () => {
@@ -200,28 +221,28 @@ test("KV 저장소는 삭제 tombstone과 체험 표식에 절대 만료 시각�
   assert.deepEqual(deletes, ["setting:ai-trial-used:pending-user"]);
 });
 
-test("Free 회원의 무료 체험은 명시적으로 한 번만 시작되고 24시간 뒤 Free로 돌아간다", async () => {
-  const now = Date.parse("2026-01-15T03:00:00.000Z");
-  const user = { id: "google:explicit-trial", status: "active", role: "member", plan: "free", createdAt: now - 1 };
+test("체험은 계정당 한 번만 시작되고 가입 다음 날 밤에 만료된다", async () => {
+  const now = Date.parse("2026-01-15T03:00:00.000Z"); // 2026-01-15 12:00 KST
+  const user = { id: "google:explicit-trial", status: "active", role: "member", plan: "expired", createdAt: now - 1 };
   const store = memoryStore([user]);
 
   const started = await startAiTrial({ store, userId: user.id, now });
   assert.equal(started.started, true);
   assert.equal(started.usage.plan, "trial");
   assert.equal(user.plan, "trial");
-  assert.equal(user.trialExpiresAt - user.trialStartedAt, 24 * 60 * 60 * 1000);
+  assert.equal(user.trialExpiresAt, resolveTrialEndsAt(now));
 
   const repeated = await startAiTrial({ store, userId: user.id, now: now + 1 });
   assert.equal(repeated.started, false);
   assert.equal(repeated.idempotent, true);
-  assert.equal(user.trialExpiresAt, now + 24 * 60 * 60 * 1000);
+  assert.equal(user.trialExpiresAt, resolveTrialEndsAt(now));
 
-  const expired = await getAiCreditUsage({ store, userId: user.id, now: now + 24 * 60 * 60 * 1000 });
-  assert.equal(expired.plan, "free");
+  const expired = await getAiCreditUsage({ store, userId: user.id, now: user.trialExpiresAt });
+  assert.equal(expired.plan, "expired");
   assert.equal(expired.trial.eligible, false);
-  assert.equal(user.plan, "free");
+  assert.equal(user.plan, "expired");
   await assert.rejects(
-    startAiTrial({ store, userId: user.id, now: now + 24 * 60 * 60 * 1000 + 1 }),
+    startAiTrial({ store, userId: user.id, now: user.trialExpiresAt + 1 }),
     (error) => error.status === 409 && error.code === "TRIAL_ALREADY_USED",
   );
 });
@@ -840,7 +861,7 @@ test("로그아웃은 서버 세션을 폐기하고 같은 쿠키 재사용을 �
   assert.equal((await handleAccountApi(context({ path: "/api/auth/session", env, store, cookie: sessionCookie }))).json.user, null);
 });
 
-test("해지된 구독은 결제 기간 종료 후 Free로 내려간다", async () => {
+test("해지된 구독은 결제 기간 종료 후 만료로 내려간다", async () => {
   const user = {
     id: "google:paid",
     plan: "pro",
@@ -850,7 +871,7 @@ test("해지된 구독은 결제 기간 종료 후 Free로 내려간다", async 
   const store = memoryStore([user]);
   const result = await renewDueSubscriptions({ env: {}, store });
   assert.equal(result.processed, 1);
-  assert.equal(store.users.get(user.id).plan, "free");
+  assert.equal(store.users.get(user.id).plan, "expired");
 });
 
 test("운영 승인 스위치가 꺼져 있으면 결제 키가 있어도 결제창을 열지 않는다", async () => {
@@ -911,7 +932,7 @@ test("결제가 비활성화되면 빌링키·D1 주문·Pro 권한을 만들지
   assert.equal(tossCalls, 0);
   assert.equal(env.BILLING_DB.accounts.size, 0);
   assert.equal(env.BILLING_DB.orders.size, 0);
-  assert.equal((await store.getUser(login.json.user.id)).plan, "free");
+  assert.equal((await store.getUser(login.json.user.id)).plan, "trial", "결제가 실패해도 가입 시 시작된 체험은 그대로다");
 });
 
 test("최초 자동결제 Payment는 totalAmount와 서버 주문 정책을 엄격히 검증한다", () => {
@@ -1192,7 +1213,7 @@ test("최초 승인 금액이 서버 정책과 다르면 Pro를 부여하지 않
     handleAccountApi(context({ path: "/api/billing/activate", method: "POST", env, store, cookie, fetcher, body: { authKey: "bad-amount-auth", customerKey: config.json.customerKey, amount: 1, plan: "pro" } })),
     (error) => error.code === "PAYMENT_AMOUNT_MISMATCH",
   );
-  assert.equal((await store.getUser(login.json.user.id)).plan, "free");
+  assert.equal((await store.getUser(login.json.user.id)).plan, "trial", "결제가 실패해도 가입 시 시작된 체험은 그대로다");
   assert.equal(JSON.stringify(env.BILLING_DB).includes("billing-key"), false);
 });
 
@@ -1210,7 +1231,7 @@ test("billing key customerKey 불일치는 Pro를 부여하지 않는다", async
     handleAccountApi(context({ path: "/api/billing/activate", method: "POST", env, store, cookie, fetcher, body: { authKey: "mismatched-customer-auth", customerKey: config.json.customerKey } })),
     (error) => error.code === "BILLING_CUSTOMER_MISMATCH" && error.message === "빌링키의 customerKey가 현재 사용자와 일치하지 않습니다.",
   );
-  assert.equal((await store.getUser(login.json.user.id)).plan, "free");
+  assert.equal((await store.getUser(login.json.user.id)).plan, "trial", "결제가 실패해도 가입 시 시작된 체험은 그대로다");
 });
 
 test("결과가 불명확한 최초 승인은 같은 원장 주문을 유지하고 새 청구를 만들지 않는다", async () => {
@@ -1260,12 +1281,21 @@ test("갱신 실패는 같은 주문으로 하루 간격 재시도하고 세 번
   assert.equal(first.retrying, 1);
   assert.equal(user.subscriptionStatus, "past_due");
   assert.equal(user.plan, "pro");
+  // 유예 창은 첫 실패에 한 번만 열린다. 재시도마다 다시 열리면 실패가 반복되는 계정이 영원히 PRO가 된다.
+  assert.equal(user.paymentGraceUntil, now + PAYMENT_FAILURE_GRACE_MS);
+
   await renewDueSubscriptions({ env, store, now: now + 24 * 60 * 60 * 1000, fetcher });
+  assert.equal(user.paymentGraceUntil, now + PAYMENT_FAILURE_GRACE_MS, "재시도는 유예 창을 늘리지 않는다");
+
   const third = await renewDueSubscriptions({ env, store, now: now + 2 * 24 * 60 * 60 * 1000, fetcher });
   assert.equal(third.failed, 1);
   assert.equal(user.subscriptionStatus, "payment_failed");
-  assert.equal(user.plan, "free");
   assert.equal(new Set(orderIds).size, 1);
+
+  /* 재시도를 다 써도 즉시 잠그지 않는다 — 카드 만료 같은 사유로 정상 유저가 잠기는 것을 막는
+     3일 유예다. 차단 시점은 저장된 plan이 아니라 유예 창이 정한다. */
+  assert.equal(resolveEffectivePlan(user, now + PAYMENT_FAILURE_GRACE_MS - 1), "pro");
+  assert.equal(resolveEffectivePlan(user, now + PAYMENT_FAILURE_GRACE_MS), "expired");
 });
 
 test("결제사 해지를 확인하지 못하면 빌링키와 구독 상태를 보존한다", async () => {
@@ -1552,4 +1582,58 @@ test("Worker responses include release security headers", async () => {
   assert.equal(response.headers.get("x-content-type-options"), "nosniff");
   assert.equal(response.headers.get("x-frame-options"), "DENY");
   assert.match(response.headers.get("cache-control"), /no-store/);
+});
+
+/* ---------- 만료 후에도 반드시 열려 있어야 하는 것 (P1 · 법적 요건) ----------
+   기록 열람·내보내기, 탈퇴, 결제 화면. 이 셋은 HARD_PAYWALL_ENABLED와 무관하게 열려 있어야 한다.
+   차단 게이트는 /api/ai/* 라우트에만 붙어 있으므로 계정·결제 API는 애초에 그 게이트를 지나지 않는다.
+   여기서는 "지나지 않는다"를 코드 구조가 아니라 실제 응답으로 확인한다. */
+
+async function expiredMemberContext({ paywall = true } = {}) {
+  const env = testEnv({ ALLOW_DEV_LOGIN: "true", HARD_PAYWALL_ENABLED: paywall ? "true" : "false" });
+  const store = memoryStore();
+  const login = await handleAccountApi(context({
+    path: "/api/auth/dev-login",
+    method: "POST",
+    env,
+    store,
+    body: { provider: "google", name: "만료회원", email: "expired@example.com" },
+  }));
+  const user = await store.getUser(login.json.user.id);
+  // 체험이 끝난 상태로 만든다.
+  Object.assign(user, { plan: "expired", trialExpiresAt: Date.now() - 1 });
+  await store.putUser(user);
+  return { env, store, cookie: login.cookies[0], user };
+}
+
+test("차단이 켜져도 만료 계정은 자기 상태와 기록을 계속 읽을 수 있다", async () => {
+  const { env, store, cookie, user } = await expiredMemberContext();
+  await store.putAppState(user.id, { records: [{ note: "남긴 기록" }] });
+
+  const me = await handleAccountApi(context({ path: "/api/auth/me", env, store, cookie }));
+  assert.equal(me.status, 200);
+  assert.equal(me.json.user.plan, "expired");
+
+  const state = await handleAccountApi(context({ path: "/api/account/state", env, store, cookie }));
+  assert.equal(state.status, 200, "내보내기의 재료인 기록 조회가 막히면 안 된다");
+});
+
+test("차단이 켜져도 만료 계정은 결제 화면에 도달할 수 있다", async () => {
+  const { env, store, cookie } = await expiredMemberContext();
+  const config = await handleAccountApi(context({ path: "/api/billing/config", env, store, cookie }));
+  assert.equal(config.status, 200, "결제할 방법이 막히면 차단은 그냥 잠금이 된다");
+});
+
+test("차단이 켜져도 만료 계정은 탈퇴할 수 있다", async () => {
+  const { env, store, cookie, user } = await expiredMemberContext();
+  const deleted = await handleAccountApi(context({
+    path: "/api/account/delete",
+    method: "POST",
+    env,
+    store,
+    cookie,
+    body: { confirmation: "계정 삭제" },
+  }));
+  assert.equal(deleted.status, 202, "개인정보 자기결정권은 결제 상태와 무관하다");
+  assert.equal((await store.getUser(user.id)).status, "deletion_pending");
 });

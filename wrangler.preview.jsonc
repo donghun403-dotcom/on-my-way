@@ -17,6 +17,7 @@
     "ALLOW_DEV_LOGIN": "false",
     "ALLOW_DEMO_BILLING": "false",
     "PAYMENTS_ENABLED": "false",
+    "HARD_PAYWALL_ENABLED": "false",
     "APP_ENV": "preview"
   },
   "kv_namespaces": [

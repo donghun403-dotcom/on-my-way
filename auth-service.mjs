@@ -1,5 +1,5 @@
-import { ensureAiTrialAbuseMarker, getAiCreditUsage, withAiCreditUserLock } from "./ai-credits-service.mjs";
-import { PLAN_CONFIG } from "./plan-policy.mjs";
+import { ensureAiTrialAbuseMarker, getAiCreditUsage, hasUsedAiTrial, withAiCreditUserLock } from "./ai-credits-service.mjs";
+import { PAYMENT_FAILURE_GRACE_MS, PLAN_CONFIG, resolveEffectivePlan, resolveTrialEndsAt } from "./plan-policy.mjs";
 import { createBillingLedger, fingerprint } from "./billing-ledger.mjs";
 
 // On My Way 회원/인증 서비스 코어.
@@ -255,7 +255,8 @@ function publicUser(user) {
     email: user.email,
     avatar: user.avatar || "",
     role: user.role || "member",
-    plan: user.plan || "free",
+    // 저장된 plan이 아니라 판정 결과를 내보낸다 — 크론이 늦게 돌아도 화면이 밀리지 않아야 한다.
+    plan: resolveEffectivePlan(user),
     trialStartedAt: user.trialStartedAt || null,
     trialExpiresAt: user.trialExpiresAt || null,
     trialUsedAt: user.trialUsedAt || null,
@@ -263,6 +264,8 @@ function publicUser(user) {
     proSince: user.proSince || null,
     subscriptionStatus: user.subscriptionStatus || null,
     currentPeriodEnd: user.currentPeriodEnd || null,
+    // 결제 수단 갱신 배너가 "언제까지"를 말할 근거.
+    paymentGraceUntil: user.paymentGraceUntil || null,
     goalPlanGeneratedAt: user.goalPlanGeneratedAt || null,
     createdAt: user.createdAt,
     lastLoginAt: user.lastLoginAt,
@@ -294,19 +297,32 @@ export async function upsertUserFromProfile(userStore, env, provider, profile) {
   }
   const isAdminEmail = profile.email && adminEmails(env).includes(profile.email.toLowerCase());
 
+  const isNewAccount = !existing && !legacy;
   const user = existing || (legacy ? { ...legacy, id } : {
     id,
     provider,
     status: "active",
     role: isAdminEmail ? "admin" : "member",
     roleSource: isAdminEmail ? "admin_email" : "default",
-    plan: "free",
+    plan: "expired",
     trialStartedAt: null,
     trialExpiresAt: null,
     trialUsedAt: null,
     trialEndedAt: null,
     createdAt: now,
   });
+
+  /* 가입 → trial. 영구 무료 티어가 없으므로 가입과 체험 시작 사이에 머물 상태가 없다.
+     체험은 계정당 1회다. 회원 레코드가 지워져도 남는 마커를 먼저 확인해서, 탈퇴 후
+     같은 소셜 계정으로 재가입해도 체험이 다시 열리지 않게 한다. */
+  if (isNewAccount && !user.trialStartedAt && !(await hasUsedAiTrial({ store: userStore, userId: id, now }))) {
+    user.plan = "trial";
+    user.trialStartedAt = now;
+    user.trialExpiresAt = resolveTrialEndsAt(now);
+    user.trialUsedAt = now;
+    user.trialEndedAt = null;
+    await ensureAiTrialAbuseMarker({ store: userStore, userId: id, usedAt: now, now });
+  }
 
   user.name = profile.name || user.name || "회원";
   user.email = profile.email || user.email || "";
@@ -567,6 +583,8 @@ export function applySuccessfulPayment(user, payment, now) {
   user.paymentFailure = null;
   user.paymentRetryCount = 0;
   user.nextPaymentRetryAt = null;
+  // 결제가 되면 유예 창은 닫는다. 남겨 두면 다음 실패 때 이미 지난 창을 물려받는다.
+  user.paymentGraceUntil = null;
   user.pendingOrderId = null;
   user.pendingRenewalOrderId = null;
 }
@@ -1253,7 +1271,10 @@ export async function handleAccountApi(ctx) {
     }
     user.billingKey = null;
     user.subscriptionStatus = "canceled";
-    if (!user.currentPeriodEnd || Number(user.currentPeriodEnd) <= Date.now()) user.plan = "free";
+    /* 해지해도 이미 낸 기간까지는 PRO다. 남은 기간이 없을 때만 즉시 만료로 내린다.
+       판정 자체는 resolveEffectivePlan이 currentPeriodEnd를 보고 하므로, 여기서 저장하는
+       plan은 힌트다 — 크론이 늦게 돌아도 권한이 남지 않는 이유가 그것이다. */
+    if (!user.currentPeriodEnd || Number(user.currentPeriodEnd) <= Date.now()) user.plan = "expired";
     await store(ctx).putUser(user);
     return { status: 200, json: { user: publicUser(user) } };
   }
@@ -1281,7 +1302,7 @@ export async function handleAccountApi(ctx) {
       target.plan = "pro";
       target.proSince = Date.now();
       target.subscriptionStatus = target.billingKey ? "active" : "complimentary";
-    } else if (body.plan === "free" || body.plan === "trial") {
+    } else if (body.plan === "expired") {
       if (target.billingKey && !billingConfig(ctx.env).configured) {
         return { status: 503, json: { error: "결제사 해지 설정을 확인할 수 없어 회원 구독을 유지했습니다." } };
       }
@@ -1292,11 +1313,12 @@ export async function handleAccountApi(ctx) {
           return { status: 502, json: { error: "결제사 해지를 확인하지 못해 회원 구독을 유지했습니다." } };
         }
       }
-      target.plan = "free";
+      target.plan = "expired";
       target.proSince = null;
       target.billingKey = null;
       target.subscriptionStatus = "canceled";
       target.currentPeriodEnd = Date.now();
+      target.paymentGraceUntil = null;
     }
     if (body.role === "admin" || body.role === "member") {
       target.role = body.role;
@@ -1318,8 +1340,10 @@ export async function renewDueSubscriptions({ env, store: userStore, now = Date.
   let failed = 0;
   let retrying = 0;
   for (const user of users) {
+    // 해지한 구독의 기간이 끝났다. 여기서 저장 값을 맞춰 두지만, 권한 판정은 이미
+    // resolveEffectivePlan이 currentPeriodEnd로 하고 있으므로 크론이 늦어도 새지 않는다.
     if (user.subscriptionStatus === "canceled" && user.plan === "pro" && Number(user.currentPeriodEnd || 0) <= now) {
-      user.plan = "free";
+      user.plan = "expired";
       await userStore.putUser(user);
       processed += 1;
       continue;
@@ -1344,9 +1368,14 @@ export async function renewDueSubscriptions({ env, store: userStore, now = Date.
         const retryCount = Number(user.paymentRetryCount || 0) + 1;
         user.paymentRetryCount = retryCount;
         user.paymentFailure = { code: error.code || "BILLING_ERROR", at: now };
+        /* 유예 창은 첫 실패에 한 번만 연다. 재시도마다 다시 열면 실패가 반복되는 계정이
+           영원히 PRO로 남는다. 창이 닫히는 시점은 resolveEffectivePlan이 본다. */
+        user.paymentGraceUntil = Number(user.paymentGraceUntil || 0) || now + PAYMENT_FAILURE_GRACE_MS;
         if (retryCount >= MAX_PAYMENT_RETRIES) {
+          /* 재시도를 다 써도 plan은 "pro"로 남긴다 — 유예가 남아 있으면 아직 PRO이기 때문이다.
+             차단 시점은 저장 값이 아니라 paymentGraceUntil이 정한다. */
           user.subscriptionStatus = "payment_failed";
-          user.plan = "free";
+          user.plan = "pro";
           user.nextPaymentRetryAt = null;
           failed += 1;
         } else {
