@@ -776,6 +776,43 @@
             <button id="openCompanionChat" data-chat-entry="talk" type="button">올리와 이야기하기</button>
           </section>
 
+          <!-- 하루 페이지 · 회고 뷰 (스펙 2장 다이어리 통합 · 7장 4항 부분 삭제) -->
+          <section class="day-page" id="dayPage" aria-labelledby="dayPageTitle">
+            <header class="day-page-head">
+              <div class="day-page-heading">
+                <small>돌아보기</small>
+                <h2 id="dayPageTitle">하루 페이지</h2>
+                <span>그날의 마음과 올리와 나눈 이야기를 한 장으로 봐요</span>
+              </div>
+              <div class="day-page-nav">
+                <button class="day-page-step" id="dayPagePrev" type="button" aria-label="이전 날 보기"><span aria-hidden="true">‹</span></button>
+                <p class="day-page-date" aria-live="polite">
+                  <strong id="dayPageDateLabel">오늘</strong>
+                  <small id="dayPageDateRelative"></small>
+                </p>
+                <button class="day-page-step" id="dayPageNext" type="button" aria-label="다음 날 보기"><span aria-hidden="true">›</span></button>
+              </div>
+            </header>
+
+            <p class="day-page-retention" id="dayPageRetention" role="status" hidden></p>
+
+            <div class="day-page-body" id="dayPageBody" tabindex="-1"></div>
+
+            <footer class="day-page-foot">
+              <p class="day-page-storage-note">이 기록은 이 기기에 저장돼요. 기기를 바꾸거나 브라우저 저장소를 비우면 지난 대화는 함께 옮겨지지 않아요.</p>
+              <div class="day-page-erase" id="dayPageErase" hidden>
+                <button class="day-page-erase-start" id="dayPageEraseStart" type="button">이 날 기록 지우기</button>
+                <div class="day-page-erase-confirm" id="dayPageEraseConfirm" role="group" aria-labelledby="dayPageEraseQuestion" hidden>
+                  <p id="dayPageEraseQuestion"><strong>정말 지울까요?</strong><span id="dayPageEraseDetail"></span></p>
+                  <div class="day-page-erase-buttons">
+                    <button id="dayPageEraseCancel" type="button">아니요, 둘게요</button>
+                    <button class="is-destructive" id="dayPageEraseCommit" type="button">네, 지울게요</button>
+                  </div>
+                </div>
+              </div>
+            </footer>
+          </section>
+
           <details class="memory-history-disclosure">
             <summary>
               <div>

@@ -2480,6 +2480,20 @@ const memorySaveHint = document.querySelector("#memorySaveHint");
 const memorySaveButton = document.querySelector("#memorySaveButton");
 const memoryCount = document.querySelector("#memoryCount");
 const memoryOptionalDetails = document.querySelector("#memoryOptionalDetails");
+// 하루 페이지 · 회고 뷰
+const dayPage = document.querySelector("#dayPage");
+const dayPageBody = document.querySelector("#dayPageBody");
+const dayPagePrev = document.querySelector("#dayPagePrev");
+const dayPageNext = document.querySelector("#dayPageNext");
+const dayPageDateLabel = document.querySelector("#dayPageDateLabel");
+const dayPageDateRelative = document.querySelector("#dayPageDateRelative");
+const dayPageRetention = document.querySelector("#dayPageRetention");
+const dayPageErase = document.querySelector("#dayPageErase");
+const dayPageEraseStart = document.querySelector("#dayPageEraseStart");
+const dayPageEraseConfirm = document.querySelector("#dayPageEraseConfirm");
+const dayPageEraseDetail = document.querySelector("#dayPageEraseDetail");
+const dayPageEraseCancel = document.querySelector("#dayPageEraseCancel");
+const dayPageEraseCommit = document.querySelector("#dayPageEraseCommit");
 const chatOverlay = document.querySelector("#chatOverlay");
 const companionChatSheet = document.querySelector("#companionChatSheet");
 const closeCompanionChatButton = document.querySelector("#closeCompanionChat");
@@ -3676,6 +3690,45 @@ function collectChatHistory() {
     .filter((turn) => turn.text.trim());
 }
 
+function chatDateFromKey(key) {
+  const [year, month, day] = String(key || "").split("-").map(Number);
+  if (!year || !month || !day) return new Date();
+  return new Date(year, month - 1, day);
+}
+
+function shiftDateKey(key, deltaDays) {
+  const date = chatDateFromKey(key);
+  date.setDate(date.getDate() + deltaDays);
+  return getLocalDateKey(date);
+}
+
+function daysBetweenDateKeys(fromKey, toKey) {
+  return getCalendarDayDifference(chatDateFromKey(toKey), chatDateFromKey(fromKey));
+}
+
+/* 보관 상한에 걸려 사라질 기록을 미리 알리기 위한 계산(스펙 4장). 조용히 지워지면
+   그건 유저에게 데이터 손실이지 정책이 아니다. 기기를 넘어 간직하는 길은 C5 다이어리
+   북이 맡으므로, 이 안내가 그 전환의 진입점이 된다. */
+const CHAT_RETENTION_WARN_DAYS = 14;
+const CHAT_RETENTION_WARN_TURNS = 450;
+
+function readChatRetentionStatus(log = readChatLog(), todayKey = getTodayKey()) {
+  const days = Object.entries(log.days)
+    .filter(([, turns]) => Array.isArray(turns) && turns.length)
+    .map(([key, turns]) => ({ key, turns: turns.length, remainingDays: CHAT_LOG_MAX_DAYS - daysBetweenDateKeys(key, todayKey) }))
+    .sort((a, b) => a.key.localeCompare(b.key));
+  const totalTurns = days.reduce((sum, day) => sum + day.turns, 0);
+  return {
+    totalTurns,
+    totalDays: days.length,
+    oldestKey: days[0]?.key || "",
+    // 이미 0 이하인 날은 다음 저장 때 prune이 걷어 간다. 남은 날이 짧은 순으로 준다.
+    expiring: days.filter((day) => day.remainingDays <= CHAT_RETENTION_WARN_DAYS),
+    turnsUntilCap: Math.max(0, CHAT_LOG_MAX_TURNS - totalTurns),
+    nearTurnCap: totalTurns >= CHAT_RETENTION_WARN_TURNS,
+  };
+}
+
 /* 자동 치어링(축하·위로)은 유료 재화를 쓰지 않으므로 크레딧 게이트를 지나지 않는다.
    대신 서버가 하루 각 1회로 상한을 걸고, 초과분은 CHEER_LIMIT_REACHED로 돌려준다. */
 async function requestCompanionReply(message, { eventType = "chat", history = null } = {}) {
@@ -4650,6 +4703,11 @@ window.__omwTest = Object.freeze({
      순수 함수를 그대로 노출해 경계를 직접 검사한다. */
   pruneChatLog(log) {
     return pruneChatLog({ version: 1, days: log?.days || {} });
+  },
+  /* 보관 상한 사전 안내도 같은 이유로 날짜를 주입해 검사한다 — 90일 뒤를 e2e에서
+     기다릴 수는 없다. */
+  chatRetentionStatus(log, todayKey) {
+    return readChatRetentionStatus({ version: 1, days: log?.days || {} }, todayKey || getTodayKey());
   },
   collectChatHistory,
   planCodecRoundTrip() {
@@ -7302,6 +7360,8 @@ function appendCompanionChatTurn(turn, { persist = true } = {}) {
   const stored = persist ? appendChatTurn(turn) : { ...turn, emotion: normalizeChatEmotion(turn.emotion) };
   chatThread?.insertBefore(createChatTurnNode(stored), companionChatThinking);
   scrollChatThreadToEnd();
+  // 시트를 닫고 기록 탭으로 갔을 때 오늘 페이지가 방금 나눈 이야기를 이미 담고 있어야 한다.
+  if (persist) renderDayPage();
   return stored;
 }
 
@@ -8665,6 +8725,403 @@ function formatMemoryDate(value) {
   return date.toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" });
 }
 
+// ===== 하루 페이지 · 회고 뷰 (스펙 2장 다이어리 통합 · 7장 4항 부분 삭제) =====
+
+/* 보고 있는 날짜. 빈 값이면 "오늘"이라는 뜻이다 — 오늘을 날짜 문자열로 굳혀 두면
+   자정을 넘긴 탭이 어제에 머문다. */
+let dayPageKey = "";
+let dayPageChatOpen = false;
+/* 되돌릴 수 없는 삭제라 확인 단계를 거친다. 어느 날짜에 대해 물었는지까지 기억해야
+   날짜를 넘긴 뒤 남아 있던 "네, 지울게요"가 엉뚱한 날을 지우지 않는다. */
+let dayPageEraseArmed = "";
+// renderMemoryCards가 넘겨주는 오늘의 완료율. 날짜만 넘길 때 전체 렌더를 다시 돌리지 않으려고 둔다.
+let dayPageCompletion = null;
+
+function getDayPageKey() {
+  return dayPageKey || getTodayKey();
+}
+
+function memoryDateKey(memory) {
+  return String(memory?.diaryDate || memory?.id || "").slice(0, 10);
+}
+
+/* 기록이 있는 날들. 넘겨보기의 경계이자 "가장 가까운 기록"의 후보다. 경계를 두지 않으면
+   유저가 아무것도 없는 과거로 끝없이 넘어가게 된다. */
+function collectDayPageKeys() {
+  const keys = new Set();
+  for (const memory of getExecutionState().dailyMemories || []) {
+    const key = memoryDateKey(memory);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(key)) keys.add(key);
+  }
+  for (const [key, turns] of Object.entries(readChatLog().days)) {
+    if (Array.isArray(turns) && turns.length) keys.add(key);
+  }
+  return [...keys].sort();
+}
+
+// 오름차순으로 훑으므로 거리가 같으면 지난 날이 이긴다 — 회고는 대개 뒤로 넘긴다.
+function findNearestDayPageKey(dateKey, keys) {
+  let nearest = "";
+  let best = Infinity;
+  for (const key of keys) {
+    const distance = Math.abs(daysBetweenDateKeys(key, dateKey));
+    if (distance < best) {
+      best = distance;
+      nearest = key;
+    }
+  }
+  return nearest;
+}
+
+function formatDayPageDate(dateKey) {
+  // 보관 상한이 90일이라 연도까지 쓸 일이 거의 없다. 기록 목록(formatMemoryDate)과 같은 모양으로 맞춘다.
+  return chatDateFromKey(dateKey).toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" });
+}
+
+function describeDayPageOffset(dateKey, todayKey = getTodayKey()) {
+  const offset = daysBetweenDateKeys(dateKey, todayKey);
+  if (offset <= 0) return "오늘";
+  if (offset === 1) return "어제";
+  if (offset === 2) return "그저께";
+  return `${offset}일 전`;
+}
+
+/* 보관 상한에 걸려 사라질 기록을 미리 알린다. 보고 있는 날이 만료 대상이면 그 날 이야기를,
+   아니면 가장 먼저 사라질 날을 알린다. 턴 상한은 날짜와 무관하므로 마지막에 본다. */
+function buildDayPageRetentionNotice(dateKey, todayKey = getTodayKey()) {
+  const status = readChatRetentionStatus(readChatLog(), todayKey);
+  const describeWhen = (remainingDays) => (remainingDays <= 0 ? "곧" : `${remainingDays}일 뒤`);
+
+  const viewing = status.expiring.find((day) => day.key === dateKey);
+  if (viewing) {
+    return { text: `이 날의 대화 ${viewing.turns}마디는 ${describeWhen(viewing.remainingDays)} 보관 기간(${CHAT_LOG_MAX_DAYS}일)이 끝나 사라져요.`, jumpKey: "" };
+  }
+  const [soonest] = status.expiring;
+  if (soonest) {
+    return { text: `${formatDayPageDate(soonest.key)}의 대화가 ${describeWhen(soonest.remainingDays)} 보관 기간(${CHAT_LOG_MAX_DAYS}일)이 끝나 사라져요.`, jumpKey: soonest.key };
+  }
+  if (status.nearTurnCap) {
+    return { text: `올리와 나눈 대화가 ${status.totalTurns}마디예요. ${CHAT_LOG_MAX_TURNS}마디를 넘으면 오래된 날의 대화부터 정리돼요.`, jumpKey: status.oldestKey };
+  }
+  return null;
+}
+
+function renderDayPageRetention(notice) {
+  if (!dayPageRetention) return;
+  dayPageRetention.replaceChildren();
+  dayPageRetention.hidden = !notice;
+  if (!notice) return;
+  const text = document.createElement("span");
+  // 사라진다는 말만 남기면 유저가 할 수 있는 일이 없다. 간직하는 길이 온다는 것도 같이 밝힌다.
+  text.textContent = `${notice.text} 기기를 넘어 간직하는 다이어리 북을 준비하고 있어요.`;
+  dayPageRetention.append(text);
+  if (notice.jumpKey) {
+    const jump = document.createElement("button");
+    jump.type = "button";
+    jump.dataset.dayPageJump = notice.jumpKey;
+    jump.textContent = "그 날 보기";
+    dayPageRetention.append(jump);
+  }
+}
+
+function createDayPageStat(label, value) {
+  const cell = document.createElement("div");
+  const caption = document.createElement("small");
+  caption.textContent = label;
+  const text = document.createElement("strong");
+  text.textContent = value;
+  cell.append(caption, text);
+  return cell;
+}
+
+function describeDayPageCompletion({ memory, dateKey, todayKey }) {
+  if (memory) return `${Number(memory.completion || 0)}% 완료`;
+  // 오늘은 아직 저장 전이어도 지금 진행률을 보여 준다 — 하루 페이지는 오늘도 하루다.
+  if (dateKey === todayKey && dayPageCompletion) return `${dayPageCompletion.percent}% 완료 · 저장 전`;
+  return "기록 없음";
+}
+
+/* 대화는 접어 둔다. 하루 페이지의 주인공은 그날의 마음과 한 줄이고, 대화는 펼쳐서 보는
+   부록이다. 펼침 상태는 같은 날짜를 다시 그릴 때만 유지한다. */
+function createDayPageChat(turns) {
+  if (!turns.length) {
+    const none = document.createElement("p");
+    none.className = "day-page-chat-none";
+    none.textContent = "이 날은 올리와 이야기하지 않았어요.";
+    return none;
+  }
+  const details = document.createElement("details");
+  details.className = "day-page-chat";
+  details.open = dayPageChatOpen;
+  const summary = document.createElement("summary");
+  const label = document.createElement("span");
+  label.textContent = `올리와의 대화 ${turns.length}마디`;
+  const hint = document.createElement("b");
+  hint.textContent = details.open ? "접기" : "펼쳐보기";
+  summary.append(label, hint);
+  details.addEventListener("toggle", () => {
+    dayPageChatOpen = details.open;
+    hint.textContent = details.open ? "접기" : "펼쳐보기";
+  });
+  const thread = document.createElement("div");
+  thread.className = "day-page-chat-thread";
+  for (const turn of turns) thread.append(createChatTurnNode(turn));
+  details.append(summary, thread);
+  return details;
+}
+
+function createDayPageEntry({ dateKey, memory, turns, todayKey }) {
+  const entry = document.createElement("div");
+  entry.className = "day-page-entry";
+  entry.dataset.dayPageDate = dateKey;
+
+  const mood = memory ? getMemoryMoodDisplay(memory) : null;
+  const stats = document.createElement("div");
+  stats.className = "day-page-stats";
+  stats.append(
+    createDayPageStat("그날의 마음", mood ? `${mood.icon} ${mood.label}` : "감정 기록 없음"),
+    createDayPageStat("실행", describeDayPageCompletion({ memory, dateKey, todayKey })),
+  );
+  entry.append(stats);
+
+  if (memory?.title && memory.title !== "오늘의 한 장") {
+    const title = document.createElement("h3");
+    title.className = "day-page-entry-title";
+    title.textContent = memory.title;
+    entry.append(title);
+  }
+
+  const note = String(memory?.note || "").trim();
+  const noteBlock = document.createElement("div");
+  noteBlock.className = note ? "day-page-note" : "day-page-note is-empty";
+  // 다이어리를 아예 쓰지 않은 날에는 "한 줄 기록" 딱지를 붙이지 않는다 — 없는 것에 이름표를 달면 빈 칸처럼 읽힌다.
+  if (memory) {
+    const noteLabel = document.createElement("small");
+    noteLabel.textContent = "한 줄 기록";
+    noteBlock.append(noteLabel);
+  }
+  const noteText = document.createElement("p");
+  noteText.textContent = note
+    || (memory ? "이 날은 마음만 남겼어요." : "이 날은 다이어리를 쓰지 않았어요. 올리와 나눈 이야기만 남아 있어요.");
+  noteBlock.append(noteText);
+  entry.append(noteBlock, createDayPageChat(turns));
+  return entry;
+}
+
+/* 빈 상태가 이 화면의 절반이다 — 기록이 쌓일수록 가치가 커지는 화면이라, 아무것도 없는
+   날과 아직 아무것도 없는 유저는 서로 다른 말을 들어야 한다. */
+function createDayPageEmptyState({ dateKey, keys, todayKey }) {
+  const empty = document.createElement("div");
+  empty.className = "day-page-empty";
+  empty.dataset.dayPageDate = dateKey;
+  const image = document.createElement("img");
+  image.alt = "";
+  image.loading = "lazy";
+  const title = document.createElement("strong");
+  const text = document.createElement("p");
+  const actions = document.createElement("div");
+  actions.className = "day-page-empty-actions";
+
+  if (!keys.length) {
+    empty.classList.add("is-first");
+    image.src = "assets/ollie-action.png";
+    title.textContent = "아직 펼칠 페이지가 없어요";
+    text.textContent = "오늘의 마음 하나만 남겨도 여기에 첫 페이지가 생겨요. 기록이 쌓이면 지난 날을 넘겨보며 그때의 나를 다시 만날 수 있어요.";
+    const compose = document.createElement("button");
+    compose.type = "button";
+    compose.dataset.dayPageCompose = "true";
+    compose.textContent = "오늘의 한 장 남기기";
+    const talk = document.createElement("button");
+    talk.type = "button";
+    talk.className = "is-quiet";
+    talk.dataset.dayPageTalk = "true";
+    talk.dataset.chatEntry = "talk";
+    talk.textContent = "올리와 이야기하기";
+    actions.append(compose, talk);
+  } else if (dateKey === todayKey) {
+    image.src = "assets/ollie-action.png";
+    title.textContent = "오늘 페이지는 아직 비어 있어요";
+    text.textContent = "지금 마음 한 줄만 남겨도 오늘의 페이지가 채워져요.";
+    const compose = document.createElement("button");
+    compose.type = "button";
+    compose.dataset.dayPageCompose = "true";
+    compose.textContent = "오늘의 한 장 남기기";
+    actions.append(compose);
+  } else {
+    image.src = "assets/ollie-comfort.png";
+    title.textContent = "이 날은 조용히 지나갔어요";
+    text.textContent = "기록이 없는 날도 하루의 일부예요. 비어 있는 날을 굳이 채우지 않아도 괜찮아요.";
+  }
+
+  const nearest = keys.length ? findNearestDayPageKey(dateKey, keys) : "";
+  if (nearest && nearest !== dateKey) {
+    const jump = document.createElement("button");
+    jump.type = "button";
+    jump.className = "is-quiet";
+    jump.dataset.dayPageJump = nearest;
+    jump.textContent = `기록이 있는 가장 가까운 날 · ${formatDayPageDate(nearest)}`;
+    actions.append(jump);
+  }
+
+  const copy = document.createElement("div");
+  copy.append(title, text);
+  if (actions.childElementCount) copy.append(actions);
+  empty.append(image, copy);
+  return empty;
+}
+
+function renderDayPageErase({ dateKey, memory, turns, hasRecord }) {
+  if (!dayPageErase) return;
+  dayPageErase.hidden = !hasRecord;
+  const armed = hasRecord && dayPageEraseArmed === dateKey;
+  if (dayPageEraseStart) dayPageEraseStart.hidden = armed;
+  if (dayPageEraseConfirm) dayPageEraseConfirm.hidden = !armed;
+  if (dayPageEraseDetail) {
+    const parts = [];
+    if (memory) parts.push("다이어리 기록");
+    if (turns.length) parts.push(`올리와의 대화 ${turns.length}마디`);
+    const summary = parts.join("과 ");
+    dayPageEraseDetail.textContent = summary
+      ? `${formatDayPageDate(dateKey)}의 ${summary}${getObjectParticle(summary)} 지워요. 되돌릴 수 없어요.`
+      : "";
+  }
+}
+
+function renderDayPage({ selectedCompletion } = {}) {
+  if (!dayPage || !dayPageBody) return;
+  if (selectedCompletion) dayPageCompletion = selectedCompletion;
+
+  const todayKey = getTodayKey();
+  const keys = collectDayPageKeys();
+  const earliestKey = keys[0] || todayKey;
+
+  // 기록이 있는 범위 밖으로 나가 있으면(삭제·자정 경과 등) 조용히 안으로 데려온다.
+  let dateKey = getDayPageKey();
+  if (dateKey > todayKey) dateKey = todayKey;
+  if (dateKey < earliestKey) dateKey = earliestKey;
+  if (dateKey !== getDayPageKey()) dayPageChatOpen = false;
+  dayPageKey = dateKey === todayKey ? "" : dateKey;
+  if (dayPageEraseArmed && dayPageEraseArmed !== dateKey) dayPageEraseArmed = "";
+
+  const memory = (getExecutionState().dailyMemories || []).find((item) => memoryDateKey(item) === dateKey) || null;
+  const turns = readChatTurns(dateKey);
+  const hasRecord = Boolean(memory) || turns.length > 0;
+
+  if (dayPageDateLabel) dayPageDateLabel.textContent = formatDayPageDate(dateKey);
+  if (dayPageDateRelative) dayPageDateRelative.textContent = describeDayPageOffset(dateKey, todayKey);
+  if (dayPagePrev) dayPagePrev.disabled = dateKey <= earliestKey;
+  if (dayPageNext) dayPageNext.disabled = dateKey >= todayKey;
+
+  renderDayPageRetention(buildDayPageRetentionNotice(dateKey, todayKey));
+  dayPageBody.replaceChildren(
+    hasRecord
+      ? createDayPageEntry({ dateKey, memory, turns, todayKey })
+      : createDayPageEmptyState({ dateKey, keys, todayKey }),
+  );
+  renderDayPageErase({ dateKey, memory, turns, hasRecord });
+}
+
+function setDayPageKey(dateKey) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateKey || ""))) return;
+  dayPageKey = dateKey === getTodayKey() ? "" : dateKey;
+  dayPageChatOpen = false;
+  dayPageEraseArmed = "";
+  renderDayPage();
+}
+
+function stepDayPage(delta) {
+  const todayKey = getTodayKey();
+  const keys = collectDayPageKeys();
+  const earliestKey = keys[0] || todayKey;
+  const next = shiftDateKey(getDayPageKey(), delta);
+  if (next > todayKey || next < earliestKey) return;
+  setDayPageKey(next);
+}
+
+/* 대화 원문이 남을 수 있는 이벤트까지 함께 지운다. 이 저장소는 서버 동기화 대상이라,
+   그날의 대화를 지웠는데 여기 남아 있으면 삭제가 삭제가 아니게 된다. */
+function removeCompanionDialogueEvents(dateKey) {
+  try {
+    const events = readCompanionEvents();
+    const kept = events.filter((event) => {
+      const key = event.dayKey || String(event.createdAt || "").slice(0, 10);
+      return !(event.type === "companion_dialogue" && key === dateKey);
+    });
+    if (kept.length !== events.length) localStorage.setItem(companionEventKey, JSON.stringify(kept));
+    return events.length - kept.length;
+  } catch (error) {
+    console.warn("Unable to erase companion dialogue events", error);
+    return 0;
+  }
+}
+
+function eraseDayPageRecords(dateKey) {
+  const state = getExecutionState();
+  const memories = state.dailyMemories || [];
+  const removedIds = new Set(memories.filter((item) => memoryDateKey(item) === dateKey).map((item) => item.id));
+  if (removedIds.size) {
+    state.dailyMemories = memories.filter((item) => !removedIds.has(item.id));
+    savePlanBundleState(state);
+    if (memoryForm?.dataset.editingMemoryId && removedIds.has(memoryForm.dataset.editingMemoryId)) {
+      delete memoryForm.dataset.editingMemoryId;
+    }
+  }
+
+  const log = readChatLog();
+  const removedTurns = Array.isArray(log.days[dateKey]) ? log.days[dateKey].length : 0;
+  if (removedTurns) {
+    delete log.days[dateKey];
+    writeStorageObject(CHAT_LOG_KEY, log);
+  }
+
+  return { removedMemories: removedIds.size, removedTurns, removedEvents: removeCompanionDialogueEvents(dateKey) };
+}
+
+dayPagePrev?.addEventListener("click", () => stepDayPage(-1));
+dayPageNext?.addEventListener("click", () => stepDayPage(1));
+
+dayPage?.addEventListener("click", (event) => {
+  const jump = event.target.closest("[data-day-page-jump]");
+  if (jump) {
+    setDayPageKey(jump.dataset.dayPageJump);
+    return;
+  }
+  const talk = event.target.closest("[data-day-page-talk]");
+  if (talk) {
+    openCompanionChat({ currentTarget: talk });
+    return;
+  }
+  if (!event.target.closest("[data-day-page-compose]")) return;
+  memoryForm?.scrollIntoView({ behavior: "smooth", block: "center" });
+  window.setTimeout(() => memoryNote?.focus({ preventScroll: true }), 320);
+});
+
+dayPageEraseStart?.addEventListener("click", () => {
+  dayPageEraseArmed = getDayPageKey();
+  renderDayPage();
+  // 되돌릴 수 없는 쪽에 포커스를 두지 않는다 — 엔터가 두 번 눌리는 것만으로 지워지면 안 된다.
+  dayPageEraseCancel?.focus({ preventScroll: true });
+});
+
+dayPageEraseCancel?.addEventListener("click", () => {
+  dayPageEraseArmed = "";
+  renderDayPage();
+  dayPageEraseStart?.focus({ preventScroll: true });
+});
+
+dayPageEraseCommit?.addEventListener("click", () => {
+  const dateKey = getDayPageKey();
+  // 확인을 물은 날짜와 지금 보고 있는 날짜가 다르면 아무것도 하지 않는다.
+  if (dayPageEraseArmed !== dateKey) return;
+  const { removedMemories, removedTurns } = eraseDayPageRecords(dateKey);
+  dayPageEraseArmed = "";
+  // 지운 내용은 남기지 않는다. 개수만 있어야 삭제가 삭제로 끝난다.
+  trackCompanionEvent("day_page_erased", { removedMemories, removedTurns });
+  showToast(`${formatDayPageDate(dateKey)}의 기록을 지웠어요`);
+  renderExecutionPage(getPlanBundle());
+  dayPageBody?.focus({ preventScroll: true });
+});
+
 function renderMemoryCards({ selectedCompletion }) {
   if (!memoryList) return;
   const state = getExecutionState();
@@ -8799,6 +9256,7 @@ function renderMemoryCards({ selectedCompletion }) {
     });
   }
 
+  renderDayPage({ selectedCompletion });
   renderPatternCards(state);
 }
 
