@@ -292,6 +292,9 @@ const PENDING_PLAN_CHOICE_KEY = "onmyway:pending-plan-choice";
 const PLAN_CHOICE_BACKUP_PREFIX = "onmyway:plan-choice-backup:";
 // 실행 상태 ledger가 참조한 계획의 사본. 계획이 먼저 교체돼도 기존 기록을 정확히 복원하기 위한 로컬 전용 키다(서버 동기화 제외).
 const EXECUTION_LEDGER_PLAN_KEY = "omwExecutionLedgerPlan";
+// 올리와 나눈 대화(날짜별 턴 배열)와 대화 기능 최초 사용 동의 기록.
+const CHAT_LOG_KEY = "omwChatLog";
+const CHAT_CONSENT_KEY = "omwChatConsent";
 const ACCOUNT_SCOPED_STORAGE_KEYS = [
   TRIAL_ACCESS_KEY,
   "omwPersonalityProfile",
@@ -304,6 +307,11 @@ const ACCOUNT_SCOPED_STORAGE_KEYS = [
   // 오늘의 치어링(CHEER_STATE_KEY). 계정마다 따로 보관해야 다른 계정의 축하가 새어 나오지 않고,
   // 게스트로 받은 축하는 첫 로그인 때 함께 승계된다. 하루짜리 값이라 서버 동기화 대상은 아니다.
   "omwCheerState",
+  /* 대화 로그는 감정 기록에 준하는 민감한 내용이라 계정 격리가 특히 중요하다 —
+     다른 계정으로 로그인했을 때 앞사람의 대화가 남아 있으면 안 된다. 동의 기록도
+     같이 스코프에 둔다. 계정마다 따로 받아야 하는 별도 동의이기 때문이다. */
+  CHAT_LOG_KEY,
+  CHAT_CONSENT_KEY,
   EXECUTION_LEDGER_PLAN_KEY,
 ];
 const SERVER_SYNC_STORAGE_KEYS = [
@@ -2153,6 +2161,8 @@ async function loadAiUsage({ force = false } = {}) {
 }
 
 function renderOllieEnergy() {
+  // 대화 시트의 잔량은 시트가 열려 있는 동안 계속 맞아야 하므로 미터와 별개로 갱신한다.
+  renderChatEnergy();
   // 온보딩 페이지에는 에너지 미터 없이 크레딧 안내 시트만 있을 수 있다.
   if (!ollieEnergyMeter && !energyChargeBalance) return;
   const bucket = aiUsageState?.monthly;
@@ -2474,15 +2484,22 @@ const chatOverlay = document.querySelector("#chatOverlay");
 const companionChatSheet = document.querySelector("#companionChatSheet");
 const closeCompanionChatButton = document.querySelector("#closeCompanionChat");
 const energyButtons = document.querySelectorAll("[data-energy]");
-const chatActionButtons = document.querySelectorAll("[data-chat-action]");
 const companionChatInput = document.querySelector("#companionChatInput");
 const sendCompanionMessage = document.querySelector("#sendCompanionMessage");
-const companionChatResponse = document.querySelector("#companionChatResponse");
-const companionChatKicker = document.querySelector("#companionChatKicker");
-const companionChatTitle = document.querySelector("#companionChatTitle");
-const companionChatOllie = document.querySelector("#companionChatOllie");
+// 헤더 제목·부제는 진입 경로와 무관하게 고정이라 스크립트가 건드리지 않는다(스펙 2장 ①).
 const companionChatOllieImage = document.querySelector("#companionChatOllieImage");
 const companionChatThinking = document.querySelector("#companionChatThinking");
+const chatThread = document.querySelector("#chatThread");
+const chatBody = document.querySelector("#chatBody");
+const chatComposer = document.querySelector("#chatComposer");
+const chatActionChips = document.querySelector("#chatActionChips");
+const chatEnergyBadge = document.querySelector("#chatEnergyBadge");
+const chatEnergyBalance = document.querySelector("#chatEnergyBalance");
+const chatRecharge = document.querySelector("#chatRecharge");
+const chatRechargeMessage = document.querySelector("#chatRechargeMessage");
+const chatConsent = document.querySelector("#chatConsent");
+const chatConsentAgree = document.querySelector("#chatConsentAgree");
+const chatConsentDecline = document.querySelector("#chatConsentDecline");
 const focusModeOverlay = document.querySelector("#focusModeOverlay");
 const focusMode = document.querySelector("#focusMode");
 const closeFocusModeButton = document.querySelector("#closeFocusMode");
@@ -3560,9 +3577,108 @@ function collectCompanionContext(bundle) {
   };
 }
 
+// ===== 올리와 나눈 대화 로그 (omwChatLog · 날짜별 턴 배열) =====
+
+/* 보관 상한. 스펙 4장의 "무료 90일" 정책을 클라이언트에서도 그대로 지킨다. 턴 상한은
+   localStorage가 터지지 않게 하는 안전장치다 — 둘 중 먼저 걸리는 쪽이 이긴다. */
+const CHAT_LOG_MAX_DAYS = 90;
+const CHAT_LOG_MAX_TURNS = 500;
+// 컨텍스트로 함께 보내는 최근 턴 수(스펙 6장). 서버도 같은 상한으로 한 번 더 자른다.
+const CHAT_CONTEXT_TURNS = 6;
+const CHAT_CONTEXT_TURN_CHARS = 180;
+
+/* 감정 태그 → 표정 이미지. 표정 8종 에셋이 나오기 전까지는 기존 4종에 매핑한다(D트랙).
+   서버가 이미 8종으로 정규화해 주지만, 오래된 로그나 손댄 저장소를 대비해 여기서도
+   모르는 값은 평온으로 떨어뜨린다. */
+const CHAT_EMOTION_FACES = {
+  평온: "assets/ollie-action.png",
+  기쁨: "assets/ollie-celebrate.png",
+  뿌듯함: "assets/ollie-celebrate.png",
+  슬픔공감: "assets/ollie-comfort.png",
+  피곤위로: "assets/ollie-comfort.png",
+  불안공감: "assets/ollie-comfort.png",
+  부끄러움: "assets/ollie-action.png",
+  결심: "assets/ollie-action.png",
+};
+const DEFAULT_CHAT_EMOTION = "평온";
+
+function normalizeChatEmotion(value) {
+  return Object.hasOwn(CHAT_EMOTION_FACES, value) ? value : DEFAULT_CHAT_EMOTION;
+}
+
+function chatEmotionFace(emotion) {
+  return CHAT_EMOTION_FACES[normalizeChatEmotion(emotion)];
+}
+
+function readChatLog() {
+  const stored = readStorageObject(CHAT_LOG_KEY, {});
+  const days = stored && typeof stored.days === "object" && stored.days ? stored.days : {};
+  return { version: 1, days };
+}
+
+/* 90일이 지난 날짜를 통째로 버리고, 그래도 500턴이 넘으면 오래된 날부터 더 버린다.
+   기록을 남기는 기능이라 상한이 없으면 저장소가 조용히 가득 찬다. */
+function pruneChatLog(log) {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - CHAT_LOG_MAX_DAYS);
+  const cutoffKey = getLocalDateKey(cutoff);
+  const days = {};
+  for (const key of Object.keys(log.days).sort()) {
+    if (key < cutoffKey) continue;
+    const turns = Array.isArray(log.days[key]) ? log.days[key] : [];
+    if (turns.length) days[key] = turns;
+  }
+
+  let total = Object.values(days).reduce((sum, turns) => sum + turns.length, 0);
+  for (const key of Object.keys(days).sort()) {
+    if (total <= CHAT_LOG_MAX_TURNS) break;
+    const excess = total - CHAT_LOG_MAX_TURNS;
+    if (days[key].length <= excess) {
+      total -= days[key].length;
+      delete days[key];
+    } else {
+      days[key] = days[key].slice(excess);
+      total -= excess;
+    }
+  }
+  return { version: 1, days };
+}
+
+function readChatTurns(dateKey = getTodayKey()) {
+  const turns = readChatLog().days[dateKey];
+  return Array.isArray(turns) ? turns : [];
+}
+
+function appendChatTurn(turn) {
+  const log = readChatLog();
+  const todayKey = getTodayKey();
+  const turns = Array.isArray(log.days[todayKey]) ? log.days[todayKey] : [];
+  const stored = {
+    role: turn.role === "ollie" ? "ollie" : "user",
+    text: String(turn.text || "").slice(0, 500),
+    at: Date.now(),
+  };
+  if (turn.headline) stored.headline = String(turn.headline).slice(0, 60);
+  if (turn.role === "ollie") stored.emotion = normalizeChatEmotion(turn.emotion);
+  if (turn.safety) stored.safety = String(turn.safety).slice(0, 20);
+  log.days[todayKey] = [...turns, stored];
+  writeStorageObject(CHAT_LOG_KEY, pruneChatLog(log));
+  return stored;
+}
+
+/* 서버로 함께 보낼 최근 턴. 오늘 나눈 대화만 싣는다 — 시트에 보이는 것과 컨텍스트가
+   같아야 올리가 "기억하는 범위"를 유저가 예측할 수 있다. 글자 수도 여기서 자르고,
+   서버가 같은 상한으로 한 번 더 자른다(이중 방어). */
+function collectChatHistory() {
+  return readChatTurns()
+    .slice(-CHAT_CONTEXT_TURNS)
+    .map((turn) => ({ role: turn.role === "ollie" ? "ollie" : "user", text: String(turn.text || "").slice(0, CHAT_CONTEXT_TURN_CHARS) }))
+    .filter((turn) => turn.text.trim());
+}
+
 /* 자동 치어링(축하·위로)은 유료 재화를 쓰지 않으므로 크레딧 게이트를 지나지 않는다.
    대신 서버가 하루 각 1회로 상한을 걸고, 초과분은 CHEER_LIMIT_REACHED로 돌려준다. */
-async function requestCompanionReply(message, { eventType = "chat" } = {}) {
+async function requestCompanionReply(message, { eventType = "chat", history = null } = {}) {
   const isCheer = eventType !== "chat";
   if (!isCheer && !(await ensureAiActionAvailable("companion_chat"))) {
     const error = new Error("올리와 대화할 수 있는 AI 크레딧을 확인해 주세요.");
@@ -3584,6 +3700,10 @@ async function requestCompanionReply(message, { eventType = "chat" } = {}) {
       body: JSON.stringify({
         message,
         eventType,
+        /* 치어링은 유저가 말을 건 대화가 아니라 자동 반응이라 지난 턴을 싣지 않는다.
+           호출부가 history를 넘기는 이유는 이번 말이 이미 로그에 쌓인 뒤라서다 —
+           그대로 모으면 방금 한 말이 "이전 대화"에 한 번 더 들어간다. */
+        history: isCheer ? [] : (history || collectChatHistory()),
         context: {
           goal: bundle.plan?.goal || "",
           energy: companionState.energy || "",
@@ -3609,8 +3729,15 @@ async function requestCompanionReply(message, { eventType = "chat" } = {}) {
     }
     const reply = String(result.reply || "").trim();
     if (!reply) throw new Error("올리가 답을 만들지 못했어요.");
-    if (!isCheer) sendFunnelEvent("ai_credit_charged");
-    return { reply, headline: String(result.headline || "").trim() };
+    // 위기 고정 응답은 서버가 에너지를 쓰지 않고 내려보낸다. 차감 퍼널 이벤트도 남기지 않는다.
+    const safety = String(result.safety || "");
+    if (!isCheer && !safety) sendFunnelEvent("ai_credit_charged");
+    return {
+      reply,
+      headline: String(result.headline || "").trim(),
+      emotion: normalizeChatEmotion(result.emotion),
+      safety,
+    };
   } catch (error) {
     if (error.name === "AbortError") throw new Error("올리의 답이 늦어지고 있어요. 잠시 후 다시 말 걸어주세요.");
     throw error;
@@ -4519,6 +4646,12 @@ function isPlainObject(value) {
    다시 확인한다. 쓰기 기능은 노출하지 않는다. */
 window.__omwTest = Object.freeze({
   readExecutionPlan,
+  /* 대화 로그 보관 상한(90일·500턴)은 날짜에 의존해 e2e로 90일을 흉내 내기 어렵다.
+     순수 함수를 그대로 노출해 경계를 직접 검사한다. */
+  pruneChatLog(log) {
+    return pruneChatLog({ version: 1, days: log?.days || {} });
+  },
+  collectChatHistory,
   planCodecRoundTrip() {
     const plan = readExecutionPlan();
     const reDecoded = decodeExecutionPlanFromStorage(
@@ -6681,7 +6814,6 @@ function appendRevisionRequest(text, response = "좋아요. 그 요청을 플랜
   if (planEditorMessage) {
     planEditorMessage.textContent = "올리의 제안을 수정 요청에 담았습니다. 변경안 만들기를 누르면 적용 전 미리보기를 볼 수 있어요.";
   }
-  if (companionChatResponse) companionChatResponse.textContent = response;
   if (companionMessage) companionMessage.textContent = response;
   announce(response);
 }
@@ -6989,77 +7121,272 @@ saveCompletionReflectionButton?.addEventListener("click", () => {
   renderExecutionPage(getPlanBundle());
 });
 
-/* 진입 문구와 시트 제목이 어긋나 있었다 — "오늘 계획 조정하기"를 눌러도
-   "지금 마음을 알려주세요"가 떠서 무엇을 적어야 하는지 알 수 없었다. */
+/* 시트 헤더는 진입 경로와 무관하게 고정이다(스펙 2장 ①) — 어느 쪽으로 들어와도
+   같은 시트가 열린다. 진입 맥락은 제목 대신 입력 예시와 올리의 첫 인사로 드러낸다.
+   부제를 "궁금한 게 있으면 물어보세요" 류로 쓰지 않는 이유도 스펙에 있다: 올리는
+   질문 답변 도우미가 아니라 목표와 실행을 함께하는 친구다. */
 const COMPANION_CHAT_ENTRIES = {
   talk: {
-    kicker: "올리와 오늘 이야기하기",
-    title: "지금 마음을 알려주세요",
     placeholder: "예: 오늘은 피곤했지만 그래도 첫 일정은 끝냈어.",
     greeting: "오늘 어땠는지 한 줄만 알려줘도 돼요. 듣고 있어요.",
   },
   adjust: {
-    kicker: "오늘 계획 조정",
-    title: "어떻게 바꾸면 좋을까요?",
     placeholder: "예: 저녁 일정이 너무 길어. 30분 안으로 줄여줘.",
     greeting: "어디가 무거운지 말해주면 오늘 계획을 그만큼 덜어낼게요.",
   },
   continue: {
-    kicker: "올리와 나눈 대화",
-    title: "이어서 이야기해요",
     placeholder: "예: 아까 말한 그 방법, 내일도 그대로 해볼까?",
     greeting: "아까 하던 이야기, 여기서 이어가요.",
   },
   recovery: {
-    kicker: "다시 시작",
-    title: "오늘은 어떤 날이었나요?",
     placeholder: "예: 오늘은 도저히 못 하겠어. 내일부터 다시 할래.",
     greeting: "못 한 날도 계획의 일부예요. 지금 상태만 알려주세요.",
   },
 };
 
+/* 맥락형 액션 칩(스펙 2장 ④). 상시 노출이 아니라 방금 오간 말이 그 행동을 가리킬 때만
+   뜬다. 대화 결과를 계획 탭 텍스트박스에 조용히 담던 방식을 이 칩이 대체한다 —
+   무엇이 어디로 갔는지 유저가 보고 직접 누른다. */
+const CHAT_ACTION_CHIPS = [
+  {
+    id: "adjust-plan",
+    label: "계획 조정하기",
+    match: /계획|일정|줄이|늘리|미루|옮기|바꾸|조정|시간표/,
+    run: () => {
+      closeCompanionChat();
+      document.querySelector("#tab-plan")?.click();
+      setPlanScreen("editor", { scroll: true, focus: true });
+    },
+  },
+  {
+    id: "start-focus",
+    label: "지금 5분만 시작하기",
+    match: /집중|시작|5분|딱 하나|하나만|바로/,
+    run: () => {
+      closeCompanionChat();
+      openFocusMode();
+    },
+  },
+  {
+    id: "write-memory",
+    label: "오늘 기록 남기기",
+    match: /기록|남기|일기|다이어리|돌아보/,
+    run: () => {
+      closeCompanionChat();
+      document.querySelector("#tab-memory")?.click();
+      document.querySelector("#memoryTitle")?.focus({ preventScroll: false });
+    },
+  },
+];
+
+function renderChatActionChips(context = "") {
+  if (!chatActionChips) return;
+  const matched = context ? CHAT_ACTION_CHIPS.filter((chip) => chip.match.test(context)).slice(0, 2) : [];
+  chatActionChips.replaceChildren();
+  chatActionChips.hidden = matched.length === 0;
+  for (const chip of matched) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.chatChip = chip.id;
+    button.textContent = chip.label;
+    button.addEventListener("click", () => {
+      trackCompanionEvent("chat_action_chip_used", { chip: chip.id });
+      chip.run();
+    });
+    chatActionChips.append(button);
+  }
+}
+
+// 진입 경로가 정하는 올리의 첫 인사. 아직 아무 말도 오가지 않았을 때만 쓰인다.
+let chatGreetingText = COMPANION_CHAT_ENTRIES.talk.greeting;
+
+/* 한 턴을 대화 영역에 그린다. 올리는 좌측(표정 + 말풍선), 유저는 우측(단색 말풍선).
+   data-emotion이 L1 모션을 고르는 열쇠다 — CSS가 이 값만 보고 연출을 바꾼다. */
+function createChatTurnNode(turn) {
+  const isOllie = turn.role === "ollie";
+  const row = document.createElement("div");
+  row.className = `chat-turn ${isOllie ? "is-ollie" : "is-user"}`;
+  row.dataset.chatRole = isOllie ? "ollie" : "user";
+
+  if (isOllie) {
+    const emotion = normalizeChatEmotion(turn.emotion);
+    row.dataset.emotion = emotion;
+    if (turn.safety) row.classList.add("is-safety");
+    const face = document.createElement("img");
+    face.className = "mascot-art chat-turn-face";
+    face.src = chatEmotionFace(emotion);
+    face.alt = "";
+    row.append(face);
+  }
+
+  const bubble = document.createElement("div");
+  bubble.className = "chat-bubble";
+  if (isOllie) {
+    const name = document.createElement("span");
+    name.textContent = "올리";
+    bubble.append(name);
+    if (turn.headline) {
+      const headline = document.createElement("p");
+      headline.className = "chat-bubble-headline";
+      headline.textContent = turn.headline;
+      bubble.append(headline);
+    }
+  }
+  const text = document.createElement("p");
+  text.className = "chat-bubble-text";
+  text.textContent = turn.text;
+  bubble.append(text);
+  row.append(bubble);
+  return row;
+}
+
+/* 오늘의 대화를 통째로 다시 그린다. 생각하는 중 표시는 대화 영역 안에 상주하는
+   노드라 지우지 않고 항상 맨 아래로 옮긴다. */
+function renderChatThread() {
+  if (!chatThread) return;
+  const turns = readChatTurns();
+  for (const node of [...chatThread.querySelectorAll(".chat-turn:not(.is-thinking)")]) node.remove();
+  const fragment = document.createDocumentFragment();
+  if (!turns.length) {
+    fragment.append(createChatTurnNode({
+      role: "ollie",
+      text: chatGreetingText,
+      emotion: DEFAULT_CHAT_EMOTION,
+    }));
+  } else {
+    for (const turn of turns) fragment.append(createChatTurnNode(turn));
+  }
+  chatThread.insertBefore(fragment, companionChatThinking);
+  scrollChatThreadToEnd();
+}
+
+function scrollChatThreadToEnd() {
+  if (!chatThread) return;
+  window.requestAnimationFrame(() => {
+    chatThread.scrollTop = chatThread.scrollHeight;
+  });
+}
+
+/* 보낼 것이 없으면 보내기는 잠겨 있다. 빈 입력으로도 눌리게 두면 두 가지가 생긴다 —
+   빈 말이 대화에 끼어들고, 더블탭의 두 번째 클릭이 첫 클릭이 비워 둔 입력창을 읽어
+   답 뒤에 안내 문구를 덧붙인다. 잠긴 버튼은 클릭 이벤트 자체가 발생하지 않아 둘 다 막는다. */
+let chatSendInFlight = false;
+
+function syncChatSendState() {
+  if (!sendCompanionMessage) return;
+  sendCompanionMessage.disabled = chatSendInFlight || !companionChatInput?.value.trim();
+}
+
 function applyCompanionChatEntry(entry) {
   const copy = COMPANION_CHAT_ENTRIES[entry] || COMPANION_CHAT_ENTRIES.talk;
-  if (companionChatKicker) companionChatKicker.textContent = copy.kicker;
-  if (companionChatTitle) companionChatTitle.textContent = copy.title;
+  chatGreetingText = copy.greeting;
   if (companionChatInput) companionChatInput.placeholder = copy.placeholder;
   setCompanionChatThinking(false);
-  // 아직 아무 말도 오가지 않았을 때만 인사로 채운다. 직전 답변은 덮지 않는다.
-  if (companionChatResponse && !companionChatResponse.dataset.replied) {
-    companionChatResponse.textContent = copy.greeting;
-  }
+  syncChatSendState();
+  renderChatThread();
 }
 
 function setCompanionChatThinking(thinking) {
   if (companionChatThinking) companionChatThinking.hidden = !thinking;
-  if (companionChatResponse) companionChatResponse.hidden = thinking;
-  setImageSource(companionChatOllieImage, thinking ? "assets/ollie-thinking.png" : "assets/ollie-action.png");
+  if (thinking) {
+    setImageSource(companionChatOllieImage, "assets/ollie-thinking.png");
+    chatThread?.append(companionChatThinking);
+    scrollChatThreadToEnd();
+  }
 }
 
-/* 답이 도착하면 시트 안에서 보이게 한다. 유저가 입력창까지 스크롤해 둔 상태라
-   말풍선이 위로 밀려나 있을 수 있다. */
-function showCompanionChatReply(message, { image = "assets/ollie-action.png" } = {}) {
+/* 답이 도착하면 대화 영역에 한 턴으로 쌓고 저장한다. 실패 안내처럼 기록으로 남길
+   이유가 없는 말은 persist를 꺼서 화면에만 띄운다. */
+function appendCompanionChatTurn(turn, { persist = true } = {}) {
   setCompanionChatThinking(false);
-  if (companionChatResponse) {
-    companionChatResponse.textContent = message;
-    companionChatResponse.dataset.replied = "true";
-  }
-  setImageSource(companionChatOllieImage, image);
-  if (companionChatSheet?.hidden === false) {
-    companionChatOllie?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }
+  const stored = persist ? appendChatTurn(turn) : { ...turn, emotion: normalizeChatEmotion(turn.emotion) };
+  chatThread?.insertBefore(createChatTurnNode(stored), companionChatThinking);
+  scrollChatThreadToEnd();
+  return stored;
 }
 
 function openCompanionChat(event) {
   if (event?.currentTarget instanceof HTMLElement) previousFocusElement = event.currentTarget;
   const entry = event?.currentTarget instanceof HTMLElement ? event.currentTarget.dataset.chatEntry : "";
   applyCompanionChatEntry(entry);
+  renderChatConsent();
+  renderChatEnergy();
+  renderChatActionChips("");
   setSheetOpen(companionChatSheet, chatOverlay, true);
   trackCompanionEvent("companion_chat_opened", { entry: entry || "talk" });
 }
 
 function closeCompanionChat() {
   setSheetOpen(companionChatSheet, chatOverlay, false);
+}
+
+// ===== 대화 기능 최초 사용 동의 (개인정보 정책 프레임 7장 1항) =====
+
+/* 대화 내용·감정 기록은 민감정보에 준해 다루기로 했으므로 약관 포괄 동의에 묻지 않고
+   이 기능을 처음 쓰는 시점에 따로 받는다. 동의 전에는 입력창과 대화 영역을 아예 막는다 —
+   "일단 한 마디 해보고 나서 동의를 묻는" 순서면 별도 동의의 의미가 없다. */
+function hasChatConsent() {
+  return readStorageObject(CHAT_CONSENT_KEY, {}).agreed === true;
+}
+
+function renderChatConsent() {
+  const agreed = hasChatConsent();
+  if (chatConsent) chatConsent.hidden = agreed;
+  if (chatBody) chatBody.hidden = !agreed;
+  if (chatComposer) chatComposer.hidden = !agreed || chatComposer.dataset.rechargeMode === "true";
+  if (agreed) renderChatEnergy();
+  else if (chatRecharge) chatRecharge.hidden = true;
+}
+
+function agreeToChatConsent() {
+  writeStorageObject(CHAT_CONSENT_KEY, { agreed: true, agreedAt: new Date().toISOString(), version: 1 });
+  renderChatConsent();
+  renderChatThread();
+  trackCompanionEvent("chat_consent_agreed");
+  companionChatInput?.focus({ preventScroll: true });
+}
+
+// ===== 에너지 상시 표시와 소진 안내 (스펙 2장 ①·⑤) =====
+
+// 충전 안내는 세션당 한 번만 알린다. 같은 말을 반복하면 재촉으로 읽힌다.
+let chatRechargeAnnounced = false;
+
+function renderChatEnergy() {
+  if (!chatEnergyBalance) return;
+  const bucket = aiUsageState?.monthly;
+  if (!authUiState.user) {
+    chatEnergyBalance.textContent = "로그인 필요";
+    chatEnergyBadge?.classList.remove("is-low");
+    return;
+  }
+  if (!bucket) {
+    chatEnergyBalance.textContent = "확인 중";
+    return;
+  }
+  const remaining = Math.max(0, Number(bucket.remaining) || 0);
+  const daily = Math.max(0, Number(aiUsageState?.daily?.remaining) || 0);
+  const available = Math.min(remaining, daily);
+  chatEnergyBalance.textContent = `${remaining}`;
+  chatEnergyBadge?.setAttribute("aria-label", `남은 에너지 ${remaining} · 안내 열기`);
+  chatEnergyBadge?.classList.toggle("is-low", available <= 0 || remaining <= 3);
+
+  /* 보낼 수 없는 상태면 입력창을 충전 안내로 바꾼다. 죄책감을 만드는 문구를 쓰지 않고,
+     무엇이 얼마에 들어 있는지만 밝힌다. */
+  const empty = available <= 0;
+  if (chatComposer) {
+    chatComposer.dataset.rechargeMode = empty ? "true" : "false";
+    chatComposer.hidden = empty || !hasChatConsent();
+  }
+  if (chatRecharge) chatRecharge.hidden = !empty || !hasChatConsent();
+  if (empty && chatRechargeMessage) {
+    chatRechargeMessage.textContent = remaining <= 0
+      ? "이번 기간 에너지를 모두 썼어요. 다음 제공일에 다시 채워져요."
+      : "오늘 쓸 수 있는 에너지를 모두 썼어요. 내일 다시 이야기해요.";
+  }
+  if (empty && !chatRechargeAnnounced && companionChatSheet?.hidden === false) {
+    chatRechargeAnnounced = true;
+    announce(chatRechargeMessage?.textContent || "");
+  }
 }
 
 function openEnergyCharge() {
@@ -9778,6 +10105,8 @@ touchCompanionButton?.addEventListener("click", () => {
   renderExecutionPage(getPlanBundle());
 });
 
+/* ② 기분 칩. AI를 부르지 않으므로 에너지가 들지 않는다(스펙 2장). 고른 기분은
+   companionState에 남아 이후 대화 컨텍스트로 함께 나가고, 올리의 첫 반응이 달라진다. */
 energyButtons.forEach((button) => {
   button.addEventListener("click", () => {
     const energy = button.dataset.energy;
@@ -9785,14 +10114,16 @@ energyButtons.forEach((button) => {
     const todayKey = getTodayKey();
     const shouldReward = state.lastEnergyCheckInDate !== todayKey;
     const copy = {
-      good: { headline: "좋은 흐름이에요!", message: "좋아요. 지금 흐름이면 첫 번째 행동부터 바로 시작해도 괜찮겠어요." },
-      normal: { headline: "무리하지 않아도 괜찮아요.", message: "보통인 날은 기준을 작게 잡으면 오래 갑니다." },
-      tired: { headline: "지친 날은 줄이는 것도 실행이에요.", message: "지친 날은 하나만 남기고 나머지는 내일로 보내는 제안을 만들 수 있어요." },
+      good: { headline: "좋은 흐름이에요!", message: "좋은 날이군요. 이 김에 첫 번째 것부터 톡 건드려볼까요?", emotion: "기쁨" },
+      normal: { headline: "무리하지 않아도 괜찮아요.", message: "보통인 날이 사실 제일 오래 가요. 기준만 작게 잡아요.", emotion: "평온" },
+      tired: { headline: "지친 날은 줄이는 것도 실행이에요.", message: "오늘은 저공비행이네요. 하나만 남기고 나머지는 내일로 보내도 돼요.", emotion: "피곤위로" },
     }[energy];
+    if (!copy) return;
 
     saveCompanionState({ ...state, energy, mood: energy === "tired" ? "caring" : "ready", lastEnergyCheckInDate: todayKey });
     energyButtons.forEach((item) => item.classList.toggle("active", item === button));
-    showCompanionChatReply(copy.message, { image: energy === "tired" ? "assets/ollie-comfort.png" : "assets/ollie-action.png" });
+    appendCompanionChatTurn({ role: "ollie", text: copy.message, headline: copy.headline, emotion: copy.emotion });
+    renderChatActionChips(copy.message);
     if (companionMessage) companionMessage.textContent = copy.message;
     if (companionMoodLine) companionMoodLine.textContent = copy.headline;
     pulseCompanion();
@@ -9801,89 +10132,67 @@ energyButtons.forEach((button) => {
   });
 });
 
-const encouragementLines = [
-  "여기까지 온 것만으로도 충분히 잘하고 있어요. 오늘은 딱 5분만 저와 같이 시작해봐요!",
-  "완벽하지 않아도 괜찮아요. 어제보다 한 걸음이면 우리는 앞으로 가고 있는 거예요.",
-  "잘할 수 있어요. 제일 작은 것 하나만 끝내고 저한테 자랑해 주세요. 기다리고 있을게요!",
-  "시작이 무거운 날일수록 기준을 작게 잡아요. 오늘의 한 걸음도 분명히 쌓이고 있어요.",
-];
-
-chatActionButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    const action = button.dataset.chatAction;
-
-    if (action === "encourage") {
-      const line = encouragementLines[Math.floor(Math.random() * encouragementLines.length)];
-      showCompanionChatReply(line);
-      addCompanionXp(2, "happy");
-      // 시트 안에서 답을 보여줬으니 여기서 시트를 닫고 시선을 옮기지 않는다.
-      showOllieReaction(line, "올리의 응원이에요!", { stealFocus: false });
-      trackCompanionEvent("quick_adjustment_selected", { action });
-      return;
-    }
-
-    const preset = {
-      shorten: {
-        request: "오늘 할 일을 5~10분 단위의 더 짧은 행동으로 나눠줘.",
-        headline: "더 작게, 더 가볍게 가요.",
-        response: "좋아요, 오늘 할 일을 5~10분짜리 작은 조각으로 나누는 제안을 준비할게요. 부담부터 줄여봐요.",
-      },
-      "move-evening": {
-        request: "오늘 실행 시간을 저녁으로 옮기고, 늦은 시간에도 부담 없는 순서로 다시 짜줘.",
-        headline: "저녁형으로 바꿔볼게요.",
-        response: "알겠어요, 오늘 일정은 저녁 시간대로 옮기는 제안을 만들게요. 늦게 시작해도 전혀 늦지 않아요.",
-      },
-      "one-task": {
-        request: "오늘은 가장 중요한 한 가지 과제만 남기고 나머지는 내일 이후로 옮기는 제안을 해줘.",
-        headline: "오늘은 딱 하나만 해요.",
-        response: "오늘은 가장 중요한 하나만 남기는 제안을 준비할게요. 하나를 끝내는 게 열 개를 계획하는 것보다 힘이 세요.",
-      },
-    }[action];
-
-    if (!preset) return;
-    appendRevisionRequest(preset.request, preset.response);
-    showCompanionChatReply(preset.response);
-    showOllieReaction(undefined, preset.headline, { stealFocus: false });
-    trackCompanionEvent("quick_adjustment_selected", { action });
-  });
+chatConsentAgree?.addEventListener("click", agreeToChatConsent);
+chatConsentDecline?.addEventListener("click", () => {
+  trackCompanionEvent("chat_consent_declined");
+  closeCompanionChat();
 });
+chatEnergyBadge?.addEventListener("click", openEnergyCharge);
+
+/* 멀티턴 전송. 유저 말 → 대기 표시 → 올리의 답 순서로 한 줄씩 쌓이고, 오간 말은
+   omwChatLog에 그대로 남아 기록 탭의 하루 페이지가 된다. */
+companionChatInput?.addEventListener("input", syncChatSendState);
 
 sendCompanionMessage?.addEventListener("click", async () => {
+  if (sendCompanionMessage.disabled) return;
   const message = companionChatInput?.value.trim() || "";
-  if (!message) {
-    showCompanionChatReply("하고 싶은 말을 한 줄만 적어도 충분해요.");
+  if (!message) return;
+  if (!hasChatConsent()) {
+    renderChatConsent();
     return;
   }
 
-  if (sendCompanionMessage.disabled) return;
-  if (!(await ensureAiActionAvailable("companion_chat"))) return;
-
-  appendRevisionRequest(`사용자 추가 요청: ${message}`, "올리가 답을 생각하고 있어요…");
-  companionChatInput.value = "";
-  /* stealFocus를 켜면 showOllieReaction이 이 시트를 닫고 올리 탭으로 시선을 옮긴다.
-     말을 건 사람은 여기 있는데 반응만 다른 탭에서 일어나던 원인이 이거였다. */
-  showOllieReaction(undefined, "음, 잠깐만요…", { stealFocus: false });
-  setCompanionChatThinking(true);
-  addCompanionXp(3, "thinking");
-  trackCompanionEvent("custom_revision_requested", { length: message.length });
-
-  sendCompanionMessage.disabled = true;
+  // 잠금은 await보다 먼저다. 전송 준비가 끝난 뒤에 잠그면 그 틈으로 두 번째 클릭이 들어온다.
+  chatSendInFlight = true;
+  syncChatSendState();
   try {
-    const { reply, headline } = await requestCompanionReply(message);
-    showCompanionChatReply(reply);
+    if (!(await ensureAiActionAvailable("companion_chat"))) return;
+
+    companionChatInput.value = "";
+    // 이번 말을 쌓기 전의 대화가 "이전 대화"다. 순서를 바꾸면 방금 한 말이 두 번 실린다.
+    const history = collectChatHistory();
+    appendCompanionChatTurn({ role: "user", text: message });
+    renderChatActionChips("");
+    /* stealFocus를 켜면 showOllieReaction이 이 시트를 닫고 올리 탭으로 시선을 옮긴다.
+       말을 건 사람은 여기 있는데 반응만 다른 탭에서 일어나던 원인이 이거였다. */
+    showOllieReaction(undefined, "음, 잠깐만요…", { stealFocus: false });
+    setCompanionChatThinking(true);
+    addCompanionXp(3, "thinking");
+    trackCompanionEvent("custom_revision_requested", { length: message.length });
+
+    const { reply, headline, emotion, safety } = await requestCompanionReply(message, { history });
+    appendCompanionChatTurn({ role: "ollie", text: reply, headline, emotion, safety });
+    // 위기 응답에는 다음 행동을 권하지 않는다. 지금 필요한 것은 실행 제안이 아니다.
+    renderChatActionChips(safety ? "" : `${message} ${reply}`);
     if (memoryConversation) memoryConversation.textContent = reply;
     if (memoryConversationSummary) memoryConversationSummary.hidden = false;
     showOllieReaction(reply, headline || "올리의 대답이에요.", { stealFocus: false });
     trackCompanionEvent("companion_dialogue", {
       userLength: message.length,
       replyLength: reply.length,
+      emotion,
+      safety: safety || "",
     });
   } catch (error) {
-    const fallback = `${error.message || "지금은 답을 만들지 못했어요."} 실패한 요청은 AI 크레딧으로 확정 차감되지 않아요.`;
-    showCompanionChatReply(fallback, { image: "assets/ollie-comfort.png" });
+    const fallback = `${error.message || "지금은 답을 만들지 못했어요."} 실패한 요청은 에너지로 확정 차감되지 않아요.`;
+    // 실패 안내는 대화 기록으로 남길 말이 아니라 화면에만 띄운다.
+    setCompanionChatThinking(false);
+    appendCompanionChatTurn({ role: "ollie", text: fallback, emotion: "피곤위로" }, { persist: false });
     showOllieReaction(fallback, "잠시 생각을 고르고 있어요.", { stealFocus: false });
   } finally {
-    sendCompanionMessage.disabled = false;
+    setCompanionChatThinking(false);
+    chatSendInFlight = false;
+    syncChatSendState();
   }
 });
 

@@ -4231,7 +4231,9 @@ body.sheet-open {
   font-size: 20px;
 }
 
-.sheet-title-row button,
+/* 정사각형 크기는 닫기 같은 아이콘 버튼용이다. 에너지 잔량 배지는 글자가 들어가므로
+   여기서 제외한다 — 그대로 두면 238이 "23"으로 잘린다. */
+.sheet-title-row button:not(.chat-energy),
 .focus-mode > button {
   width: 34px;
   height: 34px;
@@ -4256,7 +4258,8 @@ body.sheet-open {
 }
 
 .energy-options button,
-.quick-adjustments button {
+.quick-adjustments button,
+.chat-mood-options button {
   min-height: 40px;
   color: var(--routine-green-dark);
   background: var(--routine-soft);
@@ -4268,22 +4271,197 @@ body.sheet-open {
 }
 
 .energy-options button.active,
-.quick-adjustments button:hover {
+.quick-adjustments button:hover,
+.chat-mood-options button.active {
   color: #ffffff;
   background: var(--routine-green);
   border-color: var(--routine-green);
 }
 
-/* 대화 시트 안의 올리 — 말을 건 사람이 시트를 떠나지 않고 반응을 본다 */
-.chat-ollie {
+/* ===== 올리 대화 시트 (스펙 2장 기준 디자인) =====
+   위에서 아래로 헤더 · 기분 칩 · 대화 영역 · 액션 칩 · 입력창 · 다이어리 안내.
+   시트는 화면 높이를 넘지 않고, 스크롤은 대화 영역만 한다 — 입력창과 에너지 잔량은
+   항상 보여야 한다. */
+/* 동의·충전 안내가 상황에 따라 숨겨지므로 행 수를 고정하지 않는다 — 대화 영역만
+   남는 높이를 먹고 나머지는 제 크기를 쓴다. 높이를 고정하지 않는 이유는 대화가 짧을 때
+   빈 공간만 커지기 때문이다. 길어지면 대화 영역이 늘어나다 상한에서 스크롤로 넘어간다. */
+.chat-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: min(78vh, calc(100vh - 24px));
+  overflow: hidden;
+}
+
+.chat-sheet > * { flex: 0 0 auto; }
+
+.chat-header {
+  align-items: flex-start;
+}
+
+/* 잔량 표시가 제목에 밀려 잘리면 안 된다 — 238이 "23"으로 보이면 상시 표시의 의미가 없다. */
+.chat-header > div:first-child { min-width: 0; }
+.chat-header-side { flex: 0 0 auto; }
+
+.chat-header h2 { margin: 0; }
+
+/* 부제는 "오늘 어땠는지 이야기해요" 계열로 둔다. "궁금한 게 있으면 물어보세요" 류는
+   올리를 질문 답변 도우미로 위치시키므로 쓰지 않는다(스펙 2장 ①). */
+#companionChatSubtitle {
+  margin: 3px 0 0;
+  color: var(--routine-muted);
+  font-size: 13px;
+}
+
+.chat-header-side {
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ① 에너지 상시 표시 — 사후 불신을 막는 장치라 대화 내내 자리를 지킨다 */
+.chat-energy {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 44px;
+  padding: 0 12px;
+  color: var(--routine-green-dark);
+  background: var(--routine-soft);
+  border: 1px solid var(--routine-line);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.chat-energy.is-low {
+  color: var(--danger-text, #a32c3c);
+  background: #fdeef0;
+  border-color: #f4c9cf;
+}
+
+.chat-energy .energy-leaf { font-size: 10px; }
+
+/* 최초 사용 동의 — 약관 포괄 동의에 묻지 않고 여기서 따로 받는다 */
+.chat-consent {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  background: var(--routine-soft);
+  border: 1px solid var(--routine-line);
+  border-radius: var(--r-md);
+}
+
+.chat-consent h3 {
+  margin: 0;
+  color: var(--routine-text);
+  font-size: 15px;
+}
+
+.chat-consent ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--routine-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.chat-consent-link { margin: 0; font-size: 12px; }
+.chat-consent-link a { color: var(--ink-brand); }
+
+.chat-consent-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.chat-consent-agree {
+  min-height: 44px;
+  color: #ffffff;
+  background: var(--routine-green);
+  border: 1px solid var(--routine-green);
+  border-radius: var(--r-sm);
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.chat-consent-decline {
+  min-height: 44px;
+  color: var(--routine-muted);
+  background: transparent;
+  border: 1px solid var(--routine-line);
+  border-radius: var(--r-sm);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* .chat-sheet > * 보다 구체적이어야 남는 높이를 대화 영역이 가져간다 */
+.chat-sheet > .chat-body {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* ② 기분 칩 — AI를 부르지 않으므로 에너지가 들지 않는다 */
+.chat-mood {
+  display: grid;
+  gap: 6px;
+}
+
+.chat-mood-label {
+  color: var(--routine-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* 대화 시트는 손가락으로 쓰는 주 화면이라 칩도 44px 탭 타깃 규칙을 지킨다.
+   시트가 숨어 있어 tap-targets 스윕에 잡히지 않을 뿐, 규칙에서 면제된 것은 아니다. */
+.chat-mood-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.chat-mood-options button { min-height: 44px; }
+
+/* ③ 대화 영역 — 오늘의 대화가 위로 쌓이고 여기만 스크롤한다 */
+.chat-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  /* 대화가 한 줄뿐일 때도 말풍선이 눌리지 않을 만큼은 남긴다 */
+  min-height: 88px;
+  padding: 4px 2px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.chat-turn {
   display: flex;
   align-items: flex-start;
   gap: 10px;
+  max-width: 100%;
 }
 
-.chat-ollie img {
-  width: 56px;
-  height: 56px;
+.chat-turn.is-user {
+  flex-direction: row-reverse;
+  align-self: flex-end;
+  max-width: 82%;
+}
+
+.chat-turn.is-ollie { align-self: flex-start; max-width: 92%; }
+
+.chat-turn-face {
+  width: 52px;
+  height: 52px;
   flex: 0 0 auto;
   object-fit: contain;
 }
@@ -4297,12 +4475,43 @@ body.sheet-open {
   border-radius: 4px var(--r-md) var(--r-md) var(--r-md);
 }
 
+/* 유저는 우측 단색 말풍선 */
+.chat-turn.is-user .chat-bubble {
+  color: #ffffff;
+  background: var(--routine-green);
+  border-color: var(--routine-green);
+  border-radius: var(--r-md) 4px var(--r-md) var(--r-md);
+}
+
 .chat-bubble > span {
   display: block;
   margin-bottom: 3px;
   color: var(--routine-green-dark);
   font-size: 12px;
   font-weight: 900;
+}
+
+.chat-bubble-headline {
+  margin: 0 0 3px;
+  color: var(--routine-text);
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.chat-bubble-text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.chat-turn.is-ollie .chat-bubble-text { color: var(--routine-text); }
+
+/* 위기 응답은 고정 문구이고 에너지를 쓰지 않는다 — 시각적으로도 평소 답과 구분한다 */
+.chat-turn.is-safety .chat-bubble {
+  background: #fdf6ec;
+  border-color: #edd6ad;
 }
 
 .chat-thinking {
@@ -4331,13 +4540,197 @@ body.sheet-open {
   30% { opacity: 1; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .chat-thinking i { animation: none; opacity: 0.6; }
+/* ④ 액션 칩 — 맥락에 맞을 때만 나타난다 */
+.chat-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chat-actions button {
+  min-height: 44px;
+  padding: 0 14px;
+  color: var(--routine-green-dark);
+  background: #ffffff;
+  border: 1px solid var(--routine-green);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.chat-actions button:hover {
+  color: #ffffff;
+  background: var(--routine-green);
+}
+
+/* ⑤ 입력창 — 하단 고정 */
+.chat-composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
 }
 
 .chat-input-label {
   display: grid;
-  gap: 8px;
+  gap: 6px;
+}
+
+.chat-input-cost {
+  color: var(--routine-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.chat-composer .chat-send-button {
+  min-width: 72px;
+  height: 48px;
+}
+
+/* 보낼 것이 없으면 잠긴다. 잠긴 티가 나야 왜 눌리지 않는지 알 수 있다. */
+.chat-composer .chat-send-button:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.chat-recharge {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  background: var(--routine-soft);
+  border: 1px solid var(--routine-line);
+  border-radius: var(--r-md);
+}
+
+.chat-recharge p {
+  margin: 0;
+  color: var(--routine-text);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.chat-recharge-link {
+  color: var(--ink-brand);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+/* 오늘 탭 치어링에서 대화로 들어가는 입구 (스펙 2장의 두 진입점 중 하나) */
+.coach-card-chat {
+  margin-top: 8px;
+  min-height: 44px;
+  padding: 0 14px;
+  color: var(--routine-green-dark);
+  background: #ffffff;
+  border: 1px solid var(--routine-green);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+/* ⑥ 다이어리 안내 — 대화가 휘발되지 않고 자산이 된다는 것을 밝힌다 */
+.chat-diary-note {
+  margin: 0;
+  color: var(--routine-muted);
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+/* ===== L1 감정 연출 (에셋 불필요, CSS만) =====
+   바이블: 구름은 순간 감정이라 즉시 변한다. 상시 둥실거림 위에 감정별 모션을 얹고,
+   큰 동작 뒤에는 잔여 반응(잎·물방울) 하나를 남긴다. */
+.chat-turn-face {
+  transform-origin: 50% 85%;
+  animation: ollie-float 3.6s ease-in-out infinite;
+}
+
+@keyframes ollie-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+/* 기쁨 — 통통 튀기 */
+.chat-turn[data-emotion="기쁨"] .chat-turn-face { animation: ollie-float 3.6s ease-in-out infinite, ollie-bounce 0.5s ease-out 2; }
+@keyframes ollie-bounce {
+  0%, 100% { transform: translateY(0) scale(1); }
+  35% { transform: translateY(-12px) scale(1.06, 0.94); }
+  70% { transform: translateY(0) scale(0.96, 1.04); }
+}
+
+/* 슬픔공감·피곤위로 — 살짝 가라앉기 */
+.chat-turn[data-emotion="슬픔공감"] .chat-turn-face,
+.chat-turn[data-emotion="피곤위로"] .chat-turn-face {
+  animation: ollie-float 5.2s ease-in-out infinite, ollie-sink 1.1s ease-out 1 forwards;
+}
+@keyframes ollie-sink {
+  0% { transform: translateY(0) scale(1); }
+  100% { transform: translateY(4px) scale(1.02, 0.96); }
+}
+
+/* 불안공감 — 잔떨림 */
+.chat-turn[data-emotion="불안공감"] .chat-turn-face { animation: ollie-float 3.6s ease-in-out infinite, ollie-jitter 0.09s linear 8; }
+@keyframes ollie-jitter {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-1.5px); }
+  75% { transform: translateX(1.5px); }
+}
+
+/* 부끄러움 — 숨으려 할수록 구름이 더 부푼다 (바이블 §5) */
+.chat-turn[data-emotion="부끄러움"] .chat-turn-face { animation: ollie-float 3.6s ease-in-out infinite, ollie-puff 0.9s ease-out 1; }
+@keyframes ollie-puff {
+  0%, 100% { transform: scale(1); }
+  55% { transform: scale(1.12); }
+}
+
+/* 뿌듯함 — 반짝 */
+.chat-turn[data-emotion="뿌듯함"] .chat-turn-face { animation: ollie-float 3.6s ease-in-out infinite, ollie-shine 1s ease-out 1; }
+@keyframes ollie-shine {
+  0%, 100% { filter: none; transform: translateY(0); }
+  45% { filter: brightness(1.18) saturate(1.1); transform: translateY(-6px); }
+}
+
+/* 결심 — 흩어진 구름이 중심으로 모이고 앞쪽이 단단해진다 */
+.chat-turn[data-emotion="결심"] .chat-turn-face { animation: ollie-float 3.6s ease-in-out infinite, ollie-resolve 0.7s ease-out 1; }
+@keyframes ollie-resolve {
+  0% { transform: translateX(0) scale(1); }
+  45% { transform: translateX(-3px) scale(0.96); }
+  100% { transform: translateX(0) scale(1); }
+}
+
+/* 잔여 반응 — 큰 모션 뒤에 잎 한 장이나 물방울이 하나 남는다 */
+.chat-turn.is-ollie[data-emotion] { position: relative; }
+
+.chat-turn[data-emotion="기쁨"]::after,
+.chat-turn[data-emotion="뿌듯함"]::after,
+.chat-turn[data-emotion="부끄러움"]::after,
+.chat-turn[data-emotion="슬픔공감"]::after,
+.chat-turn[data-emotion="피곤위로"]::after {
+  position: absolute;
+  top: 6px;
+  left: 34px;
+  font-size: 12px;
+  pointer-events: none;
+  animation: ollie-residue 1.8s ease-out 1 forwards;
+  content: "🍃";
+}
+
+.chat-turn[data-emotion="슬픔공감"]::after,
+.chat-turn[data-emotion="피곤위로"]::after { content: "💧"; }
+
+@keyframes ollie-residue {
+  0% { opacity: 0; transform: translate(0, 0) rotate(0deg); }
+  25% { opacity: 0.9; }
+  100% { opacity: 0; transform: translate(10px, 26px) rotate(38deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-thinking i { animation: none; opacity: 0.6; }
+  .chat-turn-face,
+  .chat-turn[data-emotion] .chat-turn-face { animation: none; }
+  .chat-turn[data-emotion]::after { display: none; }
 }
 
 /* 로그인 시 계획 선택 — 두 계획을 나란히 놓고 고르게 한다 */
@@ -5096,6 +5489,7 @@ body.sheet-open {
 .mate-actions button,
 .energy-options button,
 .quick-adjustments button,
+.chat-mood-options button,
 .focus-mode-actions button {
   border-radius: var(--r-md);
   font-weight: 600;
@@ -16280,7 +16674,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   overflow-y: auto;
 }
 
-.execution-page .sheet-title-row button,
+.execution-page .sheet-title-row button:not(.chat-energy),
 .execution-page .focus-mode > button {
   width: 44px;
   height: 44px;

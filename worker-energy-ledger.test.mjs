@@ -128,7 +128,7 @@ async function harness({ plan = "pro", userId = "energy-user", aiHandler } = {})
   return {
     env,
     restore() { globalThis.fetch = originalFetch; },
-    chat(requestId) {
+    chat(requestId, message = "안녕") {
       return worker.fetch(new Request("https://app.example/api/ai/companion-chat", {
         method: "POST",
         headers: {
@@ -136,7 +136,7 @@ async function harness({ plan = "pro", userId = "energy-user", aiHandler } = {})
           cookie: `omw_session=${token}`,
           "x-request-id": requestId,
         },
-        body: JSON.stringify({ message: "안녕", context: { goal: "테스트" } }),
+        body: JSON.stringify({ message, context: { goal: "테스트" } }),
       }), env);
     },
     usage() {
@@ -187,6 +187,39 @@ test("AI 실패 시 원장이 원복되어 잔량이 그대로다", async () => 
 
     const after = await (await app.usage()).json();
     assert.equal(after.balance, PLAN_CONFIG.pro.monthlyCredits, "실패한 호출은 재화를 먹지 않아야 한다");
+    assert.equal(after.daily.used, 0);
+  } finally {
+    app.restore();
+  }
+});
+
+/* 스펙 6장: 위기 신호에는 고정 응답을 주고 에너지를 차감하지 않는다.
+   힘든 말을 꺼낸 대가로 잔량이 줄면 안 되고, 그 답을 모델에 맡겨서도 안 된다. */
+test("위기 신호는 AI를 부르지 않고 에너지도 차감하지 않는다", async () => {
+  let providerCalls = 0;
+  const app = await harness({
+    plan: "pro",
+    aiHandler: async () => {
+      providerCalls += 1;
+      return new Response(JSON.stringify({
+        output: [{ content: [{ type: "output_text", text: JSON.stringify({ headline: "h", reply: "r" }) }] }],
+        usage: {},
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    },
+  });
+  try {
+    const response = await app.chat("req-crisis", "요즘 그냥 죽고 싶어");
+    const body = await response.json();
+
+    assert.equal(response.status, 200, "위기 응답도 정상 응답으로 내려간다");
+    assert.equal(body.chargedCredits, 0);
+    assert.equal(body.safety, "crisis");
+    assert.match(body.reply, /109/, "전문가 도움을 안내한다");
+    assert.equal(providerCalls, 0, "고정 응답이므로 provider를 부르지 않는다");
+
+    const after = await (await app.usage()).json();
+    assert.equal(after.balance, PLAN_CONFIG.pro.monthlyCredits, "잔량이 그대로여야 한다");
+    assert.equal(after.reserved, 0, "예약 자체를 잡지 않는다");
     assert.equal(after.daily.used, 0);
   } finally {
     app.restore();

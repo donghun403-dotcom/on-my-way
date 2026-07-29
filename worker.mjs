@@ -1,7 +1,7 @@
 // 게스트 초안 라우트는 사라졌지만 Durable Object 클래스는 wrangler 마이그레이션이
 // 참조하므로 계속 내보낸다.
 import { GuestPlanDraftObject } from "./guest-plan-draft-object.mjs";
-import { createCompanionReply, normalizeCheerEventType } from "./ai-companion-chat.mjs";
+import { createCompanionReply, createCrisisReply, detectCrisisSignal, normalizeCheerEventType } from "./ai-companion-chat.mjs";
 import { createAiPlanRevision } from "./ai-plan-revision.mjs";
 import {
   safeAiDiagnostics,
@@ -315,6 +315,22 @@ async function handleAiGenerationRequest({ request, env, accountContext, route }
   const ledger = createEnergyLedgerClient(env);
   const userPlan = resolveUserPlan(user);
   const userTrial = describeTrial(user);
+
+  /* 위기 신호는 예약보다 먼저 걸러 낸다. 잡았다가 되돌리는 방식이면 되돌리기가 실패했을 때
+     힘든 말을 꺼낸 대가로 에너지가 사라진다. 아예 재화 경로에 들어가지 않는 편이 확실하다.
+     AI도 부르지 않으므로 이 답에는 모델이 무슨 말을 할지 모르는 구간이 없다. */
+  if (route.kind === "companion" && !isFreeCheer && detectCrisisSignal(input?.message)) {
+    const usage = ledger
+      ? await ledger.usage(user.id, { plan: userPlan, trial: userTrial }).catch(() => null)
+      : await getAiCreditUsage({ store: userStore, userId: user.id }).catch(() => null);
+    return json({
+      ok: true,
+      ...publicAiResult(createCrisisReply()),
+      requestId,
+      chargedCredits: 0,
+      ...(usage ? { usage } : {}),
+    });
+  }
 
   let reservation = null;
   let providerCalled = false;

@@ -136,7 +136,8 @@ test("오늘 실제 대화 이벤트가 있을 때만 기록 아래에 요약을
 
   await expect(page.locator("#memoryConversationSummary")).toBeVisible();
   await expect(page.locator("#memoryConversation")).toHaveText("합성 대화 요약입니다.");
-  await expect(page.locator("#openCompanionChat")).toContainText("대화 이어가기");
+  // 기록 탭의 진입점 문구는 스펙 2장이 정한 "올리와 이야기하기"다.
+  await expect(page.locator("#openCompanionChat")).toContainText("올리와 이야기하기");
   diagnostics.expectClean();
 });
 
