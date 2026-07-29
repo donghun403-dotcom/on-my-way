@@ -2494,6 +2494,24 @@ const dayPageEraseConfirm = document.querySelector("#dayPageEraseConfirm");
 const dayPageEraseDetail = document.querySelector("#dayPageEraseDetail");
 const dayPageEraseCancel = document.querySelector("#dayPageEraseCancel");
 const dayPageEraseCommit = document.querySelector("#dayPageEraseCommit");
+// 다이어리 북 (스펙 4장)
+const diaryBookCard = document.querySelector("#diaryBookCard");
+const diaryBookForm = document.querySelector("#diaryBookForm");
+const diaryBookEmpty = document.querySelector("#diaryBookEmpty");
+const diaryBookMonth = document.querySelector("#diaryBookMonth");
+const diaryBookContents = document.querySelector("#diaryBookContents");
+const diaryBookCreate = document.querySelector("#diaryBookCreate");
+const diaryBookCostLabel = document.querySelector("#diaryBookCost");
+const diaryBookStatus = document.querySelector("#diaryBookStatus");
+const diaryBookDone = document.querySelector("#diaryBookDone");
+const diaryBookDoneText = document.querySelector("#diaryBookDoneText");
+const diaryBookPrintAgain = document.querySelector("#diaryBookPrintAgain");
+const diaryBookTidyStart = document.querySelector("#diaryBookTidyStart");
+const diaryBookTidy = document.querySelector("#diaryBookTidy");
+const diaryBookTidyDetail = document.querySelector("#diaryBookTidyDetail");
+const diaryBookTidyCancel = document.querySelector("#diaryBookTidyCancel");
+const diaryBookTidyCommit = document.querySelector("#diaryBookTidyCommit");
+const diaryBookPrint = document.querySelector("#diaryBookPrint");
 const chatOverlay = document.querySelector("#chatOverlay");
 const companionChatSheet = document.querySelector("#companionChatSheet");
 const closeCompanionChatButton = document.querySelector("#closeCompanionChat");
@@ -8794,14 +8812,26 @@ function buildDayPageRetentionNotice(dateKey, todayKey = getTodayKey()) {
 
   const viewing = status.expiring.find((day) => day.key === dateKey);
   if (viewing) {
-    return { text: `이 날의 대화 ${viewing.turns}마디는 ${describeWhen(viewing.remainingDays)} 보관 기간(${CHAT_LOG_MAX_DAYS}일)이 끝나 사라져요.`, jumpKey: "" };
+    return {
+      text: `이 날의 대화 ${viewing.turns}마디는 ${describeWhen(viewing.remainingDays)} 보관 기간(${CHAT_LOG_MAX_DAYS}일)이 끝나 사라져요.`,
+      jumpKey: "",
+      bookMonthKey: dateKey,
+    };
   }
   const [soonest] = status.expiring;
   if (soonest) {
-    return { text: `${formatDayPageDate(soonest.key)}의 대화가 ${describeWhen(soonest.remainingDays)} 보관 기간(${CHAT_LOG_MAX_DAYS}일)이 끝나 사라져요.`, jumpKey: soonest.key };
+    return {
+      text: `${formatDayPageDate(soonest.key)}의 대화가 ${describeWhen(soonest.remainingDays)} 보관 기간(${CHAT_LOG_MAX_DAYS}일)이 끝나 사라져요.`,
+      jumpKey: soonest.key,
+      bookMonthKey: soonest.key,
+    };
   }
   if (status.nearTurnCap) {
-    return { text: `올리와 나눈 대화가 ${status.totalTurns}마디예요. ${CHAT_LOG_MAX_TURNS}마디를 넘으면 오래된 날의 대화부터 정리돼요.`, jumpKey: status.oldestKey };
+    return {
+      text: `올리와 나눈 대화가 ${status.totalTurns}마디예요. ${CHAT_LOG_MAX_TURNS}마디를 넘으면 오래된 날의 대화부터 정리돼요.`,
+      jumpKey: status.oldestKey,
+      bookMonthKey: status.oldestKey,
+    };
   }
   return null;
 }
@@ -8812,12 +8842,24 @@ function renderDayPageRetention(notice) {
   dayPageRetention.hidden = !notice;
   if (!notice) return;
   const text = document.createElement("span");
-  // 사라진다는 말만 남기면 유저가 할 수 있는 일이 없다. 간직하는 길이 온다는 것도 같이 밝힌다.
-  text.textContent = `${notice.text} 기기를 넘어 간직하는 다이어리 북을 준비하고 있어요.`;
+  // 사라진다는 말만 남기면 유저가 할 수 있는 일이 없다. 간직하는 길을 바로 옆에 둔다.
+  text.textContent = `${notice.text} 사라지기 전에 다이어리 북 한 권으로 간직할 수 있어요.`;
   dayPageRetention.append(text);
+
+  /* 만료가 걸린 그 달을 그대로 책 만들기로 넘긴다(스펙 4장 만료 흐름). 어느 날이 문제인지
+     아는 화면이 어느 달을 만들지도 정해 주는 것이 유저가 덜 헤매는 길이다. */
+  const bookMonth = diaryBookMonthOf(notice.bookMonthKey || notice.jumpKey || "");
+  if (bookMonth) {
+    const book = document.createElement("button");
+    book.type = "button";
+    book.dataset.dayPageBook = bookMonth;
+    book.textContent = "한 권으로 만들기";
+    dayPageRetention.append(book);
+  }
   if (notice.jumpKey) {
     const jump = document.createElement("button");
     jump.type = "button";
+    jump.className = "is-quiet";
     jump.dataset.dayPageJump = notice.jumpKey;
     jump.textContent = "그 날 보기";
     dayPageRetention.append(jump);
@@ -9081,6 +9123,11 @@ dayPagePrev?.addEventListener("click", () => stepDayPage(-1));
 dayPageNext?.addEventListener("click", () => stepDayPage(1));
 
 dayPage?.addEventListener("click", (event) => {
+  const book = event.target.closest("[data-day-page-book]");
+  if (book) {
+    focusDiaryBookMonth(book.dataset.dayPageBook);
+    return;
+  }
   const jump = event.target.closest("[data-day-page-jump]");
   if (jump) {
     setDayPageKey(jump.dataset.dayPageJump);
@@ -9120,6 +9167,496 @@ dayPageEraseCommit?.addEventListener("click", () => {
   showToast(`${formatDayPageDate(dateKey)}의 기록을 지웠어요`);
   renderExecutionPage(getPlanBundle());
   dayPageBody?.focus({ preventScroll: true });
+});
+
+// ===== 다이어리 북 — 한 달을 한 권으로 (스펙 4장) =====
+
+/* 서버 AI가 쓰는 것은 머리말과 편지 두 글뿐이고, 나머지 조판과 PDF 변환은 여기서 한다.
+   Workers에서 PDF를 렌더링하면 서버 비용이 붙고, 새 라이브러리를 넣으려면 번들러 없는
+   이 앱에 수 MB짜리 한글 폰트까지 함께 들여야 한다. 브라우저 인쇄 파이프라인은 앱의
+   실제 폰트를 벡터로 뽑고 용지·여백 선택권도 유저에게 준다. */
+const DIARY_BOOK_HIGHLIGHTS = 8;
+const DIARY_BOOK_CONVERSATIONS = 5;
+
+// 마지막으로 만든 책. "다시 저장하기"와 "원본 정리"가 이 값을 본다.
+let lastDiaryBook = null;
+let diaryBookInFlight = false;
+let diaryBookTidyArmed = "";
+
+function diaryBookMonthOf(dateKey) {
+  return String(dateKey || "").slice(0, 7);
+}
+
+function formatDiaryBookMonth(monthKey) {
+  const [year, month] = String(monthKey || "").split("-");
+  return year && month ? `${year}년 ${Number(month)}월` : "";
+}
+
+/* 책으로 묶을 수 있는 달들. 기록이든 대화든 하나라도 있으면 한 권이 된다 —
+   대화만 있는 달을 빼면 90일 만료를 앞둔 대화가 갈 곳이 없어진다. */
+function collectDiaryBookMonths() {
+  const months = new Map();
+  const bucketFor = (monthKey) => {
+    if (!/^\d{4}-\d{2}$/.test(monthKey)) return null;
+    if (!months.has(monthKey)) months.set(monthKey, { monthKey, entryCount: 0, chatDayCount: 0, chatTurnCount: 0 });
+    return months.get(monthKey);
+  };
+
+  for (const memory of getExecutionState().dailyMemories || []) {
+    const bucket = bucketFor(diaryBookMonthOf(memoryDateKey(memory)));
+    if (bucket) bucket.entryCount += 1;
+  }
+  for (const [dateKey, turns] of Object.entries(readChatLog().days)) {
+    if (!Array.isArray(turns) || !turns.length) continue;
+    const bucket = bucketFor(diaryBookMonthOf(dateKey));
+    if (!bucket) continue;
+    bucket.chatDayCount += 1;
+    bucket.chatTurnCount += turns.length;
+  }
+  return [...months.values()].sort((a, b) => b.monthKey.localeCompare(a.monthKey));
+}
+
+// 목록에서 고르게 n개를 뽑는다. 앞쪽만 자르면 올리가 그 달의 초반만 기억하게 된다.
+function spreadSample(items, count) {
+  if (items.length <= count) return [...items];
+  const step = (items.length - 1) / (count - 1);
+  return Array.from({ length: count }, (_, index) => items[Math.round(index * step)]);
+}
+
+function buildDiaryBookSummary(days) {
+  const entries = days.filter((day) => day.memory);
+  const completions = entries.map((day) => Number(day.memory.completion || 0));
+  const moodCounts = new Map();
+  for (const day of entries) {
+    const label = getMemoryMoodDisplay(day.memory).label;
+    moodCounts.set(label, (moodCounts.get(label) || 0) + 1);
+  }
+
+  // 그 달 안에서 가장 길게 이어간 기록. 전체 연속일과 달리 이 책이 다루는 범위의 사실이다.
+  let longestRun = 0;
+  let currentRun = 0;
+  let previousKey = "";
+  for (const day of entries) {
+    currentRun = previousKey && daysBetweenDateKeys(previousKey, day.dateKey) === 1 ? currentRun + 1 : 1;
+    previousKey = day.dateKey;
+    longestRun = Math.max(longestRun, currentRun);
+  }
+
+  const withNotes = entries.filter((day) => String(day.memory.note || "").trim());
+  const withChat = days.filter((day) => day.turns.length);
+
+  return {
+    entryCount: entries.length,
+    chatDayCount: withChat.length,
+    chatTurnCount: withChat.reduce((sum, day) => sum + day.turns.length, 0),
+    averageCompletion: completions.length ? Math.round(completions.reduce((sum, value) => sum + value, 0) / completions.length) : 0,
+    bestCompletion: completions.length ? Math.max(...completions) : 0,
+    streakDays: longestRun,
+    moods: [...moodCounts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([label, count]) => ({ label, count })),
+    highlights: spreadSample(withNotes, DIARY_BOOK_HIGHLIGHTS).map((day) => ({
+      date: day.dateKey,
+      mood: getMemoryMoodDisplay(day.memory).label,
+      note: String(day.memory.note || "").slice(0, 140),
+    })),
+    conversations: spreadSample(withChat, DIARY_BOOK_CONVERSATIONS).map((day) => ({
+      date: day.dateKey,
+      user: String(day.turns.find((turn) => turn.role === "user")?.text || "").slice(0, 140),
+      ollie: String(day.turns.find((turn) => turn.role === "ollie")?.text || "").slice(0, 140),
+    })),
+  };
+}
+
+function collectDiaryBookData(monthKey) {
+  const memoriesByDate = new Map();
+  for (const memory of getExecutionState().dailyMemories || []) {
+    const key = memoryDateKey(memory);
+    if (diaryBookMonthOf(key) === monthKey) memoriesByDate.set(key, memory);
+  }
+  const chatByDate = new Map();
+  for (const [dateKey, turns] of Object.entries(readChatLog().days)) {
+    if (diaryBookMonthOf(dateKey) !== monthKey) continue;
+    if (Array.isArray(turns) && turns.length) chatByDate.set(dateKey, turns);
+  }
+
+  const days = [...new Set([...memoriesByDate.keys(), ...chatByDate.keys()])]
+    .sort()
+    .map((dateKey) => ({ dateKey, memory: memoriesByDate.get(dateKey) || null, turns: chatByDate.get(dateKey) || [] }));
+
+  return {
+    monthKey,
+    goal: getPlanBundle().plan?.goal || "",
+    days,
+    summary: buildDiaryBookSummary(days),
+  };
+}
+
+/* 무료 권이 남아 있으면 이 권의 값은 0이다. 판정은 서버(원장)가 하고 여기서는 표시만 한다 —
+   usage에 diaryBook이 없는 옛 응답에서는 정가로 떨어진다. */
+function diaryBookCost() {
+  if (aiUsageState?.diaryBook?.freeAvailable) return 0;
+  return aiCreditCost("diary_book");
+}
+
+function describeDiaryBookContents(month) {
+  if (!month) return "";
+  const parts = [];
+  if (month.entryCount) parts.push(`${month.entryCount}일의 기록`);
+  if (month.chatTurnCount) parts.push(`올리와 나눈 ${month.chatTurnCount}마디`);
+  return parts.length ? `${formatDiaryBookMonth(month.monthKey)} · ${parts.join(" · ")}가 담겨요.` : "";
+}
+
+function renderDiaryBookCard() {
+  if (!diaryBookCard || !diaryBookMonth) return;
+  const months = collectDiaryBookMonths();
+  const hasMonths = months.length > 0;
+  if (diaryBookForm) diaryBookForm.hidden = !hasMonths;
+  if (diaryBookEmpty) diaryBookEmpty.hidden = hasMonths;
+  if (!hasMonths) {
+    if (diaryBookDone) diaryBookDone.hidden = true;
+    return;
+  }
+
+  // 고르고 있던 달은 유지한다. 저장할 때마다 목록이 첫 줄로 튀면 무엇을 만드는지 잃는다.
+  const previous = diaryBookMonth.value;
+  diaryBookMonth.replaceChildren();
+  for (const month of months) {
+    const option = document.createElement("option");
+    option.value = month.monthKey;
+    option.textContent = formatDiaryBookMonth(month.monthKey);
+    diaryBookMonth.append(option);
+  }
+  diaryBookMonth.value = months.some((month) => month.monthKey === previous) ? previous : months[0].monthKey;
+
+  const selected = months.find((month) => month.monthKey === diaryBookMonth.value);
+  if (diaryBookContents) diaryBookContents.textContent = describeDiaryBookContents(selected);
+  if (diaryBookCostLabel) {
+    const cost = diaryBookCost();
+    diaryBookCostLabel.textContent = cost === 0 ? "이번 달 무료" : `에너지 ${cost}`;
+  }
+  if (diaryBookCreate) diaryBookCreate.disabled = diaryBookInFlight;
+  renderDiaryBookDone();
+}
+
+async function requestDiaryBookText(book) {
+  const requestId = newAiRequestId("diary_book");
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 60_000);
+  try {
+    const response = await fetch("/api/ai/diary-book", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json", "X-Request-ID": requestId },
+      credentials: "same-origin",
+      body: JSON.stringify({ monthKey: book.monthKey, goal: book.goal, summary: book.summary }),
+      signal: controller.signal,
+    });
+    const result = await response.json().catch(() => ({}));
+    applyUsageFromApiResult(result);
+    if (!response.ok) {
+      const error = new Error(result.error || "올리가 책을 쓰지 못했어요.");
+      error.status = response.status;
+      error.code = result.code || "";
+      throw error;
+    }
+    return {
+      title: String(result.title || "").trim(),
+      foreword: String(result.foreword || "").trim(),
+      letter: String(result.letter || "").trim(),
+      chargedCredits: Number(result.chargedCredits || 0),
+      entitlement: String(result.entitlement || ""),
+    };
+  } catch (error) {
+    if (error.name === "AbortError") throw new Error("책 만들기가 늦어지고 있어요. 잠시 후 다시 시도해 주세요.");
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+function createBookPage(className) {
+  const page = document.createElement("section");
+  page.className = `book-page ${className}`;
+  return page;
+}
+
+function appendBookLine(parent, tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  node.textContent = text;
+  parent.append(node);
+  return node;
+}
+
+/* 한 권을 조판한다. 표지·머리말·그 달의 숫자·날짜별 본문·올리의 편지 순서다.
+   일러스트는 기존 에셋을 쓴다(표정 8종 제작은 D트랙). */
+function renderDiaryBookPrint(book) {
+  if (!diaryBookPrint) return;
+  const monthLabel = formatDiaryBookMonth(book.monthKey);
+  const pages = document.createDocumentFragment();
+
+  const cover = createBookPage("book-cover");
+  const coverArt = document.createElement("img");
+  coverArt.src = "assets/ollie-celebrate.png";
+  coverArt.alt = "";
+  appendBookLine(cover, "small", "book-cover-brand", "올리 다이어리 북");
+  cover.append(coverArt);
+  appendBookLine(cover, "h1", "book-cover-title", book.title || monthLabel);
+  appendBookLine(cover, "p", "book-cover-month", monthLabel);
+  if (book.goal) appendBookLine(cover, "p", "book-cover-goal", book.goal);
+  pages.append(cover);
+
+  const foreword = createBookPage("book-foreword");
+  const forewordArt = document.createElement("img");
+  forewordArt.src = "assets/ollie-action.png";
+  forewordArt.alt = "";
+  appendBookLine(foreword, "h2", "", "올리의 머리말");
+  foreword.append(forewordArt);
+  appendBookLine(foreword, "p", "book-body-text", book.foreword);
+  pages.append(foreword);
+
+  const stats = createBookPage("book-stats");
+  appendBookLine(stats, "h2", "", `${monthLabel}의 기록`);
+  const statList = document.createElement("dl");
+  const statRows = [
+    ["기록한 날", `${book.summary.entryCount}일`],
+    ["올리와 이야기한 날", `${book.summary.chatDayCount}일 · ${book.summary.chatTurnCount}마디`],
+    ["평균 실행률", `${book.summary.averageCompletion}%`],
+    ["가장 길게 이어간 날", `${book.summary.streakDays}일`],
+  ];
+  for (const [label, value] of statRows) {
+    appendBookLine(statList, "dt", "", label);
+    appendBookLine(statList, "dd", "", value);
+  }
+  stats.append(statList);
+  if (book.summary.moods.length) {
+    const moods = document.createElement("p");
+    moods.className = "book-moods";
+    moods.textContent = book.summary.moods.map((mood) => `${mood.label} ${mood.count}일`).join(" · ");
+    stats.append(moods);
+  }
+  pages.append(stats);
+
+  const body = createBookPage("book-days");
+  appendBookLine(body, "h2", "", "그날의 이야기");
+  for (const day of book.days) {
+    const entry = document.createElement("article");
+    entry.className = "book-day";
+    const head = document.createElement("header");
+    appendBookLine(head, "strong", "", formatDayPageDate(day.dateKey));
+    if (day.memory) {
+      const mood = getMemoryMoodDisplay(day.memory);
+      appendBookLine(head, "span", "", `${mood.icon} ${mood.label} · 실행 ${Number(day.memory.completion || 0)}%`);
+    }
+    entry.append(head);
+    if (day.memory?.title && day.memory.title !== "오늘의 한 장") appendBookLine(entry, "h3", "", day.memory.title);
+    const note = String(day.memory?.note || "").trim();
+    if (note) appendBookLine(entry, "p", "book-day-note", note);
+    if (day.turns.length) {
+      const talk = document.createElement("div");
+      talk.className = "book-day-talk";
+      for (const turn of day.turns) {
+        const line = document.createElement("p");
+        line.className = turn.role === "ollie" ? "book-turn is-ollie" : "book-turn is-user";
+        appendBookLine(line, "b", "", turn.role === "ollie" ? "올리" : "나");
+        line.append(document.createTextNode(` ${turn.text}`));
+        talk.append(line);
+      }
+      entry.append(talk);
+    }
+    body.append(entry);
+  }
+  pages.append(body);
+
+  const letter = createBookPage("book-letter");
+  const letterArt = document.createElement("img");
+  letterArt.src = "assets/ollie-comfort.png";
+  letterArt.alt = "";
+  appendBookLine(letter, "h2", "", "올리가 보내는 편지");
+  letter.append(letterArt);
+  appendBookLine(letter, "p", "book-body-text", book.letter);
+  appendBookLine(letter, "p", "book-letter-sign", "— 올리 드림");
+  pages.append(letter);
+
+  diaryBookPrint.replaceChildren(pages);
+  diaryBookPrint.hidden = false;
+}
+
+/* 인쇄 대화상자를 연다. 파일명은 브라우저가 document.title에서 가져가므로 잠깐 바꿔 둔다.
+   afterprint를 쏘지 않는 브라우저가 있어 되돌리기를 한 번 더 걸어 둔다. */
+function printDiaryBook(monthKey) {
+  const previousTitle = document.title;
+  document.title = `올리 다이어리 북 ${formatDiaryBookMonth(monthKey)}`;
+  document.body.classList.add("is-printing-book");
+  let restored = false;
+  const restore = () => {
+    if (restored) return;
+    restored = true;
+    document.body.classList.remove("is-printing-book");
+    document.title = previousTitle;
+    window.removeEventListener("afterprint", restore);
+  };
+  window.addEventListener("afterprint", restore);
+  window.setTimeout(restore, 60_000);
+  try {
+    window.print();
+  } catch (error) {
+    console.warn("Unable to open print dialog", error);
+    restore();
+  }
+}
+
+// 무료 권이 남아 있으면 잔량 게이트를 지나지 않는다 — 서버가 비용 0으로 처리한다.
+async function ensureDiaryBookAvailable() {
+  if (!authUiState.user) {
+    showToast("로그인하면 다이어리 북을 만들 수 있어요.");
+    if (authSheet) openAuthSheet();
+    return false;
+  }
+  await loadAiUsage().catch(() => null);
+  if (diaryBookCost() === 0) return true;
+  return ensureAiActionAvailable("diary_book");
+}
+
+function setDiaryBookStatus(message, tone = "") {
+  if (!diaryBookStatus) return;
+  diaryBookStatus.textContent = message;
+  diaryBookStatus.dataset.tone = tone;
+}
+
+async function createDiaryBook(monthKey) {
+  if (diaryBookInFlight) return;
+  const book = collectDiaryBookData(monthKey);
+  if (!book.days.length) {
+    setDiaryBookStatus("이 달에는 아직 묶을 기록이 없어요.", "warn");
+    return;
+  }
+
+  diaryBookInFlight = true;
+  if (diaryBookCreate) diaryBookCreate.disabled = true;
+  setDiaryBookStatus("올리가 그 달의 머리말과 편지를 쓰고 있어요…");
+  try {
+    if (!(await ensureDiaryBookAvailable())) {
+      setDiaryBookStatus("");
+      return;
+    }
+    const text = await requestDiaryBookText(book);
+    lastDiaryBook = { ...book, ...text };
+    renderDiaryBookPrint(lastDiaryBook);
+    trackCompanionEvent("diary_book_created", {
+      monthKey,
+      days: book.days.length,
+      chargedCredits: text.chargedCredits,
+      free: text.entitlement ? 1 : 0,
+    });
+    setDiaryBookStatus(
+      text.chargedCredits === 0
+        ? "한 권이 완성됐어요. 이번 달 무료 발급을 썼어요."
+        : `한 권이 완성됐어요. 에너지 ${text.chargedCredits}를 썼어요.`,
+      "done",
+    );
+    printDiaryBook(monthKey);
+    renderDiaryBookCard();
+  } catch (error) {
+    // 실패한 요청은 서버가 스스로 원복한다. 유저에게도 그 사실을 밝힌다.
+    setDiaryBookStatus(`${error.message || "책을 만들지 못했어요."} 실패한 요청은 에너지로 확정 차감되지 않아요.`, "warn");
+  } finally {
+    diaryBookInFlight = false;
+    if (diaryBookCreate) diaryBookCreate.disabled = false;
+  }
+}
+
+/* 원본 정리는 개인정보 최소보유에 부합하지만 강요하지 않는다(스펙 4장). 책을 만든
+   달에 대해서만 제안하고, 지우는 것은 그 달의 대화 로그다 — 다이어리 기록은 앱 안에서
+   계속 쓰이므로 남긴다. 날짜별 완전 삭제는 하루 페이지가 따로 제공한다. */
+function tidyDiaryBookMonth(monthKey) {
+  const log = readChatLog();
+  let removedDays = 0;
+  let removedTurns = 0;
+  for (const dateKey of Object.keys(log.days)) {
+    if (diaryBookMonthOf(dateKey) !== monthKey) continue;
+    removedTurns += Array.isArray(log.days[dateKey]) ? log.days[dateKey].length : 0;
+    delete log.days[dateKey];
+    removedDays += 1;
+  }
+  if (removedDays) writeStorageObject(CHAT_LOG_KEY, log);
+  return { removedDays, removedTurns };
+}
+
+function renderDiaryBookDone() {
+  if (!diaryBookDone) return;
+  const monthKey = diaryBookMonth?.value || "";
+  const ready = Boolean(lastDiaryBook) && lastDiaryBook.monthKey === monthKey;
+  diaryBookDone.hidden = !ready;
+  if (!ready) return;
+  if (diaryBookDoneText) {
+    diaryBookDoneText.textContent = `${formatDiaryBookMonth(monthKey)} 「${lastDiaryBook.title}」이 준비됐어요. 인쇄 창에서 "PDF로 저장"을 고르면 기기에 남아요.`;
+  }
+  const armed = diaryBookTidyArmed === monthKey;
+  if (diaryBookTidyStart) diaryBookTidyStart.hidden = armed;
+  if (diaryBookTidy) diaryBookTidy.hidden = !armed;
+  if (diaryBookTidyDetail) {
+    const turns = lastDiaryBook.summary.chatTurnCount;
+    diaryBookTidyDetail.textContent = turns
+      ? `이 기기에 남아 있는 ${formatDiaryBookMonth(monthKey)}의 대화 ${turns}마디를 지워요. 책은 이미 저장하셨어야 해요 — 되돌릴 수 없어요.`
+      : "이 달에는 지울 대화가 없어요.";
+  }
+}
+
+/* 만료 안내에서 넘어온 진입. 그 달을 골라 두고 책 카드로 데려간다 — 무엇을 만들지
+   유저가 다시 고르게 하면 안내가 이어지지 않는다. */
+function focusDiaryBookMonth(monthKey) {
+  if (!diaryBookMonth) return;
+  renderDiaryBookCard();
+  if ([...diaryBookMonth.options].some((option) => option.value === monthKey)) {
+    diaryBookMonth.value = monthKey;
+    diaryBookTidyArmed = "";
+    renderDiaryBookCard();
+  }
+  diaryBookCard?.scrollIntoView({ behavior: "smooth", block: "center" });
+  window.setTimeout(() => diaryBookCreate?.focus({ preventScroll: true }), 320);
+}
+
+diaryBookMonth?.addEventListener("change", () => {
+  diaryBookTidyArmed = "";
+  renderDiaryBookCard();
+});
+
+diaryBookCreate?.addEventListener("click", async () => {
+  const monthKey = diaryBookMonth?.value || "";
+  if (!monthKey) return;
+  diaryBookTidyArmed = "";
+  await createDiaryBook(monthKey);
+});
+
+diaryBookPrintAgain?.addEventListener("click", () => {
+  if (!lastDiaryBook) return;
+  renderDiaryBookPrint(lastDiaryBook);
+  printDiaryBook(lastDiaryBook.monthKey);
+});
+
+diaryBookTidyStart?.addEventListener("click", () => {
+  diaryBookTidyArmed = diaryBookMonth?.value || "";
+  renderDiaryBookDone();
+  // 되돌릴 수 없는 쪽에 포커스를 두지 않는다.
+  diaryBookTidyCancel?.focus({ preventScroll: true });
+});
+
+diaryBookTidyCancel?.addEventListener("click", () => {
+  diaryBookTidyArmed = "";
+  renderDiaryBookDone();
+  diaryBookTidyStart?.focus({ preventScroll: true });
+});
+
+diaryBookTidyCommit?.addEventListener("click", () => {
+  const monthKey = diaryBookMonth?.value || "";
+  if (diaryBookTidyArmed !== monthKey) return;
+  const { removedDays, removedTurns } = tidyDiaryBookMonth(monthKey);
+  diaryBookTidyArmed = "";
+  trackCompanionEvent("diary_book_tidied", { removedDays, removedTurns });
+  showToast(removedTurns ? `${formatDiaryBookMonth(monthKey)}의 대화 ${removedTurns}마디를 정리했어요` : "정리할 대화가 없었어요");
+  renderExecutionPage(getPlanBundle());
 });
 
 function renderMemoryCards({ selectedCompletion }) {
@@ -9257,6 +9794,7 @@ function renderMemoryCards({ selectedCompletion }) {
   }
 
   renderDayPage({ selectedCompletion });
+  renderDiaryBookCard();
   renderPatternCards(state);
 }
 

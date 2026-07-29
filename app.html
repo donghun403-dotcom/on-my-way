@@ -813,6 +813,51 @@
             </footer>
           </section>
 
+          <!-- 다이어리 북 (스펙 4장) — 한 달치 기록을 한 권으로 -->
+          <section class="diary-book-card" id="diaryBookCard" aria-labelledby="diaryBookTitle">
+            <header class="diary-book-head">
+              <img src="assets/ollie-celebrate.png" alt="" loading="lazy" />
+              <div>
+                <small>올리 다이어리 북</small>
+                <h2 id="diaryBookTitle">한 달을 한 권으로</h2>
+                <p>그 달의 마음과 올리와 나눈 이야기를 표지가 있는 한 권으로 묶어 간직해요.</p>
+              </div>
+            </header>
+
+            <div class="diary-book-form" id="diaryBookForm">
+              <label class="diary-book-month" for="diaryBookMonth">
+                <span>어느 달을 만들까요?</span>
+                <select id="diaryBookMonth"></select>
+              </label>
+              <p class="diary-book-contents" id="diaryBookContents" aria-live="polite"></p>
+              <p class="diary-book-notice">이 책에는 그 달의 감정 기록과 올리와 나눈 대화가 그대로 담겨요. 만든 파일은 이 기기에 저장되고 서버에는 올라가지 않아요.</p>
+              <button class="diary-book-create" id="diaryBookCreate" type="button">
+                <span>이 달을 한 권으로 만들기</span>
+                <b id="diaryBookCost"></b>
+              </button>
+              <p class="diary-book-status" id="diaryBookStatus" role="status" aria-live="polite"></p>
+            </div>
+
+            <div class="diary-book-empty" id="diaryBookEmpty" hidden>
+              <p>아직 책으로 묶을 기록이 없어요. 하루의 마음 한 줄이 쌓이면 첫 권을 만들 수 있어요.</p>
+            </div>
+
+            <div class="diary-book-done" id="diaryBookDone" hidden>
+              <p id="diaryBookDoneText"></p>
+              <div class="diary-book-done-actions">
+                <button id="diaryBookPrintAgain" type="button">다시 저장하기</button>
+                <button class="is-quiet" id="diaryBookTidyStart" type="button">원본 기록 정리하기</button>
+              </div>
+              <div class="diary-book-tidy" id="diaryBookTidy" role="group" aria-labelledby="diaryBookTidyQuestion" hidden>
+                <p id="diaryBookTidyQuestion"><strong>이 달의 원본을 정리할까요?</strong><span id="diaryBookTidyDetail"></span></p>
+                <div class="diary-book-tidy-buttons">
+                  <button id="diaryBookTidyCancel" type="button">아니요, 그대로 둘게요</button>
+                  <button class="is-destructive" id="diaryBookTidyCommit" type="button">네, 정리할게요</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
           <details class="memory-history-disclosure">
             <summary>
               <div>
@@ -1088,6 +1133,10 @@
     </div>
 
     <div class="sr-only" id="appLiveRegion" aria-live="polite"></div>
+
+    <!-- 다이어리 북 조판 자리. 화면에서는 늘 숨어 있고, 인쇄할 때만 body.is-printing-book이
+         이 노드 하나를 남기고 앱을 가린다(스펙 4장: 조판·PDF 변환은 클라이언트). -->
+    <div class="diary-book-print" id="diaryBookPrint" hidden aria-hidden="true"></div>
 
     <section class="trial-paywall" id="trialPaywall" role="dialog" aria-modal="true" aria-labelledby="trialPaywallTitle" tabindex="-1" hidden>
       <div class="trial-paywall-card">

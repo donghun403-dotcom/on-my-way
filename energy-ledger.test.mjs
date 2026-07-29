@@ -302,3 +302,81 @@ test("상태 레코드에 스키마 버전이 남는다", async () => {
   const state = await storage.get(STATE_KEY);
   assert.equal(state.schemaVersion, ENERGY_LEDGER_SCHEMA_VERSION);
 });
+
+/* ---------- PRO 월 1권 무료 다이어리 북 ---------- */
+
+test("PRO의 첫 다이어리 북은 에너지를 쓰지 않고 자격을 소진한다", async () => {
+  const storage = memoryStorage();
+  const reserved = await reserveEnergy(storage, { plan: "pro", action: "diary_book", requestId: "book-1", now: MARCH });
+  assert.equal(reserved.cost, 0, "이번 달 무료 권이 남아 있으면 비용이 0이다");
+  assert.equal(reserved.entitlement, "monthly_diary_book");
+
+  const committed = await commitEnergy(storage, { plan: "pro", requestId: "book-1", now: MARCH });
+  assert.equal(committed.chargedCredits, 0);
+  assert.equal(committed.usage.balance, PLAN_CONFIG.pro.monthlyCredits, "잔액은 그대로다");
+  assert.equal(committed.usage.diaryBook.freeAvailable, false, "이번 달 무료 권은 소진됐다");
+
+  // 잔액이 움직이지 않아도 "언제 썼는지"는 거래로 남는다.
+  const [latest] = await listTransactions(storage);
+  assert.equal(latest.type, TXN_TYPES.SPEND);
+  assert.equal(latest.amount, 0);
+  assert.equal(latest.reason, "diary_book");
+  assert.equal(latest.meta.entitlement, "monthly_diary_book");
+});
+
+test("무료 권을 쓴 뒤의 두 번째 북은 에너지 10을 쓴다", async () => {
+  const storage = memoryStorage();
+  await reserveEnergy(storage, { plan: "pro", action: "diary_book", requestId: "book-1", now: MARCH });
+  await commitEnergy(storage, { plan: "pro", requestId: "book-1", now: MARCH });
+
+  const second = await reserveEnergy(storage, { plan: "pro", action: "diary_book", requestId: "book-2", now: MARCH });
+  assert.equal(second.cost, AI_CREDIT_COSTS.diary_book);
+  assert.equal(second.entitlement, "");
+  const committed = await commitEnergy(storage, { plan: "pro", requestId: "book-2", now: MARCH });
+  assert.equal(committed.chargedCredits, 10);
+  assert.equal(committed.usage.balance, PLAN_CONFIG.pro.monthlyCredits - 10);
+});
+
+/* 실패한 발급 하나가 그 달의 유일한 무료 권을 태우면 안 된다.
+   자격은 예약이 아니라 확정에서 소진되고, 확정 후 환불에서는 되돌아온다. */
+test("AI가 실패해 예약이 풀리면 무료 권은 그대로 남는다", async () => {
+  const storage = memoryStorage();
+  await reserveEnergy(storage, { plan: "pro", action: "diary_book", requestId: "book-fail", now: MARCH });
+  const released = await releaseEnergy(storage, { plan: "pro", requestId: "book-fail", now: MARCH, errorCode: "AI_REQUEST_FAILED" });
+  assert.equal(released.usage.diaryBook.freeAvailable, true, "쓰지 못한 무료 권은 돌아와야 한다");
+
+  const retry = await reserveEnergy(storage, { plan: "pro", action: "diary_book", requestId: "book-retry", now: MARCH });
+  assert.equal(retry.cost, 0);
+});
+
+test("확정된 무료 북을 환불하면 그 달의 무료 권도 돌아온다", async () => {
+  const storage = memoryStorage();
+  await reserveEnergy(storage, { plan: "pro", action: "diary_book", requestId: "book-1", now: MARCH });
+  await commitEnergy(storage, { plan: "pro", requestId: "book-1", now: MARCH });
+  const refunded = await releaseEnergy(storage, { plan: "pro", requestId: "book-1", now: MARCH, errorCode: "book_refund" });
+  assert.equal(refunded.usage.diaryBook.freeAvailable, true);
+  assert.equal(refunded.usage.balance, PLAN_CONFIG.pro.monthlyCredits, "0을 환불해도 잔액은 그대로다");
+});
+
+test("달이 바뀌면 무료 권이 다시 생긴다", async () => {
+  const storage = memoryStorage();
+  await reserveEnergy(storage, { plan: "pro", action: "diary_book", requestId: "book-3", now: MARCH });
+  await commitEnergy(storage, { plan: "pro", requestId: "book-3", now: MARCH });
+
+  const nextMonth = Date.UTC(2026, 3, 2, 3, 0, 0); // 2026-04-02 12:00 KST
+  const usage = await getEnergyUsage(storage, { plan: "pro", now: nextMonth });
+  assert.equal(usage.diaryBook.freeAvailable, true);
+});
+
+test("Free는 무료 권이 없고 하루 상한에 걸려 북을 만들지 못한다", async () => {
+  const storage = memoryStorage();
+  const usage = await getEnergyUsage(storage, { plan: "free", now: MARCH });
+  assert.equal(usage.diaryBook.monthlyFree, false);
+  assert.equal(usage.diaryBook.freeAvailable, false);
+  assert.equal(usage.diaryBook.cost, 10);
+
+  await assert.rejects(
+    () => reserveEnergy(storage, { plan: "free", action: "diary_book", requestId: "book-free", now: MARCH }),
+    (error) => error instanceof EnergyLedgerError && error.code === "DAILY_AI_CREDIT_LIMIT_EXCEEDED",
+  );
+});

@@ -58,6 +58,8 @@ export const AI_CREDIT_COSTS = deepFreeze({
   revise_plan: 2,
   recovery_plan: 3,
   reschedule_plan: 4,
+  // 다이어리 북 1권 (AI 호출은 머리말 + 편지 2회). PRO는 아래 MONTHLY_FREE_DIARY_BOOK_PLANS로 월 1권 무료.
+  diary_book: 10,
 });
 
 export const AI_ACTION_LABELS = deepFreeze({
@@ -65,7 +67,17 @@ export const AI_ACTION_LABELS = deepFreeze({
   revise_plan: "계획 일부 수정",
   recovery_plan: "회복 계획 생성",
   reschedule_plan: "전체 일정 재조정",
+  diary_book: "다이어리 북 만들기",
 });
+
+/* 다이어리 북을 매월 1권 무료로 받는 플랜. 구독을 유지할 감성적 이유가 이 한 권이므로
+   PRO의 혜택이고, 체험은 PRO를 그대로 미리 보는 기간이라 같이 넣는다. 무료 발급 이력은
+   월 키로 기록되므로 플랜을 오가도 한 달에 한 권을 넘지 않는다. */
+export const MONTHLY_FREE_DIARY_BOOK_PLANS = deepFreeze(["pro", "trial"]);
+
+export function hasMonthlyFreeDiaryBook(plan) {
+  return MONTHLY_FREE_DIARY_BOOK_PLANS.includes(plan);
+}
 
 export const PLAN_LABELS = deepFreeze({
   free: "Free",

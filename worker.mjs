@@ -2,6 +2,7 @@
 // 참조하므로 계속 내보낸다.
 import { GuestPlanDraftObject } from "./guest-plan-draft-object.mjs";
 import { createCompanionReply, createCrisisReply, detectCrisisSignal, normalizeCheerEventType } from "./ai-companion-chat.mjs";
+import { createDiaryBookText } from "./ai-diary-book.mjs";
 import { createAiPlanRevision } from "./ai-plan-revision.mjs";
 import {
   safeAiDiagnostics,
@@ -167,6 +168,9 @@ const AI_GENERATION_ROUTES = Object.freeze({
   "/api/ai/plan-revision": { action: "revise_plan", kind: "revision", maxBytes: 20_000 },
   "/api/ai/recovery-plan": { action: "recovery_plan", kind: "revision", maxBytes: 20_000 },
   "/api/ai/reschedule-plan": { action: "reschedule_plan", kind: "revision", maxBytes: 20_000 },
+  /* 다이어리 북은 한 달치 요약을 싣고 오므로 대화보다 크다. 조판·PDF는 클라이언트가 하고
+     여기서는 머리말·편지 텍스트만 만든다(스펙 4장). */
+  "/api/ai/diary-book": { action: "diary_book", kind: "diary_book", maxBytes: 12_000 },
 });
 
 // 게스트 온보딩 라우트는 사라졌지만 /api/health의 services.ai가 이 판정을 쓰고,
@@ -362,6 +366,8 @@ async function handleAiGenerationRequest({ request, env, accountContext, route }
         model,
         allowPersonalization: !isFreeCheer && ["pro", "trial"].includes(reservation.usage.plan),
       });
+    } else if (route.kind === "diary_book") {
+      result = await createDiaryBookText(input, { apiKey: env.OPENAI_API_KEY, model });
     } else {
       result = await createAiPlanRevision(input, { apiKey: env.OPENAI_API_KEY, model });
     }
@@ -394,6 +400,8 @@ async function handleAiGenerationRequest({ request, env, accountContext, route }
       ...publicAiResult(result),
       requestId,
       chargedCredits: committed.chargedCredits,
+      // 무료 자격(PRO 월 1권)으로 나간 건인지. 화면이 "이번 달 무료 권을 썼어요"를 말할 근거다.
+      ...(committed.entitlement ? { entitlement: committed.entitlement } : {}),
       usage: committed.usage,
     });
   } catch (error) {

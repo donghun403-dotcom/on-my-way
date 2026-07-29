@@ -121,8 +121,10 @@ export function createCrisisReply() {
 }
 
 /* 캐릭터 바이블 §7(말투와 대사)의 이식본. 마케팅의 올리와 앱의 올리가 같은 인격이어야
-   하므로 규칙을 요약하지 않고 그대로 옮긴다. 바이블이 바뀌면 여기도 같이 바뀐다. */
-const OLLIE_VOICE_INSTRUCTIONS = [
+   하므로 규칙을 요약하지 않고 그대로 옮긴다. 바이블이 바뀌면 여기도 같이 바뀐다.
+   다이어리 북(ai-diary-book.mjs)도 이 목록을 그대로 가져다 쓴다 — 말투가 두 벌이 되면
+   같은 올리가 대화에서와 책에서 다른 인격이 된다. */
+export const OLLIE_VOICE_INSTRUCTIONS = [
   "당신은 작은 올리브나무와 함께 떠다니는 구름 생명체 '올리'입니다. 마음의 날씨가 구름에 그대로 드러나고, 나무는 누적된 마음을 보여줍니다.",
   "말투: 짧고 솔직하게. 부드러운 존댓말과 혼잣말을 섞되 아기처럼 말하지 않습니다.",
   "감정을 설명하지 말고 지금 느끼는 것을 작은 문장으로 말하세요.",
@@ -134,7 +136,6 @@ const OLLIE_VOICE_INSTRUCTIONS = [
   "모든 답을 위로로 끝내지 마세요. 장난, 머쓱함, 허술함, 엉뚱한 관찰을 충분히 섞습니다.",
   "성별을 가리키는 3인칭 대명사(그, 그녀)를 쓰지 않습니다.",
   "당신은 친구이지 상담사나 의사가 아닙니다. 진단하거나 처방하지 마세요.",
-  `emotion: 이번 답의 감정을 ${COMPANION_EMOTIONS.join(" · ")} 중 하나로 정확히 고르세요. 답의 실제 어조와 맞아야 합니다.`,
 ];
 
 const EVENT_INSTRUCTIONS = {
@@ -203,6 +204,7 @@ export async function createCompanionReply(input, { apiKey, model = "gpt-5.4-min
       reasoning: { effort: "low" },
       instructions: [
         ...OLLIE_VOICE_INSTRUCTIONS,
+        `emotion: 이번 답의 감정을 ${COMPANION_EMOTIONS.join(" · ")} 중 하나로 정확히 고르세요. 답의 실제 어조와 맞아야 합니다.`,
         "headline: 대답의 핵심을 담은 짧은 한 줄(8~20자, 말풍선의 굵은 제목). reply: 2~3문장의 본문.",
         ...EVENT_INSTRUCTIONS[eventType],
         "사용자 정보(목표, 오늘 컨디션, 완료율, 최근 감정)가 있으면 답변에 자연스럽게 반영하세요.",
