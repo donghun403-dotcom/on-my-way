@@ -831,8 +831,59 @@ export async function grantTrialCredits(storage, { plan, trialKey, now = Date.no
   };
 }
 
+/* ---------- reset 명세 ----------
+
+   이 함수의 지우기 범위에서 결함이 세 번 나왔다:
+     ① 체험 무한 리필 — 체험 시작이 reset을 불러서 부를 때마다 재지급됐다 (#40)
+     ② 멱등성 레코드 소멸 — state.requests를 통째로 비워 쓴 requestId가 다시 통했다 (#40)
+     ③ dailyCheer 배치 — state.daily 안에 뒀다면 전환 한 번에 오늘 응원이 되살아났다 (W2)
+
+   세 건 모두 "이 필드가 reset 대상인가"를 아무도 명시적으로 답하지 않아서 생겼다.
+   그래서 처분을 목록으로 등록한다. 원장 상태에 필드를 추가하면 여기 등록될 때까지
+   energy-ledger-reset.test.mjs가 실패한다 — 조용히 지워지는 것도, 조용히 살아남는
+   것도 둘 다 막는다.
+
+   처분 네 가지:
+     cleared      — emptyLedgerState의 기본값으로 되돌린다
+     preserved    — 손대지 않는다. 값이 그대로 남는다
+     rebuilt      — 플랜·시각 기준으로 다시 세운다 (기본값도 원래 값도 아니다)
+     transitioned — 레코드는 남기고 상태만 옮긴다 */
+export const RESET_DISPOSITION = Object.freeze({
+  // 상태 스키마·정책 버전. 리셋이 정하는 값이 아니다.
+  schemaVersion: "preserved",
+  policyVersion: "preserved",
+  // 유저의 시간대. 회계가 아니라 표시 기준이다.
+  timeZone: "preserved",
+  // 정기 지급분은 회수하고 플랜 기준으로 다시 지급한다. 구매분은 회수 대상이 아니다.
+  balance: "rebuilt",
+  // 진행 중이던 예약 카운터. 아래에서 레코드도 해제로 맞추므로 0이 맞는 값이다.
+  reserved: "cleared",
+  // 돈을 낸 재화다. 어떤 리셋도 건드리지 않는다.
+  purchasedBalance: "preserved",
+  // 비운 뒤 applyLazyGrant가 당월 키로 다시 세운다. 이것이 "다시 지급"의 방아쇠다.
+  lastGrantMonthKey: "rebuilt",
+  // 체험 회차 멱등 키. 지우면 reset → trialGrant 순서로 체험 재지급이 가능해진다(①).
+  trialGrantKey: "preserved",
+  // 오늘 키로 다시 세우고 사용량을 0으로 둔다. 속도 제한이라 전환 시 풀어 주는 것이 맞다.
+  daily: "rebuilt",
+  // 무료 치어링 상한. 지우면 전환 한 번에 오늘 응원이 되살아난다(③).
+  dailyCheer: "preserved",
+  // requestId 멱등성의 유일한 근거. 키가 사라지면 쓴 requestId가 다시 통한다(②).
+  // 진행 중이던 예약만 released로 옮긴다 — 레코드는 남으므로 재사용은 계속 막힌다.
+  requests: "transitioned",
+  // orderId 멱등성의 근거. 지우면 같은 결제 콜백이 다시 충전한다.
+  purchases: "preserved",
+  // saveState가 매 저장마다 올린다.
+  revision: "rebuilt",
+  // 원장이 생긴 시각. 사실이라 리셋으로 바뀌지 않는다.
+  createdAt: "preserved",
+  // saveState가 now로 세운다.
+  updatedAt: "rebuilt",
+});
+
 // 마이그레이션: 로컬/KV 잔량을 믿지 않고 플랜 기준으로 다시 세운다.
 // 이번 달 grant 기록을 지우고 다시 지급하므로 결과는 "그 플랜의 당월 지급액"이 된다.
+// 어느 필드를 지우고 어느 필드를 남기는지는 위 RESET_DISPOSITION이 명세다.
 export async function resetLedgerForPlan(storage, { plan, now = Date.now(), timeZone, reason = "migration", trial, paywallEnabled = true } = {}) {
   const state = normalizeLedgerState(await storage.get(STATE_KEY), now, timeZone);
   const period = getLedgerPeriod(now, state.timeZone);
