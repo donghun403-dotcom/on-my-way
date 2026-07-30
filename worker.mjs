@@ -5,7 +5,7 @@ import { describeBindings, paymentsIntended } from "./binding-health.mjs";
 import { createCompanionReply, createCrisisReply, detectCrisisSignal, normalizeCheerEventType } from "./ai-companion-chat.mjs";
 import { createDiaryBookText } from "./ai-diary-book.mjs";
 import { createAiPlanRevision } from "./ai-plan-revision.mjs";
-import { PRO_ONLY_LOCK_REASON, allowsProOnlyFeature, isHardPaywallEnabled } from "./plan-policy.mjs";
+import { PAYWALL_BLOCKED_PLANS, PERSONALIZED_COMPANION_PLANS, PRO_ONLY_LOCK_REASON, allowsProOnlyFeature, isHardPaywallEnabled } from "./plan-policy.mjs";
 import {
   safeAiDiagnostics,
   safeAiSuccessDiagnostics,
@@ -405,7 +405,11 @@ async function handleAiGenerationRequest({ request, env, accountContext, route }
      한도로 계속 쓴다. 실결제가 검증되기 전에 잠기는 사람이 없어야 하기 때문이다.
 
      기록 열람·내보내기와 탈퇴·결제는 애초에 AI 라우트가 아니라 여기 오지 않는다. */
-  if (paywallEnabled && userPlan === "expired") {
+  /* trial_pending도 여기서 막는다. 오늘 이 값을 갖는 계정은 어제까지 expired였으므로
+     막는 것이 동작 유지다. 체험 앵커가 첫 AI 사용으로 옮겨지면 이 게이트는 바뀐다 —
+     그때 trial_pending은 "여기를 통과해 체험을 시작해야 하는 상태"가 되기 때문이다.
+     지금 열어 두면 체험을 시작할 경로도 없이 크레딧 0으로 provider를 부르게 된다. */
+  if (paywallEnabled && PAYWALL_BLOCKED_PLANS.includes(userPlan)) {
     return json({
       ok: false,
       error: "무료 체험이 끝났어요. 계속 이용하려면 Pro를 시작해 주세요.",
@@ -491,7 +495,7 @@ async function handleAiGenerationRequest({ request, env, accountContext, route }
       result = await createCompanionReply(input, {
         apiKey: env.OPENAI_API_KEY,
         model,
-        allowPersonalization: !isFreeCheer && ["pro", "trial"].includes(reservation.usage.plan),
+        allowPersonalization: !isFreeCheer && PERSONALIZED_COMPANION_PLANS.includes(reservation.usage.plan),
       });
     } else if (route.kind === "diary_book") {
       result = await createDiaryBookText(input, { apiKey: env.OPENAI_API_KEY, model });

@@ -23,8 +23,8 @@ import {
 const HOUR = 60 * 60 * 1_000;
 const DAY = 24 * HOUR;
 
-test("플랜은 expired와 pro 둘뿐이고 값은 한 곳에서만 정의된다", () => {
-  assert.deepEqual(Object.keys(PLAN_CONFIG), ["expired", "pro"]);
+test("플랜은 trial_pending·expired·pro 셋이고 값은 한 곳에서만 정의된다", () => {
+  assert.deepEqual(Object.keys(PLAN_CONFIG), ["trial_pending", "expired", "pro"]);
   assert.equal(PLAN_CONFIG.free, undefined, "영구 무료 티어는 폐지됐다");
   assert.deepEqual(PLAN_CONFIG.expired, {
     displayName: "이용 종료",
@@ -246,11 +246,18 @@ test("만료 판정은 23:59:59와 00:00:00 KST 양쪽에서 정확하다", () =
 test("가입한 계정은 체험, 체험이 끝나면 만료다", () => {
   const now = Date.parse("2026-07-29T01:00:00.000Z");
   assert.equal(resolveEffectivePlan(null, now), "expired");
-  assert.equal(resolveEffectivePlan({}, now), "expired", "체험 기록이 없으면 만료다 — 영구 무료는 없다");
+  /* 체험 기록이 없으면 "끝난 것"이 아니라 "아직 시작 전"이다. 영구 무료가 아니라는 것은
+     라벨이 아니라 지급액이 지킨다 — 아래에서 그것까지 확인한다. */
+  assert.equal(resolveEffectivePlan({}, now), "trial_pending", "체험을 시작한 적이 없으면 시작 전이다");
+  assert.equal(resolveEffectivePlan({ trialUsedAt: now - DAY }, now), "expired", "자격을 쓴 계정은 만료다");
   assert.equal(resolveEffectivePlan({ plan: "trial", trialExpiresAt: now + HOUR }, now), "trial");
   assert.equal(resolveEffectivePlan({ plan: "trial", trialExpiresAt: now - 1 }, now), "expired");
   // 저장된 plan이 낡아도 판정은 사실(trialExpiresAt)을 따른다.
   assert.equal(resolveEffectivePlan({ plan: "expired", trialExpiresAt: now + HOUR }, now), "trial");
+
+  // 영구 무료 티어가 없다는 것은 지급액이 지킨다. trial_pending도 받는 것이 0이다.
+  assert.equal(PLAN_CONFIG.trial_pending.monthlyCredits, 0, "시작 전 상태가 영구 무료가 됐다");
+  assert.equal(PLAN_CONFIG.trial_pending.dailyCreditLimit, 0);
 });
 
 test("해지한 PRO는 결제 기간 끝까지 PRO이고 그 뒤 만료다", () => {
