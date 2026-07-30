@@ -291,6 +291,27 @@ export function canStartTrial(user) {
   return !user.trialStartedAt && !user.trialUsedAt && !user.trialExpiresAt;
 }
 
+/* 가입 시점의 체험 처리 두 결정.
+
+   왜 함수로 빼는가: 이 둘은 지금 같은 자리에서 일어나지만 수명이 다르다. 체험 앵커가
+   "첫 AI 사용"으로 옮겨지면 startTrial의 소비자는 그 경로로 가고 copyUsedMarker는 가입에
+   남는다. 둘을 if/else로 엮어 두면 한쪽이 옮겨질 때 남은 쪽의 조건이 조용히 넓어진다 —
+   "마커 있는 신규 계정"이 "모든 신규 계정"이 되어 모든 가입자에게 체험 자격 소진이 찍히고
+   아무도 체험을 시작할 수 없게 된다.
+
+   또한 지금은 두 경로의 결과가 겉으로 같다. 마커 없는 신규 가입은 어차피 체험이 시작되어
+   trialUsedAt이 찍히므로, 조건이 넓어져도 관측되는 값이 같다. 그래서 라우트 테스트로는
+   이 불변식을 잴 수 없다. 결정을 순수 함수로 꺼내야 네 조합을 직접 확인할 수 있다. */
+export function resolveTrialAdmission({ isFreshRecord = false, trialAlreadyUsed = false } = {}) {
+  return {
+    // 새 레코드이고 이 소셜 계정이 체험을 쓴 적이 없을 때만 연다.
+    startTrial: Boolean(isFreshRecord) && !trialAlreadyUsed,
+    /* 마커가 있으면 그 판정을 레코드에 복사한다. 다른 어떤 조건도 보지 않는다 —
+       마커와 레코드가 다른 말을 하면 회원 레코드만 보는 판정이 없는 자격을 보여 준다. */
+    copyUsedMarker: Boolean(trialAlreadyUsed),
+  };
+}
+
 /* 차단 동작 전체가 이 플래그 뒤에 있다. 기본값은 false다 —
    PAYMENTS_ENABLED가 true이고 실결제가 검증되기 전에 켜면 결제할 방법이 없는 유저가 잠긴다. */
 export function isHardPaywallEnabled(env) {

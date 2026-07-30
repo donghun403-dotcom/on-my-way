@@ -14,7 +14,8 @@ import {
 } from "./auth-service.mjs";
 import { commitAiCredits, getAiCreditUsage, reserveAiCredits, startAiTrial } from "./ai-credits-service.mjs";
 import { createBillingLedger, createMemoryBillingDb } from "./billing-ledger.mjs";
-import { PAYMENT_FAILURE_GRACE_MS, PLAN_CONFIG, resolveEffectivePlan, resolveTrialEndsAt } from "./plan-policy.mjs";
+import { PAYMENT_FAILURE_GRACE_MS, PLAN_CONFIG, canStartTrial, resolveEffectivePlan, resolveTrialAdmission, resolveTrialEndsAt } from "./plan-policy.mjs";
+import { describeTrial } from "./energy-ledger-client.mjs";
 import worker from "./worker.mjs";
 
 // 승인 금액 픽스처는 정책에서 읽는다. 여기에 숫자를 다시 적으면 가격이 바뀔 때 갈라진다.
@@ -198,6 +199,84 @@ test("탈퇴 후 같은 소셜 계정으로 재가입해도 체험은 다시 열
   const second = await handleAccountApi(context({ path: "/api/auth/dev-login", method: "POST", env, store, body }));
   assert.equal(second.json.user.plan, "expired", "재가입 계정은 체험 없이 만료 상태로 시작한다");
   assert.equal(second.json.user.trialStartedAt, null);
+
+  /* 마커와 레코드가 같은 말을 해야 한다. 레코드에 흔적을 안 남기면 회원 레코드만 보는
+     판정이 "아직 시작 전"으로 읽어 화면에 없는 자격이 노출되고, 누르면 거절된다. */
+  assert.ok(second.json.user.trialUsedAt, "마커는 '썼다'인데 레코드가 비어 있다");
+  assert.equal(resolveEffectivePlan(second.json.user), "expired", "시작 전으로 읽히면 안 된다");
+  assert.equal(canStartTrial(second.json.user), false, "화면에 체험 자격이 노출된다");
+  assert.equal(describeTrial(second.json.user).eligible, false, "체험 자격이 노출된다");
+});
+
+/* trialUsedAt을 찍는 조건은 "남용 마커가 이미 있다" 하나뿐이어야 한다.
+   마커가 없는데 찍히면 그 계정은 체험을 영영 시작할 수 없다. */
+test("마커가 없는 신규 가입은 체험이 실제로 시작돼서 자격이 소진된다", async () => {
+  const store = memoryStore();
+  const env = testEnv({ ALLOW_DEV_LOGIN: "true" });
+  const body = { provider: "kakao", name: "테스트", email: "fresh@example.com" };
+  const result = await handleAccountApi(context({ path: "/api/auth/dev-login", method: "POST", env, store, body }));
+
+  // 자격이 소진된 이유가 "마커 복사"가 아니라 "실제 시작"이어야 한다.
+  assert.equal(result.json.user.plan, "trial");
+  assert.ok(result.json.user.trialStartedAt, "체험이 시작되지 않았는데 자격만 소진됐다");
+  assert.equal(result.json.user.trialExpiresAt, resolveTrialEndsAt(result.json.user.trialStartedAt));
+  assert.equal(resolveEffectivePlan(result.json.user), "trial");
+});
+
+/* 마커 복사 조건은 라우트 테스트로 잴 수 없다. 지금은 마커 없는 신규 가입이 어차피 체험을
+   시작해 trialUsedAt이 찍히므로, 조건이 "모든 신규 계정"으로 넓어져도 관측되는 값이 같다.
+   결정을 순수 함수로 꺼낸 이유가 이것이고, 네 조합을 여기서 직접 본다.
+
+   이 불변식이 깨지는 시점은 체험 앵커가 "첫 AI 사용"으로 옮겨질 때다. startTrial의 소비자만
+   그 경로로 가고 copyUsedMarker는 가입에 남으므로, 둘이 엮여 있으면 남은 쪽의 조건이 조용히
+   넓어져 모든 가입자가 체험을 시작할 수 없게 된다. */
+test("마커 복사는 마커 유무에만 의존한다 (신규 여부와 무관)", () => {
+  const cases = [
+    { in: { isFreshRecord: true, trialAlreadyUsed: false }, out: { startTrial: true, copyUsedMarker: false } },
+    { in: { isFreshRecord: true, trialAlreadyUsed: true }, out: { startTrial: false, copyUsedMarker: true } },
+    { in: { isFreshRecord: false, trialAlreadyUsed: false }, out: { startTrial: false, copyUsedMarker: false } },
+    { in: { isFreshRecord: false, trialAlreadyUsed: true }, out: { startTrial: false, copyUsedMarker: true } },
+  ];
+  for (const item of cases) {
+    assert.deepEqual(resolveTrialAdmission(item.in), item.out, JSON.stringify(item.in));
+  }
+
+  // 핵심: 마커가 없으면 어떤 경우에도 자격을 소진시키지 않는다.
+  for (const isFreshRecord of [true, false]) {
+    assert.equal(
+      resolveTrialAdmission({ isFreshRecord, trialAlreadyUsed: false }).copyUsedMarker,
+      false,
+      "마커가 없는데 체험 자격이 소진된다 — 그 계정은 체험을 영영 시작할 수 없다",
+    );
+  }
+  // 인자가 빠져도 안전한 쪽(아무것도 하지 않음)으로 떨어진다.
+  assert.deepEqual(resolveTrialAdmission(), { startTrial: false, copyUsedMarker: false });
+});
+
+test("체험을 시작하지 않은 계정은 다시 로그인해도 자격을 잃지 않는다", async () => {
+  const store = memoryStore();
+  const env = testEnv({ ALLOW_DEV_LOGIN: "true" });
+  const body = { provider: "kakao", name: "테스트", email: "pending@example.com" };
+  const first = await handleAccountApi(context({ path: "/api/auth/dev-login", method: "POST", env, store, body }));
+  const userId = first.json.user.id;
+
+  // 체험을 시작한 적 없는 계정 모양으로 되돌린다 — 마커도 지운다.
+  store.users.set(userId, {
+    ...first.json.user,
+    plan: "expired",
+    trialStartedAt: null,
+    trialExpiresAt: null,
+    trialUsedAt: null,
+    trialEndedAt: null,
+  });
+  store.settings.delete(`ai-trial-used:${userId}`);
+
+  const second = await handleAccountApi(context({ path: "/api/auth/dev-login", method: "POST", env, store, body }));
+  assert.equal(
+    second.json.user.trialUsedAt ?? null, null,
+    "마커가 없는데 로그인만으로 체험 자격이 소진됐다 — 이 계정은 체험을 영영 시작할 수 없다",
+  );
+  assert.equal(canStartTrial(second.json.user), true, "체험 자격이 사라졌다");
 });
 
 test("KV 저장소는 삭제 tombstone과 체험 표식에 절대 만료 시각을 적용한다", async () => {

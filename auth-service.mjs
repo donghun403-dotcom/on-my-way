@@ -1,5 +1,5 @@
 import { ensureAiTrialAbuseMarker, getAiCreditUsage, hasUsedAiTrial, withAiCreditUserLock } from "./ai-credits-service.mjs";
-import { PAYMENT_FAILURE_GRACE_MS, PLAN_CONFIG, resolveEffectivePlan, resolveTrialEndsAt } from "./plan-policy.mjs";
+import { PAYMENT_FAILURE_GRACE_MS, PLAN_CONFIG, resolveEffectivePlan, resolveTrialAdmission, resolveTrialEndsAt } from "./plan-policy.mjs";
 import { createBillingLedger, fingerprint } from "./billing-ledger.mjs";
 
 // On My Way 회원/인증 서비스 코어.
@@ -312,22 +312,33 @@ export async function upsertUserFromProfile(userStore, env, provider, profile) {
     createdAt: now,
   });
 
-  /* 가입 → trial. 영구 무료 티어가 없으므로 가입과 체험 시작 사이에 머물 상태가 없다.
-     체험은 계정당 1회다. 회원 레코드가 지워져도 남는 마커를 먼저 확인해서, 탈퇴 후
-     같은 소셜 계정으로 재가입해도 체험이 다시 열리지 않게 한다. */
-  if (isNewAccount && !user.trialStartedAt && !(await hasUsedAiTrial({ store: userStore, userId: id, now }))) {
+  /* 체험은 계정당 1회다. 회원 레코드가 지워져도 남는 마커가 그 사실의 권위다 —
+     탈퇴 후 같은 소셜 계정으로 재가입해도 체험이 다시 열리지 않아야 하기 때문이다.
+     아래 두 결정이 모두 이 값에서 나오므로 한 번만 읽는다. */
+  const isFreshRecord = isNewAccount && !user.trialStartedAt;
+  const admission = resolveTrialAdmission({
+    isFreshRecord,
+    trialAlreadyUsed: isFreshRecord
+      ? await hasUsedAiTrial({ store: userStore, userId: id, now })
+      : false,
+  });
+
+  /* 가입 → trial. 영구 무료 티어가 없으므로 지금은 가입과 체험 시작 사이에 머물 상태가
+     없다. 체험 앵커가 "첫 AI 사용"으로 옮겨지면 이 블록이 통째로 그 경로로 간다.
+     아래 마커 복사는 그때 여기 남는다 — 그래서 둘은 독립 조건이다(resolveTrialAdmission). */
+  if (admission.startTrial) {
     user.plan = "trial";
     user.trialStartedAt = now;
     user.trialExpiresAt = resolveTrialEndsAt(now);
     user.trialUsedAt = now;
     user.trialEndedAt = null;
     await ensureAiTrialAbuseMarker({ store: userStore, userId: id, usedAt: now, now });
-  } else if (isNewAccount && !user.trialStartedAt) {
-    /* 마커가 이미 있어 체험을 열지 않았다(탈퇴 후 재가입). 레코드에도 그 사실을 남긴다.
-       남기지 않으면 마커는 "썼다"고 하는데 레코드는 비어 있어, 회원 레코드만 보는 판정
-       (canStartTrial, resolveEffectivePlan, describeTrial)이 "아직 시작 전"으로 읽는다.
-       그러면 없는 자격을 화면에 보여 주고, 시작을 눌러야 startAiTrial이 거절한다.
-       마커와 레코드가 같은 말을 해야 한다. */
+  }
+
+  /* 마커가 이미 있으면 그 판정을 새 레코드에 복사한다. 남기지 않으면 마커는 "썼다"고
+     하는데 레코드는 비어 있어, 회원 레코드만 보는 판정(canStartTrial, resolveEffectivePlan,
+     describeTrial)이 "아직 시작 전"으로 읽는다. 없는 자격을 화면에 보여 주고, 눌러야 거절된다. */
+  if (admission.copyUsedMarker) {
     user.trialUsedAt = now;
   }
 
