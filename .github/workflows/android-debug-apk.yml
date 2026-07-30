@@ -104,13 +104,23 @@ jobs:
 
       # 네이티브 프로젝트는 리포에 커밋하지 않는다(이유는 mobile/README.md).
       # 매번 템플릿에서 새로 만든다 — 그래서 이 잡은 항상 깨끗한 상태에서 빌드한다.
+      #
+      # Capacitor 8.4.2의 CLI에는 --no-interactive 같은 전역 플래그가 없다.
+      # 플랫폼을 인자로 주면 물어볼 것이 없고, 텔레메트리 동의만 첫 실행 때 물으므로
+      # 환경 변수로 끈다.
       - name: Generate the Android project
         working-directory: mobile
-        run: npx cap add android --no-interactive
+        env:
+          CAPACITOR_TELEMETRY: "false"
+        run: npx cap add android
 
+      # cap add가 이미 copy+update를 실행하지만 그건 add의 부수효과지 계약이 아니다.
+      # 에셋이 네이티브 프로젝트에 들어갔다는 것을 명시적으로 보장한다.
       - name: Sync the web assets into the Android project
         working-directory: mobile
-        run: npx cap sync android --no-interactive
+        env:
+          CAPACITOR_TELEMETRY: "false"
+        run: npx cap sync android
 
       - name: Assemble the debug APK
         working-directory: mobile/android
