@@ -151,6 +151,9 @@ export function emptyLedgerState(now = Date.now(), timeZone = DEFAULT_TIME_ZONE)
     purchasedBalance: 0,
     // 이번 달 정기 지급 여부. lazy-grant 판정에 쓴다.
     lastGrantMonthKey: "",
+    /* 마지막으로 지급한 체험 회차 키(회원 레코드의 trialStartedAt). 같은 회차로 다시
+       오면 grantTrialCredits가 아무 일도 하지 않는다 — 체험 크레딧 재충전을 막는 근거다. */
+    trialGrantKey: "",
     // 일일 속도 제한. 키가 바뀌면 0으로 리셋한다.
     daily: { key: "", spent: 0, reserved: 0 },
     // 진행 중/최근 예약. requestId 멱등 처리를 겸한다.
@@ -210,6 +213,7 @@ export function normalizeLedgerState(value, now = Date.now(), timeZone = DEFAULT
     reserved: nonNegativeInteger(value.reserved),
     purchasedBalance: Math.min(nonNegativeInteger(value.purchasedBalance), nonNegativeInteger(value.balance)),
     lastGrantMonthKey: String(value.lastGrantMonthKey || ""),
+    trialGrantKey: String(value.trialGrantKey || ""),
     daily: {
       key: String(daily.key || ""),
       spent: nonNegativeInteger(daily.spent),
@@ -677,6 +681,68 @@ export async function getEnergyUsage(storage, { plan, now = Date.now(), timeZone
   const { state, period } = await loadState(storage, { plan, now, timeZone, paywallEnabled });
   await saveState(storage, state, now);
   return buildUsageView(state, { plan, period, trial, paywallEnabled });
+}
+
+/* 체험 회차별 지급 — 같은 회차에는 두 번 지급하지 않는다.
+
+   왜 resetLedgerForPlan을 쓰지 않는가: 그건 "플랜 기준으로 통째로 다시 세운다"는 blunt한
+   연산이라 몇 번을 부르든 매번 재지급한다. 체험 시작 엔드포인트가 그것을 불렀기 때문에
+   /api/ai/trial/start를 반복 호출해 크레딧을 무한히 채울 수 있었다.
+
+   여기서는 회차 키(trialStartedAt)를 상태에 남긴다. 같은 회차로 다시 오면 아무 일도
+   하지 않고 현재 잔량을 그대로 돌려준다. 그래서 두 가지가 동시에 성립한다:
+     ① 몇 번을 불러도 재지급이 불가능하다
+     ② 지급이 실패했을 때 같은 회차로 다시 불러 안전하게 복구할 수 있다
+   ②는 blunt reset을 조건부로 막기만 해서는 얻을 수 없었다 — 막으면 복구도 함께 막혔다.
+
+   회차 키는 회원 레코드의 trialStartedAt이다. 원장이 만들지 않고 worker가 넘긴다.
+   체험은 계정당 1회지만 키를 시각으로 두는 이유는, 나중에 재발급 정책이 생기더라도
+   회차가 달라지면 자연스럽게 새 지급이 되게 하기 위해서다. */
+export async function grantTrialCredits(storage, { plan, trialKey, now = Date.now(), timeZone, trial, paywallEnabled = true } = {}) {
+  const key = String(trialKey || "").trim();
+  if (!key) {
+    throw new EnergyLedgerError("TRIAL_KEY_REQUIRED", "체험 회차를 확인할 수 없어요.", 400);
+  }
+
+  const state = normalizeLedgerState(await storage.get(STATE_KEY), now, timeZone);
+  const period = getLedgerPeriod(now, state.timeZone);
+
+  if (state.trialGrantKey === key) {
+    // 이미 이 회차에 지급했다. 잔량을 건드리지 않고 사실만 알린다.
+    await saveState(storage, state, now);
+    return {
+      ...buildUsageView(state, { plan, period, trial, paywallEnabled }),
+      granted: false,
+      idempotent: true,
+      trialGrantKey: key,
+    };
+  }
+
+  /* 체험 지급은 "이번 달 지급"의 자리를 쓴다. 가입 직후 만료 플랜으로 당월 지급이 이미
+     찍혀 있으면 lastGrantMonthKey가 세팅돼 lazy grant가 다시 돌지 않으므로, 그 자리를
+     비워 체험 플랜 기준으로 다시 지급받게 한다. 구매분은 건드리지 않는다 — 돈을 낸 재화다. */
+  const removed = Math.max(0, state.balance - state.purchasedBalance);
+  if (removed > 0) {
+    state.balance -= removed;
+    await appendTransaction(storage, {
+      type: TXN_TYPES.REFUND,
+      amount: -removed,
+      reason: "trial_grant_reset",
+      at: now,
+      balanceAfter: state.balance,
+    });
+  }
+  state.lastGrantMonthKey = "";
+  await applyLazyGrant(storage, state, { plan, period, now, paywallEnabled });
+  state.trialGrantKey = key;
+  await saveState(storage, state, now);
+
+  return {
+    ...buildUsageView(state, { plan, period, trial, paywallEnabled }),
+    granted: true,
+    idempotent: false,
+    trialGrantKey: key,
+  };
 }
 
 // 마이그레이션: 로컬/KV 잔량을 믿지 않고 플랜 기준으로 다시 세운다.

@@ -15,6 +15,7 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import worker from "./worker.mjs";
 import { createSessionToken } from "./auth-service.mjs";
 import { memoryKv, durableObjectNamespace } from "./test-helpers/worker-env.mjs";
@@ -199,4 +200,34 @@ test("전환은 진행 중이던 예약을 해제로 남기고 레코드를 지�
   const replay = await withProvider(() => chatCall(ctx, "reserved-then-switch"));
   assert.equal(replay.result.status, 409, "해제된 requestId도 재사용되면 안 된다");
   assert.equal(replay.providerCalls, 0);
+});
+
+/* ---------- 체험 지급이 멱등 연산을 쓰는지 ---------- */
+
+/* blunt한 reset은 부를 때마다 다시 지급한다. 체험 시작이 그것을 쓰면 started 가드
+   하나에만 기대게 되고, 그 가드가 없던 동안 무한 리필이었다. 이제 원장 쪽에도
+   회차 키 멱등성이 있고, 둘을 모두 유지해 이중 방어로 둔다. */
+test("체험 시작은 reset이 아니라 회차별 지급 연산을 쓴다", () => {
+  const source = readFileSync(new URL("./worker.mjs", import.meta.url), "utf8");
+  assert.match(source, /trialLedger\s*\n?\s*\.trialGrant\(/, "trialGrant를 쓰지 않는다");
+  assert.equal(
+    /trialLedger[\s\S]{0,80}\.reset\(/.test(source),
+    false,
+    "체험 시작이 다시 reset을 쓴다 — 부를 때마다 재지급된다",
+  );
+});
+
+/* #40에서 넣은 가드다. 원장 멱등성이 생겼다고 지우면 방어가 한 겹으로 줄어든다. */
+test("started 가드가 이중 방어로 남아 있다", () => {
+  const source = readFileSync(new URL("./worker.mjs", import.meta.url), "utf8");
+  assert.match(source, /result\?\.started\s*&&\s*trialGrantKey/, "started 가드가 사라졌다");
+});
+
+/* 회차 키가 없으면 지급을 시도하지 않는다 — 원장이 400으로 거절하므로 부르나 마나지만,
+   부르지 않는 편이 로그를 더럽히지 않는다. */
+test("체험 시작을 네 번 불러도 지급 거래는 하나뿐이다", async () => {
+  const ctx = await trialContext({ userId: "quadruple-start" });
+  for (let i = 0; i < 4; i += 1) await call(ctx, "/api/ai/trial/start", { method: "POST" });
+  assert.equal(await grantTransactionCount(ctx), 1);
+  assert.equal((await usage(ctx)).balance, PLAN_CONFIG.pro.trial.credits);
 });

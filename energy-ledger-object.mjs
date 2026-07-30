@@ -14,6 +14,7 @@ import {
   EnergyLedgerError,
   commitEnergy,
   getEnergyUsage,
+  grantTrialCredits,
   listTransactions,
   purchaseEnergy,
   releaseEnergy,
@@ -92,6 +93,11 @@ export class EnergyLedgerObject {
             });
           case "/usage":
             return getEnergyUsage(storage, { plan, now, timeZone, trial, paywallEnabled });
+          /* 체험 회차별 지급. reset과 달리 같은 회차로 다시 오면 아무 일도 하지 않는다.
+             체험 시작 엔드포인트는 반드시 이쪽을 쓴다 — reset을 쓰면 반복 호출로
+             크레딧이 무한히 채워진다. */
+          case "/trial-grant":
+            return grantTrialCredits(storage, { plan, trialKey: body.trialKey, now, timeZone, trial, paywallEnabled });
           case "/reset":
             return resetLedgerForPlan(storage, { plan, now, timeZone, reason: String(body.reason || "migration"), paywallEnabled });
           case "/transactions":
