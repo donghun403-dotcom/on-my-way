@@ -102,9 +102,20 @@ C에서 유일하게 관련되는 것은 카운트다운의 **숫자 흔들림**
 
 ### 뺄 것
 
-- `assets/fonts/yeogieottae-jalnan2.woff2` (414KB)
-- `styles.css:1-5`의 `@font-face`
-- `styles.css`의 `여기어때 잘난체` 직접 참조 3곳
+잘난체를 참조하는 파일은 **7개**다. `styles.css`만 고치면 나머지가 삭제된 파일을 가리킨다.
+
+| 파일 | 무엇을 참조하나 |
+| --- | --- |
+| `assets/fonts/yeogieottae-jalnan2.woff2` | 바이너리 (414KB) — 삭제 |
+| `styles.css:1-5` | `@font-face` + 직접 참조 3곳 |
+| `script.js:358-359` | 런타임 로드 감지 (`data-brand-font-state`) |
+| `core-loop-v2.css:2-3, 10-11` | 프로토타입 **자체** `@font-face`와 `--font-brand-*` 토큰 |
+| `core-loop-v2.js:483-489` | 프로토타입 자체 로드 감지 |
+| `core-loop-v2.html:10` | 잘난체 woff2 `preload` 링크 |
+| `assets/fonts/README.md` | 출처·라이선스 기록 |
+
+프로토타입(`core-loop-v2.*`)이 자체 토큰 블록을 갖고 있다는 점이 함정이다.
+`styles.css`의 토큰을 바꿔도 그쪽에는 닿지 않는다.
 
 워드마크는 `assets/logo-horizontal-ollie.png`로 **이미지**다(`app.html:38`).
 글꼴을 빼도 로고는 변하지 않는다.
