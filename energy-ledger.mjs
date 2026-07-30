@@ -699,7 +699,23 @@ export async function resetLedgerForPlan(storage, { plan, now = Date.now(), time
   state.lastGrantMonthKey = "";
   state.reserved = 0;
   state.daily = { key: period.dayKey, spent: 0, reserved: 0 };
-  state.requests = {};
+
+  /* 요청 레코드는 지우지 않는다. 이것이 requestId 멱등성의 유일한 근거라, 여기서
+     비우면 플랜 전환 한 번에 그때까지 쓴 모든 requestId가 다시 통하게 된다.
+     멱등성 보장이 플랜 전환 이벤트에 의존해서는 안 된다.
+
+     무한 증가는 이 함수가 막을 일이 아니다 — loadState가 부르는 pruneRequests가
+     종료된 요청을 나이순으로 걷어 간다(keep 200). 감사 기록은 txn: 키에 따로 남는다.
+
+     다만 진행 중이던 예약은 위에서 카운터를 0으로 되돌렸으므로 레코드도 해제로
+     맞춘다. 레코드 자체는 남으므로 그 requestId의 재사용은 계속 막힌다. */
+  for (const request of Object.values(state.requests)) {
+    if (request.status !== "reserved") continue;
+    request.status = "released";
+    request.errorCode = `${reason}_reset`;
+    request.updatedAt = now;
+  }
+
   await applyLazyGrant(storage, state, { plan, period, now, paywallEnabled });
   await saveState(storage, state, now);
   return buildUsageView(state, { plan, period, trial, paywallEnabled });
