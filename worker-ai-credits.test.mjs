@@ -199,7 +199,8 @@ test("인증된 사용자는 usage를 조회하고 무료 체험을 명시적으
   const initial = await callApi(context, "/api/ai/usage");
   assert.equal(initial.response.status, 200);
   assert.equal(initial.body.ok, true);
-  assert.equal(initial.body.plan, "expired");
+  // 체험을 시작한 적이 없는 계정이므로 "끝난 것"이 아니라 "아직 시작 전"이다.
+  assert.equal(initial.body.plan, "trial_pending");
   assert.equal(initial.body.daily.limit, 4);
   assert.equal(initial.body.monthly.limit, 10);
   assert.equal(initial.body.trial.eligible, true);

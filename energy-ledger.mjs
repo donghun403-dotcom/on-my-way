@@ -266,15 +266,21 @@ export function normalizeLedgerState(value, now = Date.now(), timeZone = DEFAULT
    의도된 동작이다 — 이미 "이번 달 N크레딧"으로 지급한 것을 사후에 회수하면 제공하겠다고
    표시한 것을 없애는 셈이라 표시광고법상 문제가 된다. 소급 회수 로직을 넣지 마라. */
 
+/* trial_pending은 지급·한도에서 expired와 완전히 같게 다룬다. 페이월이 꺼져 있는 동안
+   아무도 잠기지 않게 하는 것이 그 플래그의 목적인데, 새 플랜 값을 여기서 빠뜨리면
+   그 값을 가진 계정만 0을 받아 조용히 잠긴다. 오늘 trial_pending에 떨어지는 계정은
+   어제까지 expired였으므로 같은 양을 받아야 동작이 유지된다. */
+const PAYWALL_OFF_GRANT_PLANS = Object.freeze(["expired", "trial_pending"]);
+
 export function monthlyGrantAmount(plan, { paywallEnabled = true } = {}) {
   if (plan === "trial") return PLAN_CONFIG.pro.trial.credits;
-  if (plan === "expired" && !paywallEnabled) return PAYWALL_OFF_EXPIRED_GRANT.monthlyCredits;
+  if (PAYWALL_OFF_GRANT_PLANS.includes(plan) && !paywallEnabled) return PAYWALL_OFF_EXPIRED_GRANT.monthlyCredits;
   const config = getPlanConfig(plan);
   return config ? config.monthlyCredits : 0;
 }
 
 export function dailySpendLimit(plan, { paywallEnabled = true } = {}) {
-  if (plan === "expired" && !paywallEnabled) return PAYWALL_OFF_EXPIRED_GRANT.dailyCreditLimit;
+  if (PAYWALL_OFF_GRANT_PLANS.includes(plan) && !paywallEnabled) return PAYWALL_OFF_EXPIRED_GRANT.dailyCreditLimit;
   const config = getPlanConfig(plan);
   return config ? config.dailyCreditLimit : 0;
 }

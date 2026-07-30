@@ -322,6 +322,13 @@ export async function upsertUserFromProfile(userStore, env, provider, profile) {
     user.trialUsedAt = now;
     user.trialEndedAt = null;
     await ensureAiTrialAbuseMarker({ store: userStore, userId: id, usedAt: now, now });
+  } else if (isNewAccount && !user.trialStartedAt) {
+    /* 마커가 이미 있어 체험을 열지 않았다(탈퇴 후 재가입). 레코드에도 그 사실을 남긴다.
+       남기지 않으면 마커는 "썼다"고 하는데 레코드는 비어 있어, 회원 레코드만 보는 판정
+       (canStartTrial, resolveEffectivePlan, describeTrial)이 "아직 시작 전"으로 읽는다.
+       그러면 없는 자격을 화면에 보여 주고, 시작을 눌러야 startAiTrial이 거절한다.
+       마커와 레코드가 같은 말을 해야 한다. */
+    user.trialUsedAt = now;
   }
 
   user.name = profile.name || user.name || "회원";

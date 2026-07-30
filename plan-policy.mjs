@@ -8,11 +8,40 @@ function deepFreeze(value) {
   return Object.freeze(value);
 }
 
-/* 플랜은 pro · trial · expired 세 가지뿐이다. 영구 무료 티어(free)는 폐지됐다 —
+/* 플랜은 pro · trial · trial_pending · expired 네 가지다. 영구 무료 티어(free)는 폐지됐다 —
    체험이 끝나면 결제하지 않는 한 AI 기능은 열리지 않는다.
    expired에도 설정을 두는 이유는 "없는 플랜"이 아니라 "지급이 0인 플랜"으로 다뤄야
-   원장·사용량 화면이 특수 분기 없이 그대로 돌기 때문이다. */
+   원장·사용량 화면이 특수 분기 없이 그대로 돌기 때문이다.
+
+   플랜 값을 추가하면 plan-gates.test.mjs의 게이트 표에 모든 값이 등록될 때까지 실패한다.
+   그 표가 "이 값을 여기서 어떻게 다루는가"를 게이트마다 명시적으로 답하게 만든다. */
 export const PLAN_CONFIG = deepFreeze({
+  /* 가입은 했지만 체험이 아직 시작되지 않은 상태.
+
+     왜 expired와 라벨을 공유하지 않는가: 둘은 퍼널의 다른 단계다. "아직 안 써 본 사람"과
+     "다 쓴 사람"을 같은 값으로 묶으면 지표에서 구분되지 않고, 무엇보다 공유 라벨 +
+     필수 부가검사(trialStartedAt이 비었는지 따로 보기)는 빠뜨려도 조용하다.
+     이 리포에서 오늘 잡은 결함이 전부 그 형태였다.
+
+     권한은 expired와 같다(지급 0 · 한도 0 · PRO 전용 잠김). 다른 것은 라벨과 계측뿐이다.
+     체험 앵커가 "첫 AI 사용"으로 옮겨지면(PR-B) 이 값이 가입 직후의 정상 상태가 되고,
+     그때 게이트 몇 개의 처리가 바뀐다. */
+  trial_pending: {
+    displayName: "체험 시작 전",
+    priceKRW: 0,
+    monthlyCredits: 0,
+    dailyCreditLimit: 0,
+    maxGoals: 1,
+    maxActivePlans: 1,
+    creditsRollover: false,
+    features: {
+      basicRecords: true,
+      fullReschedule: false,
+      recoveryPlan: false,
+      detailedInsights: false,
+      companionPersonalization: false,
+    },
+  },
   expired: {
     displayName: "이용 종료",
     priceKRW: 0,
@@ -114,8 +143,27 @@ export function allowsProOnlyFeature(effectivePlan) {
 
 export const PRO_ONLY_LOCK_REASON = "PRO로 전환하면 내 기록으로 만들 수 있어요.";
 
+/* ---------- 플랜 값을 나열하는 게이트 ----------
+
+   worker 안에 배열 리터럴로 흩어 두면 새 플랜 값이 생겼을 때 어디를 고쳐야 하는지
+   찾는 방법이 grep밖에 없다. 여기 모아 두면 plan-gates.test.mjs가 각 목록을 모든 플랜
+   값에 대해 명시적으로 검사한다. */
+
+// 하드 페이월이 켜져 있을 때 AI 라우트에서 402로 막는 플랜.
+// trial_pending은 체험 앵커가 옮겨지면 여기서 빠진다(worker.mjs의 게이트 주석 참고).
+export const PAYWALL_BLOCKED_PLANS = deepFreeze(["expired", "trial_pending"]);
+
+// 올리가 기록을 참조해 개인화된 답을 만들 수 있는 플랜. 체험은 PRO 미리보기라 포함된다.
+export const PERSONALIZED_COMPANION_PLANS = deepFreeze(["pro", "trial"]);
+
+// resolveEffectivePlan이 돌려줄 수 있는 값 전부. 게이트 표의 축이다.
+export const EFFECTIVE_PLANS = deepFreeze(["pro", "trial", "trial_pending", "expired"]);
+
 export const PLAN_LABELS = deepFreeze({
   expired: "이용 종료",
+  // "체험 준비됨"처럼 자격을 약속하는 말은 쓰지 않는다. 남용 마커에 막힌 계정도 이 값을
+  // 가질 수 있어서, 자격 판정은 별도(canStartTrial)로 남겨 둔다.
+  trial_pending: "체험 시작 전",
   trial: "무료 체험 중",
   pro: "Pro",
 });
@@ -199,7 +247,15 @@ export function resolveTrialEndsAt(startedAt, timeZone = DEFAULT_TIME_ZONE) {
      결제           → pro     (currentPeriodEnd 설정)
      해지           → currentPeriodEnd까지 pro, 그 뒤 expired
      결제 실패      → 첫 실패 + 3일까지 pro(유예), 그 뒤 expired
-     구독 갱신 실패 → expired */
+     구독 갱신 실패 → expired
+     체험 미시작    → trial_pending
+
+   trial_pending은 지금 거의 도달하지 않는다. 가입이 곧 체험 시작이라(auth-service의
+   ensureAccount) 새 계정은 즉시 trial이 되기 때문이다. 오늘 여기 떨어지는 것은 탈퇴 후
+   재가입해 남용 마커에 막힌 계정뿐이고, 그 계정의 권한은 이전과 똑같이 expired와 같다 —
+   이 PR은 라벨과 계측만 나눈다.
+
+   체험 앵커가 "첫 AI 사용"으로 옮겨지면 이것이 가입 직후의 정상 상태가 된다. */
 export function resolveEffectivePlan(user, now = Date.now()) {
   if (!user) return "expired";
   const nowMs = Number.isFinite(Number(now)) ? Number(now) : Date.now();
@@ -216,7 +272,11 @@ export function resolveEffectivePlan(user, now = Date.now()) {
     return "pro";
   }
 
-  return Number(user.trialExpiresAt || 0) > nowMs ? "trial" : "expired";
+  if (Number(user.trialExpiresAt || 0) > nowMs) return "trial";
+  /* 체험을 한 번도 시작한 적이 없으면 "끝난 것"이 아니라 "아직 시작 전"이다.
+     canStartTrial과 같은 조건을 쓰므로 판정이 갈라지지 않는다. */
+  if (canStartTrial(user)) return "trial_pending";
+  return "expired";
 }
 
 /* 이 계정이 체험을 받을 자격이 있는가. 체험은 계정당 1회이므로 시작 이력이 한 번이라도
@@ -225,7 +285,10 @@ export function resolveEffectivePlan(user, now = Date.now()) {
 export function canStartTrial(user) {
   if (!user) return false;
   if (user.plan === "pro") return false;
-  return !user.trialStartedAt && !user.trialUsedAt;
+  /* 체험 흔적이 하나라도 있으면 자격은 없다. trialExpiresAt까지 보는 이유는, 종료 시각만
+     남고 시작 시각이 비어 있는 레코드(부분 기록·구버전)를 "아직 시작 전"으로 읽으면
+     체험이 다시 열리기 때문이다. 세 필드 중 하나라도 있으면 이 계정은 체험을 겪었다. */
+  return !user.trialStartedAt && !user.trialUsedAt && !user.trialExpiresAt;
 }
 
 /* 차단 동작 전체가 이 플래그 뒤에 있다. 기본값은 false다 —

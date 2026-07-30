@@ -470,6 +470,10 @@ test("차단이 켜지면 만료 계정은 모든 AI 라우트에서 402로 막�
   const app = await harness({
     plan: "expired",
     userId: "paywall-expired-user",
+    /* 진짜 만료 계정은 체험을 겪은 흔적이 있다. 흔적 없이 plan만 expired인 레코드는
+       resolveEffectivePlan이 trial_pending으로 읽는다 — 그것도 402로 막히지만
+       이 테스트가 말하는 상태는 아니다. 아래에 따로 있다. */
+    user: { trialStartedAt: Date.now() - 300_000_000, trialUsedAt: Date.now() - 300_000_000, trialExpiresAt: Date.now() - 200_000_000 },
     paywall: true,
     aiHandler: async () => {
       providerCalls += 1;
@@ -492,6 +496,34 @@ test("차단이 켜지면 만료 계정은 모든 AI 라우트에서 402로 막�
     assert.equal(usage.balance, 0, "차단이 켜지면 만료 계정에는 월 지급이 없다");
     assert.equal(usage.reserved, 0);
     assert.equal(usage.paywallEnabled, true);
+  } finally {
+    app.restore();
+  }
+});
+
+/* 체험을 시작한 적 없는 계정(trial_pending)도 차단 대상이다. 오늘 이 값을 갖는 계정은
+   어제까지 expired였으므로 막는 것이 동작 유지다. 새 플랜 값을 402 게이트에서 빠뜨리면
+   크레딧 0인 계정이 게이트를 통과해 provider를 부르게 된다 — 조용히, 우리 비용으로. */
+test("차단이 켜지면 체험 시작 전 계정도 402로 막히고 provider를 부르지 않는다", async () => {
+  let providerCalls = 0;
+  const app = await harness({
+    plan: "expired",
+    userId: "paywall-pending-user",
+    user: { trialStartedAt: null, trialUsedAt: null, trialExpiresAt: null },
+    paywall: true,
+    aiHandler: async () => {
+      providerCalls += 1;
+      return new Response(JSON.stringify({ output_text: "{}", usage: {} }), { status: 200, headers: { "content-type": "application/json" } });
+    },
+  });
+  try {
+    for (const [path, body] of AI_ROUTES) {
+      const response = await app.call(path, { body, requestId: `pending-${path.split("/").at(-1)}` });
+      const payload = await response.json();
+      assert.equal(response.status, 402, `${path}는 402로 막혀야 한다`);
+      assert.equal(payload.plan, "trial_pending", "만료가 아니라 시작 전으로 보고돼야 퍼널에서 구분된다");
+    }
+    assert.equal(providerCalls, 0, "막힌 요청이 provider를 불렀다");
   } finally {
     app.restore();
   }
