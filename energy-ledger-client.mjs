@@ -83,6 +83,10 @@ export function createEnergyLedgerClient(env) {
     usage: (userId, { plan, now, trial, paywallEnabled } = {}) => call(userId, "/usage", { plan, now, trial, paywallEnabled }),
     purchase: (userId, { plan, orderId, amount, expiresAt, now, meta, paywallEnabled }) =>
       call(userId, "/purchase", { plan, orderId, amount, expiresAt, now, meta, paywallEnabled }),
+    /* 체험 회차별 지급. 같은 trialKey로 몇 번을 불러도 재지급되지 않는다.
+       체험 시작은 reset이 아니라 반드시 이것을 쓴다 — reset은 부를 때마다 다시 지급한다. */
+    trialGrant: (userId, { plan, trialKey, now, trial, paywallEnabled }) =>
+      call(userId, "/trial-grant", { plan, trialKey, now, trial, paywallEnabled }),
     reset: (userId, { plan, now, reason, paywallEnabled } = {}) => call(userId, "/reset", { plan, now, reason, paywallEnabled }),
     transactions: (userId, { limit } = {}) => call(userId, "/transactions", { limit }),
   };

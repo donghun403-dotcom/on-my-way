@@ -713,25 +713,27 @@ async function handleFetch(request, env) {
           await recordTrialStartByProvider({ provider: user.provider, kv: env.USERS_KV })
             .catch((error) => console.error("Trial start counter failed", { errorCategory: error?.code || "TRIAL_COUNTER_FAILED" }));
         }
-        /* 체험이 "이번에 시작됐을 때만" 원장을 다시 세운다. 이 시점에 지급이 일어나야
-           체험 크레딧이 잔량에 실제로 들어온다 — 가입 직후 만료 플랜으로 이미 당월
-           지급이 찍혀 lastGrantMonthKey가 세팅돼 있으면 lazy grant가 다시 돌지 않기
-           때문이다.
+        /* 체험 크레딧 지급. 회차 키(trialStartedAt)를 원장에 남기는 전용 연산을 쓴다 —
+           같은 회차로 몇 번을 불러도 재지급되지 않고, 지급이 실패했으면 같은 회차로 다시
+           불러 안전하게 복구된다. blunt한 reset은 부를 때마다 다시 지급하므로 여기 쓰면
+           안 된다(그래서 /api/ai/trial/start 반복 호출로 크레딧을 무한히 채울 수 있었다).
 
-           started를 보지 않으면 무한 리필이 된다. startAiTrial은 이미 체험 중인 계정에
-           started:false / idempotent:true를 돌려주는데, 그때도 reset이 돌면
-           resetLedgerForPlan이 lastGrantMonthKey를 비우고 재지급한다. 체험 중인 사람이
-           이 엔드포인트를 반복 호출해 15크레딧을 계속 채울 수 있었다.
+           지급 자체가 필요한 이유: 가입 직후 만료 플랜으로 당월 지급이 이미 찍혀
+           lastGrantMonthKey가 세팅돼 있으면 lazy grant가 다시 돌지 않는다.
 
-           대가로 잃는 것: reset이 실패하면(아래 catch) 재시도로 복구할 길이 없다.
-           그 경우 계정은 체험 플랜인데 당월 지급을 못 받은 채로 남는다. 복구는 "이
-           체험에 대해 지급했는가"를 원장이 알아야 안전하게 만들 수 있고, 그건 reset이
-           아니라 체험 전용 지급 연산이 할 일이다(백로그). */
+           started 가드는 원장 쪽 멱등성과 별개로 남긴다. 이중 방어다 — 한쪽이 무너져도
+           다른 쪽이 재지급을 막는다. 실패 시 재시도는 원장 멱등성이 안전하게 만든다. */
         const trialLedger = createEnergyLedgerClient(env);
-        if (trialLedger && refreshedUser && result?.started) {
+        const trialGrantKey = String(refreshedUser?.trialStartedAt || "");
+        if (trialLedger && refreshedUser && result?.started && trialGrantKey) {
           await trialLedger
-            .reset(user.id, { plan: resolveUserPlan(refreshedUser), reason: "trial_start", paywallEnabled: isHardPaywallEnabled(env) })
-            .catch((error) => console.error("Trial ledger grant failed", { errorCategory: error?.code || "LEDGER_RESET_FAILED" }));
+            .trialGrant(user.id, {
+              plan: resolveUserPlan(refreshedUser),
+              trialKey: trialGrantKey,
+              trial: describeTrial(refreshedUser),
+              paywallEnabled: isHardPaywallEnabled(env),
+            })
+            .catch((error) => console.error("Trial ledger grant failed", { errorCategory: error?.code || "TRIAL_GRANT_FAILED" }));
         }
         return json({ ...result, user: refreshedUser ? {
           id: refreshedUser.id,

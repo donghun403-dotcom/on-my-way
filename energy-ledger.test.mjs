@@ -8,6 +8,7 @@ import {
   commitEnergy,
   getEnergyUsage,
   getLedgerPeriod,
+  grantTrialCredits,
   listTransactions,
   monthlyGrantAmount,
   purchaseEnergy,
@@ -440,4 +441,88 @@ test("원장에는 어떤 무료 자격도 남아 있지 않다", async () => {
   assert.equal(usage.trialLetter, undefined);
   assert.equal(usage.diaryBook.monthlyFree, undefined);
   assert.equal(usage.diaryBook.freeAvailable, undefined);
+});
+
+/* ---------- 체험 회차별 지급 ----------
+
+   회계 불변식과 부수효과 불변식을 짝으로 본다(CONTRIBUTING.md).
+   부수효과는 잔량이 아니라 grant 거래 수로 센다 — 재지급과 소비가 같은 양으로 겹치면
+   잔량은 그대로여서 "지급이 없었다"와 구분되지 않는다. */
+
+const TRIAL_KEY = "1774000000000";
+const trialPlan = { plan: "trial", paywallEnabled: true };
+
+async function grantCount(storage) {
+  return (await listTransactions(storage, { limit: 200 })).filter((txn) => txn.type === TXN_TYPES.GRANT).length;
+}
+
+test("같은 체험 회차로 다시 지급하면 아무 일도 하지 않는다 (회계)", async () => {
+  const storage = memoryStorage();
+  const first = await grantTrialCredits(storage, { ...trialPlan, trialKey: TRIAL_KEY });
+  assert.equal(first.granted, true);
+  assert.equal(first.balance, PLAN_CONFIG.pro.trial.credits);
+
+  // 좀 쓴 뒤에 다시 부른다 — 리필이 일어나면 여기서 드러난다.
+  await reserveEnergy(storage, { ...trialPlan, action: "companion_chat", requestId: "trial-spend" });
+  await commitEnergy(storage, { ...trialPlan, requestId: "trial-spend" });
+  const spent = (await getEnergyUsage(storage, trialPlan)).balance;
+  assert.equal(spent, PLAN_CONFIG.pro.trial.credits - AI_CREDIT_COSTS.companion_chat);
+
+  const again = await grantTrialCredits(storage, { ...trialPlan, trialKey: TRIAL_KEY });
+  assert.equal(again.granted, false);
+  assert.equal(again.idempotent, true);
+  assert.equal(again.balance, spent, "같은 회차로 다시 불렀는데 잔량이 늘었다");
+});
+
+test("같은 체험 회차 재호출은 지급 거래를 만들지 않는다 (부수효과)", async () => {
+  const storage = memoryStorage();
+  await grantTrialCredits(storage, { ...trialPlan, trialKey: TRIAL_KEY });
+  const after = await grantCount(storage);
+  assert.equal(after, 1);
+
+  await grantTrialCredits(storage, { ...trialPlan, trialKey: TRIAL_KEY });
+  await grantTrialCredits(storage, { ...trialPlan, trialKey: TRIAL_KEY });
+  assert.equal(await grantCount(storage), after, "재호출이 지급 거래를 더 만들었다");
+});
+
+/* 지급이 실패했던 계정을 같은 회차로 다시 부르면 복구된다. blunt reset을 조건부로
+   막기만 해서는 얻을 수 없던 성질이다 — 막으면 복구도 함께 막혔다. */
+test("지급이 없던 회차는 같은 키로 다시 불러 복구된다", async () => {
+  const storage = memoryStorage();
+  // 가입 직후 만료 플랜으로 당월 지급이 이미 찍힌 상태를 만든다.
+  await getEnergyUsage(storage, { plan: "expired", paywallEnabled: true });
+  const before = await getEnergyUsage(storage, { plan: "expired", paywallEnabled: true });
+  assert.equal(before.balance, 0, "차단이 켜진 만료 계정에는 지급이 없다");
+
+  const repaired = await grantTrialCredits(storage, { ...trialPlan, trialKey: TRIAL_KEY });
+  assert.equal(repaired.granted, true, "지급 이력이 없으면 지급해야 한다");
+  assert.equal(repaired.balance, PLAN_CONFIG.pro.trial.credits);
+});
+
+test("회차 키가 다르면 새로 지급한다", async () => {
+  const storage = memoryStorage();
+  await grantTrialCredits(storage, { ...trialPlan, trialKey: TRIAL_KEY });
+  const second = await grantTrialCredits(storage, { ...trialPlan, trialKey: "1775000000000" });
+  assert.equal(second.granted, true);
+  assert.equal(await grantCount(storage), 2);
+});
+
+test("회차 키가 없으면 지급을 거절한다", async () => {
+  const storage = memoryStorage();
+  await assert.rejects(
+    () => grantTrialCredits(storage, { ...trialPlan, trialKey: "" }),
+    (error) => error instanceof EnergyLedgerError && error.code === "TRIAL_KEY_REQUIRED",
+  );
+});
+
+/* 구매분은 돈을 낸 재화다. 체험 지급이 그것을 쓸어 가면 안 된다. */
+test("체험 지급은 구매한 잔량을 건드리지 않는다", async () => {
+  const storage = memoryStorage();
+  await purchaseEnergy(storage, { plan: "expired", orderId: "order-trial-guard", amount: 100, paywallEnabled: true });
+  const purchased = (await getEnergyUsage(storage, { plan: "expired", paywallEnabled: true })).purchasedBalance;
+  assert.equal(purchased, 100);
+
+  const granted = await grantTrialCredits(storage, { ...trialPlan, trialKey: TRIAL_KEY });
+  assert.equal(granted.purchasedBalance, 100, "구매분이 사라졌다");
+  assert.equal(granted.balance, 100 + PLAN_CONFIG.pro.trial.credits);
 });
