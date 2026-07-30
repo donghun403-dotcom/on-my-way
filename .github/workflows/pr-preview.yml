@@ -73,9 +73,13 @@ jobs:
       - name: Check JavaScript syntax
         shell: bash
         run: |
+          # 하위 프로젝트의 node_modules도 뺀다. mobile/이 자기 의존성을 갖게 되면서
+          # './node_modules/*'로는 mobile/node_modules가 걸러지지 않는다 — 이 잡은
+          # mobile에 npm ci를 하지 않아 지금은 비어 있지만, 로컬에서 한 번 설치하면
+          # 같은 명령이 의존성 수천 파일을 node --check 한다.
           while IFS= read -r -d '' file; do
             node --check "$file"
-          done < <(find . -type f \( -name '*.js' -o -name '*.mjs' -o -name '*.cjs' \) -not -path './node_modules/*' -print0)
+          done < <(find . -type f \( -name '*.js' -o -name '*.mjs' -o -name '*.cjs' \) -not -path '*/node_modules/*' -print0)
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium webkit
@@ -335,9 +339,13 @@ jobs:
       - name: Check JavaScript syntax
         shell: bash
         run: |
+          # 하위 프로젝트의 node_modules도 뺀다. mobile/이 자기 의존성을 갖게 되면서
+          # './node_modules/*'로는 mobile/node_modules가 걸러지지 않는다 — 이 잡은
+          # mobile에 npm ci를 하지 않아 지금은 비어 있지만, 로컬에서 한 번 설치하면
+          # 같은 명령이 의존성 수천 파일을 node --check 한다.
           while IFS= read -r -d '' file; do
             node --check "$file"
-          done < <(find . -type f \( -name '*.js' -o -name '*.mjs' -o -name '*.cjs' \) -not -path './node_modules/*' -print0)
+          done < <(find . -type f \( -name '*.js' -o -name '*.mjs' -o -name '*.cjs' \) -not -path '*/node_modules/*' -print0)
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium webkit
