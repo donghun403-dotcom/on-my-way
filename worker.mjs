@@ -15,9 +15,11 @@ import { PLAN_REVISION_MAX_OUTPUT_TOKENS } from "./ai-plan-output-policy.mjs";
    EnergyLedger DO로 갔다 — ai-credits-service의 KV 경로는 아이솔레이트 간 상호배제가
    없어 이중 차감을 막지 못한다. worker-ledger-only.test.mjs가 이 경계를 고정한다.
 
-   남는 둘은 재화 회계가 아니다: startAiTrial은 회원 레코드의 체험 필드를 세우고,
-   withAiCreditUserLock은 무료 치어링 하루 1회 카운터를 직렬화한다. */
-import { startAiTrial, withAiCreditUserLock } from "./ai-credits-service.mjs";
+   남는 하나(startAiTrial)는 재화 회계가 아니라 회원 레코드의 체험 필드를 세우는 일이다.
+   withAiCreditUserLock은 무료 치어링 상한이 원장으로 옮겨가면서 마지막 호출자를 잃었다 —
+   그 락은 모듈 스코프 Map이라 colo가 다르면 상호배제가 없었고, 상한이 묶는 것이
+   provider 호출이라 실제 AI 비용이 새는 자리였다. */
+import { startAiTrial } from "./ai-credits-service.mjs";
 // 에너지 원장은 유저별 Durable Object가 권위다. KV read-modify-write로는 서로 다른
 // 아이솔레이트의 동시 요청을 직렬화할 수 없어 이중 차감을 막지 못한다.
 import { EnergyLedgerObject } from "./energy-ledger-object.mjs";
@@ -108,44 +110,18 @@ function funnelDateKey(now = Date.now()) {
   return new Date(now + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
-// 무료 치어링(축하·위로)은 올리 에너지를 차감하지 않는 대신 KST 기준 하루 각 1회로 서버가 상한을 건다.
-// (docs/pricing-system-v2.md의 비용 가드레일 — 클라이언트 상한만 믿지 않는다)
-export function checkDailyCheerAllowance(user, eventType, now = Date.now()) {
-  const dateKey = funnelDateKey(now);
-  const log = user?.cheerLog && user.cheerLog.date === dateKey ? { ...user.cheerLog } : { date: dateKey };
-  if (log[eventType]) return { allowed: false, user };
-  log[eventType] = now;
-  return { allowed: true, user: { ...user, cheerLog: log } };
-}
+/* 무료 치어링(축하·위로)의 하루 각 1회 상한은 EnergyLedger DO가 잡는다
+   (energy-ledger.mjs의 claimCheer / releaseCheer).
 
-/* 오늘의 무료 응원을 "선점"한다. 크레딧과 같은 유저 락 안에서 읽고 쓰기 때문에
-   동시에 들어온 요청 중 하나만 true를 받는다. 확인만 하고 AI를 부른 뒤 기록하면
-   겹친 요청이 전부 통과해 provider 비용이 중복 발생하므로, 크레딧과 똑같이
-   "먼저 잡고 실패하면 되돌린다"로 간다.
-   세션은 유효하지만 저장된 회원 레코드가 없는 경우(관리자 비밀번호 세션)는
-   회계할 대상이 없으므로 잡지 않는다 — 없는 레코드를 새로 만들지 않기 위해서다. */
-export function claimDailyCheer({ store, userId, eventType, now = Date.now() }) {
-  return withAiCreditUserLock(userId, async () => {
-    const latest = await store.getUser(userId);
-    if (!latest) return false;
-    const claimed = checkDailyCheerAllowance(latest, eventType, now);
-    if (!claimed.allowed) return false;
-    await store.putUser(claimed.user);
-    return true;
-  });
-}
+   전에는 여기서 KV 유저 레코드의 cheerLog를 read-modify-write하고 모듈 스코프 Map
+   락(withAiCreditUserLock)으로 직렬화했다. 그 락은 아이솔레이트 안에서만 유효한데
+   Workers는 colo마다 아이솔레이트가 따로 뜨므로 colo 간 상호배제가 없었다. KV에는
+   CAS가 없어 그 구조로는 막을 방법이 없다 — 크레딧 차감을 DO로 옮긴 것과 같은 이유다.
+   상한이 묶는 것이 provider 호출이라 새는 것은 화면 숫자가 아니라 실제 AI 비용이었다.
 
-/* 잡아 둔 오늘의 응원을 되돌린다. AI가 답을 만들지 못했으면 다시 시도할 수 있어야 한다. */
-export function releaseDailyCheer({ store, userId, eventType, now = Date.now() }) {
-  return withAiCreditUserLock(userId, async () => {
-    const latest = await store.getUser(userId);
-    if (!latest?.cheerLog || latest.cheerLog.date !== funnelDateKey(now) || !latest.cheerLog[eventType]) return false;
-    const log = { ...latest.cheerLog };
-    delete log[eventType];
-    await store.putUser({ ...latest, cheerLog: log });
-    return true;
-  });
-}
+   기존 레코드의 user.cheerLog는 이제 아무도 읽지 않는다. 지우는 마이그레이션은 두지
+   않는다 — 읽는 코드가 없으면 해가 없고, 유일한 사본을 지우는 일회성 스크립트는
+   그 자체가 사고 경로다. */
 
 /* provider별 체험 시작 수. 한 사람이 provider를 갈아 최대 4번 체험을 받을 수 있는데
    (userId가 provider:providerUserId의 HMAC이라 provider가 다르면 다른 계정이다),
@@ -361,7 +337,6 @@ async function readBoundedJson(request, maxBytes) {
 async function handleAiGenerationRequest({ request, env, accountContext, route }) {
   if (request.method !== "POST") return json({ ok: false, error: "POST 요청만 사용할 수 있어요.", code: "METHOD_NOT_ALLOWED" }, 405);
 
-  const userStore = accountContext.store;
   const user = await currentSessionUser(accountContext);
   if (!user) return json({ ok: false, error: "로그인 후 AI 기능을 이용할 수 있어요.", code: "AUTH_REQUIRED" }, 401);
 
@@ -395,19 +370,25 @@ async function handleAiGenerationRequest({ request, env, accountContext, route }
      동시 요청이 이중 차감될 수 있다. 청구 원장에서 조용한 성능 저하는 실패보다 나쁘다.
 
      바인딩 누락은 배포 시점에 걸러진다(binding-health.mjs + verify-deployed-bindings.mjs).
-     여기 503은 그 그물을 빠져나온 경우의 마지막 방어선이다. */
+     여기 503은 그 그물을 빠져나온 경우의 마지막 방어선이다.
+
+     AI를 부르는 모든 경로는 원장을 통과한다 — 무료 치어링도 예외가 아니다.
+     전에는 "치어링은 재화를 안 쓰니 원장이 없어도 된다"고 열어 뒀는데, 그러면 원장 장애
+     시에 유료 대화는 503으로 막히고 상한 없는 무료 AI만 열려 있는 최악의 조합이 된다.
+     치어링이 쓰지 않는 것은 크레딧이지 provider 호출이 아니다. */
   const ledger = createEnergyLedgerClient(env);
-  /* 자동 치어링은 유료 재화를 쓰지 않아 원장을 거치지 않는다. 그래서 게이트는 차감 경로에만
-     건다 — 원장이 없다고 무료 응원까지 막을 이유가 없다. */
-  if (!ledger && !isFreeCheer) {
+  if (!ledger) {
     console.error("Energy ledger binding missing", {
       correlationId: crypto.randomUUID(),
       errorCategory: "ENERGY_LEDGER_UNAVAILABLE",
       action: route.action,
     });
+    /* 문구는 올리 목소리다(캐릭터 바이블 7장). 짧고 솔직하게 무엇이 막혔는지 말하고,
+       할 수 있는 일을 주고, 위로가 아니라 사실로 끝낸다 — 에너지가 빠지지 않았다는
+       사실이 이 순간 유저에게 가장 중요한 정보다. */
     return json({
       ok: false,
-      error: "지금 에너지를 확인할 수 없어요. 잠시 후 다시 시도해 주세요.",
+      error: "지금은 올리를 부를 수 없어요. 조금 뒤에 다시 시도해 주세요 — 에너지는 하나도 쓰지 않았어요.",
       code: "ENERGY_LEDGER_UNAVAILABLE",
     }, 503);
   }
@@ -479,9 +460,10 @@ async function handleAiGenerationRequest({ request, env, accountContext, route }
     if (isFreeCheer) {
       /* 자동 치어링(축하·위로)은 유료 재화를 쓰지 않는 대신 하루 각 1회라는 별도
          상한을 탄다. AI를 부르기 전에 자리를 잡아야 상한 초과 요청이 provider
-         비용을 만들지 않는다. 자리잡기 자체가 KV 오류로 실패하는 경우까지 try 안에
+         비용을 만들지 않는다. 자리잡기 자체가 원장 오류로 실패하는 경우까지 try 안에
          두어, 크레딧 예약이 실패했을 때와 같은 모양(aiErrorBody)으로 응답한다. */
-      cheerClaimed = await claimDailyCheer({ store: userStore, userId: user.id, eventType: cheerEventType });
+      const claim = await ledger.cheerClaim(user.id, { plan: userPlan, eventType: cheerEventType, paywallEnabled });
+      cheerClaimed = claim.claimed === true;
       if (!cheerClaimed) {
         return json({ ok: false, error: "오늘의 무료 응원은 이미 전해드렸어요. 내일 또 만나요!", code: "CHEER_LIMIT_REACHED" }, 429);
       }
@@ -558,7 +540,7 @@ async function handleAiGenerationRequest({ request, env, accountContext, route }
     if (cheerClaimed) {
       // AI가 답을 만들지 못했으면 잡아 둔 오늘의 응원을 돌려준다 (다시 시도할 수 있어야 한다).
       try {
-        await releaseDailyCheer({ store: userStore, userId: user.id, eventType: cheerEventType });
+        await ledger.cheerRelease(user.id, { plan: userPlan, eventType: cheerEventType, paywallEnabled });
       } catch (releaseError) {
         console.error("Daily cheer release failed", {
           correlationId: aiCorrelationId,

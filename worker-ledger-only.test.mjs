@@ -35,9 +35,15 @@ test("worker는 KV 차감·조회 함수를 import하지 않는다", () => {
   }
 });
 
-/* 남는 둘은 재화 회계가 아니다. 목록을 고정해 두면 세 번째가 슬며시 늘어날 때 걸린다. */
-test("worker가 이 모듈에서 가져오는 것은 체험 시작과 치어링 락뿐이다", () => {
-  assert.deepEqual(creditServiceImports().sort(), ["startAiTrial", "withAiCreditUserLock"]);
+/* 남는 하나는 재화 회계가 아니다(회원 레코드의 체험 필드를 세운다).
+   목록을 고정해 두면 두 번째가 슬며시 늘어날 때 걸린다.
+
+   withAiCreditUserLock이 목록에서 빠진 이유: 무료 치어링 상한이 EnergyLedger DO로
+   옮겨가면서 마지막 호출자를 잃었다. 그 락은 모듈 스코프 Map이라 colo 간 상호배제가
+   없었고, 상한이 묶는 것이 provider 호출이라 실제 AI 비용이 새는 자리였다.
+   다시 들어오면 그 구멍이 그대로 돌아온다. */
+test("worker가 이 모듈에서 가져오는 것은 체험 시작뿐이다", () => {
+  assert.deepEqual(creditServiceImports().sort(), ["startAiTrial"]);
 });
 
 test("소스에 KV 폴백의 흔적이 남아 있지 않다", () => {
@@ -97,15 +103,19 @@ test("원장 바인딩이 없으면 차감 요청은 503 ENERGY_LEDGER_UNAVAILAB
   assert.equal(payload.ok, false);
 });
 
-test("원장 바인딩이 없어도 무료 치어링은 계속 된다", async () => {
+/* AI를 부르는 모든 경로는 원장을 통과한다 — 무료 치어링도 예외가 아니다.
+   전에는 "치어링은 재화를 안 쓰니 원장이 없어도 된다"고 열어 뒀다. 그러면 원장 장애 시에
+   유료 대화는 503으로 막히고 상한 없는 무료 AI만 열려 있는 최악의 조합이 된다.
+   치어링이 쓰지 않는 것은 크레딧이지 provider 호출이 아니다.
+   상한이 원장으로 옮겨간 지금은 원장 없이 치어링을 허용하면 상한 자체가 사라진다. */
+test("원장 바인딩이 없으면 무료 치어링도 막힌다", async () => {
   const ctx = await session({ ledger: null });
   const response = await worker.fetch(
     chatRequest(ctx.cookie, { requestId: "cheer-no-ledger", body: { message: "다 했어요!", eventType: "celebrate" } }),
     ctx.env,
   );
-  // provider 키가 가짜라 200은 아닐 수 있다. 중요한 것은 원장 부재로 막히지 않는 것이다.
-  assert.notEqual(response.status, 503);
-  assert.notEqual((await response.json()).code, "ENERGY_LEDGER_UNAVAILABLE");
+  assert.equal(response.status, 503);
+  assert.equal((await response.json()).code, "ENERGY_LEDGER_UNAVAILABLE");
 });
 
 /* ---------- C-2: 읽기 ---------- */

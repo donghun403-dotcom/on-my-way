@@ -17,9 +17,12 @@
  * 그래서 지금 무엇이 이 코드를 쓰는가:
  *   ① serve-local.cjs — 로컬 개발 서버. worker.mjs의 fetch를 실행하지 않고 API를 직접
  *      구현하며, DO가 없으므로 이 모듈로 회계한다. 로컬은 유저 한 명이라 경합이 없다.
- *   ② worker.mjs가 쓰는 둘: startAiTrial(회원 레코드의 체험 필드), withAiCreditUserLock
- *      (무료 치어링 하루 1회 카운터). 둘 다 유료 재화 차감이 아니다.
- *   ③ ai-credits-service.test.mjs — 이 모듈 자체의 회귀 테스트.
+ *   ② worker.mjs가 쓰는 하나: startAiTrial(회원 레코드의 체험 필드). 재화 차감이 아니다.
+ *      무료 치어링 하루 1회 상한도 withAiCreditUserLock으로 직렬화했었지만, 그 락으로는
+ *      colo 간 상호배제가 안 돼 상한이 실질적으로 없었다. 상한이 묶는 것이 provider
+ *      호출이라 새는 것이 실제 AI 비용이어서 EnergyLedger DO로 옮겼다(claimCheer).
+ *   ③ auth-service.mjs — 체험 남용 마커와 탈퇴 정리. 재화 회계가 아니다.
+ *   ④ ai-credits-service.test.mjs — 이 모듈 자체의 회귀 테스트.
  *
  * 정책 값(비용·한도·플랜 판정)은 plan-policy.mjs 한 곳에서 오므로 원장과 갈라지지 않는다.
  */
