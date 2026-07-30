@@ -497,9 +497,14 @@ function restoreAccountSnapshot(snapshot) {
   });
 }
 
+/* 폐지 항목을 여기서 한 번 더 거른다(stripRetiredProfileFields). 시작할 때 로컬을 훑지만,
+   그 사이에 다른 탭이나 오래된 스냅샷 복원이 값을 되살릴 수 있다. 서버로 올라가는
+   길목은 여기 하나뿐이라 여기서 막으면 서버 레코드는 다시 더러워지지 않는다. */
 function captureServerSyncState() {
   return Object.fromEntries(
-    SERVER_SYNC_STORAGE_KEYS.map((key) => [key, localStorage.getItem(key)]).filter(([, value]) => value !== null),
+    SERVER_SYNC_STORAGE_KEYS
+      .map((key) => [key, stripRetiredProfileFields(localStorage.getItem(key))])
+      .filter(([, value]) => value !== null),
   );
 }
 
@@ -533,7 +538,8 @@ function backupSyncConflict(userId, state) {
 function applyServerSyncState(userId, state) {
   SERVER_SYNC_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
   Object.entries(state || {}).forEach(([key, value]) => {
-    if (SERVER_SYNC_STORAGE_KEYS.includes(key) && typeof value === "string") localStorage.setItem(key, value);
+    // 서버에 아직 폐지 항목이 남은 레코드가 있을 수 있다. 내려올 때 걸러야 로컬이 다시 더러워지지 않는다.
+    if (SERVER_SYNC_STORAGE_KEYS.includes(key) && typeof value === "string") localStorage.setItem(key, stripRetiredProfileFields(value));
   });
   const scope = `user:${userId}`;
   localStorage.setItem(accountSnapshotKey(scope), JSON.stringify(captureAccountStorage()));
@@ -1407,7 +1413,6 @@ const closePersonalitySheetButton = document.querySelector("#closePersonalityShe
 const savePersonalityButton = document.querySelector("#savePersonalityButton");
 const profileBirthDateInput = document.querySelector("#profileBirthDate");
 const profileBirthTimeInput = document.querySelector("#profileBirthTime");
-const profileBirthPlaceInput = document.querySelector("#profileBirthPlace");
 const profileMbtiInput = document.querySelector("#profileMbti");
 const drawerPersonalityButton = document.querySelector("#drawerPersonality");
 const memoryPatternPanel = document.querySelector("#memoryPatternPanel");
@@ -1421,6 +1426,74 @@ function readPersonalityProfile() {
   }
 }
 
+/* 폐지한 프로필 항목.
+
+   출생지를 지운 이유: 만세력은 생년월일·시각만 받고(calculateSimpleManse) 다른 사용처가
+   하나도 없었다. 저장한 뒤 다음에 시트를 열 때 입력칸에 되돌려 넣는 것이 전부였다.
+   목적 없는 개인정보 수집은 최소수집 원칙에 어긋나고, 구글 데이터 안전 양식은 항목마다
+   목적을 요구하는데 적을 목적이 없다(docs/play-store-submission.md §1.2 ①).
+
+   왜 항목 하나 지우는 데 이만큼이 필요한가 — 같은 값이 세 곳에 복사돼 있다:
+   라이브 localStorage, 계정 스냅샷(captureAccountStorage), 서버 동기화 레코드.
+   한 곳만 지우면 다음 로그인의 스냅샷 복원이나 서버 상태 적용이 되살린다. 로그인이
+   게스트 계획을 덮었던 사고(CONTRIBUTING ④-4)와 같은 형태다. 그래서 시작할 때 로컬 두
+   곳을 훑고, 동기화 경계 양쪽(captureServerSyncState·applyServerSyncState)에서 한 번 더
+   거른다. 서버 레코드는 정리된 값이 다음 동기화에 올라가면서 덮인다.
+
+   가입자가 아직 없어 이 정리 경로가 실제로 할 일은 개발·테스트 기기의 값뿐이다.
+   그래서 지금이 가장 싸다. */
+const RETIRED_PROFILE_FIELDS = ["birthPlace"];
+
+/* 프로필 JSON 문자열에서 폐지 항목만 걷어낸다. 파싱할 수 없거나 지울 것이 없으면
+   원문을 그대로 돌려준다 — 손상 복구는 이 함수의 일이 아니고, 여기서 모양을 바꾸면
+   storage-recovery 계약이 흔들린다. */
+function stripRetiredProfileFields(raw) {
+  if (typeof raw !== "string" || !raw) return raw;
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return raw;
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return raw;
+  if (!RETIRED_PROFILE_FIELDS.some((field) => field in parsed)) return raw;
+  for (const field of RETIRED_PROFILE_FIELDS) delete parsed[field];
+  return JSON.stringify(parsed);
+}
+
+/* 계정 스냅샷은 키 모양이 셋이다(onmyway:user:…:state / onmyway:anonymous:…:state /
+   레거시 접두사). 접두사를 나열하는 대신 "프로필 키를 문자열로 담고 있는 객체"라는
+   내용으로 찾는다 — 나중에 스냅샷 키 모양이 하나 더 생겨도 이 정리는 따라간다. */
+function purgeRetiredProfileFields() {
+  try {
+    const live = localStorage.getItem(PERSONALITY_PROFILE_KEY);
+    const cleanedLive = stripRetiredProfileFields(live);
+    if (cleanedLive !== live) localStorage.setItem(PERSONALITY_PROFILE_KEY, cleanedLive);
+
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (!key || key === PERSONALITY_PROFILE_KEY) continue;
+      const raw = localStorage.getItem(key);
+      if (typeof raw !== "string" || !raw.includes(PERSONALITY_PROFILE_KEY)) continue;
+      let snapshot;
+      try {
+        snapshot = JSON.parse(raw);
+      } catch {
+        continue;
+      }
+      if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) continue;
+      const cleaned = stripRetiredProfileFields(snapshot[PERSONALITY_PROFILE_KEY]);
+      if (cleaned === snapshot[PERSONALITY_PROFILE_KEY]) continue;
+      snapshot[PERSONALITY_PROFILE_KEY] = cleaned;
+      localStorage.setItem(key, JSON.stringify(snapshot));
+    }
+  } catch (error) {
+    console.warn("Unable to purge retired profile fields", error);
+  }
+}
+
+purgeRetiredProfileFields();
+
 function openPersonalitySheet() {
   if (!personalitySheet) return;
   if (!planHasFeature("companionPersonalization")) {
@@ -1432,7 +1505,6 @@ function openPersonalitySheet() {
   const plan = readExecutionPlan();
   if (profileBirthDateInput) profileBirthDateInput.value = profile.birthDate || "";
   if (profileBirthTimeInput) profileBirthTimeInput.value = profile.birthTime || "";
-  if (profileBirthPlaceInput) profileBirthPlaceInput.value = profile.birthPlace || "";
   if (profileMbtiInput) profileMbtiInput.value = profile.mbti || plan.mbti || "";
   setDrawerOpen(false);
   setSheetOpen(personalitySheet, accountSheetOverlay, true);
@@ -1446,7 +1518,6 @@ function savePersonalityProfileFromSheet() {
   const profile = {
     birthDate: profileBirthDateInput?.value || "",
     birthTime: profileBirthTimeInput?.value || "",
-    birthPlace: profileBirthPlaceInput?.value.trim() || "",
     mbti: profileMbtiInput?.value || "",
     updatedAt: new Date().toISOString(),
   };
@@ -9786,31 +9857,87 @@ function renderDiaryBookPrint(book) {
    afterprint를 쏘지 않는 브라우저가 있어 되돌리기를 한 번 더 걸어 둔다.
 
    인쇄·PDF는 PRO 전용이다. 무료 경로는 .md 내보내기 하나뿐이므로 body.is-printing-book
-   진입 자체를 PRO가 아니면 막는다 — 이 클래스가 붙는 순간 조판된 책이 PDF로 나간다. */
+   진입 자체를 PRO가 아니면 막는다 — 이 클래스가 붙는 순간 조판된 책이 PDF로 나간다.
+
+   ── 왜 되돌리기 경로가 여럿인가 ──────────────────────────────────────────────
+
+   Android WebView와 iOS WKWebView는 window.print()를 구현하지 않으면서 **예외도 던지지
+   않는다.** 그러면 아래 catch가 발동하지 않고, 인쇄가 시작된 적이 없으니 afterprint도
+   오지 않는다. 남는 것은 60초 타임아웃 하나뿐이다.
+
+   정확히 무엇이 60초 동안 잘못돼 있는지 짚어 둔다 — 화면이 인쇄 모드로 바뀌지는 않는다.
+   `.diary-book-print { display: none }`은 화면 스타일시트에 있고 is-printing-book 규칙은
+   전부 @media print 안이라(styles.css:18827-18829) 눈에 보이는 변화가 없다. 잘못되는 것은
+   **document.title**이다. 60초 동안 앱 제목이 "올리 다이어리 북 …"으로 남고, 그 사이에
+   유저가 다른 것을 인쇄하거나 페이지를 저장하면 파일명이 그 값으로 나간다.
+
+   그래서 되돌리기를 세 신호에 건다. 셋 다 실기기 관측이 필요 없는 것들이다:
+
+     ① afterprint       — 정상 경로. 인쇄가 끝났다
+     ② 유저가 앱으로 돌아옴 — visibilitychange(visible) 또는 첫 입력. 인쇄 대화상자가 앞에
+                            있었다면 그 대화상자는 이미 닫혔다는 뜻이고, 열린 적이 없다면
+                            즉시 되돌리는 것이 맞다
+     ③ 60초             — 마지막 보루. 그대로 둔다
+
+   ②의 타임아웃을 줄이는 것으로 대신하지 않은 이유: 인쇄가 비동기인 브라우저에서 조판이
+   끝나기 전에 되돌리면 출력이 깨진다. "유저가 앱을 보고 있다"는 신호는 그 위험이 없다.
+
+   beforeprint나 matchMedia("print")로 "인쇄가 시작됐는지"를 판정하는 쪽은 넣지 않았다.
+   WebView에서 그 둘이 반응하는지가 미검증이라(docs/native-print-bridge.md §6),
+   반응하지 않으면 판정이 시간 추정으로 떨어져 정상 인쇄를 오탐한다. */
+let diaryBookPrintRestore = null;
+
 function printDiaryBook(monthKey) {
   if (!canCreateDiaryBook()) {
     showToast("인쇄와 PDF 저장은 Pro 전용이에요. 기록은 무료로 텍스트(.md)로 내보낼 수 있어요.");
     return;
   }
+  /* 연속으로 누르면 이전 호출의 리스너·타이머가 남는다. 앞의 것을 먼저 정리해야
+     previousTitle이 "올리 다이어리 북 …"으로 굳어지지 않는다. */
+  diaryBookPrintRestore?.();
+
   const previousTitle = document.title;
   document.title = `올리 다이어리 북 ${formatDiaryBookMonth(monthKey)}`;
   document.body.classList.add("is-printing-book");
+
   let restored = false;
+  let timeoutId = 0;
   const restore = () => {
     if (restored) return;
     restored = true;
+    diaryBookPrintRestore = null;
+    window.clearTimeout(timeoutId);
     document.body.classList.remove("is-printing-book");
     document.title = previousTitle;
     window.removeEventListener("afterprint", restore);
+    document.removeEventListener("visibilitychange", restoreWhenVisible);
+    window.removeEventListener("pointerdown", restore);
+    window.removeEventListener("keydown", restore);
   };
+  const restoreWhenVisible = () => {
+    if (document.visibilityState === "visible") restore();
+  };
+  diaryBookPrintRestore = restore;
+
   window.addEventListener("afterprint", restore);
-  window.setTimeout(restore, 60_000);
+  document.addEventListener("visibilitychange", restoreWhenVisible);
+  timeoutId = window.setTimeout(restore, 60_000);
+
   try {
     window.print();
   } catch (error) {
     console.warn("Unable to open print dialog", error);
     restore();
+    return;
   }
+
+  /* print()가 동기적으로 돌아온 뒤에 입력 리스너를 단다. 데스크톱 브라우저는 print()가
+     대화상자가 닫힐 때까지 블로킹하므로 이 시점이면 이미 afterprint가 지나갔고 restored가
+     참이다 — 그때는 addEventListener 자체를 하지 않는다. 호출 전에 달면 대화상자를 여는
+     그 클릭·키 입력이 곧바로 되돌려 버린다. */
+  if (restored) return;
+  window.addEventListener("pointerdown", restore, { once: true });
+  window.addEventListener("keydown", restore, { once: true });
 }
 
 async function ensureDiaryBookAvailable() {

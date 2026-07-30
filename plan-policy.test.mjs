@@ -68,7 +68,11 @@ test("플랜은 trial_pending·expired·pro 셋이고 값은 한 곳에서만 �
   assert.ok(Object.isFrozen(PLAN_CONFIG.expired.features));
 });
 
-const SKIP_DIRECTORIES = new Set(["node_modules", ".git", "test-results", "playwright-report", "output", "outputs", "tmp", "_to_delete"]);
+/* www와 android는 검증용 Capacitor 셸이 만드는 생성물이다(mobile/scripts/prepare.mjs).
+   www에는 제품 파일의 **사본**이 들어 있어서, 빼지 않으면 모든 폐지 스캔이 같은 위반을
+   두 번 세고 오래된 로컬 번들 하나가 초록 브랜치를 빨갛게 만든다. 커밋되지 않는
+   디렉터리라 CI에서는 보이지도 않는데 로컬에서만 깨지는 것이 더 나쁘다. */
+const SKIP_DIRECTORIES = new Set(["node_modules", ".git", "test-results", "playwright-report", "output", "outputs", "tmp", "_to_delete", "www", "android"]);
 
 /* 폐지된 이름을 인용해 "없어졌다"를 검사하는 파일들. 이 스캔에서 제외해야 한다 —
    제외하지 않으면 폐지를 확인하는 테스트가 폐지 위반으로 잡힌다. 여기 파일을 더 넣을 때는
@@ -144,6 +148,8 @@ test("폐지한 기능 이름이 화면 마크업에 남아 있지 않다", () =
       ["체험 종료 편지", /체험 종료 편지/],
       ["월 1권 무료", /월 1권 무료|월 1회 무료/],
       ["올리의 편지가 도착", /올리의 편지가 도착/],
+      // 출생지 수집 폐지. 아래 식별자 스캔이 못 보는 라벨 텍스트를 여기서 잡는다.
+      ["출생지", /출생지/],
     ]) {
       if (pattern.test(source)) offenders.push(`${entry.name} (${label})`);
     }
@@ -311,4 +317,41 @@ test("차단은 기본값이 꺼짐이고 문자열 \"true\"에서만 켜진다"
 test("차단이 꺼져 있는 동안 만료 계정에 열어 두는 한도는 폐지 전 Free와 같다", () => {
   assert.deepEqual(PAYWALL_OFF_EXPIRED_GRANT, { monthlyCredits: 10, dailyCreditLimit: 4 });
   assert.ok(Object.isFrozen(PAYWALL_OFF_EXPIRED_GRANT));
+});
+
+/* 출생지 수집 폐지. 만세력은 생년월일·시각만 받고(calculateSimpleManse) 다른 사용처가
+   하나도 없었다 — 저장하고 다음에 시트를 열 때 입력칸에 되돌려 넣는 것이 전부였다.
+   목적 없는 개인정보 수집은 최소수집 원칙에 어긋나고, 구글 데이터 안전 양식은 항목마다
+   목적을 요구하는데 적을 목적이 없다(docs/play-store-submission.md §1.2 ①).
+
+   여기서 검사하는 것은 **되살아나는 경로**다. 프로퍼티 접근(.birthPlace)과 객체 리터럴
+   키(birthPlace:)와 입력 요소 id와 화면 문구 넷. script.js의 RETIRED_PROFILE_FIELDS에
+   있는 문자열 "birthPlace"는 이 넷 중 어디에도 걸리지 않는다 — 그 목록은 값을 지우는
+   쪽이지 읽는 쪽이 아니기 때문이다. 그래서 정리 코드를 예외 파일로 빼지 않아도 된다.
+   구현 파일을 REMOVAL_GUARD_FILES에 넣는 순간 이 스캔은 아무것도 지키지 못한다. */
+test("출생지 수집의 잔재가 소스에 하나도 없다", () => {
+  assert.deepEqual(findSourceOffenders([
+    ["profile.birthPlace 접근", /\.birthPlace\b/],
+    ["birthPlace 객체 키", /\bbirthPlace\s*:/],
+    ["profileBirthPlace 입력", /\bprofileBirthPlace\b/],
+  ]), []);
+});
+
+/* 위 스캔은 "이름이 없다"만 본다. 이미 저장된 값이 지워지는지는 다른 질문이라
+   tests/e2e/storage-recovery.spec.js가 실제 브라우저에서 잰다. 둘 다 있어야 한다 —
+   이름만 지우면 기기와 서버에 남은 값은 그대로다. */
+test("폐지 항목 정리 경로가 세 자리에 모두 걸려 있다", () => {
+  const client = readFileSync(new URL("./script.js", import.meta.url), "utf8");
+  assert.match(client, /const RETIRED_PROFILE_FIELDS = \["birthPlace"\]/);
+  assert.match(client, /^purgeRetiredProfileFields\(\);$/m, "시작할 때 로컬을 훑는다");
+  assert.match(
+    client,
+    /SERVER_SYNC_STORAGE_KEYS\s*\n?\s*\.map\(\(key\) => \[key, stripRetiredProfileFields\(localStorage\.getItem\(key\)\)\]\)/,
+    "서버로 올라가는 길목에서 거른다",
+  );
+  assert.match(
+    client,
+    /localStorage\.setItem\(key, stripRetiredProfileFields\(value\)\)/,
+    "서버에서 내려오는 길목에서 거른다",
+  );
 });
