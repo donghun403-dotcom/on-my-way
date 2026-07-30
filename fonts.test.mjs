@@ -77,10 +77,29 @@ test("브랜드 글꼴 선언이 font-weight 400에 묶여 있지 않다", () =>
 
 test("font-weight는 6단계 계약 안의 값만 쓴다", () => {
   // docs/design-tokens.md:93. 650·750 같은 중간값이 다시 들어오지 않게 막는다.
+  //
+  // 토큰 참조를 통째로 면제하면 안 된다. `--weight-subtle: 450`을 만들어
+  // `font-weight: var(--weight-subtle)`로 쓰면 막으려던 바로 그 값이 조용히 통과한다.
+  // 그래서 토큰의 '값'까지 따라가 검사한다.
   const allowed = new Set(["400", "500", "600", "700", "800", "900", "inherit"]);
   const css = fs.readFileSync("styles.css", "utf8");
-  const bad = [...css.matchAll(/font-weight:\s*([^;\n}]+)/g)]
-    .map((m) => m[1].trim())
-    .filter((value) => !allowed.has(value) && !value.startsWith("var(--weight-"));
+
+  const tokenValues = new Map(
+    [...css.matchAll(/(--weight-[a-z-]+):\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]),
+  );
+  const badTokens = [...tokenValues].filter(([, value]) => !allowed.has(value));
+  assert.deepEqual(badTokens, [], "6단계 밖의 값을 가진 --weight-* 토큰");
+
+  const bad = [];
+  for (const match of css.matchAll(/font-weight:\s*([^;\n}]+)/g)) {
+    const value = match[1].trim();
+    const reference = value.match(/^var\((--weight-[a-z-]+)\)$/);
+    if (reference) {
+      // 선언되지 않은 토큰을 참조하면 그 규칙은 굵기가 없는 것과 같다. 오타를 잡는다.
+      if (!tokenValues.has(reference[1])) bad.push(`${value} — 선언되지 않은 토큰`);
+      continue;
+    }
+    if (!allowed.has(value)) bad.push(value);
+  }
   assert.deepEqual([...new Set(bad)], [], "6단계 밖의 font-weight");
 });

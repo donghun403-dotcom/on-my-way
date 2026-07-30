@@ -242,7 +242,14 @@ textarea {
 
 /* 이 셀렉터 목록은 원래 하나의 규칙으로 굵기 400 하나를 공유했다. 화면 제목·CTA·
    섹션 제목·탭 라벨이 섞여 있어 역할 토큰 하나로 옮길 수 없으므로 역할별로 나눈다.
-   font-family와 font-synthesis는 그대로 유지해 렌더링에는 영향이 없다. */
+   font-family와 font-synthesis는 그대로 유지해 렌더링에는 영향이 없다.
+
+   주의: .focus-start-button의 font-weight는 여기서 실제로 적용되지 않는다. 브랜드
+   글꼴과 무관한 기존 규칙 .execution-page .focus-start-button { ...; font-weight: 900; }
+   (styles.css:11632-11636)이 동일 명시도([0,2,0])·더 뒤 소스 순서로 캐스케이드를
+   이긴다. Task 3 이전부터 있던 문제다(그때도 900이 이겼다 — 여기가 400이었을 뿐).
+   이 토큰 값을 바꿔도 화면은 바뀌지 않는다. 고치려면 브랜드 선언이 아닌 그 규칙을
+   건드려야 해서 범위 밖으로 남겨둔다. */
 .execution-page .today-welcome h1,
 .execution-page .focus-start-button {
   font-family: var(--font-brand-display);
@@ -268,7 +275,15 @@ textarea {
    규칙(주요 CTA, --weight-display)이 이미 이 둘을 완전히 담당하고, 특정성이
    더 높거나(전자) 순서상 더 뒤에 오므로(후자) 캐스케이드에서 항상 그 규칙이
    이긴다. 여기 같이 넣으면 실제로는 적용되지 않는 --weight-emphasis를
-   적용되는 것처럼 보이게 해 혼동만 남긴다. */
+   적용되는 것처럼 보이게 해 혼동만 남긴다.
+
+   주의: .execution-tabbar .tab-label의 font-weight도 여기서 실제로 적용되지
+   않는다. 브랜드 글꼴과 무관한 기존 규칙 .execution-page .execution-tabbar
+   .tab-label { font-size: 11px; font-weight: 700; ... } (styles.css:6842-6846)가
+   동일 명시도([0,3,0])·더 뒤 소스 순서로 캐스케이드를 이긴다. Task 3 이전부터
+   있던 문제다(그때도 700이 이겼다 — 여기가 400이었을 뿐). 이 토큰 값을 바꿔도
+   화면은 바뀌지 않는다. 고치려면 브랜드 선언이 아닌 그 규칙을 건드려야 해서
+   범위 밖으로 남겨둔다. */
 .execution-page .execution-tabbar .tab-label,
 .execution-page .ollie-growth-milestones strong {
   font-family: var(--font-brand-display);
