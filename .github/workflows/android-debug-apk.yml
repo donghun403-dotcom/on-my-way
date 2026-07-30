@@ -131,14 +131,21 @@ jobs:
       # gradle이 0으로 끝나도 APK가 없을 수 있다(변형 이름이 바뀌는 경우).
       # 업로드 단계의 if-no-files-found는 경고만 내고 잡을 통과시키므로,
       # 여기서 파일 자체를 판정한다. 없으면 빨간색이어야 한다.
+      #
+      # 파일 이름에 구성을 굽는 이유: 두 구성이 모두 app-debug.apk로 나온다.
+      # 아티팩트 이름은 다르지만 압축을 풀면 같은 이름 둘이 되고, 기기에 잘못된
+      # 쪽을 설치하면 관측이 조용히 무효가 된다 — 이 스파이크가 막으려는 실수와
+      # 정확히 같은 형태다. appId가 달라 덮어쓰기도 일어나지 않으니 더 조용하다.
       - name: Require the APK to exist
         id: apk
         working-directory: mobile/android
         run: |
           apk="app/build/outputs/apk/debug/app-debug.apk"
           test -s "$apk"
-          echo "path=mobile/android/$apk" >> "$GITHUB_OUTPUT"
-          ls -l "$apk"
+          named="app/build/outputs/apk/debug/on-my-way-verify-${{ matrix.config }}.apk"
+          mv "$apk" "$named"
+          echo "path=mobile/android/$named" >> "$GITHUB_OUTPUT"
+          ls -l "$named"
 
       - name: Upload the debug APK
         uses: actions/upload-artifact@v4
