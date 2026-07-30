@@ -359,11 +359,30 @@ test("브랜드 글꼴 선언이 font-weight 400에 묶여 있지 않다", () =>
 
 test("font-weight는 6단계 계약 안의 값만 쓴다", () => {
   // docs/design-tokens.md:93. 650·750 같은 중간값이 다시 들어오지 않게 막는다.
+  //
+  // 토큰 참조를 통째로 면제하면 안 된다. `--weight-subtle: 450`을 만들어
+  // `font-weight: var(--weight-subtle)`로 쓰면 막으려던 바로 그 값이 조용히 통과한다.
+  // 그래서 토큰의 '값'까지 따라가 검사한다.
   const allowed = new Set(["400", "500", "600", "700", "800", "900", "inherit"]);
   const css = fs.readFileSync("styles.css", "utf8");
-  const bad = [...css.matchAll(/font-weight:\s*([^;\n}]+)/g)]
-    .map((m) => m[1].trim())
-    .filter((value) => !allowed.has(value) && !value.startsWith("var(--weight-"));
+
+  const tokenValues = new Map(
+    [...css.matchAll(/(--weight-[a-z-]+):\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]),
+  );
+  const badTokens = [...tokenValues].filter(([, value]) => !allowed.has(value));
+  assert.deepEqual(badTokens, [], "6단계 밖의 값을 가진 --weight-* 토큰");
+
+  const bad = [];
+  for (const match of css.matchAll(/font-weight:\s*([^;\n}]+)/g)) {
+    const value = match[1].trim();
+    const reference = value.match(/^var\((--weight-[a-z-]+)\)$/);
+    if (reference) {
+      // 선언되지 않은 토큰을 참조하면 그 규칙은 굵기가 없는 것과 같다. 오타를 잡는다.
+      if (!tokenValues.has(reference[1])) bad.push(`${value} — 선언되지 않은 토큰`);
+      continue;
+    }
+    if (!allowed.has(value)) bad.push(value);
+  }
   assert.deepEqual([...new Set(bad)], [], "6단계 밖의 font-weight");
 });
 ```
@@ -666,9 +685,27 @@ git commit -m "글꼴을 Pretendard 한 가족으로 통일하고 잘난체를 �
 
 - [ ] **Step 1: 4개 화면에서 실제 사용 중인 타이포 조합을 수집한다**
 
-`PORT=8766 node serve-local.cjs`로 띄우고 각 화면에서 아래를 실행해 결과를 기록한다.
+**브라우저 도구(`preview_start`, Browser 패널)를 쓰지 않는다.** 그 경로는 이 저장소에서
+두 번 실패했다 — worktree가 아닌 루트의 launch.json을 읽어 다른 세션의 8765 서버에 붙고,
+패널이 표시되지 않으면 스크린샷이 프레임을 합성하지 못한다. **Playwright로 한다.**
 
-대상 화면: ① 온보딩 조건 입력 ② 온보딩 1차 계획 보기 ③ 앱 오늘 탭 ④ 앱 계획 탭
+수집·촬영은 기존 e2e 자산 위에 올린다. 새로 짜지 않는다:
+
+- `tests/e2e/helpers.js`의 `prepareApp(page)` — 로그인 없이 `/app.html`이 뜨도록 스토리지를 세팅한다
+- `tests/e2e/helpers.js`의 `completeManualPlan(page, { goal })` — 온보딩 위저드를 끝까지 진행한다
+- `tests/e2e/responsive.spec.js:74-101`의 기존 흐름 — `page.goto("/app.html")` 후
+  `#tab-today` / `#tab-plan`을 클릭해 탭에 도달하고 `page.screenshot({ fullPage: true })`로 찍는다
+
+대상 화면 4개와 도달 경로:
+
+| # | 화면 | 도달 방법 |
+| --- | --- | --- |
+| ① | 온보딩 조건 입력 | `page.goto("/index.html#designFlow")` |
+| ② | 온보딩 1차 계획 보기 | 위에서 `completeManualPlan(page, { goal })` |
+| ③ | 앱 오늘 탭 | `prepareApp(page)` → `page.goto("/app.html")` → `#tab-today` 클릭 |
+| ④ | 앱 계획 탭 | 이어서 `#tab-plan` 클릭 |
+
+각 화면에서 아래를 실행해 결과를 기록한다.
 
 ```js
 (() => {
@@ -717,8 +754,12 @@ Step 3에서 확인한 subset **1~2개만** `index.html`과 `app.html`에 넣는
 
 - [ ] **Step 5: 4개 폭에서 스크린샷을 찍는다**
 
-320 / 390 / 430 / 1440 폭에서 4개 화면을 찍는다. 533개 굵기가 한꺼번에 실재화되므로
-**범위와 무관하게 전체를 훑는다.** 특히 볼 것:
+320 / 390 / 430 / 1440 폭에서 Step 1의 화면 4개를 찍는다. Playwright의
+`page.setViewportSize({ width, height })` + `page.screenshot({ fullPage: true })`를 쓴다
+(`tests/e2e/responsive.spec.js:76,84`와 같은 방식). 헤드리스로 4개 폭 모두 정상 촬영되는 것을
+사전에 확인해 두었다.
+
+533개 굵기가 한꺼번에 실재화되므로 **범위와 무관하게 전체를 훑는다.** 특히 볼 것:
 
 - 제목이 이전보다 얇아진 곳이 없는가 (Task 3에서 놓친 400 고정)
 - 900이 남아 과하게 무거워 보이는 곳
