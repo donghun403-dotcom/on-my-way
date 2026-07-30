@@ -5,7 +5,12 @@
    사용법: node scripts/verify-deployed-bindings.mjs <base-url>
 
    판정 로직은 binding-health.mjs에 있다. 여기서는 가져오기와 재시도만 한다 —
-   생성기가 넷이 되어도 판정은 한 곳이어야 하기 때문이다. */
+   생성기가 넷이 되어도 판정은 한 곳이어야 하기 때문이다.
+
+   BILLING_DB 조건부 불변식은 웹 결제(토스) 전제로 만든 것이다. 웹 결제는 도입하지
+   않기로 확정했고(2026-07-30) 스토어 IAP용으로 재정의될 예정이다. 불변식 자체는
+   그대로 둔다 — PAYMENTS_ENABLED가 네 환경 모두 false라 지금 아무것도 요구하지 않고,
+   IAP 설계가 확정되면 한 PR로 교체한다. docs/PROJECT_STATUS.md 참고. */
 import { checkBindingInvariants } from "../binding-health.mjs";
 
 const baseUrl = process.argv[2];

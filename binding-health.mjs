@@ -22,7 +22,13 @@ export const VERIFIED_BINDINGS = Object.freeze(Object.keys(BINDING_SHAPES));
 
 /* 결제를 켜기 전에는 BILLING_DB가 없어도 배포를 막지 않는다. 켜는 순간 스스로 무장된다.
    나머지 넷은 없으면 조용한 성능 저하가 생기는 자리라 항상 요구한다 — 특히
-   ENERGY_LEDGER는 빠져도 배포가 성공하고 차감이 KV로 새기 때문에 반드시 걸러야 한다. */
+   ENERGY_LEDGER는 빠져도 배포가 성공하고 차감이 KV로 새기 때문에 반드시 걸러야 한다.
+
+   BILLING_DB에 대하여: 웹 결제(토스)는 도입하지 않기로 확정했다(2026-07-30).
+   이 불변식과 그것이 가리키는 D1은 웹 결제용으로 만든 것이고, 스토어 IAP용으로
+   재정의될 예정이다. 그때까지 건드리지 않는다 — 절반만 걷어낸 상태를 오래 두는 것이
+   더 나쁘고, PAYMENTS_ENABLED가 네 환경 모두 false라 지금 아무것도 요구하지 않는다.
+   자세한 결정은 docs/PROJECT_STATUS.md의 "결제 방식 확정" 절. */
 export const ALWAYS_REQUIRED_BINDINGS = Object.freeze(["USERS_KV", "ENERGY_LEDGER", "AI_RATE_LIMITER", "ASSETS"]);
 export const PAYMENTS_REQUIRED_BINDINGS = Object.freeze(["BILLING_DB"]);
 
