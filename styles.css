@@ -6123,7 +6123,7 @@ body.sheet-open {
   border-radius: var(--r-xl);
   box-shadow: 0 28px 80px rgba(30, 58, 95, 0.25), 0 4px 18px rgba(44, 74, 111, 0.08);
   transform: translateX(-50%);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  font-family: var(--font-body);
   letter-spacing: -0.018em;
 }
 
@@ -6212,7 +6212,7 @@ body.sheet-open {
   min-height: 54px;
   padding: 0 16px;
   border-radius: var(--r-md);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  font-family: var(--font-body);
   font-size: 15px;
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -6253,12 +6253,12 @@ body.sheet-open {
 .admin-password-control button { min-height: 44px; padding: 0 var(--space-3); color: #fff; background: var(--brand-solid); border: 0; border-radius: var(--r-sm); font: inherit; font-size: 11px; font-weight: 800; cursor: pointer; }
 .admin-password-control button:disabled { opacity: .6; cursor: wait; }
 .admin-password-form > p { min-height: 14px; margin: 0; color: var(--rose-600); font-size: var(--text-2xs); font-weight: 700; }
-.execution-page .auth-sheet-terms { margin: 0; padding: 0 28px var(--space-5); color: var(--n-600); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; font-size: var(--text-2xs); font-weight: 500; line-height: 1.6; text-align: center; word-break: keep-all; }
+.execution-page .auth-sheet-terms { margin: 0; padding: 0 28px var(--space-5); color: var(--n-600); font-family: var(--font-body); font-size: var(--text-2xs); font-weight: 500; line-height: 1.6; text-align: center; word-break: keep-all; }
 .execution-page .auth-sheet-terms a { color: var(--n-600); text-underline-offset: 2px; }
 
 /* Account drawer */
 .execution-page .app-menu-backdrop { position: fixed; inset: 0; z-index: 68; background: rgba(31, 44, 51, 0.26); backdrop-filter: blur(5px); }
-.execution-page .app-menu-drawer { position: fixed; top: 88px; right: max(14px, calc((100vw - 1120px) / 2)); z-index: 70; width: min(calc(100% - 28px), 342px); padding: var(--space-4); color: var(--blue-900); background: rgba(253, 254, 252, 0.97); border: 1px solid rgba(255, 255, 255, 0.9); border-radius: var(--r-xl); box-shadow: var(--shadow-xl); backdrop-filter: blur(20px); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+.execution-page .app-menu-drawer { position: fixed; top: 88px; right: max(14px, calc((100vw - 1120px) / 2)); z-index: 70; width: min(calc(100% - 28px), 342px); padding: var(--space-4); color: var(--blue-900); background: rgba(253, 254, 252, 0.97); border: 1px solid rgba(255, 255, 255, 0.9); border-radius: var(--r-xl); box-shadow: var(--shadow-xl); backdrop-filter: blur(20px); font-family: var(--font-body); }
 .drawer-guest { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 12px; align-items: center; }
 .drawer-guest img { width: 58px; height: 66px; object-fit: contain; }
 .drawer-guest strong, .drawer-member strong { display: block; color: var(--blue-900); font-size: 15px; }

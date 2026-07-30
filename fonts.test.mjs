@@ -35,3 +35,13 @@ test("OFL 라이선스 원문을 함께 배포한다", () => {
   assert.ok(fs.existsSync(ofl), `${ofl}가 없다 — OFL은 라이선스 동봉을 요구한다`);
   assert.match(fs.readFileSync(ofl, "utf8"), /SIL OPEN FONT LICENSE/i);
 });
+
+test("글꼴 스택을 하드코딩한 곳이 없다 — 전부 --font-* 토큰을 거친다", () => {
+  const css = fs.readFileSync("styles.css", "utf8");
+  const lines = css.split(/\r?\n/);
+  const offenders = lines
+    .map((line, index) => ({ line, number: index + 1 }))
+    .filter(({ line }) => /-apple-system/.test(line))
+    .map(({ number, line }) => `${number}: ${line.trim().slice(0, 80)}`);
+  assert.deepEqual(offenders, [], "글꼴 스택이 토큰을 우회하고 있다");
+});
