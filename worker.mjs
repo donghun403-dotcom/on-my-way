@@ -11,14 +11,13 @@ import {
   safeAiSuccessDiagnostics,
 } from "./ai-output-contract.mjs";
 import { PLAN_REVISION_MAX_OUTPUT_TOKENS } from "./ai-plan-output-policy.mjs";
-import {
-  commitAiCredits,
-  getAiCreditUsage,
-  releaseAiCredits,
-  reserveAiCredits,
-  startAiTrial,
-  withAiCreditUserLock,
-} from "./ai-credits-service.mjs";
+/* 차감·조회는 여기서 가져오지 않는다. reserve/commit/release/getAiCreditUsage는 전부
+   EnergyLedger DO로 갔다 — ai-credits-service의 KV 경로는 아이솔레이트 간 상호배제가
+   없어 이중 차감을 막지 못한다. worker-ledger-only.test.mjs가 이 경계를 고정한다.
+
+   남는 둘은 재화 회계가 아니다: startAiTrial은 회원 레코드의 체험 필드를 세우고,
+   withAiCreditUserLock은 무료 치어링 하루 1회 카운터를 직렬화한다. */
+import { startAiTrial, withAiCreditUserLock } from "./ai-credits-service.mjs";
 // 에너지 원장은 유저별 Durable Object가 권위다. KV read-modify-write로는 서로 다른
 // 아이솔레이트의 동시 요청을 직렬화할 수 없어 이중 차감을 막지 못한다.
 import { EnergyLedgerObject } from "./energy-ledger-object.mjs";
@@ -252,6 +251,46 @@ function aiErrorBody(error, usage = null) {
   return body;
 }
 
+/* 원장을 읽을 수 없을 때 숫자를 만들어 내지 않는다.
+
+   폐지한 KV 경로(ai-credits-service의 user.aiCredits)를 대신 읽으면 안 되는 이유:
+   원장이 권위가 된 뒤로 그 레코드에 쓰는 코드가 없어서 인수 시점 값에 얼어붙어 있고,
+   그 뒤 가입자는 아예 비어 있다. 버킷 기준도 다르다 — KV는 체험을 `trial:${startedAt}`로
+   스코프하는데 원장은 KST monthKey를 쓴다. 그래서 읽으면 "그럴듯하지만 틀린" 잔량이
+   나온다. 틀린 숫자는 없는 숫자보다 나쁘다: 유저가 그것을 믿고 오늘 할 일을 정한다.
+
+   플랜·체험·차단 여부는 남긴다. 이 셋은 원장이 아니라 회원 레코드와 배포 설정에서
+   오므로 여전히 정확하고, 비우면 잠금 화면이 판정을 못 해 만료 계정에 열린 화면을
+   보여 주게 된다. 가리는 것은 잔량뿐이다. */
+function unavailableUsage({ plan, trial, paywallEnabled } = {}) {
+  return {
+    available: false,
+    degraded: true,
+    reason: "ENERGY_LEDGER_UNAVAILABLE",
+    plan,
+    trial,
+    paywallEnabled,
+  };
+}
+
+/* 같은 requestId 재요청의 응답 계약. 폐지한 KV 경로(existingRequestError)와 코드·문구를
+   맞춘다 — 클라이언트가 이미 이 코드들로 분기하고 있다. */
+const DUPLICATE_REQUEST_CODES = Object.freeze({
+  reserved: "AI_REQUEST_IN_PROGRESS",
+  committed: "AI_REQUEST_ALREADY_COMMITTED",
+  released: "AI_REQUEST_PREVIOUSLY_RELEASED",
+});
+const DUPLICATE_REQUEST_MESSAGES = Object.freeze({
+  reserved: "같은 requestId의 AI 요청을 처리하고 있어요.",
+  committed: "같은 requestId의 AI 요청은 이미 완료됐어요.",
+  released: "같은 requestId의 이전 AI 요청은 실패 처리됐어요. 새 requestId로 다시 시도해 주세요.",
+});
+
+function readLedgerUsage(ledger, userId, context) {
+  if (!ledger) return Promise.resolve(unavailableUsage(context));
+  return ledger.usage(userId, context).catch(() => unavailableUsage(context));
+}
+
 function providerMetadata(result, model) {
   return {
     providerUsage: result?.usage || {},
@@ -348,9 +387,31 @@ async function handleAiGenerationRequest({ request, env, accountContext, route }
   const cheerEventType = route.kind === "companion" ? normalizeCheerEventType(input?.eventType) : "chat";
   const isFreeCheer = cheerEventType !== "chat";
 
-  // 원장 바인딩이 있으면 그쪽이 권위다. 없으면(로컬·구버전 환경) 기존 KV 경로로
-  // 물러난다 — 배포 환경에는 항상 있고 CI 설정 검증이 그것을 고정한다.
+  /* 원장이 차감의 유일한 권위다. 바인딩이 없으면 요청을 받지 않는다.
+
+     전에는 KV read-modify-write로 물러났다. 그 경로의 락(withAiCreditUserLock)은 모듈
+     스코프 Map이라 한 아이솔레이트 안에서만 유효하고, Workers는 colo마다 아이솔레이트가
+     따로 뜬다. 즉 폴백이 발동하는 순간 DO를 쓴 이유(유저당 단일 실행)가 사라지고
+     동시 요청이 이중 차감될 수 있다. 청구 원장에서 조용한 성능 저하는 실패보다 나쁘다.
+
+     바인딩 누락은 배포 시점에 걸러진다(binding-health.mjs + verify-deployed-bindings.mjs).
+     여기 503은 그 그물을 빠져나온 경우의 마지막 방어선이다. */
   const ledger = createEnergyLedgerClient(env);
+  /* 자동 치어링은 유료 재화를 쓰지 않아 원장을 거치지 않는다. 그래서 게이트는 차감 경로에만
+     건다 — 원장이 없다고 무료 응원까지 막을 이유가 없다. */
+  if (!ledger && !isFreeCheer) {
+    console.error("Energy ledger binding missing", {
+      correlationId: crypto.randomUUID(),
+      errorCategory: "ENERGY_LEDGER_UNAVAILABLE",
+      action: route.action,
+    });
+    return json({
+      ok: false,
+      error: "지금 에너지를 확인할 수 없어요. 잠시 후 다시 시도해 주세요.",
+      code: "ENERGY_LEDGER_UNAVAILABLE",
+    }, 503);
+  }
+
   const userPlan = resolveUserPlan(user);
   const userTrial = describeTrial(user);
   const paywallEnabled = isHardPaywallEnabled(env);
@@ -398,9 +459,7 @@ async function handleAiGenerationRequest({ request, env, accountContext, route }
      힘든 말을 꺼낸 대가로 에너지가 사라진다. 아예 재화 경로에 들어가지 않는 편이 확실하다.
      AI도 부르지 않으므로 이 답에는 모델이 무슨 말을 할지 모르는 구간이 없다. */
   if (route.kind === "companion" && !isFreeCheer && detectCrisisSignal(input?.message)) {
-    const usage = ledger
-      ? await ledger.usage(user.id, { plan: userPlan, trial: userTrial, paywallEnabled }).catch(() => null)
-      : await getAiCreditUsage({ store: userStore, userId: user.id }).catch(() => null);
+    const usage = await readLedgerUsage(ledger, user.id, { plan: userPlan, trial: userTrial, paywallEnabled });
     return json({
       ok: true,
       ...publicAiResult(createCrisisReply()),
@@ -426,10 +485,22 @@ async function handleAiGenerationRequest({ request, env, accountContext, route }
       if (!cheerClaimed) {
         return json({ ok: false, error: "오늘의 무료 응원은 이미 전해드렸어요. 내일 또 만나요!", code: "CHEER_LIMIT_REACHED" }, 429);
       }
-    } else if (ledger) {
-      reservation = await ledger.reserve(user.id, { plan: userPlan, action: route.action, requestId, trial: userTrial, paywallEnabled });
     } else {
-      reservation = await reserveAiCredits({ store: userStore, userId: user.id, action: route.action, requestId });
+      reservation = await ledger.reserve(user.id, { plan: userPlan, action: route.action, requestId, trial: userTrial, paywallEnabled });
+
+      /* 같은 requestId가 다시 오면 원장은 차감하지 않고 shouldExecute=false로 돌려준다.
+         그 신호를 무시하고 진행하면 재화는 안 빠지지만 provider는 두 번 불린다 — 유저에게는
+         공짜, 우리에게는 실제 비용이다. 폐지한 KV 경로는 이 자리에서 409를 던져 그 일이
+         없었는데, 원장 경로에는 그 문이 없었다. 응답 계약은 그대로 유지한다. */
+      if (reservation?.shouldExecute === false) {
+        return json({
+          ok: false,
+          error: DUPLICATE_REQUEST_MESSAGES[reservation.status] || "같은 requestId의 AI 요청이 이미 있어요.",
+          code: DUPLICATE_REQUEST_CODES[reservation.status] || "AI_REQUEST_ALREADY_COMMITTED",
+          details: { requestId, action: route.action, status: reservation.status },
+          usage: reservation.usage,
+        }, 409);
+      }
     }
 
     let result;
@@ -461,14 +532,13 @@ async function handleAiGenerationRequest({ request, env, accountContext, route }
       return json({ ok: true, ...publicAiResult(result), requestId, eventType: cheerEventType, chargedCredits: 0 });
     }
 
-    const committed = ledger
-      ? await ledger.commit(user.id, { plan: userPlan, requestId, meta: { model }, trial: userTrial, paywallEnabled })
-      : await commitAiCredits({
-        store: userStore,
-        userId: user.id,
-        requestId,
-        ...providerMetadata(result, model),
-      });
+    const committed = await ledger.commit(user.id, {
+      plan: userPlan,
+      requestId,
+      meta: { model },
+      trial: userTrial,
+      paywallEnabled,
+    });
     return json({
       ok: true,
       ...publicAiResult(result),
@@ -498,27 +568,13 @@ async function handleAiGenerationRequest({ request, env, accountContext, route }
     }
     if (reservation?.shouldExecute) {
       try {
-        if (ledger) {
-          await ledger.release(user.id, {
-            plan: userPlan,
-            requestId,
-            errorCode: error?.code || "AI_REQUEST_FAILED",
-            paywallEnabled,
-            trial: userTrial,
-          });
-        } else {
-          await releaseAiCredits({
-            store: userStore,
-            userId: user.id,
-            requestId,
-            providerCalled: error?.providerCalled ?? providerCalled,
-            providerUsage: error?.providerUsage || {},
-            providerRequestId: error?.providerRequestId || "",
-            errorCode: error?.code || "AI_REQUEST_FAILED",
-            paywallEnabled,
-            model,
-          });
-        }
+        await ledger.release(user.id, {
+          plan: userPlan,
+          requestId,
+          errorCode: error?.code || "AI_REQUEST_FAILED",
+          paywallEnabled,
+          trial: userTrial,
+        });
       } catch (releaseError) {
         console.error("AI credit reservation release failed", {
           correlationId: aiCorrelationId,
@@ -526,9 +582,7 @@ async function handleAiGenerationRequest({ request, env, accountContext, route }
         });
       }
     }
-    const usage = ledger
-      ? await ledger.usage(user.id, { plan: userPlan, trial: userTrial, paywallEnabled }).catch(() => null)
-      : await getAiCreditUsage({ store: userStore, userId: user.id }).catch(() => null);
+    const usage = await readLedgerUsage(ledger, user.id, { plan: userPlan, trial: userTrial, paywallEnabled });
     return json(aiErrorBody(error, usage), error?.status || 500);
   }
 }
@@ -633,15 +687,13 @@ async function handleFetch(request, env) {
       if (!user) return json({ ok: false, error: "로그인 후 사용량을 확인할 수 있어요.", code: "AUTH_REQUIRED" }, 401);
       try {
         // 조회 전용. 클라이언트가 만질 수 있는 에너지 표면은 이것뿐이다.
-        const ledger = createEnergyLedgerClient(env);
-        if (ledger) {
-          return json(await ledger.usage(user.id, {
-            plan: resolveUserPlan(user),
-            trial: describeTrial(user),
-            paywallEnabled: isHardPaywallEnabled(env),
-          }));
-        }
-        return json(await getAiCreditUsage({ store: accountContext.store, userId: user.id }));
+        // 원장이 없으면 폐지된 KV 레코드를 읽지 않고 degraded 상태를 그대로 내보낸다
+        // (unavailableUsage 주석 참고). 화면은 잔량을 감추고 플랜 판정만 쓴다.
+        return json(await readLedgerUsage(createEnergyLedgerClient(env), user.id, {
+          plan: resolveUserPlan(user),
+          trial: describeTrial(user),
+          paywallEnabled: isHardPaywallEnabled(env),
+        }));
       } catch (error) {
         return json(aiErrorBody(error), error?.status || 500);
       }
@@ -684,7 +736,11 @@ async function handleFetch(request, env) {
           goalPlanGeneratedAt: refreshedUser.goalPlanGeneratedAt || null,
         } : null });
       } catch (error) {
-        const usage = await getAiCreditUsage({ store: accountContext.store, userId: user.id }).catch(() => null);
+        const usage = await readLedgerUsage(createEnergyLedgerClient(env), user.id, {
+          plan: resolveUserPlan(user),
+          trial: describeTrial(user),
+          paywallEnabled: isHardPaywallEnabled(env),
+        });
         return json(aiErrorBody(error, usage), error?.status || 500);
       }
     }

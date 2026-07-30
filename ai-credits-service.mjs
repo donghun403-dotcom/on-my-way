@@ -1,3 +1,28 @@
+/* KV 기반 AI 크레딧 회계 — 배포 경로에서는 더 이상 차감에 쓰이지 않는다.
+ *
+ * ┌─ 읽기 전에 알아야 할 것 ────────────────────────────────────────────────────┐
+ * │ 배포된 워커의 예약·커밋·해제·조회는 전부 EnergyLedger Durable Object가 한다   │
+ * │ (energy-ledger.mjs / energy-ledger-client.mjs). worker.mjs는 이 모듈의        │
+ * │ reserveAiCredits·commitAiCredits·releaseAiCredits·getAiCreditUsage를          │
+ * │ import하지 않으며, worker-ledger-only.test.mjs가 그것을 고정한다.             │
+ * └──────────────────────────────────────────────────────────────────────────────┘
+ *
+ * 왜 다시 배선하면 안 되는가: 이 모듈은 user 레코드를 read-modify-write하고, 그 직렬화를
+ * withAiCreditUserLock에 의존한다. 그 락은 모듈 스코프 Map이라 한 아이솔레이트 안에서만
+ * 유효하다. Workers는 colo마다 아이솔레이트가 따로 뜨므로 동시 요청이 서로를 못 보고
+ * 이중 차감이 난다. DO를 도입한 이유가 정확히 이것이다 — KV에는 CAS가 없다.
+ * 원장이 죽었을 때 여기로 물러나는 폴백도 그래서 없앴다. 청구 원장에서 조용한 성능
+ * 저하는 실패보다 나쁘다.
+ *
+ * 그래서 지금 무엇이 이 코드를 쓰는가:
+ *   ① serve-local.cjs — 로컬 개발 서버. worker.mjs의 fetch를 실행하지 않고 API를 직접
+ *      구현하며, DO가 없으므로 이 모듈로 회계한다. 로컬은 유저 한 명이라 경합이 없다.
+ *   ② worker.mjs가 쓰는 둘: startAiTrial(회원 레코드의 체험 필드), withAiCreditUserLock
+ *      (무료 치어링 하루 1회 카운터). 둘 다 유료 재화 차감이 아니다.
+ *   ③ ai-credits-service.test.mjs — 이 모듈 자체의 회귀 테스트.
+ *
+ * 정책 값(비용·한도·플랜 판정)은 plan-policy.mjs 한 곳에서 오므로 원장과 갈라지지 않는다.
+ */
 import {
   AI_ACTION_LABELS,
   AI_ACTION_REQUIRED_FEATURE,

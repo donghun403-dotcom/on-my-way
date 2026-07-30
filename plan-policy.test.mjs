@@ -129,6 +129,28 @@ test("체험 종료 편지와 무료 북 자격의 잔재가 소스에 하나도
   ]), []);
 });
 
+/* 위 검사는 식별자만 본다. 그래서 화면에 그대로 찍히는 한글 문구는 빠져나간다 —
+   실제로 admin.html의 데모 표에 "체험 종료 편지 미열람"이 남아 폐지된 기능 이름이
+   관리자 화면에 보이고 있었다.
+
+   .js를 함께 보지 않는 이유: 폐지를 설명하는 주석과 "이 문구가 없어야 한다"는 음성
+   단언이 전부 걸린다. 그 둘은 지우면 안 되는 것들이다. 마크업만 본다. */
+test("폐지한 기능 이름이 화면 마크업에 남아 있지 않다", () => {
+  const offenders = [];
+  for (const entry of readdirSync(new URL("./", import.meta.url), { withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith(".html")) continue;
+    const source = readFileSync(new URL(`./${entry.name}`, import.meta.url), "utf8");
+    for (const [label, pattern] of [
+      ["체험 종료 편지", /체험 종료 편지/],
+      ["월 1권 무료", /월 1권 무료|월 1회 무료/],
+      ["올리의 편지가 도착", /올리의 편지가 도착/],
+    ]) {
+      if (pattern.test(source)) offenders.push(`${entry.name} (${label})`);
+    }
+  }
+  assert.deepEqual(offenders, []);
+});
+
 test("every AI action has the exact server-side cost and a user-facing label", () => {
   // 라우트가 있는 행동만 값을 가진다 — 값이 붙어 있으면 UI가 없는 기능을 광고하게 된다.
   assert.deepEqual(AI_CREDIT_COSTS, {
