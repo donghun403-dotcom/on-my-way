@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createKvStore, createSessionToken } from "./auth-service.mjs";
 import worker, { checkDailyCheerAllowance, claimDailyCheer, releaseDailyCheer } from "./worker.mjs";
+import { durableObjectNamespace } from "./test-helpers/worker-env.mjs";
 
 const TEST_SECRET = "worker-cheer-test-secret-that-is-long-enough";
 const KST_NOON = Date.UTC(2026, 6, 27, 3, 0, 0);
@@ -31,6 +32,7 @@ function memoryKv() {
 
 async function authenticatedWorker({ plan = "pro", userId = `cheer-${plan}` } = {}) {
   const kv = memoryKv();
+  const ledger = durableObjectNamespace();
   const now = Date.now();
   const sessionId = `session-${userId}`;
   await kv.put(`user:${userId}`, JSON.stringify({
@@ -50,10 +52,15 @@ async function authenticatedWorker({ plan = "pro", userId = `cheer-${plan}` } = 
     kv,
     userId,
     cookie: `omw_session=${token}`,
+    /* 차감 경로에 KV 폴백이 없어졌으므로 worker.fetch를 부르는 테스트는 원장을 가져야
+       한다. 스텁은 test-helpers/worker-env.mjs 한 벌만 쓴다 — 파일마다 다시 쓰면
+       그중 하나가 실제 DO와 다르게 동작해도 아무도 모른다. */
+    ledger,
     env: {
       APP_ENV: "test",
       SESSION_SECRET: TEST_SECRET,
       USERS_KV: kv,
+      ENERGY_LEDGER: ledger,
       OPENAI_API_KEY: "test-openai-key",
       OPENAI_MODEL: "test-model",
     },

@@ -2294,7 +2294,25 @@ function setUsageProgress(element, bucket) {
   if (bar) bar.style.width = `${percent}%`;
 }
 
+/* 원장을 읽지 못하면 서버가 숫자 대신 degraded 상태를 보낸다(worker.mjs의 unavailableUsage).
+   폐지한 KV 레코드를 대신 읽으면 "그럴듯하지만 틀린" 잔량이 나오기 때문이다.
+
+   그 응답에도 plan과 paywallEnabled는 들어 있다 — 잠금 판정은 원장이 아니라 회원 레코드와
+   배포 설정에서 오므로 여전히 정확하다. 그래서 상태는 그대로 넣고 잔량만 감춘다.
+   여기서 일찍 return하면 aiUsageState가 비어 shouldShowPaywall이 false가 되고,
+   만료 계정에 열린 화면이 나온다. */
+function applyDegradedAiUsage(usage) {
+  aiUsageState = usage;
+  aiUsageError = "지금은 잔량을 불러올 수 없어요. 잠시 후 다시 확인해 주세요.";
+  if (authUiState.user && usage.plan) authUiState.user.plan = usage.plan;
+  syncServerPlanToLocal();
+  renderOllieEnergy();
+  renderMyPageUsage();
+  renderPricingExperience();
+}
+
 function applyAiUsage(usage) {
+  if (usage?.degraded) return applyDegradedAiUsage(usage);
   if (!usage?.daily || !usage?.monthly) return;
   const previousUsage = aiUsageState;
   aiUsageState = usage;
@@ -2352,6 +2370,15 @@ function renderOllieEnergy() {
   // 온보딩 페이지에는 에너지 미터 없이 크레딧 안내 시트만 있을 수 있다.
   if (!ollieEnergyMeter && !energyChargeBalance) return;
   const bucket = aiUsageState?.monthly;
+  /* 원장을 못 읽는 동안은 숫자를 만들어 내지 않고 그 사실을 그대로 말한다.
+     "확인 중"으로 두면 영영 로딩처럼 보이고, 0으로 두면 잔량이 없다고 거짓말한다. */
+  if (aiUsageState?.degraded) {
+    if (ollieEnergyBalance) ollieEnergyBalance.textContent = "확인 불가";
+    if (energyChargeBalance) energyChargeBalance.textContent = "잔량을 불러올 수 없어요";
+    if (ollieEnergyBar) ollieEnergyBar.style.width = "0%";
+    ollieEnergyMeter?.setAttribute("aria-busy", "false");
+    return;
+  }
   if (!authUiState.loaded || (authUiState.user && !bucket)) {
     if (ollieEnergyBalance) ollieEnergyBalance.textContent = "확인 중";
     if (energyChargeBalance) energyChargeBalance.textContent = "확인 중";
@@ -2385,6 +2412,14 @@ function renderMyPageUsage() {
   if (!authUiState.user) return;
   if (!usage) {
     if (myPageUsageStatus) myPageUsageStatus.textContent = aiUsageError || "사용량을 불러오는 중이에요.";
+    return;
+  }
+  // 원장을 못 읽는 동안. 플랜은 정확하므로 함께 보여 주고 숫자만 감춘다.
+  if (usage.degraded) {
+    if (myPageUsageStatus) {
+      myPageUsageStatus.textContent = `${usage.planLabel || usage.plan || "이용 상태"} · 잔량을 불러올 수 없어요`;
+    }
+    if (myPageDailyUsage) myPageDailyUsage.textContent = "확인 불가";
     return;
   }
   if (myPageUsageStatus) myPageUsageStatus.textContent = `${usage.planLabel || usage.plan} · 오늘 ${usage.daily.remaining}크레딧 남음`;

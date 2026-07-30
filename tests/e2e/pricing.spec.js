@@ -401,3 +401,37 @@ test("FAQ는 명확한 레이블과 네이티브 키보드 토글을 제공한�
   await expect(firstDetails).not.toHaveAttribute("open", "");
   diagnostics.expectClean();
 });
+
+/* 원장을 읽지 못하면 서버는 숫자 대신 degraded 상태를 보낸다(worker.mjs의 unavailableUsage).
+   폐지한 KV 레코드를 대신 읽으면 "그럴듯하지만 틀린" 잔량이 나오기 때문이다.
+   화면은 그때 숫자를 만들어 내지 말고 못 읽는다는 사실을 말해야 한다 —
+   0으로 두면 잔량이 없다고 거짓말하고, "확인 중"으로 두면 영영 로딩처럼 보인다. */
+test("원장을 읽지 못하면 잔량 자리에 숫자 대신 확인 불가를 보여 준다", async ({ page }) => {
+  await mockAccountExperience(page, {
+    user: {
+      id: "usr_degraded",
+      provider: "google",
+      name: "원장 장애",
+      email: "degraded@example.com",
+      plan: "pro",
+      role: "member",
+    },
+    // 서버가 실제로 내보내는 모양: 잔량 없음, 플랜 판정은 그대로.
+    usage: {
+      available: false,
+      degraded: true,
+      reason: "ENERGY_LEDGER_UNAVAILABLE",
+      plan: "pro",
+      planLabel: "Pro",
+      paywallEnabled: false,
+    },
+  });
+  await page.goto("/app.html");
+  await waitForAppReady(page);
+
+  await expect(page.locator("#ollieEnergyBalance")).toHaveText("확인 불가");
+  // 잔량처럼 읽히는 "N / M" 표기가 남아 있으면 안 된다.
+  await expect(page.locator("#ollieEnergyBalance")).not.toHaveText(/\d+\s*\/\s*\d+/);
+  // 만료가 아니므로 잠금 화면은 뜨지 않는다 — 판정은 degraded에도 실려 온다.
+  await expect(page.locator("#trialPaywall")).toBeHidden();
+});

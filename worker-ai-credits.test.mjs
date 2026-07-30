@@ -2,7 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createSessionToken } from "./auth-service.mjs";
 import worker from "./worker.mjs";
-import { resolveTrialEndsAt } from "./plan-policy.mjs";
+import { durableObjectNamespace } from "./test-helpers/worker-env.mjs";
+import { createEnergyLedgerClient } from "./energy-ledger-client.mjs";
+import { PLAN_CONFIG, resolveTrialEndsAt } from "./plan-policy.mjs";
 
 const TEST_SECRET = "worker-ai-credit-test-secret-that-is-long-enough";
 
@@ -33,6 +35,7 @@ function memoryKv() {
 
 async function authenticatedWorker({ plan = "expired", userId = `user-${plan}` } = {}) {
   const kv = memoryKv();
+  const ledger = durableObjectNamespace();
   const now = Date.now();
   const sessionId = `session-${userId}`;
   const user = {
@@ -63,10 +66,15 @@ async function authenticatedWorker({ plan = "expired", userId = `user-${plan}` }
     kv,
     userId,
     cookie: `omw_session=${token}`,
+    /* 차감 경로에 KV 폴백이 없어졌으므로 worker.fetch를 부르는 테스트는 원장을 가져야
+       한다. 스텁은 test-helpers/worker-env.mjs 한 벌만 쓴다 — 파일마다 다시 쓰면
+       그중 하나가 실제 DO와 다르게 동작해도 아무도 모른다. */
+    ledger,
     env: {
       APP_ENV: "test",
       SESSION_SECRET: TEST_SECRET,
       USERS_KV: kv,
+      ENERGY_LEDGER: ledger,
       OPENAI_API_KEY: "test-openai-key",
       OPENAI_MODEL: "test-model",
     },
@@ -92,6 +100,22 @@ async function callApi(context, path, options = {}) {
 
 async function storedUser(context) {
   return context.kv.get(`user:${context.userId}`, "json");
+}
+
+/* 차감이 KV에서 원장으로 옮겨간 뒤로 회계의 진실은 user.aiCredits가 아니라 DO의
+   거래 기록이다. 예전에는 usage.metrics.successfulCalls와 aiCredits.requests[id].status를
+   봤는데, 원장의 usage 뷰에는 metrics가 없고 요청 상태는 거래로 표현된다:
+     성공 커밋 → type "spend", reason = action
+     제공자 실패 후 원복 → type "refund"
+   그래서 같은 사실을 거래에서 읽는다. */
+async function ledgerTransactions(context) {
+  const client = createEnergyLedgerClient({ ENERGY_LEDGER: context.ledger });
+  const result = await client.transactions(context.userId, { limit: 200 });
+  return result?.transactions || [];
+}
+
+async function spendCount(context) {
+  return (await ledgerTransactions(context)).filter((txn) => txn.type === "spend").length;
 }
 
 function successfulOpenAiResponse(schemaName) {
@@ -251,7 +275,7 @@ test("AI 경로는 고정 비용을 사용하고 클라이언트 plan·creditCos
   assert.equal(usage.body.plan, "pro");
   assert.equal(usage.body.daily.used, 10);
   assert.equal(usage.body.monthly.used, 10);
-  assert.equal(usage.body.metrics.successfulCalls, 4);
+  assert.equal(await spendCount(context), 4);
 });
 
 test("AI 요청 제한은 클라이언트 userId가 아니라 인증된 세션 사용자 ID를 사용한다", { concurrency: false }, async () => {
@@ -339,8 +363,8 @@ test("성공 응답은 chargedCredits를 반환하고 같은 X-Request-ID를 다
   const usage = await callApi(context, "/api/ai/usage");
   assert.equal(usage.body.daily.used, 1);
   assert.equal(usage.body.daily.reserved, 0);
-  assert.equal(usage.body.metrics.chargedCredits, 1);
-  assert.equal(usage.body.metrics.successfulCalls, 1);
+  assert.equal(await spendCount(context), 1);
+  assert.equal(usage.body.monthly.used, 1);
 });
 
 test("처리 중인 같은 X-Request-ID는 409로 거부하고 원래 예약을 해제하지 않는다", { concurrency: false }, async () => {
@@ -385,7 +409,7 @@ test("처리 중인 같은 X-Request-ID는 409로 거부하고 원래 예약을 
   const usage = await callApi(context, "/api/ai/usage");
   assert.equal(usage.body.daily.used, 1);
   assert.equal(usage.body.daily.reserved, 0);
-  assert.equal(usage.body.metrics.chargedCredits, 1);
+  assert.equal(await spendCount(context), 1);
 });
 
 test("일정 재조정과 대화가 겹쳐도 사용자 기록과 총 5크레딧을 모두 보존한다", { concurrency: false }, async () => {
@@ -427,13 +451,14 @@ test("일정 재조정과 대화가 겹쳐도 사용자 기록과 총 5크레딧
     releaseReschedule?.();
   }
 
-  const user = await storedUser(context);
-  assert.equal(user.aiCredits.requests["race-reschedule"].status, "committed");
-  assert.equal(user.aiCredits.requests["race-chat"].status, "committed");
+  // 두 요청 모두 커밋됐다 = 원장에 각 action의 spend가 하나씩 남는다.
+  const reasons = (await ledgerTransactions(context))
+    .filter((txn) => txn.type === "spend").map((txn) => txn.reason).sort();
+  assert.deepEqual(reasons, ["companion_chat", "reschedule_plan"]);
   const usage = await callApi(context, "/api/ai/usage");
   assert.equal(usage.body.daily.used, 5);
   assert.equal(usage.body.daily.reserved, 0);
-  assert.equal(usage.body.metrics.successfulCalls, 2);
+  assert.equal(await spendCount(context), 2);
 });
 
 test("Content-Length가 없는 실제 5KB 초과 본문도 제공자 호출 전에 거부한다", { concurrency: false }, async () => {
@@ -456,8 +481,9 @@ test("Content-Length가 없는 실제 5KB 초과 본문도 제공자 호출 전�
   const usage = await callApi(context, "/api/ai/usage");
   assert.equal(usage.body.daily.used, 0);
   assert.equal(usage.body.daily.reserved, 0);
-  assert.equal(usage.body.metrics.apiCalls, 0);
-  assert.equal(usage.body.metrics.reservationCount, 0);
+  // 예약 전에 거부됐으므로 원장에 거래가 하나도 남지 않는다(월 지급 제외).
+  assert.equal(await spendCount(context), 0);
+  assert.equal((await ledgerTransactions(context)).some((t) => t.type === "refund"), false);
 });
 
 test("AI 제공자 실패는 예약 크레딧을 환불한다", { concurrency: false }, async () => {
@@ -496,11 +522,11 @@ test("AI 제공자 실패는 예약 크레딧을 환불한다", { concurrency: f
   const usage = await callApi(context, "/api/ai/usage");
   assert.equal(usage.body.daily.used, 0);
   assert.equal(usage.body.monthly.used, 0);
-  assert.equal(usage.body.metrics.failedCalls, 1);
-  assert.equal(usage.body.metrics.releasedCredits, 1);
-  assert.equal(usage.body.metrics.chargedCredits, 0);
-  const user = await storedUser(context);
-  assert.equal(user.aiCredits.requests["provider-failure"].status, "released");
+  /* 커밋 전 예약을 되돌리는 것은 거래를 남기지 않는다 — 원장은 확정된 것만 기록한다.
+     그래서 "환불됐다"는 잔량이 그대로라는 사실로 확인한다. */
+  assert.equal(usage.body.daily.reserved, 0);
+  assert.equal(usage.body.available, PLAN_CONFIG.pro.monthlyCredits);
+  assert.equal(await spendCount(context), 0);
 });
 
 test("제공자 호출 전 입력 오류는 크레딧을 복구하고 실제 API 호출 통계에 포함하지 않는다", { concurrency: false }, async () => {
@@ -519,7 +545,7 @@ test("제공자 호출 전 입력 오류는 크레딧을 복구하고 실제 API
     console.error = originalConsoleError;
   }
   const usage = await callApi(context, "/api/ai/usage");
-  assert.equal(usage.body.metrics.apiCalls, 0);
-  assert.equal(usage.body.metrics.failedCalls, 0);
-  assert.equal(usage.body.metrics.releasedCredits, 1);
+  assert.equal(await spendCount(context), 0);
+  assert.equal(usage.body.daily.reserved, 0);
+  assert.equal(usage.body.available, PLAN_CONFIG.pro.monthlyCredits);
 });
