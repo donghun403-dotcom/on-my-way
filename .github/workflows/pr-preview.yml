@@ -266,6 +266,14 @@ jobs:
           echo "Preview core assets did not become stable (last: $last_result)"
           exit 1
 
+      # 배포된 워커가 실제로 해석한 바인딩을 판정한다. 설정 파일이 아니라 산출물을 본다 —
+      # 주입 경로가 셋(이 워크플로의 jq / staging-config.mjs / wrangler.production.jsonc)인데
+      # 검증도 셋이면 각자 표류하기 때문이다. 판정 로직은 binding-health.mjs 한 곳이다.
+      - name: Verify resolved Worker bindings
+        env:
+          PREVIEW_URL: ${{ steps.deploy.outputs.deployment-url }}
+        run: node scripts/verify-deployed-bindings.mjs "$PREVIEW_URL"
+
       # 파일 목록은 위 "부분집합 구성 근거"의 규칙을 그대로 적은 것이다:
       # 서버 응답을 가로채지 않는 스펙(= 실제 워커를 관찰할 수 있는 스펙)만 남긴다.
       - name: Run the preview integration subset

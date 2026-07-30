@@ -9,7 +9,8 @@
     "binding": "ASSETS",
     "run_worker_first": true,
     "html_handling": "none",
-    "not_found_handling": "single-page-application"
+    "not_found_handling": "single-page-application",
+    "exclude": [".codex-artifacts"]
   },
   "vars": {
     "OPENAI_MODEL": "gpt-5.4-mini",

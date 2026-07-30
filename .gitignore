@@ -27,6 +27,8 @@ On My Way 로고/
 # Local backups, agent work dirs, generated outputs (never commit)
 .backups/
 .patch-backups/
+# wrangler dev가 만드는 로컬 miniflare 상태(KV·DO·캐시 sqlite).
+.wrangler/
 .codex-artifacts/
 .codex-backups/
 .worktrees/
