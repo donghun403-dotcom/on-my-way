@@ -1,5 +1,15 @@
-/* 하드 페이월 (P1) — 체험이 끝나고 결제하지 않으면 앱 이용을 차단한다.
-   차단 여부는 서버가 정한다(usage.paywallEnabled + usage.plan). 화면은 그 판정만 읽는다.
+/* 하드 페이월 (P1) — 잠금 "화면"만 본다. 서버 게이트는 여기서 검증하지 않는다.
+
+   차단 여부는 서버가 정하고(usage.paywallEnabled + usage.plan) 화면은 그 판정만 읽는다.
+   이 파일이 검증하는 것은 그중 뒷부분뿐이다: 주어진 판정에 대해 화면이 무엇을 그리는가.
+   helpers.js의 mockAccountExperience가 /api/auth/me·/api/ai/usage·/api/account/state를
+   전부 page.route로 가로채므로 아래 테스트는 서버에 닿지 않는다. plan과 paywallEnabled는
+   서버 응답이 아니라 테스트 입력이다.
+
+   서버 게이트(만료 계정의 402 PLAN_EXPIRED, provider 호출 0, 원장 무변경, 체험·PRO 통과,
+   차단이 꺼졌을 때의 통과)는 worker-energy-ledger.test.mjs의 "하드 페이월 (P1)" 절이
+   스텁 env로 워커 핸들러를 직접 불러 검증한다. e2e는 배선을, 유닛은 분기 판정을 맡는다.
+
    잠긴 화면에서도 기록 열람·내보내기와 탈퇴·결제는 반드시 열려 있어야 한다(법적 요건). */
 const { test, expect } = require("@playwright/test");
 const {
