@@ -1,0 +1,193 @@
+#!/usr/bin/env node
+/* 실기기 검증용 Capacitor 셸을 구성 A 또는 B로 준비한다.
+ *
+ *   node scripts/prepare.mjs a
+ *   node scripts/prepare.mjs b
+ *
+ * 하는 일은 둘뿐이다: `capacitor.config.json`을 쓰고 `www/`를 채운다. 그 다음은
+ * `npx cap add android && npx cap sync android && android/gradlew assembleDebug`.
+ *
+ * ── 왜 이 셸이 존재하는가 ───────────────────────────────────────────────────
+ *
+ * docs/capacitor-spike.md는 가설 A(시스템 브라우저 + 일회용 코드 + 쿠키 주입)가
+ * 실패한다는 결론까지 갔지만, 그 결론과 대안(CapacitorHttp)의 근거가 전부 소스 읽기다.
+ * 그 문서 §5에 실기기 없이는 확인 불가능한 항목 여섯이 남아 있고, **§2의 결론이 그중
+ * 앞 둘에 달려 있다**. 이 셸은 그 여섯을 재기 위한 계측 장치다. 제품이 아니다.
+ *
+ * 그래서 이 단계에서 서버 코드도 script.js도 고치지 않는다. 무엇을 고쳐야 하는지를
+ * 먼저 재는 단계다. 고칠 곳을 미리 정해 놓고 재면 재는 게 아니라 확인이 된다.
+ *
+ * ── 두 구성이 무엇을 다르게 묻는가 ──────────────────────────────────────────
+ *
+ *   A — server.url 원격 로드
+ *       WebView가 실서버를 직접 연다. origin이 곧 서버 origin이라 상대 경로도,
+ *       동일 출처 검사도, 쿠키도 웹과 똑같이 동작해야 한다. 즉 **되면 코드 변경이
+ *       거의 없다**. 대신 Capacitor 문서가 server.url을 "not intended for use in
+ *       production"이라고 못박고 있고, 앱 심사에서 "웹 래퍼"로 걸릴 위험이 가장 큰
+ *       형태다. 이 구성은 **상한선을 재는 용도**다 — 이것마저 안 되면 나머지도 안 된다.
+ *
+ *   B — 번들 에셋 + server.hostname + CapacitorHttp
+ *       에셋은 앱 안에서 뜨고, origin만 실서버 도메인으로 위장한다.
+ *       그래서 script.js의 상대 경로가 손대지 않고도 https://onmyway.olivenrich.com/api/…
+ *       로 해석된다 — 스파이크가 "6곳 남짓 고쳐야 한다"고 적은 그 수정이 **0곳이 될
+ *       가능성**이 여기에 있다.
+ *       대신 새 질문이 생긴다: Capacitor의 로컬 서버가 그 origin의 /api 요청을
+ *       가로채서 번들에서 찾아 버리지 않는가? CapacitorHttp가 전역 fetch를 네이티브로
+ *       빼돌리면 가로채이지 않는다는 게 가설이고, 이게 체크리스트의 핵심 항목이다.
+ *
+ * 두 구성은 배타적이지 않다. A가 되고 B가 안 되면 A의 심사 위험을 감수할지 판단하면
+ * 되고, 둘 다 안 되면 서버를 고쳐야 한다는 뜻이다 — 그 경우에만 CSRF 방어를 낮추는
+ * 거래(§1)를 다시 꺼낸다.
+ */
+
+import { cp, mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const MOBILE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const REPO_DIR = resolve(MOBILE_DIR, "..");
+const WWW_DIR = join(MOBILE_DIR, "www");
+
+/* appId를 구성마다 다르게 준다. 같으면 B를 설치하는 순간 A가 지워져서 한 대에서
+   둘을 번갈아 볼 수 없다 — 검증 루프에서는 그게 곧 재측정 비용이다.
+   appName도 다르게 준다. 런처 아이콘 두 개가 같은 이름이면 어느 쪽을 열었는지
+   모른 채로 관측을 적게 된다. */
+const CONFIGS = {
+  a: {
+    appId: "com.olivenrich.onmyway.verifya",
+    appName: "OMW 검증 A",
+    webDir: "www",
+    server: {
+      url: "https://onmyway.olivenrich.com",
+      /* 평문 HTTP를 열지 않는다. 열어 두면 원격 로드가 실패했을 때 그 원인이
+         TLS인지 네트워크인지 구분이 안 된다. */
+      cleartext: false,
+    },
+  },
+  b: {
+    appId: "com.olivenrich.onmyway.verifyb",
+    appName: "OMW 검증 B",
+    webDir: "www",
+    server: {
+      /* androidScheme https + hostname 조합이 WebView origin을
+         https://onmyway.olivenrich.com 으로 만든다. Capacitor Android 기본값은
+         https + localhost 라서, 이 한 줄이 없으면 상대 경로가 전부
+         https://localhost/api/… 로 나가 서버에 닿지 않는다 (스파이크 §1-①). */
+      androidScheme: "https",
+      hostname: "onmyway.olivenrich.com",
+    },
+    plugins: {
+      /* 전역 fetch·XMLHttpRequest를 네이티브 HTTP로 가로챈다. 두 가지를 동시에
+         노린다: (1) 로컬 서버의 /api 가로채기를 피하고 (2) Origin 헤더가 붙지 않아
+         서버의 `if (origin && origin !== url.origin)` 검사를 통과한다.
+         둘 다 가설이고, 체크리스트가 이 둘을 따로 묻는다. */
+      CapacitorHttp: { enabled: true },
+      /* CapacitorCookies는 일부러 켜지 않는다. 켜면 document.cookie까지 네이티브
+         잼으로 바뀌어서, 쿠키가 붙지 않을 때 원인이 잼인지 SameSite인지 갈라지지
+         않는다. 변수를 하나씩 움직인다 — 이건 다음 회차의 변수다. */
+    },
+  },
+};
+
+/* 구성 B가 번들에 넣을 것. 명시 목록인 이유: .assetsignore의 제외 규칙을 흉내 내면
+   "번들에 무엇이 들어갔는지"가 규칙 해석에 달리게 된다. 검증 셸에서 그건 관측을
+   흐린다 — 화면이 깨졌을 때 파일이 빠진 건지 코드가 깨진 건지 알 수 없다.
+   목록에 있는 항목이 하나라도 없으면 빌드를 실패시킨다(아래 assertExists).
+   제품이 파일을 추가·삭제하면 여기가 조용히 낡는 대신 시끄럽게 깨진다. */
+const BUNDLE_ENTRIES = [
+  "index.html",
+  "app.html",
+  "admin.html",
+  "privacy.html",
+  "terms.html",
+  "support.html",
+  "delete-account.html",
+  "script.js",
+  "styles.css",
+  "legal.css",
+  "sample-diary-book.js",
+  "account-delete.js",
+  "core-loop-v2.html",
+  "core-loop-v2.js",
+  "core-loop-v2.css",
+  "plan-policy.mjs",
+  "assets",
+];
+
+/* 구성 A의 www는 실제로 쓰이지 않는다 — server.url이 원격을 열기 때문이다.
+   그런데 cap copy가 webDir을 요구하므로 비워 둘 수는 없다.
+   여기에 제품 에셋을 복사하면 안 된다: 원격 로드가 실패했을 때 번들이 대신 떠서
+   "A가 됐다"로 오독하게 된다. 그래서 눈에 띄는 실패 표지판을 넣는다.
+   이 화면이 보이면 그 자체가 관측 결과다. */
+const CONFIG_A_FALLBACK = `<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>구성 A — 원격 로드 실패</title>
+  </head>
+  <body style="margin:0;display:grid;place-items:center;min-height:100vh;background:#7f1d1d;color:#fff;font:16px/1.7 system-ui,sans-serif;text-align:center;padding:24px">
+    <div>
+      <h1 style="font-size:20px;margin:0 0 12px">구성 A — 원격 로드 실패</h1>
+      <p style="margin:0 0 8px">이 화면이 보인다는 것은 <code>server.url</code>이 열리지 않았다는 뜻입니다.</p>
+      <p style="margin:0;opacity:.8">체크리스트 A-1을 <strong>실패</strong>로 적으세요.</p>
+    </div>
+  </body>
+</html>
+`;
+
+async function assertExists(path, label) {
+  try {
+    await stat(path);
+  } catch {
+    throw new Error(`번들 목록의 항목이 리포지토리에 없습니다: ${label}\n` +
+      `제품에서 파일이 옮겨졌거나 지워졌다면 mobile/scripts/prepare.mjs의 BUNDLE_ENTRIES를 고치세요.`);
+  }
+}
+
+async function writeConfigA() {
+  await writeFile(join(WWW_DIR, "index.html"), CONFIG_A_FALLBACK, "utf8");
+  return ["index.html (폴백 표지판)"];
+}
+
+async function writeConfigB() {
+  const copied = [];
+  for (const entry of BUNDLE_ENTRIES) {
+    const source = join(REPO_DIR, entry);
+    await assertExists(source, entry);
+    await cp(source, join(WWW_DIR, entry), { recursive: true });
+    copied.push(entry);
+  }
+  return copied;
+}
+
+async function main() {
+  const name = String(process.argv[2] || "").toLowerCase();
+  const config = CONFIGS[name];
+  if (!config) {
+    console.error(`사용법: node scripts/prepare.mjs <${Object.keys(CONFIGS).join("|")}>`);
+    process.exit(1);
+  }
+
+  await rm(WWW_DIR, { recursive: true, force: true });
+  await mkdir(WWW_DIR, { recursive: true });
+
+  const copied = name === "a" ? await writeConfigA() : await writeConfigB();
+
+  await writeFile(
+    join(MOBILE_DIR, "capacitor.config.json"),
+    `${JSON.stringify(config, null, 2)}\n`,
+    "utf8",
+  );
+
+  const wwwCount = (await readdir(WWW_DIR)).length;
+  console.log(`구성 ${name.toUpperCase()} 준비 완료`);
+  console.log(`  appId   ${config.appId}`);
+  console.log(`  server  ${JSON.stringify(config.server)}`);
+  console.log(`  www     ${wwwCount}개 항목 — ${copied.join(", ")}`);
+}
+
+main().catch((error) => {
+  console.error(error.message);
+  process.exit(1);
+});

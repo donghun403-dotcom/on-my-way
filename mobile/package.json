@@ -1,0 +1,19 @@
+{
+  "name": "on-my-way-verify-shell",
+  "version": "0.0.0",
+  "private": true,
+  "description": "실기기 검증용 Capacitor 셸. 제품이 아니다 — 인증 경로를 재기 위한 계측 장치다.",
+  "scripts": {
+    "prepare:a": "node scripts/prepare.mjs a",
+    "prepare:b": "node scripts/prepare.mjs b",
+    "add:android": "cap add android",
+    "sync": "cap sync android"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.4.2",
+    "@capacitor/core": "8.4.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.4.2"
+  }
+}
