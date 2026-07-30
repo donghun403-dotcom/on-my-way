@@ -1,10 +1,10 @@
 const { test, expect } = require("@playwright/test");
 const { AI_CREDIT_COSTS, CHAT_CONSENT_STORAGE, createUsageResponse, mockAccountExperience, monitorPage, prepareApp, readStored, waitForAppReady, waitForBootstrap } = require("./helpers");
 
-async function prepareMate(page, usage = createUsageResponse({ plan: "free", dailyUsed: 0, monthlyUsed: 1, trialEligible: false }), storage = CHAT_CONSENT_STORAGE) {
+async function prepareMate(page, usage = createUsageResponse({ plan: "expired", dailyUsed: 0, monthlyUsed: 1, trialEligible: false }), storage = CHAT_CONSENT_STORAGE) {
   await prepareApp(page, storage);
   await mockAccountExperience(page, {
-    user: { id: "usr_mate", provider: "google", name: "메이트 테스트", email: "mate@example.com", plan: "free", role: "member" },
+    user: { id: "usr_mate", provider: "google", name: "메이트 테스트", email: "mate@example.com", plan: "expired", role: "member" },
     usage,
   });
 }
@@ -39,7 +39,7 @@ test("올리 대화 실패를 안전하게 안내하고 계획을 자동 적용�
         ok: false,
         error: "E2E mock failure",
         code: "UPSTREAM_UNAVAILABLE",
-        usage: createUsageResponse({ plan: "free", dailyUsed: 0, monthlyUsed: 1, trialEligible: false }),
+        usage: createUsageResponse({ plan: "expired", dailyUsed: 0, monthlyUsed: 1, trialEligible: false }),
       }),
     });
   });
@@ -94,7 +94,9 @@ test("AI 크레딧 안내는 서버 제공량과 기능별 비용만 표시하�
   await expect(creditDialog.locator(".credit-cost-summary > span")).toHaveCount(5);
   await expect(creditDialog.locator(".credit-cost-summary > span").first()).toContainText("매일 축하·위로 0크레딧");
   const costValues = creditDialog.locator("[data-ai-credit-cost]");
-  await expect(costValues).toHaveText(Object.values(AI_CREDIT_COSTS).map(String));
+  // 안내가 고른 행동의 값만 정책과 비교한다. 정책에는 화면에 없는 행동(다이어리 북·체험 편지)도 있다.
+  const advertised = await costValues.evaluateAll((nodes) => nodes.map((node) => node.dataset.aiCreditCost));
+  await expect(costValues).toHaveText(advertised.map((action) => String(AI_CREDIT_COSTS[action])));
   await expect(creditDialog).not.toContainText("새 목표 계획 생성");
   await expect(creditDialog.locator(".energy-pack")).toHaveCount(0);
   await expect(creditDialog).toContainText("추가 크레딧 판매는 현재 제공하지 않습니다");
@@ -118,8 +120,8 @@ test("전체 성장 여정의 플랜 안내에서 올리 탭으로 돌아올 수
 
 /* 스펙 2장 ⑤: 에너지가 없으면 입력창이 충전 안내로 전환된다. 보낼 수 없는 상태에서
    입력창을 열어 두고 전송 순간에 막으면, 쓴 글이 버려지고 재촉처럼 읽힌다. */
-test("Free 일일 한도를 모두 쓰면 입력창이 충전 안내로 바뀌고 API를 부르지 않는다", async ({ page }) => {
-  await prepareMate(page, createUsageResponse({ plan: "free", dailyUsed: 2, monthlyUsed: 2, trialEligible: false }));
+test("만료 계정이 일일 한도를 모두 쓰면 입력창이 충전 안내로 바뀌고 API를 부르지 않는다", async ({ page }) => {
+  await prepareMate(page, createUsageResponse({ plan: "expired", dailyUsed: 2, monthlyUsed: 2, trialEligible: false }));
   const diagnostics = monitorPage(page);
   let apiCalls = 0;
   await page.route("**/api/ai/companion-chat", (route) => {
@@ -145,8 +147,8 @@ test("Free 일일 한도를 모두 쓰면 입력창이 충전 안내로 바뀌�
   diagnostics.expectClean();
 });
 
-test("Free 월간 크레딧을 모두 쓰면 다음 제공 시점을 안내하고 API를 부르지 않는다", async ({ page }) => {
-  await prepareMate(page, createUsageResponse({ plan: "free", dailyUsed: 0, monthlyUsed: 5, trialEligible: false }));
+test("만료 계정이 월간 크레딧을 모두 쓰면 다음 제공 시점을 안내하고 API를 부르지 않는다", async ({ page }) => {
+  await prepareMate(page, createUsageResponse({ plan: "expired", dailyUsed: 0, monthlyUsed: 5, trialEligible: false }));
   const diagnostics = monitorPage(page);
   let apiCalls = 0;
   await page.route("**/api/ai/companion-chat", (route) => {
@@ -184,7 +186,7 @@ test("대화 시트는 진입점과 무관하게 같은 헤더를 쓰고 답을 
         reply: "오늘 저녁 일정을 30분 안으로 줄여볼게요.",
         headline: "짧게 가요.",
         emotion: "결심",
-        usage: createUsageResponse({ plan: "free", dailyUsed: 1, monthlyUsed: 2, trialEligible: false }),
+        usage: createUsageResponse({ plan: "expired", dailyUsed: 1, monthlyUsed: 2, trialEligible: false }),
       }),
     });
   });
@@ -389,7 +391,7 @@ test("위기 신호 응답은 에너지를 쓰지 않고 다음 행동을 권하
       emotion: "슬픔공감",
       safety: "crisis",
       chargedCredits: 0,
-      usage: createUsageResponse({ plan: "free", dailyUsed: 0, monthlyUsed: 1, trialEligible: false }),
+      usage: createUsageResponse({ plan: "expired", dailyUsed: 0, monthlyUsed: 1, trialEligible: false }),
     }),
   }));
   await openMateApp(page);

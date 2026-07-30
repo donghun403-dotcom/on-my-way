@@ -553,7 +553,7 @@ const server = http.createServer(async (request, response) => {
           provider: refreshedUser.provider,
           role: refreshedUser.role || "user",
           status: refreshedUser.status || "active",
-          plan: refreshedUser.plan || "free",
+          plan: refreshedUser.plan || "expired",
           trialStartedAt: refreshedUser.trialStartedAt || null,
           trialExpiresAt: refreshedUser.trialExpiresAt || null,
           trialUsedAt: refreshedUser.trialUsedAt || null,

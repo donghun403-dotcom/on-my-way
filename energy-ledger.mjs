@@ -14,10 +14,13 @@ import {
   AI_CREDIT_COSTS,
   CREDIT_POLICY_VERSION,
   DEFAULT_TIME_ZONE,
+  PAYWALL_OFF_EXPIRED_GRANT,
   PLAN_CONFIG,
   PLAN_LABELS,
+  PRO_ONLY_LOCK_REASON,
+  allowsProOnlyFeature,
   getPlanConfig,
-  hasMonthlyFreeDiaryBook,
+  isProOnlyAiAction,
 } from "./plan-policy.mjs";
 
 export const ENERGY_LEDGER_SCHEMA_VERSION = 1;
@@ -41,11 +44,11 @@ export const RESERVATION_TTL_MS = 10 * 60 * 1_000;
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/;
 const ORDER_ID_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/;
 
-/* PRO의 "매월 다이어리 북 1권 무료"는 통화가 아니라 자격이다. 에너지를 10 얹어 주면
-   대화에 쓸 수 있게 되어 혜택의 모양이 달라진다. 그래서 잔액을 건드리지 않고 월 키
-   하나로 소진 여부만 기록한다 — lazy-grant와 같은 원리다. */
+/* 다이어리 북은 자격이 아니라 값이다. 플랜과 무관하게 AI_CREDIT_COSTS의 10을 소비한다.
+   무료 엔타이틀먼트(월 1권)를 두면 그 발급만 원장 밖에서 일어나 원장이 AI 비용의 상한이라는
+   성질이 깨진다 — 북은 앱에서 가장 비싼 단일 동작이라 그 구멍이 가장 크다.
+   원장에는 이제 어떤 종류의 무료 자격도 없다. */
 export const DIARY_BOOK_ACTION = "diary_book";
-export const MONTHLY_DIARY_BOOK_ENTITLEMENT = "monthly_diary_book";
 
 export class EnergyLedgerError extends Error {
   constructor(code, message, status = 400, details = undefined) {
@@ -148,8 +151,6 @@ export function emptyLedgerState(now = Date.now(), timeZone = DEFAULT_TIME_ZONE)
     purchasedBalance: 0,
     // 이번 달 정기 지급 여부. lazy-grant 판정에 쓴다.
     lastGrantMonthKey: "",
-    // 이번 달 무료 다이어리 북을 이미 받았는지. 비어 있으면 아직 안 받았다는 뜻이다.
-    freeDiaryBookMonthKey: "",
     // 일일 속도 제한. 키가 바뀌면 0으로 리셋한다.
     daily: { key: "", spent: 0, reserved: 0 },
     // 진행 중/최근 예약. requestId 멱등 처리를 겸한다.
@@ -177,9 +178,6 @@ function normalizeRequests(value) {
       updatedAt: finiteTimestamp(raw.updatedAt),
       txnId: String(raw.txnId || ""),
       fromPurchased: nonNegativeInteger(raw.fromPurchased),
-      // 무료 자격으로 잡은 예약인지, 확정하며 어느 달의 자격을 썼는지.
-      entitlement: String(raw.entitlement || ""),
-      entitlementMonthKey: String(raw.entitlementMonthKey || ""),
       errorCode: String(raw.errorCode || ""),
     };
   }
@@ -212,7 +210,6 @@ export function normalizeLedgerState(value, now = Date.now(), timeZone = DEFAULT
     reserved: nonNegativeInteger(value.reserved),
     purchasedBalance: Math.min(nonNegativeInteger(value.purchasedBalance), nonNegativeInteger(value.balance)),
     lastGrantMonthKey: String(value.lastGrantMonthKey || ""),
-    freeDiaryBookMonthKey: String(value.freeDiaryBookMonthKey || ""),
     daily: {
       key: String(daily.key || ""),
       spent: nonNegativeInteger(daily.spent),
@@ -228,27 +225,32 @@ export function normalizeLedgerState(value, now = Date.now(), timeZone = DEFAULT
 
 /* ---------- 플랜별 지급액 ----------
    금액은 여기서 정하지 않고 PLAN_CONFIG에서 읽는다. 스펙(체험 10 / PRO 300)과 코드
-   (체험 15 / PRO 250)가 다른 상태라 값이 확정되면 plan-policy.mjs 한 곳만 고치면 된다. */
+   (체험 15 / PRO 250)가 다른 상태라 값이 확정되면 plan-policy.mjs 한 곳만 고치면 된다.
 
-export function monthlyGrantAmount(plan) {
+   paywallEnabled는 만료 계정에만 의미가 있다. 차단이 꺼져 있는 동안은 폐지 전 Free와
+   같은 양을 지급해 아무도 잠기지 않게 하고, 켜면 0이 된다.
+
+   지급은 lazy-grant다. 그래서 달 중간에 플래그를 켜거나 플랜이 만료로 넘어가도 그 달 이미
+   지급된 몫은 잔액에 남고, 다음 달 첫 요청부터 0이 된다. 이것은 구현의 부산물이 아니라
+   의도된 동작이다 — 이미 "이번 달 N크레딧"으로 지급한 것을 사후에 회수하면 제공하겠다고
+   표시한 것을 없애는 셈이라 표시광고법상 문제가 된다. 소급 회수 로직을 넣지 마라. */
+
+export function monthlyGrantAmount(plan, { paywallEnabled = true } = {}) {
   if (plan === "trial") return PLAN_CONFIG.pro.trial.credits;
+  if (plan === "expired" && !paywallEnabled) return PAYWALL_OFF_EXPIRED_GRANT.monthlyCredits;
   const config = getPlanConfig(plan);
   return config ? config.monthlyCredits : 0;
 }
 
-export function dailySpendLimit(plan) {
+export function dailySpendLimit(plan, { paywallEnabled = true } = {}) {
+  if (plan === "expired" && !paywallEnabled) return PAYWALL_OFF_EXPIRED_GRANT.dailyCreditLimit;
   const config = getPlanConfig(plan);
   return config ? config.dailyCreditLimit : 0;
 }
 
-/* 이번 달 무료 다이어리 북이 아직 남아 있는가. 자격을 쓰는 시점은 예약이 아니라 확정이다 —
-   AI가 실패한 요청이 그 달의 유일한 무료 권을 태워 버리면 안 된다. */
-export function hasFreeDiaryBook(state, { plan, period }) {
-  return hasMonthlyFreeDiaryBook(plan) && state.freeDiaryBookMonthKey !== period.monthKey;
-}
-
-export function resolveActionCost(state, { plan, action, period }) {
-  if (action === DIARY_BOOK_ACTION && hasFreeDiaryBook(state, { plan, period })) return 0;
+/* 값은 플랜이나 원장 상태로 갈리지 않는다. AI_CREDIT_COSTS가 유일한 근거다 —
+   무료 자격이 사라진 뒤로 값을 깎을 조건이 하나도 남아 있지 않다. */
+export function resolveActionCost(state, { action } = {}) {
   return AI_CREDIT_COSTS[action];
 }
 
@@ -300,9 +302,9 @@ function rollDaily(state, period) {
 // 그 달 grant 기록이 없으면 지급한다. 유저별 크론이 필요 없는 이유가 이것이다 —
 // 그 달 첫 요청이 들어오는 순간 지급이 일어난다. 요청이 없는 달은 지급도 없고,
 // 이월하지 않으므로(creditsRollover=false) 지난 달 잔액은 지급 시점에 정리한다.
-async function applyLazyGrant(storage, state, { plan, period, now }) {
+async function applyLazyGrant(storage, state, { plan, period, now, paywallEnabled }) {
   if (state.lastGrantMonthKey === period.monthKey) return null;
-  const amount = monthlyGrantAmount(plan);
+  const amount = monthlyGrantAmount(plan, { paywallEnabled });
   const previousMonth = state.lastGrantMonthKey;
   // 이월 없음(creditsRollover=false): 새 달 지급 시 지난 달 정기 잔액은 소멸한다.
   // 단 구매분은 유효기간이 따로 있으므로 남긴다 — 정기 지급으로 들어온 몫만 회수한다.
@@ -367,9 +369,9 @@ function pruneRequests(state, now, keep = 200) {
    그 계약을 깨지 않으려고 같은 모양을 유지하되, monthly.limit 은 이제 "그 달 지급액"이고
    remaining 은 실제 잔액이다. */
 
-export function buildUsageView(state, { plan, period, trial = null } = {}) {
-  const grant = monthlyGrantAmount(plan);
-  const dailyLimit = dailySpendLimit(plan);
+export function buildUsageView(state, { plan, period, trial = null, paywallEnabled = true } = {}) {
+  const grant = monthlyGrantAmount(plan, { paywallEnabled });
+  const dailyLimit = dailySpendLimit(plan, { paywallEnabled });
   const dailyRemaining = Math.max(0, dailyLimit - state.daily.spent - state.daily.reserved);
   const available = Math.max(0, state.balance - state.reserved);
   return {
@@ -408,13 +410,17 @@ export function buildUsageView(state, { plan, period, trial = null } = {}) {
     },
     creditCosts: { ...AI_CREDIT_COSTS },
     actionLabels: { ...AI_ACTION_LABELS },
-    /* 클라이언트가 버튼에 "이번 달 무료"와 "에너지 10" 중 무엇을 쓸지 정할 근거.
-       판정 자체는 서버가 하고, 클라이언트는 결과만 읽는다. */
+    /* 북은 항상 값이 있고 PRO 전용이다. 무료 권이 없어졌으므로 클라이언트가 읽을 것은
+       값과 "이 플랜이 만들 수 있는가" 두 가지뿐이다. 판정은 서버가 하고 화면은 결과만 읽는다.
+       allowed는 반드시 유효 플랜 문자열 비교여야 한다 — features를 보면 체험이 통과한다. */
     diaryBook: {
       cost: AI_CREDIT_COSTS[DIARY_BOOK_ACTION],
-      monthlyFree: hasMonthlyFreeDiaryBook(plan),
-      freeAvailable: hasFreeDiaryBook(state, { plan, period }),
+      proOnly: true,
+      allowed: allowsProOnlyFeature(plan),
+      lockReason: allowsProOnlyFeature(plan) ? "" : PRO_ONLY_LOCK_REASON,
     },
+    // 차단이 켜져 있는지. 화면이 잠금을 그릴지 말지를 서버 판정으로 정한다.
+    paywallEnabled: Boolean(paywallEnabled),
   };
 }
 
@@ -434,12 +440,12 @@ function assertRequestId(requestId) {
   return id;
 }
 
-async function loadState(storage, { plan, now, timeZone }) {
+async function loadState(storage, { plan, now, timeZone, paywallEnabled }) {
   const state = normalizeLedgerState(await storage.get(STATE_KEY), now, timeZone);
   const period = getLedgerPeriod(now, state.timeZone);
   rollDaily(state, period);
   reclaimStaleReservations(state, now);
-  await applyLazyGrant(storage, state, { plan, period, now });
+  await applyLazyGrant(storage, state, { plan, period, now, paywallEnabled });
   return { state, period };
 }
 
@@ -451,10 +457,10 @@ async function saveState(storage, state, now) {
 }
 
 // 예약: 잔액을 아직 빼지 않고 잡아만 둔다. AI 호출이 성공해야 spend로 확정된다.
-export async function reserveEnergy(storage, { plan, action, requestId, now = Date.now(), timeZone, trial } = {}) {
+export async function reserveEnergy(storage, { plan, action, requestId, now = Date.now(), timeZone, trial, paywallEnabled = true } = {}) {
   assertAction(action);
   const id = assertRequestId(requestId);
-  const { state, period } = await loadState(storage, { plan, now, timeZone });
+  const { state, period } = await loadState(storage, { plan, now, timeZone, paywallEnabled });
 
   const existing = state.requests[id];
   if (existing) {
@@ -468,31 +474,43 @@ export async function reserveEnergy(storage, { plan, action, requestId, now = Da
       requestId: id,
       action,
       cost: existing.cost,
-      entitlement: existing.entitlement,
       status: existing.status,
       idempotent: true,
       shouldExecute: false,
-      usage: buildUsageView(state, { plan, period, trial }),
+      usage: buildUsageView(state, { plan, period, trial, paywallEnabled }),
     };
   }
 
-  const cost = resolveActionCost(state, { plan, action, period });
-  const entitlement = cost === 0 && action === DIARY_BOOK_ACTION ? MONTHLY_DIARY_BOOK_ENTITLEMENT : "";
-  const dailyLimit = dailySpendLimit(plan);
+  /* PRO 전용 동작(북)은 값을 재기 전에 플랜으로 막는다. 유효 플랜이 정확히 "pro"가 아니면
+     예약을 잡지 않으므로 체험 계정의 잔액은 1도 움직이지 않는다. worker가 앞단에서 이미
+     같은 판정을 하지만 원장에도 두는 이유는, 원장이 차감의 마지막 관문이고 새 호출 경로가
+     생겼을 때 게이트를 빠뜨려도 여기서 걸리게 하기 위해서다. */
+  if (isProOnlyAiAction(action) && !allowsProOnlyFeature(plan)) {
+    await saveState(storage, state, now);
+    throw new EnergyLedgerError(
+      "PRO_ONLY_ACTION",
+      `${AI_ACTION_LABELS[action] || "이 기능"}은 Pro 전용이에요. ${PRO_ONLY_LOCK_REASON}`,
+      403,
+      { plan, usage: buildUsageView(state, { plan, period, trial, paywallEnabled }) },
+    );
+  }
+
+  const cost = resolveActionCost(state, { action });
+  const dailyLimit = dailySpendLimit(plan, { paywallEnabled });
   if (dailyLimit - state.daily.spent - state.daily.reserved < cost) {
     await saveState(storage, state, now);
     throw new EnergyLedgerError(
       "DAILY_AI_CREDIT_LIMIT_EXCEEDED",
       `이 기능에는 ${cost}크레딧이 필요해요. 오늘 사용할 수 있는 크레딧이 부족해요.`,
       429,
-      { requiredCredits: cost, usage: buildUsageView(state, { plan, period, trial }) },
+      { requiredCredits: cost, usage: buildUsageView(state, { plan, period, trial, paywallEnabled }) },
     );
   }
   if (state.balance - state.reserved < cost) {
     await saveState(storage, state, now);
     const code = plan === "trial" ? "TRIAL_AI_CREDITS_EXHAUSTED" : "MONTHLY_AI_CREDITS_EXHAUSTED";
     const message = plan === "trial" ? "체험 AI 크레딧이 부족해요." : "이번 달 AI 크레딧이 부족해요.";
-    throw new EnergyLedgerError(code, message, 429, { requiredCredits: cost, usage: buildUsageView(state, { plan, period, trial }) });
+    throw new EnergyLedgerError(code, message, 429, { requiredCredits: cost, usage: buildUsageView(state, { plan, period, trial, paywallEnabled }) });
   }
 
   state.reserved += cost;
@@ -505,8 +523,6 @@ export async function reserveEnergy(storage, { plan, action, requestId, now = Da
     createdAt: now,
     updatedAt: now,
     txnId: "",
-    entitlement,
-    entitlementMonthKey: "",
     errorCode: "",
   };
   await saveState(storage, state, now);
@@ -516,18 +532,17 @@ export async function reserveEnergy(storage, { plan, action, requestId, now = Da
     requestId: id,
     action,
     cost,
-    entitlement,
     status: "reserved",
     idempotent: false,
     shouldExecute: true,
-    usage: buildUsageView(state, { plan, period, trial }),
+    usage: buildUsageView(state, { plan, period, trial, paywallEnabled }),
   };
 }
 
 // 확정: 잡아 둔 몫을 실제로 차감하고 spend 거래를 남긴다.
-export async function commitEnergy(storage, { plan, requestId, now = Date.now(), timeZone, meta, trial } = {}) {
+export async function commitEnergy(storage, { plan, requestId, now = Date.now(), timeZone, meta, trial, paywallEnabled = true } = {}) {
   const id = assertRequestId(requestId);
-  const { state, period } = await loadState(storage, { plan, now, timeZone });
+  const { state, period } = await loadState(storage, { plan, now, timeZone, paywallEnabled });
   const request = state.requests[id];
   if (!request) {
     await saveState(storage, state, now);
@@ -535,7 +550,7 @@ export async function commitEnergy(storage, { plan, requestId, now = Date.now(),
   }
   if (request.status === "committed") {
     await saveState(storage, state, now);
-    return { ok: true, requestId: id, chargedCredits: request.cost, idempotent: true, usage: buildUsageView(state, { plan, period, trial }) };
+    return { ok: true, requestId: id, chargedCredits: request.cost, idempotent: true, usage: buildUsageView(state, { plan, period, trial, paywallEnabled }) };
   }
   if (request.status === "released") {
     await saveState(storage, state, now);
@@ -552,24 +567,13 @@ export async function commitEnergy(storage, { plan, requestId, now = Date.now(),
   state.balance = Math.max(0, state.balance - request.cost);
   state.purchasedBalance = Math.max(0, state.purchasedBalance - fromPurchased);
 
-  /* 무료 자격으로 만든 요청은 여기서 그 달의 자격을 소진한다. 잔액은 0원어치 움직이지만
-     거래는 남긴다 — "이번 달 무료 권을 언제 썼는지"가 CS 분쟁의 대상이기 때문이다. */
-  if (request.entitlement === MONTHLY_DIARY_BOOK_ENTITLEMENT) {
-    request.entitlementMonthKey = period.monthKey;
-    state.freeDiaryBookMonthKey = period.monthKey;
-  }
-
   const txn = await appendTransaction(storage, {
     type: TXN_TYPES.SPEND,
     amount: -request.cost,
     reason: request.action,
     at: now,
     balanceAfter: state.balance,
-    meta: {
-      requestId: id,
-      ...(request.entitlement ? { entitlement: request.entitlement, month: period.monthKey } : {}),
-      ...(meta || {}),
-    },
+    meta: { requestId: id, ...(meta || {}) },
   });
   request.status = "committed";
   request.txnId = txn.txnId;
@@ -582,18 +586,17 @@ export async function commitEnergy(storage, { plan, requestId, now = Date.now(),
     ok: true,
     requestId: id,
     chargedCredits: request.cost,
-    entitlement: request.entitlement,
     idempotent: false,
     txnId: txn.txnId,
-    usage: buildUsageView(state, { plan, period, trial }),
+    usage: buildUsageView(state, { plan, period, trial, paywallEnabled }),
   };
 }
 
 // 원복: AI가 실패했을 때 잡아 둔 몫을 놓아 준다. 잔액을 건드린 적이 없으므로
 // spend/refund 거래가 남지 않는다 — 실제로 오간 돈이 없기 때문이다.
-export async function releaseEnergy(storage, { plan, requestId, now = Date.now(), timeZone, errorCode = "", trial } = {}) {
+export async function releaseEnergy(storage, { plan, requestId, now = Date.now(), timeZone, errorCode = "", trial, paywallEnabled = true } = {}) {
   const id = assertRequestId(requestId);
-  const { state, period } = await loadState(storage, { plan, now, timeZone });
+  const { state, period } = await loadState(storage, { plan, now, timeZone, paywallEnabled });
   const request = state.requests[id];
   if (!request) {
     await saveState(storage, state, now);
@@ -601,14 +604,9 @@ export async function releaseEnergy(storage, { plan, requestId, now = Date.now()
   }
   if (request.status === "released") {
     await saveState(storage, state, now);
-    return { ok: true, requestId: id, releasedCredits: 0, idempotent: true, usage: buildUsageView(state, { plan, period, trial }) };
+    return { ok: true, requestId: id, releasedCredits: 0, idempotent: true, usage: buildUsageView(state, { plan, period, trial, paywallEnabled }) };
   }
   if (request.status === "committed") {
-    /* 무료 자격으로 만든 건을 되돌리면 자격도 돌려준다. 그러지 않으면 실패한 발급 하나로
-       그 달의 무료 권이 사라진다. 그 사이 다른 요청이 이미 자격을 가져갔으면 건드리지 않는다. */
-    if (request.entitlement === MONTHLY_DIARY_BOOK_ENTITLEMENT && state.freeDiaryBookMonthKey === request.entitlementMonthKey) {
-      state.freeDiaryBookMonthKey = "";
-    }
     // 이미 확정된 건은 환불 거래로 되돌린다 (기록을 지우지 않는다).
     state.balance += request.cost;
     // 나간 주머니 그대로 돌려준다 — 구매분에서 나갔으면 구매분으로 복구해야
@@ -627,7 +625,7 @@ export async function releaseEnergy(storage, { plan, requestId, now = Date.now()
     request.errorCode = String(errorCode || "");
     request.updatedAt = now;
     await saveState(storage, state, now);
-    return { ok: true, requestId: id, releasedCredits: request.cost, refunded: true, txnId: txn.txnId, usage: buildUsageView(state, { plan, period, trial }) };
+    return { ok: true, requestId: id, releasedCredits: request.cost, refunded: true, txnId: txn.txnId, usage: buildUsageView(state, { plan, period, trial, paywallEnabled }) };
   }
 
   state.reserved = Math.max(0, state.reserved - request.cost);
@@ -636,12 +634,12 @@ export async function releaseEnergy(storage, { plan, requestId, now = Date.now()
   request.errorCode = String(errorCode || "");
   request.updatedAt = now;
   await saveState(storage, state, now);
-  return { ok: true, requestId: id, releasedCredits: request.cost, idempotent: false, usage: buildUsageView(state, { plan, period, trial }) };
+  return { ok: true, requestId: id, releasedCredits: request.cost, idempotent: false, usage: buildUsageView(state, { plan, period, trial, paywallEnabled }) };
 }
 
 // 팩 충전. 이번 턴에 결제 연동은 하지 않지만 거래 타입과 orderId 멱등 자리는 만들어 둔다.
 // 같은 orderId가 두 번 와도 한 번만 충전한다.
-export async function purchaseEnergy(storage, { plan, orderId, amount, now = Date.now(), timeZone, expiresAt = 0, meta, trial } = {}) {
+export async function purchaseEnergy(storage, { plan, orderId, amount, now = Date.now(), timeZone, expiresAt = 0, meta, trial, paywallEnabled = true } = {}) {
   const id = String(orderId || "").trim();
   if (!ORDER_ID_PATTERN.test(id)) {
     throw new EnergyLedgerError("INVALID_ORDER_ID", "주문 식별자가 올바르지 않아요.", 400);
@@ -650,12 +648,12 @@ export async function purchaseEnergy(storage, { plan, orderId, amount, now = Dat
   if (!Number.isSafeInteger(credits) || credits <= 0) {
     throw new EnergyLedgerError("INVALID_PURCHASE_AMOUNT", "충전 수량이 올바르지 않아요.", 400);
   }
-  const { state, period } = await loadState(storage, { plan, now, timeZone });
+  const { state, period } = await loadState(storage, { plan, now, timeZone, paywallEnabled });
 
   const existing = state.purchases[id];
   if (existing) {
     await saveState(storage, state, now);
-    return { ok: true, orderId: id, credited: 0, idempotent: true, txnId: existing.txnId, usage: buildUsageView(state, { plan, period, trial }) };
+    return { ok: true, orderId: id, credited: 0, idempotent: true, txnId: existing.txnId, usage: buildUsageView(state, { plan, period, trial, paywallEnabled }) };
   }
 
   state.balance += credits;
@@ -670,20 +668,20 @@ export async function purchaseEnergy(storage, { plan, orderId, amount, now = Dat
   });
   state.purchases[id] = { orderId: id, amount: credits, txnId: txn.txnId, at: now };
   await saveState(storage, state, now);
-  return { ok: true, orderId: id, credited: credits, idempotent: false, txnId: txn.txnId, usage: buildUsageView(state, { plan, period, trial }) };
+  return { ok: true, orderId: id, credited: credits, idempotent: false, txnId: txn.txnId, usage: buildUsageView(state, { plan, period, trial, paywallEnabled }) };
 }
 
 // 조회. 부수 효과가 있는 것처럼 보이지만 lazy-grant는 의도된 것이다 —
 // 그 달 첫 접근이 조회여도 지급이 일어나야 잔량 표시가 맞는다.
-export async function getEnergyUsage(storage, { plan, now = Date.now(), timeZone, trial } = {}) {
-  const { state, period } = await loadState(storage, { plan, now, timeZone });
+export async function getEnergyUsage(storage, { plan, now = Date.now(), timeZone, trial, paywallEnabled = true } = {}) {
+  const { state, period } = await loadState(storage, { plan, now, timeZone, paywallEnabled });
   await saveState(storage, state, now);
-  return buildUsageView(state, { plan, period, trial });
+  return buildUsageView(state, { plan, period, trial, paywallEnabled });
 }
 
 // 마이그레이션: 로컬/KV 잔량을 믿지 않고 플랜 기준으로 다시 세운다.
 // 이번 달 grant 기록을 지우고 다시 지급하므로 결과는 "그 플랜의 당월 지급액"이 된다.
-export async function resetLedgerForPlan(storage, { plan, now = Date.now(), timeZone, reason = "migration", trial } = {}) {
+export async function resetLedgerForPlan(storage, { plan, now = Date.now(), timeZone, reason = "migration", trial, paywallEnabled = true } = {}) {
   const state = normalizeLedgerState(await storage.get(STATE_KEY), now, timeZone);
   const period = getLedgerPeriod(now, state.timeZone);
   // 구매분은 절대 건드리지 않는다 — 돈을 낸 재화다.
@@ -702,7 +700,7 @@ export async function resetLedgerForPlan(storage, { plan, now = Date.now(), time
   state.reserved = 0;
   state.daily = { key: period.dayKey, spent: 0, reserved: 0 };
   state.requests = {};
-  await applyLazyGrant(storage, state, { plan, period, now });
+  await applyLazyGrant(storage, state, { plan, period, now, paywallEnabled });
   await saveState(storage, state, now);
-  return buildUsageView(state, { plan, period, trial });
+  return buildUsageView(state, { plan, period, trial, paywallEnabled });
 }

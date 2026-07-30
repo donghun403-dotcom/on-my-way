@@ -15,7 +15,7 @@ import {
   reserveEnergy,
   resetLedgerForPlan,
 } from "./energy-ledger.mjs";
-import { AI_CREDIT_COSTS, PLAN_CONFIG } from "./plan-policy.mjs";
+import { AI_CREDIT_COSTS, PAYWALL_OFF_EXPIRED_GRANT, PLAN_CONFIG, PRO_ONLY_LOCK_REASON } from "./plan-policy.mjs";
 
 // DO storage.transaction을 흉내 내는 최소 저장소. 순서 보장을 위해 연산을 직렬화한다.
 function memoryStorage() {
@@ -161,8 +161,8 @@ test("동시 예약이 잔액을 넘어서지 못한다 (이중 차감 방지)",
   // DO는 단일 실행이므로 직렬화는 보장된다. 여기서 검증하는 것은 그 직렬화 위에서
   // 원장 로직이 실제로 잔액을 넘기지 않는가 — 즉 마지막 한 칸을 두 요청이 나눠 갖지 못하는가.
   const storage = memoryStorage();
-  await getEnergyUsage(storage, { plan: "free", now: MARCH });
-  const balance = PLAN_CONFIG.free.monthlyCredits;
+  await getEnergyUsage(storage, { plan: "expired", paywallEnabled: false, now: MARCH });
+  const balance = PAYWALL_OFF_EXPIRED_GRANT.monthlyCredits;
   const cost = AI_CREDIT_COSTS.companion_chat;
   const capacity = Math.floor(balance / cost);
 
@@ -170,7 +170,7 @@ test("동시 예약이 잔액을 넘어서지 못한다 (이중 차감 방지)",
   let refused = 0;
   for (let index = 0; index < capacity + 5; index += 1) {
     try {
-      const result = await reserveEnergy(storage, { plan: "free", action: "companion_chat", requestId: `c${index}`, now: MARCH });
+      const result = await reserveEnergy(storage, { plan: "expired", paywallEnabled: false, action: "companion_chat", requestId: `c${index}`, now: MARCH });
       if (result.shouldExecute) granted += 1;
     } catch (error) {
       assert.ok(error instanceof EnergyLedgerError);
@@ -178,7 +178,7 @@ test("동시 예약이 잔액을 넘어서지 못한다 (이중 차감 방지)",
     }
   }
 
-  const usage = await getEnergyUsage(storage, { plan: "free", now: MARCH });
+  const usage = await getEnergyUsage(storage, { plan: "expired", paywallEnabled: false, now: MARCH });
   assert.ok(refused > 0, "잔액을 넘는 요청은 거절되어야 한다");
   assert.equal(granted * cost, balance - usage.available, "예약된 총량이 줄어든 가용량과 정확히 일치해야 한다");
   assert.ok(usage.available >= 0, "가용 잔량이 음수가 되면 안 된다");
@@ -207,11 +207,11 @@ test("일일 한도가 잔액과 별개로 작동한다", async () => {
 
 test("purchase는 orderId 기준으로 멱등이다", async () => {
   const storage = memoryStorage();
-  await getEnergyUsage(storage, { plan: "free", now: MARCH });
-  const before = (await getEnergyUsage(storage, { plan: "free", now: MARCH })).balance;
+  await getEnergyUsage(storage, { plan: "expired", paywallEnabled: false, now: MARCH });
+  const before = (await getEnergyUsage(storage, { plan: "expired", paywallEnabled: false, now: MARCH })).balance;
 
-  const first = await purchaseEnergy(storage, { plan: "free", orderId: "omw_order_1", amount: 100, now: MARCH });
-  const second = await purchaseEnergy(storage, { plan: "free", orderId: "omw_order_1", amount: 100, now: MARCH });
+  const first = await purchaseEnergy(storage, { plan: "expired", paywallEnabled: false, orderId: "omw_order_1", amount: 100, now: MARCH });
+  const second = await purchaseEnergy(storage, { plan: "expired", paywallEnabled: false, orderId: "omw_order_1", amount: 100, now: MARCH });
 
   assert.equal(first.credited, 100);
   assert.equal(second.credited, 0, "같은 주문이 두 번 와도 한 번만 충전해야 한다");
@@ -225,23 +225,23 @@ test("purchase는 orderId 기준으로 멱등이다", async () => {
 test("구매분은 월이 바뀌어도 소멸하지 않는다", async () => {
   const storage = memoryStorage();
   const endOfMarch = Date.UTC(2026, 2, 31, 14, 0, 0);
-  await getEnergyUsage(storage, { plan: "free", now: endOfMarch });
-  await purchaseEnergy(storage, { plan: "free", orderId: "pack-1", amount: 50, now: endOfMarch });
+  await getEnergyUsage(storage, { plan: "expired", paywallEnabled: false, now: endOfMarch });
+  await purchaseEnergy(storage, { plan: "expired", paywallEnabled: false, orderId: "pack-1", amount: 50, now: endOfMarch });
 
   const startOfApril = Date.UTC(2026, 2, 31, 15, 30, 0);
-  const april = await getEnergyUsage(storage, { plan: "free", now: startOfApril });
+  const april = await getEnergyUsage(storage, { plan: "expired", paywallEnabled: false, now: startOfApril });
 
   assert.equal(april.purchasedBalance, 50, "구매분은 그대로 남아야 한다");
-  assert.equal(april.balance, PLAN_CONFIG.free.monthlyCredits + 50, "당월 지급액 + 구매분");
+  assert.equal(april.balance, PAYWALL_OFF_EXPIRED_GRANT.monthlyCredits + 50, "당월 지급액 + 구매분");
 });
 
 test("정기 지급분을 먼저 쓰고 구매분은 나중에 쓴다", async () => {
   const storage = memoryStorage();
-  await getEnergyUsage(storage, { plan: "free", now: MARCH });
-  await purchaseEnergy(storage, { plan: "free", orderId: "pack-2", amount: 20, now: MARCH });
+  await getEnergyUsage(storage, { plan: "expired", paywallEnabled: false, now: MARCH });
+  await purchaseEnergy(storage, { plan: "expired", paywallEnabled: false, orderId: "pack-2", amount: 20, now: MARCH });
 
-  await reserveEnergy(storage, { plan: "free", action: "companion_chat", requestId: "p1", now: MARCH });
-  const committed = await commitEnergy(storage, { plan: "free", requestId: "p1", now: MARCH });
+  await reserveEnergy(storage, { plan: "expired", paywallEnabled: false, action: "companion_chat", requestId: "p1", now: MARCH });
+  const committed = await commitEnergy(storage, { plan: "expired", paywallEnabled: false, requestId: "p1", now: MARCH });
   assert.equal(committed.usage.purchasedBalance, 20, "정기 지급분이 남아 있는 동안 구매분은 줄지 않아야 한다");
 });
 
@@ -298,85 +298,146 @@ test("TTL을 넘긴 고아 예약은 자동으로 회수된다", async () => {
 
 test("상태 레코드에 스키마 버전이 남는다", async () => {
   const storage = memoryStorage();
-  await getEnergyUsage(storage, { plan: "free", now: MARCH });
+  await getEnergyUsage(storage, { plan: "expired", paywallEnabled: false, now: MARCH });
   const state = await storage.get(STATE_KEY);
   assert.equal(state.schemaVersion, ENERGY_LEDGER_SCHEMA_VERSION);
 });
 
-/* ---------- PRO 월 1권 무료 다이어리 북 ---------- */
+/* ---------- 다이어리 북: PRO 전용 · 항상 에너지 10 ---------- */
 
-test("PRO의 첫 다이어리 북은 에너지를 쓰지 않고 자격을 소진한다", async () => {
+test("PRO의 다이어리 북은 몇 권째든 항상 에너지 10을 쓴다", async () => {
   const storage = memoryStorage();
-  const reserved = await reserveEnergy(storage, { plan: "pro", action: "diary_book", requestId: "book-1", now: MARCH });
-  assert.equal(reserved.cost, 0, "이번 달 무료 권이 남아 있으면 비용이 0이다");
-  assert.equal(reserved.entitlement, "monthly_diary_book");
-
-  const committed = await commitEnergy(storage, { plan: "pro", requestId: "book-1", now: MARCH });
-  assert.equal(committed.chargedCredits, 0);
-  assert.equal(committed.usage.balance, PLAN_CONFIG.pro.monthlyCredits, "잔액은 그대로다");
-  assert.equal(committed.usage.diaryBook.freeAvailable, false, "이번 달 무료 권은 소진됐다");
-
-  // 잔액이 움직이지 않아도 "언제 썼는지"는 거래로 남는다.
-  const [latest] = await listTransactions(storage);
-  assert.equal(latest.type, TXN_TYPES.SPEND);
-  assert.equal(latest.amount, 0);
-  assert.equal(latest.reason, "diary_book");
-  assert.equal(latest.meta.entitlement, "monthly_diary_book");
-});
-
-test("무료 권을 쓴 뒤의 두 번째 북은 에너지 10을 쓴다", async () => {
-  const storage = memoryStorage();
-  await reserveEnergy(storage, { plan: "pro", action: "diary_book", requestId: "book-1", now: MARCH });
-  await commitEnergy(storage, { plan: "pro", requestId: "book-1", now: MARCH });
+  const first = await reserveEnergy(storage, { plan: "pro", action: "diary_book", requestId: "book-1", now: MARCH });
+  assert.equal(first.cost, AI_CREDIT_COSTS.diary_book, "무료 권은 폐지됐다 — 첫 권도 정가다");
+  const committedFirst = await commitEnergy(storage, { plan: "pro", requestId: "book-1", now: MARCH });
+  assert.equal(committedFirst.chargedCredits, 10);
+  assert.equal(committedFirst.usage.balance, PLAN_CONFIG.pro.monthlyCredits - 10);
 
   const second = await reserveEnergy(storage, { plan: "pro", action: "diary_book", requestId: "book-2", now: MARCH });
   assert.equal(second.cost, AI_CREDIT_COSTS.diary_book);
-  assert.equal(second.entitlement, "");
-  const committed = await commitEnergy(storage, { plan: "pro", requestId: "book-2", now: MARCH });
-  assert.equal(committed.chargedCredits, 10);
-  assert.equal(committed.usage.balance, PLAN_CONFIG.pro.monthlyCredits - 10);
+  const committedSecond = await commitEnergy(storage, { plan: "pro", requestId: "book-2", now: MARCH });
+  assert.equal(committedSecond.chargedCredits, 10);
+  assert.equal(committedSecond.usage.balance, PLAN_CONFIG.pro.monthlyCredits - 20);
+
+  // 거래에 무료 자격 흔적이 남지 않는다.
+  const [latest] = await listTransactions(storage);
+  assert.equal(latest.type, TXN_TYPES.SPEND);
+  assert.equal(latest.amount, -10);
+  assert.equal(latest.reason, "diary_book");
+  assert.equal(latest.meta.entitlement, undefined);
 });
 
-/* 실패한 발급 하나가 그 달의 유일한 무료 권을 태우면 안 된다.
-   자격은 예약이 아니라 확정에서 소진되고, 확정 후 환불에서는 되돌아온다. */
-test("AI가 실패해 예약이 풀리면 무료 권은 그대로 남는다", async () => {
-  const storage = memoryStorage();
-  await reserveEnergy(storage, { plan: "pro", action: "diary_book", requestId: "book-fail", now: MARCH });
-  const released = await releaseEnergy(storage, { plan: "pro", requestId: "book-fail", now: MARCH, errorCode: "AI_REQUEST_FAILED" });
-  assert.equal(released.usage.diaryBook.freeAvailable, true, "쓰지 못한 무료 권은 돌아와야 한다");
-
-  const retry = await reserveEnergy(storage, { plan: "pro", action: "diary_book", requestId: "book-retry", now: MARCH });
-  assert.equal(retry.cost, 0);
-});
-
-test("확정된 무료 북을 환불하면 그 달의 무료 권도 돌아온다", async () => {
-  const storage = memoryStorage();
-  await reserveEnergy(storage, { plan: "pro", action: "diary_book", requestId: "book-1", now: MARCH });
-  await commitEnergy(storage, { plan: "pro", requestId: "book-1", now: MARCH });
-  const refunded = await releaseEnergy(storage, { plan: "pro", requestId: "book-1", now: MARCH, errorCode: "book_refund" });
-  assert.equal(refunded.usage.diaryBook.freeAvailable, true);
-  assert.equal(refunded.usage.balance, PLAN_CONFIG.pro.monthlyCredits, "0을 환불해도 잔액은 그대로다");
-});
-
-test("달이 바뀌면 무료 권이 다시 생긴다", async () => {
+test("달이 바뀌어도 북이 공짜가 되는 달은 없다", async () => {
   const storage = memoryStorage();
   await reserveEnergy(storage, { plan: "pro", action: "diary_book", requestId: "book-3", now: MARCH });
   await commitEnergy(storage, { plan: "pro", requestId: "book-3", now: MARCH });
 
   const nextMonth = Date.UTC(2026, 3, 2, 3, 0, 0); // 2026-04-02 12:00 KST
   const usage = await getEnergyUsage(storage, { plan: "pro", now: nextMonth });
-  assert.equal(usage.diaryBook.freeAvailable, true);
+  assert.equal(usage.diaryBook.cost, 10);
+  assert.equal(usage.diaryBook.proOnly, true);
+  const next = await reserveEnergy(storage, { plan: "pro", action: "diary_book", requestId: "book-4", now: nextMonth });
+  assert.equal(next.cost, 10);
 });
 
-test("Free는 무료 권이 없고 하루 상한에 걸려 북을 만들지 못한다", async () => {
+/* 실패한 생성이 10을 태우면 안 된다. 예약 → 커밋 구조를 유지하는 이유가 이것이다. */
+test("북 생성이 실패해 예약이 풀리면 에너지 10이 소비되지 않는다", async () => {
   const storage = memoryStorage();
-  const usage = await getEnergyUsage(storage, { plan: "free", now: MARCH });
-  assert.equal(usage.diaryBook.monthlyFree, false);
-  assert.equal(usage.diaryBook.freeAvailable, false);
-  assert.equal(usage.diaryBook.cost, 10);
+  const before = await getEnergyUsage(storage, { plan: "pro", now: MARCH });
+  await reserveEnergy(storage, { plan: "pro", action: "diary_book", requestId: "book-fail", now: MARCH });
+  const released = await releaseEnergy(storage, { plan: "pro", requestId: "book-fail", now: MARCH, errorCode: "AI_REQUEST_FAILED" });
+
+  assert.equal(released.usage.balance, before.balance, "잔액이 움직이지 않아야 한다");
+  assert.equal(released.usage.available, before.available);
+  assert.equal(released.usage.reserved, 0, "잡아 둔 몫이 남아 있으면 안 된다");
+  // 잔액을 건드린 적이 없으므로 spend 거래도 남지 않는다.
+  const spends = (await listTransactions(storage)).filter((txn) => txn.reason === "diary_book");
+  assert.deepEqual(spends, [], "실패한 생성은 원장에 차감으로 남지 않는다");
+});
+
+/* ---------- PRO 전용 게이트 (원장 층) ---------- */
+
+test("체험 계정은 북 예약이 거절되고 에너지 15가 그대로 남는다", async () => {
+  const storage = memoryStorage();
+  const before = await getEnergyUsage(storage, { plan: "trial", now: MARCH });
+  assert.equal(before.balance, PLAN_CONFIG.pro.trial.credits, "체험 지급은 15다");
+  assert.equal(before.diaryBook.allowed, false);
+  assert.equal(before.diaryBook.lockReason, PRO_ONLY_LOCK_REASON);
 
   await assert.rejects(
-    () => reserveEnergy(storage, { plan: "free", action: "diary_book", requestId: "book-free", now: MARCH }),
-    (error) => error instanceof EnergyLedgerError && error.code === "DAILY_AI_CREDIT_LIMIT_EXCEEDED",
+    () => reserveEnergy(storage, { plan: "trial", action: "diary_book", requestId: "trial-book", now: MARCH }),
+    (error) => error instanceof EnergyLedgerError && error.code === "PRO_ONLY_ACTION" && error.status === 403,
   );
+
+  const after = await getEnergyUsage(storage, { plan: "trial", now: MARCH });
+  assert.equal(after.balance, PLAN_CONFIG.pro.trial.credits, "거절된 요청이 체험 크레딧을 건드리면 안 된다");
+  assert.equal(after.available, PLAN_CONFIG.pro.trial.credits);
+  assert.equal(after.reserved, 0);
+});
+
+test("만료 계정은 차단이 꺼져 있어도 북을 만들지 못한다", async () => {
+  const storage = memoryStorage();
+  const usage = await getEnergyUsage(storage, { plan: "expired", paywallEnabled: false, now: MARCH });
+  assert.equal(usage.diaryBook.cost, 10);
+  assert.equal(usage.diaryBook.allowed, false);
+
+  await assert.rejects(
+    () => reserveEnergy(storage, { plan: "expired", paywallEnabled: false, action: "diary_book", requestId: "book-expired", now: MARCH }),
+    (error) => error instanceof EnergyLedgerError && error.code === "PRO_ONLY_ACTION",
+  );
+  const after = await getEnergyUsage(storage, { plan: "expired", paywallEnabled: false, now: MARCH });
+  assert.equal(after.balance, PAYWALL_OFF_EXPIRED_GRANT.monthlyCredits, "원장은 무변경이어야 한다");
+});
+
+/* 체험은 북 외의 AI 기능에서는 PRO와 똑같이 쓴다. 게이트가 넓게 잡히지 않았는지 확인한다. */
+test("체험 계정의 북 이외 동작은 막히지 않는다", async () => {
+  const storage = memoryStorage();
+  for (const action of ["companion_chat", "revise_plan", "recovery_plan"]) {
+    const reserved = await reserveEnergy(storage, { plan: "trial", action, requestId: `trial-${action}`, now: MARCH });
+    assert.equal(reserved.cost, AI_CREDIT_COSTS[action]);
+    await commitEnergy(storage, { plan: "trial", requestId: `trial-${action}`, now: MARCH });
+  }
+});
+
+/* ---------- 하드 페이월 지급 (P1) ---------- */
+
+test("만료 계정의 월 지급은 차단 여부로 갈린다", async () => {
+  const off = memoryStorage();
+  const offUsage = await getEnergyUsage(off, { plan: "expired", paywallEnabled: false, now: MARCH });
+  assert.equal(offUsage.balance, PAYWALL_OFF_EXPIRED_GRANT.monthlyCredits);
+  assert.equal(offUsage.daily.limit, PAYWALL_OFF_EXPIRED_GRANT.dailyCreditLimit);
+  assert.equal(offUsage.paywallEnabled, false);
+
+  const on = memoryStorage();
+  const onUsage = await getEnergyUsage(on, { plan: "expired", paywallEnabled: true, now: MARCH });
+  assert.equal(onUsage.balance, 0, "차단이 켜지면 월 지급이 없다");
+  assert.equal(onUsage.daily.limit, 0);
+  assert.equal(onUsage.paywallEnabled, true);
+});
+
+/* 값이 빠진 호출은 안전한 쪽으로 판단해야 한다 — 지급하지 않는 쪽이다. */
+test("차단 여부를 넘기지 않으면 만료 계정에 지급하지 않는다", async () => {
+  const storage = memoryStorage();
+  const usage = await getEnergyUsage(storage, { plan: "expired", now: MARCH });
+  assert.equal(usage.balance, 0);
+});
+
+/* 체험 종료 편지는 폐지됐다. 원장에 자격 개념이 아예 남아 있지 않아야 한다 —
+   남아 있으면 그것이 에너지 상한 밖의 두 번째 구멍이 된다. */
+test("원장에는 어떤 무료 자격도 남아 있지 않다", async () => {
+  const storage = memoryStorage();
+  await assert.rejects(
+    () => reserveEnergy(storage, { plan: "expired", action: "trial_letter", requestId: "letter-1", now: MARCH }),
+    (error) => error instanceof EnergyLedgerError && error.code === "INVALID_AI_ACTION",
+  );
+
+  await getEnergyUsage(storage, { plan: "pro", now: MARCH });
+  const state = await storage.get(STATE_KEY);
+  assert.equal(state.trialLetterUsedAt, undefined);
+  assert.equal(state.freeDiaryBookMonthKey, undefined);
+
+  const usage = await getEnergyUsage(storage, { plan: "pro", now: MARCH });
+  assert.equal(usage.trialLetter, undefined);
+  assert.equal(usage.diaryBook.monthlyFree, undefined);
+  assert.equal(usage.diaryBook.freeAvailable, undefined);
 });

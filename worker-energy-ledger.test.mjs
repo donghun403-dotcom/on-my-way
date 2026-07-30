@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { createSessionToken } from "./auth-service.mjs";
 import worker from "./worker.mjs";
 import { EnergyLedgerObject } from "./energy-ledger-object.mjs";
-import { AI_CREDIT_COSTS, PLAN_CONFIG } from "./plan-policy.mjs";
+import { AI_CREDIT_COSTS, PAYMENT_FAILURE_GRACE_MS, PAYWALL_OFF_EXPIRED_GRANT, PLAN_CONFIG } from "./plan-policy.mjs";
 
 const TEST_SECRET = "worker-energy-ledger-test-secret-that-is-long-enough";
 
@@ -85,7 +85,7 @@ function durableObjectNamespace() {
   };
 }
 
-async function harness({ plan = "pro", userId = "energy-user", aiHandler } = {}) {
+async function harness({ plan = "pro", userId = "energy-user", aiHandler, paywall = false, user: userOverrides } = {}) {
   const kv = memoryKv();
   const now = Date.now();
   const sessionId = `session-${userId}`;
@@ -98,6 +98,7 @@ async function harness({ plan = "pro", userId = "energy-user", aiHandler } = {})
     status: "active",
     plan,
     createdAt: now - 1_000,
+    ...userOverrides,
   };
   const session = { id: sessionId, userId, createdAt: now, expiresAt: now + 60 * 60 * 1_000, revokedAt: null };
   await kv.put(`user:${userId}`, JSON.stringify(user));
@@ -114,6 +115,8 @@ async function harness({ plan = "pro", userId = "energy-user", aiHandler } = {})
     OPENAI_MODEL: "gpt-5.4-mini",
     APP_ENV: "test",
     PAYMENTS_ENABLED: "false",
+    // 차단 동작 전체가 이 플래그 뒤에 있다. 기본값은 꺼짐이다.
+    HARD_PAYWALL_ENABLED: paywall ? "true" : "false",
     AI_RATE_LIMITER: { async limit() { return { success: true }; } },
     GUEST_PLAN_DRAFTS: durableObjectNamespace(),
     ENERGY_LEDGER: durableObjectNamespace(),
@@ -153,6 +156,14 @@ async function harness({ plan = "pro", userId = "energy-user", aiHandler } = {})
     usage() {
       return worker.fetch(new Request("https://app.example/api/ai/usage", {
         headers: { cookie: `omw_session=${token}` },
+      }), env);
+    },
+    // 임의의 라우트를 같은 세션으로 부른다. 차단 게이트가 라우트별로 어떻게 도는지 보려고 쓴다.
+    call(path, { method = "POST", body = {}, requestId = "req" } = {}) {
+      return worker.fetch(new Request(`https://app.example${path}`, {
+        method,
+        headers: { "content-type": "application/json", cookie: `omw_session=${token}`, "x-request-id": requestId },
+        ...(method === "GET" ? {} : { body: JSON.stringify(body) }),
       }), env);
     },
   };
@@ -299,7 +310,7 @@ test("같은 requestId를 동시에 던져도 한 번만 차감된다", async ()
 test("잔량이 바닥나면 AI를 부르지 않고 거절한다", async () => {
   let providerCalls = 0;
   const app = await harness({
-    plan: "free",
+    plan: "expired",
     aiHandler: async () => {
       providerCalls += 1;
       return new Response(JSON.stringify({
@@ -309,7 +320,7 @@ test("잔량이 바닥나면 AI를 부르지 않고 거절한다", async () => {
     },
   });
   try {
-    const limit = PLAN_CONFIG.free.dailyCreditLimit;
+    const limit = PAYWALL_OFF_EXPIRED_GRANT.dailyCreditLimit;
     const attempts = limit + 4;
     for (let index = 0; index < attempts; index += 1) {
       await app.chat(`drain-${index}`);
@@ -325,49 +336,36 @@ test("잔량이 바닥나면 AI를 부르지 않고 거절한다", async () => {
   }
 });
 
-/* ---------- 다이어리 북 (C5) ---------- */
+/* ---------- 다이어리 북 — PRO 전용 · 항상 에너지 10 ---------- */
 
-test("PRO의 첫 다이어리 북은 무료로 나가고 잔량이 그대로다", async () => {
+test("PRO의 다이어리 북은 몇 권째든 에너지 10을 차감한다", async () => {
   const app = await harness({ plan: "pro", aiHandler: bookAiHandler() });
   try {
-    const body = await (await app.book("book-free")).json();
+    const body = await (await app.book("book-1")).json();
     assert.equal(body.ok, true);
-    assert.equal(body.chargedCredits, 0);
-    assert.equal(body.entitlement, "monthly_diary_book");
+    assert.equal(body.chargedCredits, AI_CREDIT_COSTS.diary_book);
+    assert.equal(body.entitlement, undefined, "무료 자격은 폐지됐다");
     assert.equal(body.title, "작게 시작한 달");
     assert.equal(body.letter, "그 달의 편지예요.");
-    assert.equal(body.usage.balance, PLAN_CONFIG.pro.monthlyCredits, "무료 권은 잔량을 건드리지 않는다");
-    assert.equal(body.usage.diaryBook.freeAvailable, false);
-  } finally {
-    app.restore();
-  }
-});
-
-test("무료 권을 쓴 뒤 두 번째 북은 에너지 10을 차감한다", async () => {
-  const app = await harness({ plan: "pro", aiHandler: bookAiHandler() });
-  try {
-    await app.book("book-1");
-    const body = await (await app.book("book-2")).json();
-    assert.equal(body.chargedCredits, AI_CREDIT_COSTS.diary_book);
     assert.equal(body.usage.balance, PLAN_CONFIG.pro.monthlyCredits - 10);
 
+    const second = await (await app.book("book-2")).json();
+    assert.equal(second.chargedCredits, AI_CREDIT_COSTS.diary_book);
+    assert.equal(second.usage.balance, PLAN_CONFIG.pro.monthlyCredits - 20);
+
     const after = await (await app.usage()).json();
-    assert.equal(after.balance, body.usage.balance, "조회 잔량과 응답 잔량이 일치해야 한다");
+    assert.equal(after.balance, second.usage.balance, "조회 잔량과 응답 잔량이 일치해야 한다");
+    assert.equal(after.diaryBook.cost, 10);
+    assert.equal(after.diaryBook.allowed, true);
   } finally {
     app.restore();
   }
 });
 
-test("북 생성이 실패하면 에너지도 무료 권도 원복된다", async () => {
+/* 보고 항목 4: 북 실패 시 10이 소비되지 않는다는 것을 원장 잔량으로 확인한다. */
+test("북 생성이 실패하면 에너지 10이 소비되지 않는다", async () => {
   const app = await harness({ plan: "pro", aiHandler: bookAiHandler({ failLetter: true }) });
   try {
-    // 무료 권을 먼저 소진해서 이번 실패가 에너지 10짜리 요청이 되게 한다.
-    const okHandler = bookAiHandler();
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = okHandler;
-    await app.book("book-warmup");
-    globalThis.fetch = originalFetch;
-
     const before = await (await app.usage()).json();
     assert.equal(before.balance, PLAN_CONFIG.pro.monthlyCredits);
 
@@ -383,27 +381,55 @@ test("북 생성이 실패하면 에너지도 무료 권도 원복된다", async
   }
 });
 
-test("실패한 무료 발급은 그 달의 무료 권을 태우지 않는다", async () => {
-  const app = await harness({ plan: "pro", aiHandler: bookAiHandler({ failLetter: true }) });
+/* ---------- PRO 전용 게이트 (§E) ----------
+   trial과 expired 모두 서버에서 거절되고, provider 호출 0회·원장 무변경이어야 한다.
+   이 게이트는 HARD_PAYWALL_ENABLED와 무관하다 — 아래 harness는 플래그를 켜지 않는다. */
+
+test("체험 계정은 북 라우트에서 403이고 에너지 15가 그대로다", async () => {
+  const handler = bookAiHandler();
+  // 판정은 저장된 라벨이 아니라 살아 있는 trialExpiresAt을 본다.
+  const startedAt = Date.now();
+  const app = await harness({
+    plan: "trial",
+    userId: "trial-book-user",
+    aiHandler: handler,
+    user: { trialStartedAt: startedAt, trialUsedAt: startedAt, trialExpiresAt: startedAt + 60 * 60 * 1_000 },
+  });
   try {
-    const response = await app.book("book-fail-free");
-    assert.notEqual(response.status, 200);
+    const before = await (await app.usage()).json();
+    assert.equal(before.balance, PLAN_CONFIG.pro.trial.credits, "체험 지급은 15다");
+    assert.equal(before.diaryBook.allowed, false);
+    assert.equal(before.diaryBook.proOnly, true);
+
+    const response = await app.book("trial-book");
+    assert.equal(response.status, 403);
+    const body = await response.json();
+    assert.equal(body.code, "PRO_ONLY_ACTION");
+    assert.equal(body.plan, "trial");
+    assert.equal(handler.callCount(), 0, "provider를 부르면 안 된다");
+
     const after = await (await app.usage()).json();
-    assert.equal(after.diaryBook.freeAvailable, true, "쓰지 못한 무료 권은 남아 있어야 한다");
+    assert.equal(after.balance, PLAN_CONFIG.pro.trial.credits, "에너지 15가 그대로여야 한다");
+    assert.equal(after.available, PLAN_CONFIG.pro.trial.credits);
+    assert.equal(after.reserved, 0);
+    assert.equal(after.daily.used, 0);
   } finally {
     app.restore();
   }
 });
 
-test("Free는 하루 상한에 걸려 북을 만들 수 없고 AI도 부르지 않는다", async () => {
+test("만료 계정은 차단이 꺼져 있어도 북 라우트에서 403이고 AI를 부르지 않는다", async () => {
   const handler = bookAiHandler();
-  const app = await harness({ plan: "free", userId: "free-book-user", aiHandler: handler });
+  const app = await harness({ plan: "expired", userId: "expired-book-user", aiHandler: handler });
   try {
-    const response = await app.book("book-free-plan");
-    assert.equal(response.status, 429);
-    const body = await response.json();
-    assert.equal(body.code, "DAILY_AI_CREDIT_LIMIT_EXCEEDED");
-    assert.equal(handler.callCount(), 0, "재화가 모자라면 provider 비용을 만들지 않는다");
+    const response = await app.book("book-expired");
+    assert.equal(response.status, 403);
+    assert.equal((await response.json()).code, "PRO_ONLY_ACTION");
+    assert.equal(handler.callCount(), 0, "provider 비용을 만들지 않는다");
+
+    const after = await (await app.usage()).json();
+    assert.equal(after.balance, PAYWALL_OFF_EXPIRED_GRANT.monthlyCredits, "원장이 움직이면 안 된다");
+    assert.equal(after.reserved, 0);
   } finally {
     app.restore();
   }
@@ -413,16 +439,196 @@ test("달 표기가 틀린 요청은 AI를 부르지 않고 에너지도 그대�
   const handler = bookAiHandler();
   const app = await harness({ plan: "pro", userId: "bad-month-user", aiHandler: handler });
   try {
-    // 무료 권을 먼저 쓴다 — 남아 있으면 비용이 0이라 "에너지가 그대로"가 아무것도 증명하지 못한다.
-    await app.book("book-warmup");
     const response = await app.book("book-bad", "2026-13");
     assert.equal(response.status, 400);
     assert.equal((await response.json()).code, "INVALID_DIARY_BOOK_MONTH");
-    assert.equal(handler.callCount(), 2, "머리말·편지 호출이 늘지 않아야 한다(정상 1권 = 2회)");
+    assert.equal(handler.callCount(), 0, "형식 오류는 provider에 닿지 않는다");
 
     const after = await (await app.usage()).json();
     assert.equal(after.balance, PLAN_CONFIG.pro.monthlyCredits, "형식 오류는 재화를 먹지 않는다");
     assert.equal(after.reserved, 0);
+  } finally {
+    app.restore();
+  }
+});
+
+/* ---------- 하드 페이월 (P1) ----------
+   차단 동작 전체가 HARD_PAYWALL_ENABLED 뒤에 있다. 기본값은 꺼짐이고, 꺼져 있으면
+   만료 계정도 폐지 전 Free와 같은 한도로 계속 쓴다 — 실결제가 검증되기 전에 잠기는
+   사람이 없어야 하기 때문이다. */
+
+const AI_ROUTES = [
+  ["/api/ai/companion-chat", { message: "안녕", context: { goal: "테스트" } }],
+  ["/api/ai/plan-revision", { goal: "목표", currentPlanText: "계획", revisionRequest: "줄여 주세요" }],
+  ["/api/ai/recovery-plan", { goal: "목표", currentPlanText: "계획", revisionRequest: "회복" }],
+  ["/api/ai/reschedule-plan", { goal: "목표", currentPlanText: "계획", revisionRequest: "재조정" }],
+  ["/api/ai/diary-book", { monthKey: "2026-07", goal: "목표", summary: { entryCount: 3 } }],
+];
+
+test("차단이 켜지면 만료 계정은 모든 AI 라우트에서 402로 막히고 provider를 부르지 않는다", async () => {
+  let providerCalls = 0;
+  const app = await harness({
+    plan: "expired",
+    userId: "paywall-expired-user",
+    paywall: true,
+    aiHandler: async () => {
+      providerCalls += 1;
+      return new Response(JSON.stringify({ output_text: "{}", usage: {} }), { status: 200, headers: { "content-type": "application/json" } });
+    },
+  });
+  try {
+    for (const [path, body] of AI_ROUTES) {
+      const response = await app.call(path, { body, requestId: `blocked-${path.split("/").at(-1)}` });
+      const payload = await response.json();
+      assert.equal(response.status, 402, `${path}는 402로 막혀야 한다`);
+      assert.equal(payload.code, "PLAN_EXPIRED", `${path}의 거절 사유가 만료여야 한다`);
+      assert.equal(payload.plan, "expired");
+    }
+    assert.equal(providerCalls, 0, "거절할 요청이 provider 비용을 만들면 안 된다");
+
+    // 원장도 건드리지 않는다 — 잔량과 예약이 그대로여야 재시도가 안전하다.
+    const usage = await (await app.usage()).json();
+    assert.equal(usage.plan, "expired");
+    assert.equal(usage.balance, 0, "차단이 켜지면 만료 계정에는 월 지급이 없다");
+    assert.equal(usage.reserved, 0);
+    assert.equal(usage.paywallEnabled, true);
+  } finally {
+    app.restore();
+  }
+});
+
+test("차단이 꺼져 있으면 만료 계정은 폐지 전 Free와 같은 한도로 그대로 쓴다", async () => {
+  const app = await harness({ plan: "expired", userId: "paywall-off-user", paywall: false });
+  try {
+    const usage = await (await app.usage()).json();
+    assert.equal(usage.paywallEnabled, false);
+    assert.equal(usage.balance, PAYWALL_OFF_EXPIRED_GRANT.monthlyCredits);
+    assert.equal(usage.daily.limit, PAYWALL_OFF_EXPIRED_GRANT.dailyCreditLimit);
+
+    // 실제로 대화가 되고 차감된다 — 즉 아무도 잠기지 않는다.
+    const response = await app.chat("paywall-off-chat");
+    const body = await response.json();
+    assert.equal(response.status, 200);
+    assert.equal(body.chargedCredits, AI_CREDIT_COSTS.companion_chat);
+    assert.equal(body.usage.balance, PAYWALL_OFF_EXPIRED_GRANT.monthlyCredits - AI_CREDIT_COSTS.companion_chat);
+  } finally {
+    app.restore();
+  }
+});
+
+test("차단이 켜져도 체험 중·PRO 계정은 그대로 통과한다", async () => {
+  /* 체험 계정에는 살아 있는 trialExpiresAt이 있어야 한다. plan 문자열만 "trial"이고 기간이
+     없으면 판정은 만료다 — 저장된 라벨이 아니라 사실을 본다는 뜻이다. */
+  const cases = [
+    { plan: "pro", user: {} },
+    { plan: "trial", user: { trialStartedAt: Date.now(), trialUsedAt: Date.now(), trialExpiresAt: Date.now() + 60 * 60 * 1_000 } },
+  ];
+  for (const { plan, user } of cases) {
+    const app = await harness({ plan, userId: `paywall-${plan}-user`, paywall: true, user });
+    try {
+      const response = await app.chat(`paywall-${plan}-chat`);
+      assert.equal(response.status, 200, `${plan}은 차단 대상이 아니다`);
+    } finally {
+      app.restore();
+    }
+  }
+
+  // 라벨만 남고 기간이 없는 계정은 막힌다.
+  const stale = await harness({ plan: "trial", userId: "paywall-stale-trial", paywall: true });
+  try {
+    assert.equal((await stale.chat("stale-trial-chat")).status, 402);
+  } finally {
+    stale.restore();
+  }
+});
+
+/* 해지·결제 실패는 저장된 plan이 아니라 판정으로 막혀야 한다. 크론이 늦게 돌아도
+   PRO 권한이 남지 않는지를 라우트 수준에서 확인한다. */
+test("해지된 PRO는 기간이 끝나면 크론을 기다리지 않고 라우트에서 막힌다", async () => {
+  const app = await harness({
+    plan: "pro",
+    userId: "canceled-pro-user",
+    paywall: true,
+    user: { subscriptionStatus: "canceled", currentPeriodEnd: Date.now() - 1 },
+  });
+  try {
+    const response = await app.chat("canceled-chat");
+    assert.equal(response.status, 402);
+    assert.equal((await response.json()).code, "PLAN_EXPIRED");
+  } finally {
+    app.restore();
+  }
+});
+
+test("결제 실패는 3일 유예 동안 통과하고 유예가 끝나면 막힌다", async () => {
+  const now = Date.now();
+  const inGrace = await harness({
+    plan: "pro",
+    userId: "past-due-in-grace",
+    paywall: true,
+    user: { subscriptionStatus: "past_due", currentPeriodEnd: now - 1, paymentGraceUntil: now + PAYMENT_FAILURE_GRACE_MS },
+  });
+  try {
+    assert.equal((await inGrace.chat("grace-chat")).status, 200, "유예 중에는 PRO 권한이 유지된다");
+  } finally {
+    inGrace.restore();
+  }
+
+  const afterGrace = await harness({
+    plan: "pro",
+    userId: "past-due-after-grace",
+    paywall: true,
+    user: { subscriptionStatus: "past_due", currentPeriodEnd: now - 1, paymentGraceUntil: now - 1 },
+  });
+  try {
+    const response = await afterGrace.chat("after-grace-chat");
+    assert.equal(response.status, 402);
+    assert.equal((await response.json()).code, "PLAN_EXPIRED");
+  } finally {
+    afterGrace.restore();
+  }
+});
+
+/* 체험 종료 편지는 폐지됐다. 라우트가 살아 있으면 만료 계정이 차단을 지나 AI를 부를 수
+   있는 유일한 구멍이 되므로, 사라졌다는 것을 라우트 수준에서 고정한다. */
+test("체험 종료 편지 라우트는 남아 있지 않다", async () => {
+  let providerCalls = 0;
+  const app = await harness({
+    plan: "expired",
+    userId: "no-letter-user",
+    paywall: true,
+    aiHandler: async () => {
+      providerCalls += 1;
+      return new Response(JSON.stringify({ output_text: "{}", usage: {} }), { status: 200, headers: { "content-type": "application/json" } });
+    },
+  });
+  try {
+    const response = await app.call("/api/ai/trial-letter", { body: { goal: "목표", summary: { dayCount: 1 } }, requestId: "letter-gone" });
+    assert.equal(response.status, 404, "폐지된 라우트는 존재하지 않아야 한다");
+    assert.equal(providerCalls, 0);
+  } finally {
+    app.restore();
+  }
+});
+
+/* ---------- 만료 계정에 항상 열려 있어야 하는 것 (§G, 법적 요건) ----------
+   차단이 켜져 있고 에너지가 0인 계정에서도 탈퇴와 결제 화면은 닿을 수 있어야 한다.
+   .md 내보내기는 서버를 거치지 않으므로(클라이언트 직렬화) e2e에서 확인한다. */
+test("차단이 켜진 만료 계정도 탈퇴와 결제 경로에 닿는다", async () => {
+  const app = await harness({ plan: "expired", userId: "locked-out-user", paywall: true });
+  try {
+    const usage = await (await app.usage()).json();
+    assert.equal(usage.balance, 0, "에너지가 0인 상태에서 확인해야 의미가 있다");
+
+    // 결제 상태 조회 — 잠긴 계정이 낼 방법을 찾을 수 있어야 한다.
+    const billing = await app.call("/api/account/billing", { method: "GET" });
+    assert.notEqual(billing.status, 402, "결제 경로가 잠기면 나갈 길이 없다");
+    assert.notEqual(billing.status, 403);
+
+    // 탈퇴 요청 — 개인정보 자기결정권이라 플랜으로 막을 수 없다.
+    const remove = await app.call("/api/account/delete", { body: { confirm: "삭제" } });
+    assert.notEqual(remove.status, 402, "탈퇴가 결제 뒤에 있으면 안 된다");
+    assert.notEqual(remove.status, 403);
   } finally {
     app.restore();
   }

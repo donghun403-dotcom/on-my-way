@@ -98,6 +98,14 @@ const trialPaywallTitle = document.querySelector("#trialPaywallTitle");
 const trialPaywallCopy = document.querySelector("#trialPaywallCopy");
 const trialPaywallAction = document.querySelector("#trialPaywallAction");
 const trialPaywallPrice = document.querySelector("#trialPaywallPrice");
+const paywallSampleOpen = document.querySelector("#sampleBookOpen");
+const sampleBookDialog = document.querySelector("#sampleBookDialog");
+const sampleBookPages = document.querySelector("#sampleBookPages");
+const sampleBookClose = document.querySelector("#sampleBookClose");
+const paywallBrowseRecords = document.querySelector("#paywallBrowseRecords");
+const paywallExportRecords = document.querySelector("#paywallExportRecords");
+const paywallReturnBar = document.querySelector("#paywallReturnBar");
+const paywallReturnToLock = document.querySelector("#paywallReturnToLock");
 const ollieEnergyMeter = document.querySelector("#ollieEnergyMeter");
 const ollieEnergyBalance = document.querySelector("#ollieEnergyBalance");
 const ollieEnergyBar = document.querySelector("#ollieEnergyBar");
@@ -313,6 +321,9 @@ const ACCOUNT_SCOPED_STORAGE_KEYS = [
   CHAT_LOG_KEY,
   CHAT_CONSENT_KEY,
   EXECUTION_LEDGER_PLAN_KEY,
+  /* 체험 종료 편지는 그 계정의 기록으로 쓴 글이다. 계정을 바꿨을 때 앞사람의 편지가
+     남아 있으면 안 된다. 서버에는 보관하지 않으므로 동기화 목록에는 넣지 않는다. */
+  "omwTrialLetter",
 ];
 const SERVER_SYNC_STORAGE_KEYS = [
   "omwPersonalityProfile",
@@ -920,7 +931,7 @@ async function startTrialAccess() {
     syncServerPlanToLocal();
     renderAccountUi();
     sendFunnelEvent("trial_started");
-    showToast("24시간 무료 체험이 시작됐어요 · 체험용 AI 크레딧을 확인해 보세요");
+    showToast("무료 체험이 시작됐어요 · 가입 다음 날 밤 11시 59분까지 이용할 수 있어요");
     return data;
   } catch (error) {
     showToast(error.message || "무료 체험을 시작하지 못했어요.");
@@ -928,16 +939,72 @@ async function startTrialAccess() {
   }
 }
 
-function lockTrialExperience(mode) {
-  // Free 플랜은 체험 전후에도 계속 이용할 수 있으므로 앱 전체를 잠그지 않는다.
-  document.body.classList.remove("trial-locked");
+/* ===== 하드 페이월 =====
+   체험이 끝나고 결제하지 않으면 앱 이용을 차단한다. 차단할지 말지는 서버가 정한다 —
+   usage.paywallEnabled(배포 설정)와 usage.plan(상태 머신)이 판정이고, 화면은 그 결과만 읽는다.
+   클라이언트가 스스로 판단하면 플래그가 꺼진 배포에서도 잠기는 사고가 난다.
+
+   잠금은 유일한 통로가 아니다. 기록 열람·내보내기와 탈퇴·결제는 법적으로 막을 수 없어
+   잠금 화면 안에 노출하고, "내 기록 보기"를 누르면 잠금을 잠시 내려 준다. AI 라우트는
+   그때도 서버가 402로 막으므로 여기서 다시 막을 필요가 없다. */
+let paywallBrowsingRecords = false;
+
+function isPaywallLocked() {
+  if (!trialPaywall) return false;
+  if (!authUiState.user) return false;
+  /* 사용량을 못 읽었으면 잠그지 않는다. 일시적인 오류로 사람을 가두는 것보다 열어 두는 쪽이
+     안전하고, AI 라우트는 어차피 서버가 402로 막는다 — 화면은 안내일 뿐 방어선이 아니다. */
+  if (!aiUsageState?.paywallEnabled) return false;
+  return (aiUsageState.plan || authUiState.user.plan) === "expired";
+}
+
+function setAppInert(inert) {
   [...document.body.children].forEach((element) => {
-    if (element !== trialPaywall) element.inert = false;
+    /* 잠금 화면 자신과 복귀 줄, 토스트, 라이브 리전은 잠기면 안 된다 —
+       잠긴 화면에서도 안내는 읽히고 스크린 리더에 전달돼야 한다.
+       샘플 북도 잠금 화면에서 여는 것이므로 같이 열어 둔다. */
+    if (element === trialPaywall || element === paywallReturnBar || element === sampleBookDialog) return;
+    if (element.id === "appLiveRegion" || element.classList.contains("app-toast")) return;
+    element.inert = inert;
   });
-  if (trialPaywall) trialPaywall.hidden = true;
-  if (mode === "expired") {
-    showToast("24시간 무료 체험이 종료되었어요 · Free 플랜으로 계속 이용할 수 있어요");
+}
+
+function renderPaywallLock() {
+  if (!trialPaywall) return;
+  const locked = isPaywallLocked();
+  if (!locked) {
+    paywallBrowsingRecords = false;
+    document.body.classList.remove("trial-locked");
+    setAppInert(false);
+    trialPaywall.hidden = true;
+    if (paywallReturnBar) paywallReturnBar.hidden = true;
+    return;
   }
+
+  const showing = !paywallBrowsingRecords;
+  // 사용량을 다시 읽을 때마다 이 함수가 돈다. 이미 떠 있는 화면에 다시 포커스를 주면
+  // 유저가 읽는 중에 커서가 튄다 — 숨김 → 표시로 바뀌는 순간에만 옮긴다.
+  const wasHidden = trialPaywall.hidden;
+  document.body.classList.toggle("trial-locked", showing);
+  setAppInert(showing);
+  trialPaywall.hidden = !showing;
+  if (paywallReturnBar) paywallReturnBar.hidden = showing;
+  if (showing) {
+    renderTrialFootprint();
+    if (wasHidden) trialPaywall.focus({ preventScroll: true });
+  }
+}
+
+function openPaywallLock() {
+  paywallBrowsingRecords = false;
+  renderPaywallLock();
+}
+
+function browseRecordsUnderPaywall() {
+  paywallBrowsingRecords = true;
+  renderPaywallLock();
+  // 탭 전환은 app.html의 셸이 갖고 있다. 같은 동작을 두 곳에 두지 않으려고 탭을 그대로 누른다.
+  document.querySelector("#tab-memory")?.click();
 }
 
 function updateTrialStatus(expiresAt) {
@@ -945,7 +1012,7 @@ function updateTrialStatus(expiresAt) {
   const remaining = Math.max(0, expiresAt - Date.now());
   if (remaining <= 0) {
     trialStatusBanner.hidden = true;
-    lockTrialExperience("expired");
+    renderPaywallLock();
     return;
   }
   const hours = Math.floor(remaining / (60 * 60 * 1000));
@@ -956,19 +1023,134 @@ function updateTrialStatus(expiresAt) {
 
 function initializeTrialAccess() {
   if (!document.body.classList.contains("execution-page")) return;
-  lockTrialExperience("free");
+  renderPaywallLock();
   const access = readTrialAccess();
-  if (!authUiState.user || access?.plan === "pro" || access?.plan === "free") {
+  if (!authUiState.user || access?.plan === "pro" || access?.plan === "expired") {
     if (trialStatusBanner) trialStatusBanner.hidden = true;
     return;
   }
   if (!access?.expiresAt) return;
   if (Date.now() >= Number(access.expiresAt)) {
-    lockTrialExperience("expired");
+    renderPaywallLock();
     return;
   }
   updateTrialStatus(Number(access.expiresAt));
   window.setInterval(() => updateTrialStatus(Number(access.expiresAt)), 60 * 1000);
+}
+
+/* ===== 체험 기록 요약 =====
+   잠금 화면 첫 줄. 로컬 데이터만 읽고 AI를 부르지 않는다 — 만료된 계정이 처음 보는 화면이
+   "결제하세요"이면 그 사람이 이틀 동안 남긴 것이 아무 데도 없는 것이 되므로, 남긴 것을 먼저
+   숫자로 돌려준다. 생성물이 아니라 사실이라 품질 위험도 비용도 없다.
+
+   체험 종료 편지는 폐지했다. 하루~이틀 기록으로 만든 생성물은 품질이 안 나오고,
+   차별점이어야 할 북의 인상을 미리 깎기 때문이다. 그 자리에는 샘플 북이 들어간다. */
+function describeTrialFootprint() {
+  const state = getExecutionState();
+  const memories = Array.isArray(state.dailyMemories) ? state.dailyMemories : [];
+  const chatDays = readChatLog().days || {};
+  const chatTurnCount = Object.values(chatDays)
+    .reduce((total, turns) => total + (Array.isArray(turns) ? turns.length : 0), 0);
+  const recordedDays = new Set([
+    ...memories.map(memoryDateKey).filter((key) => /^\d{4}-\d{2}-\d{2}$/.test(key)),
+    ...Object.keys(chatDays).filter((key) => Array.isArray(chatDays[key]) && chatDays[key].length),
+  ]).size;
+
+  /* 조사가 앞말에 따라 갈리므로 조각을 이어 붙이지 않고 완성된 문장을 고른다 —
+     "…대화을 남기셨어요"처럼 어긋난 문장이 나오면 안 된다.
+     대화 턴이 있으면 그 날도 기록한 날로 세므로 recordedDays는 항상 1 이상이다. */
+  // 아무것도 없는 계정에 "0일 0번"을 보여 주면 없는 것을 세어 보여 주는 셈이 된다.
+  if (!recordedDays) return "여기까지 와 주셨어요.";
+  if (!chatTurnCount) return `체험 동안 ${recordedDays}일을 기록했어요.`;
+  return `체험 동안 ${recordedDays}일을 기록하고, 올리와 ${chatTurnCount}번 이야기했어요.`;
+}
+
+function renderTrialFootprint() {
+  if (trialPaywallCopy) trialPaywallCopy.textContent = describeTrialFootprint();
+  // 샘플 콘텐츠를 못 읽었으면 없는 것을 약속하지 않는다.
+  if (paywallSampleOpen) paywallSampleOpen.hidden = !sampleDiaryBook();
+}
+
+/* ===== 원본 내보내기 (.md) =====
+   경계는 하나다: 무료는 데이터, 유료는 작품.
+
+   이것은 데이터 쪽이다. 날짜·감정 태그·일기 원문·대화 턴을 있는 그대로 텍스트로 옮기고,
+   조판·표지·일러스트·머리말은 넣지 않는다. 그 자리는 다이어리 북(PRO)이다.
+
+   왜 클라이언트에서 직렬화만 하는가:
+   ① AI 0회·에너지 0·플랜 무관이어야 한다 — 만료 계정도 언제든 받을 수 있어야 하는
+      법적 요건이라 재화 경로에 들어가면 안 된다.
+   ② 서버 왕복이 없어야 한다. 서버가 이 파일을 만들거나 보관하면 새로운 처리·보관이 생겨
+      개인정보처리방침 개정 조건이 붙는다. 브라우저 안에서 끝내면 그 조건이 없다.
+
+   형식이 .md 하나인 이유: 텍스트는 어떤 도구로도 열리고 아무것도 잃지 않는다.
+   PDF·인쇄는 전부 PRO다 — 무료 경로를 만들지 마라. */
+const EXPORT_MOOD_UNSET = "기록 없음";
+
+function collectExportDays() {
+  const state = getExecutionState();
+  const memoriesByDate = new Map();
+  for (const memory of Array.isArray(state.dailyMemories) ? state.dailyMemories : []) {
+    const key = memoryDateKey(memory);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(key)) memoriesByDate.set(key, memory);
+  }
+  const chatDays = readChatLog().days || {};
+  const keys = new Set([...memoriesByDate.keys()]);
+  for (const [key, turns] of Object.entries(chatDays)) {
+    if (Array.isArray(turns) && turns.length) keys.add(key);
+  }
+  return [...keys].sort().map((dateKey) => ({
+    dateKey,
+    memory: memoriesByDate.get(dateKey) || null,
+    turns: Array.isArray(chatDays[dateKey]) ? chatDays[dateKey] : [],
+  }));
+}
+
+function buildRecordsMarkdown(days = collectExportDays()) {
+  const goal = getPlanBundle().plan?.goal || "";
+  const lines = ["# 내 기록 원본", ""];
+  lines.push(`내보낸 날: ${new Date().toISOString().slice(0, 10)}`);
+  if (goal) lines.push(`목표: ${goal}`);
+  lines.push("");
+
+  if (!days.length) {
+    lines.push("아직 남긴 기록이 없어요.", "");
+    return lines.join("\n");
+  }
+
+  for (const day of days) {
+    lines.push(`## ${day.dateKey}`, "");
+    const mood = day.memory ? getMemoryMoodDisplay(day.memory).label : "";
+    lines.push(`감정: ${mood || EXPORT_MOOD_UNSET}`);
+    if (day.memory) lines.push(`실행률: ${Number(day.memory.completion || 0)}%`);
+    lines.push("");
+
+    const note = String(day.memory?.note || "").trim();
+    if (note) lines.push("### 일기", "", note, "");
+
+    if (day.turns.length) {
+      lines.push("### 올리와 나눈 말", "");
+      for (const turn of day.turns) {
+        // 화자만 표시하고 말은 원문 그대로 둔다. 줄바꿈이 있으면 그대로 살린다.
+        lines.push(`${turn.role === "ollie" ? "올리" : "나"}: ${String(turn.text || "").trim()}`);
+      }
+      lines.push("");
+    }
+  }
+  return lines.join("\n");
+}
+
+function exportRecordsFile() {
+  const markdown = buildRecordsMarkdown();
+  const url = URL.createObjectURL(new Blob([markdown], { type: "text/markdown;charset=utf-8" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `on-my-way-기록-${new Date().toISOString().slice(0, 10)}.md`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+  showToast("기록을 텍스트로 내보냈어요 · 이 파일은 이 기기에 저장돼요");
 }
 
 function normalizeScheduleStartPreference(value) {
@@ -1149,7 +1331,7 @@ async function activateManualPlan() {
 
     // 체험 시작 시각은 서버가 가입 계정 기준으로 확정한다.
     const usage = aiUsageState || await loadAiUsage().catch(() => null);
-    if (usage?.plan === "free" && usage.trial?.eligible) {
+    if (usage?.plan === "expired" && usage.trial?.eligible) {
       const started = await startTrialAccess();
       if (!started) return false;
     }
@@ -1423,7 +1605,7 @@ function syncServerPlanToLocal() {
   }
 
   try {
-    localStorage.setItem(TRIAL_ACCESS_KEY, JSON.stringify({ plan: "free", startedAt: null, expiresAt: null }));
+    localStorage.setItem(TRIAL_ACCESS_KEY, JSON.stringify({ plan: "expired", startedAt: null, expiresAt: null }));
   } catch (error) {
     console.warn("Unable to sync Free plan", error);
   }
@@ -1455,7 +1637,7 @@ function getProCtaState(plan, trialEligible) {
       ? { label: "지금 Pro로 전환하기", disabled: false }
       : { label: "Pro 결제 준비 중", disabled: true };
   }
-  if (trialEligible) return { label: "24시간 무료 체험 시작", disabled: false };
+  if (trialEligible) return { label: "무료 체험 시작", disabled: false };
   return { label: "Pro 시작하기", disabled: !paymentsEnabled };
 }
 
@@ -1468,11 +1650,11 @@ function renderMyPageSheet() {
   if (myPageEmail) myPageEmail.textContent = user.email || "이메일 미등록";
   if (myPageProvider) myPageProvider.textContent = AUTH_PROVIDER_LABELS[user.provider] || "소셜 계정";
 
-  const plan = aiUsageState?.plan || user.plan || "free";
+  const plan = aiUsageState?.plan || user.plan || "expired";
   const isPro = plan === "pro";
   const isTrial = plan === "trial";
   const isComplimentary = isPro && user.subscriptionStatus === "complimentary";
-  if (myPagePlanTitle) myPagePlanTitle.textContent = isPro ? "Pro" : isTrial ? "무료 체험 중" : "Free";
+  if (myPagePlanTitle) myPagePlanTitle.textContent = isPro ? "Pro" : isTrial ? "무료 체험 중" : "이용 종료";
   if (myPagePlanMeta) {
     if (isPro) {
       const price = pricingPolicy?.PLAN_CONFIG?.pro?.priceKRW;
@@ -1484,8 +1666,8 @@ function renderMyPageSheet() {
       myPagePlanMeta.textContent = `남은 시간 ${formatTrialRemaining(trialEndsAt)} · ${formatUsageTime(trialEndsAt, aiUsageState?.timeZone)} 종료`;
     } else {
       myPagePlanMeta.textContent = aiUsageState?.trial?.eligible
-        ? "Free로 계속 이용 · 원할 때 24시간 무료 체험 1회"
-        : "Free로 계속 이용 · Pro는 월정액으로 전환";
+        ? "체험을 시작하면 가입 다음 날 밤까지 이용할 수 있어요"
+        : "무료 체험이 끝났어요 · 기록 열람·내보내기와 탈퇴는 계속 무료";
     }
   }
   if (myPageSubscribeButton) {
@@ -1515,8 +1697,8 @@ function renderAccountUi() {
     if (drawerAvatar) drawerAvatar.textContent = accountInitial(user);
     if (drawerName) drawerName.textContent = user.name;
     if (drawerPlanBadge) {
-      const plan = aiUsageState?.plan || user.plan || "free";
-      drawerPlanBadge.textContent = plan === "pro" ? "Pro" : plan === "trial" ? "무료 체험 중" : "Free";
+      const plan = aiUsageState?.plan || user.plan || "expired";
+      drawerPlanBadge.textContent = plan === "pro" ? "Pro" : plan === "trial" ? "무료 체험 중" : "이용 종료";
       drawerPlanBadge.classList.toggle("pro", plan === "pro" || plan === "trial");
     }
   }
@@ -1542,7 +1724,7 @@ function renderAccountUi() {
   }
   if (heroPrimaryCta) {
     const hasSavedPlan = Boolean(user && readExecutionPlan().goal);
-    heroPrimaryCta.textContent = hasSavedPlan ? "내 계획으로 돌아가기" : "내 목표로 24시간 무료 체험 시작하기";
+    heroPrimaryCta.textContent = hasSavedPlan ? "내 계획으로 돌아가기" : "내 목표로 무료 체험 시작하기";
     heroPrimaryCta.href = hasSavedPlan ? "app.html" : "#designFlow";
   }
 
@@ -2066,7 +2248,9 @@ function hydratePolicyValues() {
       "daily-limit": `${plan.dailyCreditLimit}크레딧`,
       "max-goals": plan.maxGoals === null ? "제한 없음" : `목표 ${plan.maxGoals}개`,
       "max-active-plans": plan.maxActivePlans === null ? "제한 없음" : `활성 계획 ${plan.maxActivePlans}개`,
-      "trial-duration": plan.trial ? `${plan.trial.durationHours}시간` : "—",
+      /* 체험 길이는 가입 시각에 따라 24~48시간 사이에서 달라진다(달력 경계로 끝나기 때문).
+         그래서 시간 수가 아니라 끝나는 날로 말한다 — 표시광고법상 종료 시점을 밝혀야 하는 자리다. */
+      "trial-duration": plan.trial ? "가입 다음 날 밤 11시 59분까지" : "—",
       "trial-credits": plan.trial ? `${plan.trial.credits}개` : "—",
       "daily-price": plan.priceKRW ? `${Math.round(plan.priceKRW / 30).toLocaleString("ko-KR")}원` : "0원",
     };
@@ -2081,7 +2265,7 @@ function hydratePolicyValues() {
     if (Number.isFinite(cost)) element.textContent = String(cost);
   });
   if (trialPaywallPrice) trialPaywallPrice.textContent = `월 ${formatWon(PLAN_CONFIG.pro.priceKRW)}`;
-  if (pricingPolicyStatus) pricingPolicyStatus.textContent = `Free와 Pro 정책을 확인했어요 · ${pricingPolicy.POLICY_VERSION}`;
+  if (pricingPolicyStatus) pricingPolicyStatus.textContent = `무료 체험과 Pro 정책을 확인했어요 · ${pricingPolicy.POLICY_VERSION}`;
 }
 
 function formatUsageTime(value, timeZone = aiUsageState?.timeZone) {
@@ -2116,7 +2300,7 @@ function applyAiUsage(usage) {
   aiUsageState = usage;
   aiUsageError = "";
   if (authUiState.user && usage.plan) authUiState.user.plan = usage.plan;
-  if (previousUsage?.plan === "trial" && usage.plan === "free") {
+  if (previousUsage?.plan === "trial" && usage.plan === "expired") {
     sendFunnelEvent("trial_completed");
     if (new Date(previousUsage.trial?.endsAt || 0).getTime() > Date.now()) sendFunnelEvent("trial_credit_exhausted");
   }
@@ -2126,6 +2310,8 @@ function applyAiUsage(usage) {
   renderPricingExperience();
   renderPlanFeatureAccess();
   renderAccountUi();
+  // 차단 여부는 서버 판정(usage.plan + usage.paywallEnabled)에서만 온다.
+  renderPaywallLock();
 }
 
 async function loadAiUsage({ force = false } = {}) {
@@ -2263,12 +2449,12 @@ function renderPricingExperience() {
   const user = authUiState.user;
   const usage = aiUsageState;
   const plan = usage?.plan || user?.plan || null;
-  const usesFreePlan = plan === "free" || plan === "trial";
-  pricingFreeCard?.setAttribute("aria-current", usesFreePlan ? "true" : "false");
+  const usesTrialPlan = plan === "trial";
+  pricingFreeCard?.setAttribute("aria-current", usesTrialPlan ? "true" : "false");
   pricingProCard?.setAttribute("aria-current", plan === "pro" ? "true" : "false");
   pricingFreeCard?.querySelectorAll("[data-current-plan-label]").forEach((label) => {
-    label.hidden = !usesFreePlan;
-    label.textContent = plan === "trial" ? "무료 체험 중" : "현재 플랜";
+    label.hidden = !usesTrialPlan;
+    label.textContent = "무료 체험 중";
   });
   pricingProCard?.querySelectorAll("[data-current-plan-label]").forEach((label) => {
     label.hidden = plan !== "pro";
@@ -2276,15 +2462,18 @@ function renderPricingExperience() {
   });
 
   if (!user) {
-    setPricingCta(pricingFreeCta, "무료로 시작하기", { href: "#designFlow" });
-    setPricingCta(pricingBottomCta, "무료로 시작하기", { href: "#designFlow" });
+    setPricingCta(pricingFreeCta, "무료 체험 시작하기", { href: "#designFlow" });
+    setPricingCta(pricingBottomCta, "무료 체험 시작하기", { href: "#designFlow" });
     setPricingCta(pricingProCta, "무료 체험 시작하기");
     setPricingCta(pricingBottomProCta, "무료 체험 시작하기");
   } else {
     const cta = getProCtaState(plan, Boolean(usage?.trial?.eligible));
-    const freeLabel = plan === "trial" ? "무료 체험 중" : plan === "free" ? "현재 플랜" : "Free 플랜";
-    setPricingCta(pricingFreeCta, freeLabel, { disabled: usesFreePlan, href: "#designFlow" });
-    setPricingCta(pricingBottomCta, plan === "trial" ? "무료 체험 중" : plan === "free" ? "현재 Free 플랜" : "Free 플랜 보기", { disabled: usesFreePlan, href: "#designFlow" });
+    /* 체험은 계정당 1회다. 이미 썼으면 다시 시작할 수 없으므로 버튼이 그 사실을 말한다. */
+    const trialEligible = Boolean(usage?.trial?.eligible);
+    const trialLabel = usesTrialPlan ? "무료 체험 중" : trialEligible ? "무료 체험 시작하기" : "무료 체험 종료됨";
+    const trialDisabled = usesTrialPlan || !trialEligible;
+    setPricingCta(pricingFreeCta, trialLabel, { disabled: trialDisabled, href: "#designFlow" });
+    setPricingCta(pricingBottomCta, trialLabel, { disabled: trialDisabled, href: "#designFlow" });
     setPricingCta(pricingProCta, cta.label, { disabled: cta.disabled });
     setPricingCta(pricingBottomProCta, cta.label, { disabled: cta.disabled });
   }
@@ -2319,8 +2508,12 @@ function aiCreditCost(action) {
   return Number(aiUsageState?.creditCosts?.[action] ?? pricingPolicy?.AI_CREDIT_COSTS?.[action] ?? 0);
 }
 
+/* features 플래그 판정. **PRO 전용 기능에는 쓰면 안 된다** —
+   getPlanConfig("trial")이 PLAN_CONFIG.pro를 돌려주므로 체험 계정이 전부 통과한다.
+   여기 오는 플래그(detailedInsights·companionPersonalization)는 "체험이 PRO와 같아도 되는 것"이라
+   그 통과가 의도된 동작이다. PRO 전용은 canCreateDiaryBook()처럼 서버 판정을 읽어라. */
 function planHasFeature(feature) {
-  const plan = aiUsageState?.plan || authUiState.user?.plan || "free";
+  const plan = aiUsageState?.plan || authUiState.user?.plan || "expired";
   return Boolean(pricingPolicy?.getPlanConfig?.(plan)?.features?.[feature]);
 }
 
@@ -2355,21 +2548,24 @@ async function ensureAiActionAvailable(action) {
     return false;
   }
   const cost = aiCreditCost(action);
+  /* 여기 features를 보는 것은 맞다 — recoveryPlan·fullReschedule은 체험이 PRO와 같아도 되는
+     것이라 getPlanConfig("trial") === PLAN_CONFIG.pro가 의도된 동작이다.
+     PRO 전용(북)은 이 게이트가 아니라 canCreateDiaryBook()이 막는다. */
   const requiredFeature = pricingPolicy?.AI_ACTION_REQUIRED_FEATURE?.[action];
   const plan = pricingPolicy?.getPlanConfig?.(usage.plan);
   if (requiredFeature && !plan?.features?.[requiredFeature]) {
     const expiredPlan = authUiState.user?.subscriptionStatus && authUiState.user.subscriptionStatus !== "active" && authUiState.user.proSince;
     showToast(expiredPlan
-      ? `Pro 이용 기간이 종료되어 Free로 전환되었어요. 이 기능에는 ${cost}크레딧과 Pro 플랜이 필요해요.`
+      ? `Pro 이용 기간이 끝났어요. 이 기능에는 ${cost}크레딧과 Pro 플랜이 필요해요.`
       : `이 기능에는 ${cost}크레딧이 필요하며 Pro 플랜에서 이용할 수 있어요.`);
     sendFunnelEvent("ai_credit_insufficient");
     openEnergyCharge();
     return false;
   }
   if (Number(usage.daily.remaining) < cost) {
-    const trialEnded = usage.plan === "free" && !usage.trial?.eligible && authUiState.user?.trialUsedAt;
+    const trialEnded = usage.plan === "expired" && authUiState.user?.trialUsedAt;
     showToast(trialEnded
-      ? `무료 체험이 끝나 Free 플랜으로 이용 중이에요. 오늘 크레딧을 이미 사용해서 ${formatUsageTime(usage.daily.resetsAt, usage.timeZone)}에 ${cost}크레딧으로 다시 시도할 수 있어요.`
+      ? `무료 체험이 끝났어요. 계속 이용하려면 Pro를 시작해 주세요. 기록 열람과 내보내기는 그대로 무료예요.`
       : `이 기능에는 ${cost}크레딧이 필요해요. 오늘 사용할 수 있는 크레딧이 부족하며 ${formatUsageTime(usage.daily.resetsAt, usage.timeZone)}에 다시 제공돼요.`);
     sendFunnelEvent("ai_credit_insufficient");
     openEnergyCharge();
@@ -2377,7 +2573,7 @@ async function ensureAiActionAvailable(action) {
   }
   if (Number(usage.monthly.remaining) < cost) {
     const message = usage.plan === "trial"
-      ? `체험 AI 크레딧이 부족해요. Free 플랜으로 계속 이용할 수 있어요.`
+      ? `체험 AI 크레딧을 다 썼어요. Pro를 시작하면 이어서 쓸 수 있어요.`
       : `이번 달 AI 크레딧이 부족해요. ${formatUsageTime(usage.monthly.resetsAt, usage.timeZone)}에 다시 제공돼요.`;
     showToast(message);
     sendFunnelEvent("ai_credit_insufficient");
@@ -2393,7 +2589,7 @@ async function handleProPricingCta() {
     location.assign("app.html?auth=login&return=%2F");
     return;
   }
-  const plan = aiUsageState?.plan || authUiState.user.plan || "free";
+  const plan = aiUsageState?.plan || authUiState.user.plan || "expired";
   if (plan === "pro") {
     showToast("현재 Pro를 이용 중이에요. 중복 결제되지 않습니다.");
     return;
@@ -2512,6 +2708,9 @@ const diaryBookTidyDetail = document.querySelector("#diaryBookTidyDetail");
 const diaryBookTidyCancel = document.querySelector("#diaryBookTidyCancel");
 const diaryBookTidyCommit = document.querySelector("#diaryBookTidyCommit");
 const diaryBookPrint = document.querySelector("#diaryBookPrint");
+const diaryBookLocked = document.querySelector("#diaryBookLocked");
+const diaryBookLockedReason = document.querySelector("#diaryBookLockedReason");
+const diaryBookSampleOpen = document.querySelector("#diaryBookSampleOpen");
 const chatOverlay = document.querySelector("#chatOverlay");
 const companionChatSheet = document.querySelector("#companionChatSheet");
 const closeCompanionChatButton = document.querySelector("#closeCompanionChat");
@@ -3107,7 +3306,7 @@ function saveManualPlan() {
   if (conversionCopy) {
     conversionCopy.textContent = signedIn
       ? "오늘 화면으로 이동해 첫 할 일부터 시작해요."
-      : "간편 로그인하면 이 계획 그대로 24시간 무료 체험이 시작돼요.";
+      : "간편 로그인하면 이 계획 그대로 무료 체험이 시작돼요.";
   }
   sendFunnelEvent("plan_complete");
   showToast(authUiState.user
@@ -4257,7 +4456,7 @@ async function loadAdminMembers() {
     memberTableBody.innerHTML = users
       .map((user) => {
         const usage = user.aiUsage;
-        const effectivePlan = usage?.plan || user.plan || "free";
+        const effectivePlan = usage?.plan || user.plan || "expired";
         const planLabel = effectivePlan === "pro" ? "Pro" : effectivePlan === "trial" ? "무료 체험 중" : "Free";
         const usageSummary = usage
           ? `오늘 ${usage.daily.used}/${usage.daily.limit} · ${effectivePlan === "trial" ? "체험" : "월"} ${usage.monthly.used}/${usage.monthly.limit}`
@@ -4269,10 +4468,10 @@ async function loadAdminMembers() {
         return `<tr data-member-id="${escapeAccountText(user.id)}">
           <td><strong>${escapeAccountText(user.name)}</strong><small>${escapeAccountText(user.email || user.id)}</small></td>
           <td>${escapeAccountText(AUTH_PROVIDER_LABELS[user.provider] || user.provider)}</td>
-          <td><span class="plan-pill ${effectivePlan === "pro" ? "pro" : effectivePlan === "trial" ? "trial" : "free"}">${planLabel}</span><small>${escapeAccountText(usageSummary)}</small>${trialSummary ? `<small>${escapeAccountText(trialSummary)}</small>` : ""}${metricsSummary ? `<small>${escapeAccountText(metricsSummary)}</small>` : ""}</td>
+          <td><span class="plan-pill ${effectivePlan === "pro" ? "pro" : effectivePlan === "trial" ? "trial" : "expired"}">${planLabel}</span><small>${escapeAccountText(usageSummary)}</small>${trialSummary ? `<small>${escapeAccountText(trialSummary)}</small>` : ""}${metricsSummary ? `<small>${escapeAccountText(metricsSummary)}</small>` : ""}</td>
           <td>${formatAdminDate(user.createdAt)}</td><td>${formatAdminDate(user.lastLoginAt)}</td>
           <td>${user.role === "admin" ? "관리자" : "회원"}</td>
-          <td><button type="button" data-member-action="plan" data-next-value="${effectivePlan === "pro" ? "free" : "pro"}">${effectivePlan === "pro" ? "Pro 해제" : "Pro 전환"}</button>
+          <td><button type="button" data-member-action="plan" data-next-value="${effectivePlan === "pro" ? "expired" : "pro"}">${effectivePlan === "pro" ? "Pro 해제" : "Pro 전환"}</button>
           <button type="button" data-member-action="role" data-next-value="${user.role === "admin" ? "member" : "admin"}">${user.role === "admin" ? "관리자 해제" : "관리자 지정"}</button></td>
         </tr>`;
       })
@@ -4717,6 +4916,12 @@ function isPlainObject(value) {
    다시 확인한다. 쓰기 기능은 노출하지 않는다. */
 window.__omwTest = Object.freeze({
   readExecutionPlan,
+  /* 무료 `.md` 내보내기는 만료 계정에서도 반드시 되어야 하는 법적 요건이라 내용까지 검사한다.
+     파일 다운로드만 확인하면 "빈 파일이 내려왔다"를 잡지 못한다. */
+  buildRecordsMarkdown,
+  exportRecordsFile,
+  /* 인쇄·PDF는 PRO 전용이다. 헤드리스에서 인쇄 창을 띄울 수 없으므로 게이트 자체를 검사한다. */
+  printDiaryBook,
   /* 대화 로그 보관 상한(90일·500턴)은 날짜에 의존해 e2e로 90일을 흉내 내기 어렵다.
      순수 함수를 그대로 노출해 경계를 직접 검사한다. */
   pruneChatLog(log) {
@@ -9293,11 +9498,46 @@ function collectDiaryBookData(monthKey) {
   };
 }
 
-/* 무료 권이 남아 있으면 이 권의 값은 0이다. 판정은 서버(원장)가 하고 여기서는 표시만 한다 —
-   usage에 diaryBook이 없는 옛 응답에서는 정가로 떨어진다. */
+/* 북은 플랜과 무관하게 항상 정가다. 무료 권은 폐지됐으므로 값을 깎을 조건이 없다. */
 function diaryBookCost() {
-  if (aiUsageState?.diaryBook?.freeAvailable) return 0;
   return aiCreditCost("diary_book");
+}
+
+/* 이 계정이 북을 만들 수 있는가. 판정은 서버가 한다(usage.diaryBook.allowed는
+   resolveEffectivePlan === "pro" 결과다). 클라이언트가 플랜 문자열로 스스로 판단하면
+   서버와 갈라져 "버튼은 눌리는데 403"이 된다.
+
+   usage를 못 읽었을 때는 잠근 것으로 본다. 열어 두면 체험 계정이 생성을 눌러 403을 받는데,
+   그 실패가 유저에게는 고장으로 보인다 — 잠긴 화면은 이유를 말해 준다. */
+function canCreateDiaryBook() {
+  return aiUsageState?.diaryBook?.allowed === true;
+}
+
+/* ===== 샘플 북 =====
+   고정 콘텐츠라 AI를 부르지 않는다. 실제 북과 같은 조판 함수로 그린다.
+   "샘플"임은 감싸는 화면이 밝힌다 — 본인 기록으로 만든 것처럼 보이면 표시광고법 문제가 된다. */
+function sampleDiaryBook() {
+  const book = window.OMW_SAMPLE_DIARY_BOOK;
+  return book && Array.isArray(book.days) && book.days.length ? book : null;
+}
+
+let sampleBookReturnFocus = null;
+
+function openSampleBook(trigger) {
+  const book = sampleDiaryBook();
+  if (!book || !sampleBookDialog || !sampleBookPages) return;
+  // 한 번만 조판한다. 다시 열 때마다 그리면 긴 문서를 매번 만드는 셈이다.
+  if (!sampleBookPages.childElementCount) sampleBookPages.replaceChildren(buildDiaryBookPages(book));
+  sampleBookReturnFocus = trigger instanceof HTMLElement ? trigger : null;
+  sampleBookDialog.hidden = false;
+  sampleBookDialog.focus({ preventScroll: true });
+}
+
+function closeSampleBook() {
+  if (!sampleBookDialog || sampleBookDialog.hidden) return;
+  sampleBookDialog.hidden = true;
+  sampleBookReturnFocus?.focus({ preventScroll: true });
+  sampleBookReturnFocus = null;
 }
 
 function describeDiaryBookContents(month) {
@@ -9312,6 +9552,26 @@ function renderDiaryBookCard() {
   if (!diaryBookCard || !diaryBookMonth) return;
   const months = collectDiaryBookMonths();
   const hasMonths = months.length > 0;
+  const allowed = canCreateDiaryBook();
+  const hasSample = Boolean(sampleDiaryBook());
+
+  /* PRO가 아니면 생성 폼 대신 잠금 안내를 보여 준다. 기록이 없어도 잠금이 먼저다 —
+     "만들 수 없는 이유"가 둘일 때 결제가 필요하다는 쪽을 먼저 말해야 한다. */
+  if (diaryBookLocked) {
+    diaryBookLocked.hidden = allowed;
+    if (diaryBookLockedReason) {
+      diaryBookLockedReason.textContent = aiUsageState?.diaryBook?.lockReason
+        || "PRO로 전환하면 내 기록으로 만들 수 있어요.";
+    }
+    if (diaryBookSampleOpen) diaryBookSampleOpen.hidden = !hasSample;
+  }
+  if (!allowed) {
+    if (diaryBookForm) diaryBookForm.hidden = true;
+    if (diaryBookEmpty) diaryBookEmpty.hidden = true;
+    if (diaryBookDone) diaryBookDone.hidden = true;
+    return;
+  }
+
   if (diaryBookForm) diaryBookForm.hidden = !hasMonths;
   if (diaryBookEmpty) diaryBookEmpty.hidden = hasMonths;
   if (!hasMonths) {
@@ -9332,10 +9592,7 @@ function renderDiaryBookCard() {
 
   const selected = months.find((month) => month.monthKey === diaryBookMonth.value);
   if (diaryBookContents) diaryBookContents.textContent = describeDiaryBookContents(selected);
-  if (diaryBookCostLabel) {
-    const cost = diaryBookCost();
-    diaryBookCostLabel.textContent = cost === 0 ? "이번 달 무료" : `에너지 ${cost}`;
-  }
+  if (diaryBookCostLabel) diaryBookCostLabel.textContent = `에너지 ${diaryBookCost()}`;
   if (diaryBookCreate) diaryBookCreate.disabled = diaryBookInFlight;
   renderDiaryBookDone();
 }
@@ -9390,9 +9647,11 @@ function appendBookLine(parent, tag, className, text) {
 }
 
 /* 한 권을 조판한다. 표지·머리말·그 달의 숫자·날짜별 본문·올리의 편지 순서다.
-   일러스트는 기존 에셋을 쓴다(표정 8종 제작은 D트랙). */
-function renderDiaryBookPrint(book) {
-  if (!diaryBookPrint) return;
+   일러스트는 기존 에셋을 쓴다(표정 8종 제작은 D트랙).
+
+   조판을 프래그먼트로 분리해 둔 이유: 샘플 북 미리보기가 같은 함수를 쓴다. 두 조판이
+   갈라지면 "샘플과 똑같은 것이 나온다"는 약속이 조용히 거짓이 된다. */
+function buildDiaryBookPages(book) {
   const monthLabel = formatDiaryBookMonth(book.monthKey);
   const pages = document.createDocumentFragment();
 
@@ -9479,13 +9738,25 @@ function renderDiaryBookPrint(book) {
   appendBookLine(letter, "p", "book-letter-sign", "— 올리 드림");
   pages.append(letter);
 
-  diaryBookPrint.replaceChildren(pages);
+  return pages;
+}
+
+function renderDiaryBookPrint(book) {
+  if (!diaryBookPrint) return;
+  diaryBookPrint.replaceChildren(buildDiaryBookPages(book));
   diaryBookPrint.hidden = false;
 }
 
 /* 인쇄 대화상자를 연다. 파일명은 브라우저가 document.title에서 가져가므로 잠깐 바꿔 둔다.
-   afterprint를 쏘지 않는 브라우저가 있어 되돌리기를 한 번 더 걸어 둔다. */
+   afterprint를 쏘지 않는 브라우저가 있어 되돌리기를 한 번 더 걸어 둔다.
+
+   인쇄·PDF는 PRO 전용이다. 무료 경로는 .md 내보내기 하나뿐이므로 body.is-printing-book
+   진입 자체를 PRO가 아니면 막는다 — 이 클래스가 붙는 순간 조판된 책이 PDF로 나간다. */
 function printDiaryBook(monthKey) {
+  if (!canCreateDiaryBook()) {
+    showToast("인쇄와 PDF 저장은 Pro 전용이에요. 기록은 무료로 텍스트(.md)로 내보낼 수 있어요.");
+    return;
+  }
   const previousTitle = document.title;
   document.title = `올리 다이어리 북 ${formatDiaryBookMonth(monthKey)}`;
   document.body.classList.add("is-printing-book");
@@ -9507,7 +9778,6 @@ function printDiaryBook(monthKey) {
   }
 }
 
-// 무료 권이 남아 있으면 잔량 게이트를 지나지 않는다 — 서버가 비용 0으로 처리한다.
 async function ensureDiaryBookAvailable() {
   if (!authUiState.user) {
     showToast("로그인하면 다이어리 북을 만들 수 있어요.");
@@ -9515,7 +9785,13 @@ async function ensureDiaryBookAvailable() {
     return false;
   }
   await loadAiUsage().catch(() => null);
-  if (diaryBookCost() === 0) return true;
+  /* PRO 전용 게이트. 서버가 어차피 403으로 막지만 여기서 먼저 멈추는 이유는, 체험 계정이
+     "만들기"를 눌러 실패 메시지를 받는 경험 자체를 없애기 위해서다. 진입점은 샘플만 연다. */
+  if (!canCreateDiaryBook()) {
+    renderDiaryBookCard();
+    openSampleBook(diaryBookSampleOpen);
+    return false;
+  }
   return ensureAiActionAvailable("diary_book");
 }
 
@@ -9550,12 +9826,9 @@ async function createDiaryBook(monthKey) {
       chargedCredits: text.chargedCredits,
       free: text.entitlement ? 1 : 0,
     });
-    setDiaryBookStatus(
-      text.chargedCredits === 0
-        ? "한 권이 완성됐어요. 이번 달 무료 발급을 썼어요."
-        : `한 권이 완성됐어요. 에너지 ${text.chargedCredits}를 썼어요.`,
-      "done",
-    );
+    /* 조사를 숫자 뒤에 붙이지 않는다 — 을/를이 숫자를 읽는 소리에 따라 갈려서
+       ("10을", "2를") 값이 바뀌면 어긋난다. 조사를 앞으로 옮기면 어떤 값에도 맞는다. */
+    setDiaryBookStatus(`한 권이 완성됐어요. 에너지를 ${text.chargedCredits} 썼어요.`, "done");
     printDiaryBook(monthKey);
     renderDiaryBookCard();
   } catch (error) {
@@ -9617,6 +9890,23 @@ function focusDiaryBookMonth(monthKey) {
   diaryBookCard?.scrollIntoView({ behavior: "smooth", block: "center" });
   window.setTimeout(() => diaryBookCreate?.focus({ preventScroll: true }), 320);
 }
+
+/* 잠금 화면의 세 통로. 결제와 무관하게 항상 동작해야 하므로 플랜을 확인하지 않는다. */
+paywallBrowseRecords?.addEventListener("click", browseRecordsUnderPaywall);
+paywallExportRecords?.addEventListener("click", exportRecordsFile);
+paywallReturnToLock?.addEventListener("click", openPaywallLock);
+
+/* 샘플 북. 두 진입점(잠금 화면 · 기록 탭의 북 카드)이 같은 화면을 연다. AI를 부르지 않는다. */
+paywallSampleOpen?.addEventListener("click", () => openSampleBook(paywallSampleOpen));
+diaryBookSampleOpen?.addEventListener("click", () => openSampleBook(diaryBookSampleOpen));
+sampleBookClose?.addEventListener("click", closeSampleBook);
+sampleBookDialog?.addEventListener("click", (event) => {
+  // 바깥을 누르면 닫는다. 카드 안쪽 클릭은 통과시킨다.
+  if (event.target === sampleBookDialog) closeSampleBook();
+});
+sampleBookDialog?.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") closeSampleBook();
+});
 
 diaryBookMonth?.addEventListener("change", () => {
   diaryBookTidyArmed = "";

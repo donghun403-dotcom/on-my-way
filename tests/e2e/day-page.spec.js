@@ -281,10 +281,10 @@ test("보관 상한 계산은 90일 경계와 500턴 경계를 지킨다", async
 /* 오늘 나눈 이야기가 기록 탭에 곧바로 보이지 않으면, 유저는 대화가 어딘가로 사라졌다고
    읽는다 — 이 기능의 리텐션 근거가 "대화가 기록으로 남는다"는 것이므로 중요하다. */
 test("대화가 오가면 오늘의 하루 페이지가 곧바로 그 대화를 담는다", async ({ page }) => {
-  const usage = createUsageResponse({ plan: "free", dailyUsed: 0, monthlyUsed: 0, trialEligible: false });
+  const usage = createUsageResponse({ plan: "expired", dailyUsed: 0, monthlyUsed: 0, trialEligible: false });
   await prepareApp(page, CHAT_CONSENT_STORAGE);
   await mockAccountExperience(page, {
-    user: { id: "usr_day", provider: "google", name: "하루 테스트", email: "day@example.com", plan: "free", role: "member" },
+    user: { id: "usr_day", provider: "google", name: "하루 테스트", email: "day@example.com", plan: "expired", role: "member" },
     usage,
   });
   await page.route("**/api/ai/companion-chat", (route) =>

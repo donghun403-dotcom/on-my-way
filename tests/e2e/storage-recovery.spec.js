@@ -236,7 +236,7 @@ test("게스트 데이터가 없으면 선택을 묻지 않는다", async ({ pag
 });
 
 /* 실제 화면에서 고르는 데까지가 수정 범위다. 네이티브 confirm은 쓰지 않는다. */
-const RELOGIN_USER = { id: "account-a", provider: "kakao", name: "재로그인 사용자", email: "a@example.com", plan: "free", role: "member" };
+const RELOGIN_USER = { id: "account-a", provider: "kakao", name: "재로그인 사용자", email: "a@example.com", plan: "expired", role: "member" };
 
 /* 로그아웃 중에 게스트가 새 계획을 만든 기기를 재현한다. 활성 스코프는 익명이고
    계정 스냅샷에는 예전 계획이 들어 있어, 부팅 때 익명 → 계정 전환이 일어난다. */

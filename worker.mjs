@@ -4,6 +4,7 @@ import { GuestPlanDraftObject } from "./guest-plan-draft-object.mjs";
 import { createCompanionReply, createCrisisReply, detectCrisisSignal, normalizeCheerEventType } from "./ai-companion-chat.mjs";
 import { createDiaryBookText } from "./ai-diary-book.mjs";
 import { createAiPlanRevision } from "./ai-plan-revision.mjs";
+import { PRO_ONLY_LOCK_REASON, allowsProOnlyFeature, isHardPaywallEnabled } from "./plan-policy.mjs";
 import {
   safeAiDiagnostics,
   safeAiSuccessDiagnostics,
@@ -146,6 +147,37 @@ export function releaseDailyCheer({ store, userId, eventType, now = Date.now() }
   });
 }
 
+/* provider별 체험 시작 수. 한 사람이 provider를 갈아 최대 4번 체험을 받을 수 있는데
+   (userId가 provider:providerUserId의 HMAC이라 provider가 다르면 다른 계정이다),
+   그 우회를 막지 않기로 했으므로 대신 규모를 볼 수 있어야 한다.
+
+   왜 이메일로 병합해 막지 않는가: 정상 신규 유저를 체험에서 배제하는 오탐 비용이 누락
+   비용보다 크고, cross-provider 동일인 판정을 위한 이메일 정규화·보관은 새로운 처리 목적이라
+   처리방침 개정과 동의 항목이 붙는다.
+
+   그래서 이것은 카운터뿐이다. userId·이메일·providerUserId를 어떤 형태로도 남기지 않는다 —
+   남기면 그 자체가 cross-provider 추적이 되어 막지 않기로 한 이유와 모순된다.
+   KST 일자별로 provider 이름과 횟수만 센다. 근사 지표라 원자적 갱신은 생략한다. */
+export const TRIAL_START_COUNTER_PREFIX = "trial-starts:";
+const TRIAL_START_COUNTER_TTL_SECONDS = 60 * 60 * 24 * 400;
+
+export async function recordTrialStartByProvider({ provider, kv, now = Date.now() }) {
+  if (!kv || typeof kv.get !== "function" || typeof kv.put !== "function") return null;
+  // 알 수 없는 값이 키를 늘리지 않게 모양만 검사한다. 값 자체는 provider 이름이라 개인정보가 아니다.
+  const name = String(provider || "").trim().toLowerCase();
+  const bucket = /^[a-z0-9_-]{1,32}$/.test(name) ? name : "unknown";
+  const key = `${TRIAL_START_COUNTER_PREFIX}${funnelDateKey(now)}`;
+  let counts = {};
+  try {
+    counts = JSON.parse((await kv.get(key)) || "{}") || {};
+  } catch {
+    counts = {};
+  }
+  counts[bucket] = Number(counts[bucket] || 0) + 1;
+  await kv.put(key, JSON.stringify(counts), { expirationTtl: TRIAL_START_COUNTER_TTL_SECONDS });
+  return { key, counts };
+}
+
 export async function recordFunnelEvent({ step, kv, now = Date.now() }) {
   const name = String(step || "").replace(/^funnel:/, "");
   if (!FUNNEL_STEPS.has(name)) return null;
@@ -169,8 +201,9 @@ const AI_GENERATION_ROUTES = Object.freeze({
   "/api/ai/recovery-plan": { action: "recovery_plan", kind: "revision", maxBytes: 20_000 },
   "/api/ai/reschedule-plan": { action: "reschedule_plan", kind: "revision", maxBytes: 20_000 },
   /* 다이어리 북은 한 달치 요약을 싣고 오므로 대화보다 크다. 조판·PDF는 클라이언트가 하고
-     여기서는 머리말·편지 텍스트만 만든다(스펙 4장). */
-  "/api/ai/diary-book": { action: "diary_book", kind: "diary_book", maxBytes: 12_000 },
+     여기서는 머리말·편지 텍스트만 만든다(스펙 4장).
+     proOnly: 유효 플랜이 정확히 "pro"가 아니면 들어오지 못한다 — 체험도 막힌다. */
+  "/api/ai/diary-book": { action: "diary_book", kind: "diary_book", maxBytes: 12_000, proOnly: true },
 });
 
 // 게스트 온보딩 라우트는 사라졌지만 /api/health의 services.ai가 이 판정을 쓰고,
@@ -319,13 +352,53 @@ async function handleAiGenerationRequest({ request, env, accountContext, route }
   const ledger = createEnergyLedgerClient(env);
   const userPlan = resolveUserPlan(user);
   const userTrial = describeTrial(user);
+  const paywallEnabled = isHardPaywallEnabled(env);
+
+  /* 하드 페이월. 체험이 끝나고 결제하지 않은 계정은 AI 라우트에 들어오지 못한다.
+     예약보다 먼저 거르는 이유는 다이어리 북과 같다 — 어차피 거절할 요청이 원장을 건드리거나
+     provider 비용을 만들 이유가 없다.
+
+     플래그가 꺼져 있으면 이 게이트는 통째로 없는 것과 같고, 만료 계정은 폐지 전 Free와 같은
+     한도로 계속 쓴다. 실결제가 검증되기 전에 잠기는 사람이 없어야 하기 때문이다.
+
+     기록 열람·내보내기와 탈퇴·결제는 애초에 AI 라우트가 아니라 여기 오지 않는다. */
+  if (paywallEnabled && userPlan === "expired") {
+    return json({
+      ok: false,
+      error: "무료 체험이 끝났어요. 계속 이용하려면 Pro를 시작해 주세요.",
+      code: "PLAN_EXPIRED",
+      plan: userPlan,
+    }, 402);
+  }
+
+  /* PRO 전용 라우트(다이어리 북). 유효 플랜이 정확히 "pro"가 아니면 여기서 끝난다 —
+     체험도 만료도 통과하지 못한다.
+
+     이 게이트는 HARD_PAYWALL_ENABLED와 무관하다. 플래그가 막는 것은 "만료 계정의 잠금"이고,
+     그것을 실결제 검증 전에 켜면 나갈 길 없는 유저가 생기기 때문에 꺼 둔다. 북이 PRO 전용인
+     것은 잠금이 아니라 기능 경계다 — 이틀치 기록으로 만든 한 권은 품질이 안 나와서 차별점이어야
+     할 북의 인상을 미리 깎고, 북은 앱에서 가장 비싼 단일 동작이다. 두 사정 모두 플래그와
+     관계가 없으므로 플래그를 보지 않는다.
+
+     판정을 features나 getPlanConfig로 하지 않는 이유: getPlanConfig("trial")은
+     PLAN_CONFIG.pro를 돌려주므로 체험 계정이 전부 통과한다.
+
+     예약보다 먼저 거르므로 provider 호출 0회, 원장 무변경이다. */
+  if (route.proOnly && !allowsProOnlyFeature(userPlan)) {
+    return json({
+      ok: false,
+      error: `다이어리 북은 Pro 전용이에요. ${PRO_ONLY_LOCK_REASON}`,
+      code: "PRO_ONLY_ACTION",
+      plan: userPlan,
+    }, 403);
+  }
 
   /* 위기 신호는 예약보다 먼저 걸러 낸다. 잡았다가 되돌리는 방식이면 되돌리기가 실패했을 때
      힘든 말을 꺼낸 대가로 에너지가 사라진다. 아예 재화 경로에 들어가지 않는 편이 확실하다.
      AI도 부르지 않으므로 이 답에는 모델이 무슨 말을 할지 모르는 구간이 없다. */
   if (route.kind === "companion" && !isFreeCheer && detectCrisisSignal(input?.message)) {
     const usage = ledger
-      ? await ledger.usage(user.id, { plan: userPlan, trial: userTrial }).catch(() => null)
+      ? await ledger.usage(user.id, { plan: userPlan, trial: userTrial, paywallEnabled }).catch(() => null)
       : await getAiCreditUsage({ store: userStore, userId: user.id }).catch(() => null);
     return json({
       ok: true,
@@ -353,7 +426,7 @@ async function handleAiGenerationRequest({ request, env, accountContext, route }
         return json({ ok: false, error: "오늘의 무료 응원은 이미 전해드렸어요. 내일 또 만나요!", code: "CHEER_LIMIT_REACHED" }, 429);
       }
     } else if (ledger) {
-      reservation = await ledger.reserve(user.id, { plan: userPlan, action: route.action, requestId, trial: userTrial });
+      reservation = await ledger.reserve(user.id, { plan: userPlan, action: route.action, requestId, trial: userTrial, paywallEnabled });
     } else {
       reservation = await reserveAiCredits({ store: userStore, userId: user.id, action: route.action, requestId });
     }
@@ -388,7 +461,7 @@ async function handleAiGenerationRequest({ request, env, accountContext, route }
     }
 
     const committed = ledger
-      ? await ledger.commit(user.id, { plan: userPlan, requestId, meta: { model }, trial: userTrial })
+      ? await ledger.commit(user.id, { plan: userPlan, requestId, meta: { model }, trial: userTrial, paywallEnabled })
       : await commitAiCredits({
         store: userStore,
         userId: user.id,
@@ -400,8 +473,6 @@ async function handleAiGenerationRequest({ request, env, accountContext, route }
       ...publicAiResult(result),
       requestId,
       chargedCredits: committed.chargedCredits,
-      // 무료 자격(PRO 월 1권)으로 나간 건인지. 화면이 "이번 달 무료 권을 썼어요"를 말할 근거다.
-      ...(committed.entitlement ? { entitlement: committed.entitlement } : {}),
       usage: committed.usage,
     });
   } catch (error) {
@@ -431,6 +502,7 @@ async function handleAiGenerationRequest({ request, env, accountContext, route }
             plan: userPlan,
             requestId,
             errorCode: error?.code || "AI_REQUEST_FAILED",
+            paywallEnabled,
             trial: userTrial,
           });
         } else {
@@ -442,6 +514,7 @@ async function handleAiGenerationRequest({ request, env, accountContext, route }
             providerUsage: error?.providerUsage || {},
             providerRequestId: error?.providerRequestId || "",
             errorCode: error?.code || "AI_REQUEST_FAILED",
+            paywallEnabled,
             model,
           });
         }
@@ -453,7 +526,7 @@ async function handleAiGenerationRequest({ request, env, accountContext, route }
       }
     }
     const usage = ledger
-      ? await ledger.usage(user.id, { plan: userPlan, trial: userTrial }).catch(() => null)
+      ? await ledger.usage(user.id, { plan: userPlan, trial: userTrial, paywallEnabled }).catch(() => null)
       : await getAiCreditUsage({ store: userStore, userId: user.id }).catch(() => null);
     return json(aiErrorBody(error, usage), error?.status || 500);
   }
@@ -553,7 +626,13 @@ async function handleFetch(request, env) {
       try {
         // 조회 전용. 클라이언트가 만질 수 있는 에너지 표면은 이것뿐이다.
         const ledger = createEnergyLedgerClient(env);
-        if (ledger) return json(await ledger.usage(user.id, { plan: resolveUserPlan(user), trial: describeTrial(user) }));
+        if (ledger) {
+          return json(await ledger.usage(user.id, {
+            plan: resolveUserPlan(user),
+            trial: describeTrial(user),
+            paywallEnabled: isHardPaywallEnabled(env),
+          }));
+        }
         return json(await getAiCreditUsage({ store: accountContext.store, userId: user.id }));
       } catch (error) {
         return json(aiErrorBody(error), error?.status || 500);
@@ -568,12 +647,18 @@ async function handleFetch(request, env) {
       try {
         const result = await startAiTrial({ store: accountContext.store, userId: user.id });
         const refreshedUser = await accountContext.store.getUser(user.id);
+        /* 실제로 체험이 새로 시작된 건만 센다 — 멱등 재호출까지 세면 provider별 수가 부풀어
+           우회 규모를 과대평가한다. 계측이 실패해도 체험은 이미 시작됐으므로 삼킨다. */
+        if (result?.started && env.USERS_KV) {
+          await recordTrialStartByProvider({ provider: user.provider, kv: env.USERS_KV })
+            .catch((error) => console.error("Trial start counter failed", { errorCategory: error?.code || "TRIAL_COUNTER_FAILED" }));
+        }
         // 체험이 시작되면 원장을 체험 플랜 기준으로 다시 세운다. 이 시점에 지급이
         // 일어나야 체험 크레딧이 잔량에 실제로 들어온다.
         const trialLedger = createEnergyLedgerClient(env);
         if (trialLedger && refreshedUser) {
           await trialLedger
-            .reset(user.id, { plan: resolveUserPlan(refreshedUser), reason: "trial_start" })
+            .reset(user.id, { plan: resolveUserPlan(refreshedUser), reason: "trial_start", paywallEnabled: isHardPaywallEnabled(env) })
             .catch((error) => console.error("Trial ledger grant failed", { errorCategory: error?.code || "LEDGER_RESET_FAILED" }));
         }
         return json({ ...result, user: refreshedUser ? {
@@ -583,7 +668,7 @@ async function handleFetch(request, env) {
           provider: refreshedUser.provider,
           role: refreshedUser.role || "user",
           status: refreshedUser.status || "active",
-          plan: refreshedUser.plan || "free",
+          plan: refreshedUser.plan || "expired",
           trialStartedAt: refreshedUser.trialStartedAt || null,
           trialExpiresAt: refreshedUser.trialExpiresAt || null,
           trialUsedAt: refreshedUser.trialUsedAt || null,

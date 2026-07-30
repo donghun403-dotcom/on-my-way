@@ -139,12 +139,51 @@ test("생성 전에 담기는 내용과 저장 위치를 밝힌다", async ({ pa
   await expect(notice).toContainText("서버에는 올라가지 않아요");
 });
 
-test("PRO의 이번 달 무료 권이 남아 있으면 무료라고 밝힌다", async ({ page }) => {
-  const usage = createUsageResponse({ plan: "pro", dailyUsed: 0, monthlyUsed: 0, trialEligible: false });
-  usage.diaryBook = { cost: 10, monthlyFree: true, freeAvailable: true };
-  await prepareBook(page, { usage });
+/* 무료 권은 폐지됐다. 몇 권째든 값은 항상 10이라 "이번 달 무료"가 뜰 자리가 없다. */
+test("두 번째 권도 값이 에너지 10으로 그대로다", async ({ page }) => {
+  await prepareBook(page);
   await openBookCard(page);
-  await expect(page.locator("#diaryBookCost")).toHaveText("이번 달 무료");
+  await expect(page.locator("#diaryBookCost")).toHaveText("에너지 10");
+
+  await page.locator("#diaryBookCreate").click();
+  await expect(page.locator("#diaryBookStatus")).toContainText("한 권이 완성됐어요");
+  await expect(page.locator("#diaryBookStatus")).toContainText("에너지를 10 썼어요");
+  await expect(page.locator("#diaryBookCost")).toHaveText("에너지 10");
+});
+
+/* §E — 체험 계정의 북 진입점은 실제 생성을 시도하지 않고 샘플만 연다. */
+test("체험 계정에는 생성 폼 대신 잠금 안내와 샘플이 뜬다", async ({ page }) => {
+  const calls = await prepareBook(page, {
+    usage: createUsageResponse({ plan: "trial", trialEligible: false }),
+  });
+  await openBookCard(page);
+
+  await expect(page.locator("#diaryBookForm")).toBeHidden();
+  const locked = page.locator("#diaryBookLocked");
+  await expect(locked).toBeVisible();
+  await expect(locked).toContainText("PRO로 전환하면 내 기록으로 만들 수 있어요");
+  await expect(page.locator("#diaryBookLockedCta")).toBeVisible();
+
+  await page.locator("#diaryBookSampleOpen").click();
+  await expect(page.locator("#sampleBookDialog")).toBeVisible();
+  await expect(page.locator(".sample-book-badge")).toHaveText("샘플");
+  // 실제 생성은 한 번도 시도하지 않는다.
+  expect(calls).toEqual([]);
+  expect(await page.evaluate(() => window.__printCalls)).toBe(0);
+});
+
+/* 인쇄·PDF도 PRO 전용이다. 무료 경로가 생기면 "무료는 데이터, 유료는 작품" 경계가 무너진다. */
+test("PRO가 아니면 인쇄 창이 열리지 않는다", async ({ page }) => {
+  await prepareBook(page, { usage: createUsageResponse({ plan: "trial", trialEligible: false }) });
+  await openBookCard(page);
+
+  const printed = await page.evaluate(() => {
+    document.body.classList.remove("is-printing-book");
+    window.__omwTest.printDiaryBook("2026-06");
+    return { calls: window.__printCalls, printing: document.body.classList.contains("is-printing-book") };
+  });
+  expect(printed.calls).toBe(0);
+  expect(printed.printing).toBe(false);
 });
 
 test("한 권을 만들면 표지·머리말·통계·본문·편지가 조판되고 인쇄가 열린다", async ({ page }) => {

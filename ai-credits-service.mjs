@@ -4,14 +4,18 @@ import {
   AI_CREDIT_COSTS,
   CREDIT_POLICY_VERSION,
   DEFAULT_TIME_ZONE,
+  PAYWALL_OFF_EXPIRED_GRANT,
   PLAN_CONFIG,
   PLAN_LABELS,
+  PRO_ONLY_LOCK_REASON,
+  allowsProOnlyFeature,
   getPlanConfig,
+  isProOnlyAiAction,
+  resolveEffectivePlan,
+  resolveTrialEndsAt,
 } from "./plan-policy.mjs";
 
 export const AI_CREDITS_SCHEMA_VERSION = 1;
-
-const TRIAL_DURATION_MS = PLAN_CONFIG.pro.trial.durationHours * 60 * 60 * 1_000;
 const ACTIONS = Object.keys(AI_CREDIT_COSTS);
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/;
 const TRIAL_MARKER_PREFIX = "ai-trial-used:";
@@ -274,7 +278,7 @@ function normalizeTrial(user, value, nowMs) {
   let usedAt = finiteTimestamp(source.usedAt ?? user.trialUsedAt ?? user.trial_used_at);
   const endedAt = finiteTimestamp(source.endedAt ?? user.trialEndedAt);
 
-  if (startedAt && !endsAt) endsAt = startedAt + TRIAL_DURATION_MS;
+  if (startedAt && !endsAt) endsAt = resolveTrialEndsAt(startedAt);
   if (startedAt && !usedAt) usedAt = startedAt;
 
   // A legacy `trial` marker without a valid interval is treated as consumed,
@@ -321,7 +325,8 @@ function normalizeRequests(value) {
       action: raw.action,
       cost: storedCost > 0 ? storedCost : AI_CREDIT_COSTS[raw.action],
       status,
-      sourcePlan: ["free", "trial", "pro"].includes(raw.sourcePlan) ? raw.sourcePlan : "free",
+      // "free"는 폐지된 플랜이지만 예전 요청 레코드에는 남아 있다. 값은 그대로 읽되 새로 만들지는 않는다.
+      sourcePlan: ["free", "expired", "trial", "pro"].includes(raw.sourcePlan) ? raw.sourcePlan : "expired",
       policyVersion: typeof raw.policyVersion === "string" ? raw.policyVersion : CREDIT_POLICY_VERSION,
       dayKey: typeof raw.dayKey === "string" ? raw.dayKey : "",
       dayScope: typeof raw.dayScope === "string" ? raw.dayScope : "",
@@ -372,45 +377,33 @@ function mirrorTrialFields(user, trial) {
   user.trialCreditUsed = trial.creditsUsed;
 }
 
+/* 판정 자체는 plan-policy.mjs의 resolveEffectivePlan이 한다. 여기서는 그 결과를 이 모듈의
+   상태(trial 레코드, user.plan 미러)에 반영하는 일만 한다 — 같은 규칙이 두 벌 존재하면
+   원장 경로와 레거시 KV 경로가 서로 다른 답을 내놓는다. */
 function resolvePlan(user, state, nowMs) {
-  if (user.plan === "pro") {
-    const subscriptionStatus = String(user.subscriptionStatus || "");
-    const periodEnded = finiteTimestamp(user.currentPeriodEnd) !== null
-      && finiteTimestamp(user.currentPeriodEnd) <= nowMs;
-    const entitlementEnded = subscriptionStatus === "payment_failed"
-      || (["active", "canceled"].includes(subscriptionStatus) && periodEnded);
-    if (entitlementEnded) {
-      user.plan = "free";
-    } else {
-      mirrorTrialFields(user, state.trial);
-      return "pro";
-    }
-  }
-
   const trial = state.trial;
-  const hasValidTrial = Boolean(
-    trial.usedAt
-      && trial.startedAt
-      && trial.endsAt
-      && !trial.endedAt
-      && nowMs < trial.endsAt
-      && trial.creditsUsed < trial.creditsGranted,
-  );
+  // resolveEffectivePlan은 user 레코드를 본다. 체험 필드를 먼저 맞춰 두어야 판정이 맞는다.
+  mirrorTrialFields(user, trial);
+  const effective = resolveEffectivePlan(user, nowMs);
 
-  if (hasValidTrial) {
+  if (effective === "pro") return "pro";
+
+  /* 체험 크레딧을 다 쓴 경우는 상태 머신이 모른다(원장의 사실이다). 기간은 남았지만
+     크레딧이 바닥난 체험은 여기서 종료로 본다 — 레거시 경로에서만 쓰는 판정이다. */
+  const creditsLeft = trial.creditsUsed < trial.creditsGranted;
+  if (effective === "trial" && !trial.endedAt && creditsLeft) {
     user.plan = "trial";
-    mirrorTrialFields(user, trial);
     return "trial";
   }
 
   if (trial.usedAt && !trial.endedAt) {
     trial.endedAt = trial.endsAt && nowMs >= trial.endsAt ? trial.endsAt : nowMs;
-    trial.endedReason = trial.creditsUsed >= trial.creditsGranted ? "credits_exhausted" : "expired";
+    trial.endedReason = creditsLeft ? "expired" : "credits_exhausted";
     trial.creditsReserved = 0;
   }
-  if (!["free", "pro"].includes(user.plan)) user.plan = "free";
+  user.plan = "expired";
   mirrorTrialFields(user, trial);
-  return "free";
+  return "expired";
 }
 
 function normalizePeriods(state, plan, nowMs) {
@@ -537,6 +530,13 @@ export function ensureAiTrialAbuseMarker({ store, userId, usedAt, now = Date.now
   return writeTrialAbuseMarker(store, userId, usedAt, now);
 }
 
+/* 이 계정이 예전에 체험을 쓴 적이 있는가. 회원 레코드가 지워져도 이 마커는 남으므로
+   탈퇴 후 같은 소셜 계정으로 재가입해도 체험이 다시 열리지 않는다. userId가
+   provider:providerUserId의 HMAC이라 재가입해도 같은 키가 나오는 것이 이 방어의 전제다. */
+export async function hasUsedAiTrial({ store, userId, now = Date.now() }) {
+  return Boolean(await readTrialAbuseMarker(store, userId, asNowMs(now)));
+}
+
 async function loadUser(store, userId, nowMs) {
   assertStore(store);
   const id = String(userId || "").trim();
@@ -555,6 +555,12 @@ function touchState(state, nowMs) {
 }
 
 function planLimits(plan) {
+  /* 이 모듈은 ENERGY_LEDGER 바인딩이 없는 환경에서만 도는 폴백이다(배포 환경에는 항상 있고
+     CI 설정 검증이 그것을 고정한다). 여기에는 HARD_PAYWALL_ENABLED가 닿지 않으므로 만료
+     계정에는 차단을 켜기 전 값을 준다 — 실제 차단은 worker의 게이트가 한다. */
+  if (plan === "expired") {
+    return { daily: PAYWALL_OFF_EXPIRED_GRANT.dailyCreditLimit, period: PAYWALL_OFF_EXPIRED_GRANT.monthlyCredits };
+  }
   const config = getPlanConfig(plan);
   return {
     daily: config.dailyCreditLimit,
@@ -785,7 +791,7 @@ async function startAiTrialUnlocked({ store, userId, now = Date.now() }) {
   state.trial = {
     usedAt: nowMs,
     startedAt: nowMs,
-    endsAt: nowMs + TRIAL_DURATION_MS,
+    endsAt: resolveTrialEndsAt(nowMs),
     endedAt: null,
     endedReason: null,
     creditsGranted: PLAN_CONFIG.pro.trial.credits,
@@ -830,6 +836,21 @@ async function reserveAiCreditsUnlocked({ store, userId, action, requestId, now 
     throw existingRequestError(existing);
   }
 
+  /* PRO 전용 동작(북)은 features가 아니라 유효 플랜 문자열로 막는다.
+     getPlanConfig("trial")은 PLAN_CONFIG.pro를 돌려주므로 features를 보면 체험이 통과한다.
+     라우트 단에서 이미 같은 판정을 하지만, 이 경로도 차감의 관문이므로 여기서도 막는다. */
+  if (isProOnlyAiAction(action) && !allowsProOnlyFeature(plan)) {
+    if (loaded.changed) await store.putUser(user);
+    throw new AiCreditsError(
+      "PRO_ONLY_ACTION",
+      `${AI_ACTION_LABELS[action] || "이 기능"}은 Pro 전용이에요. ${PRO_ONLY_LOCK_REASON}`,
+      403,
+      { action, plan },
+    );
+  }
+
+  /* 여기서 features를 보는 것은 맞다. 이 플래그들(recoveryPlan·fullReschedule)은
+     "체험이 PRO와 같아도 되는 것"이라 getPlanConfig("trial") === PLAN_CONFIG.pro가 의도된 동작이다. */
   const config = getPlanConfig(plan);
   const requiredFeature = AI_ACTION_REQUIRED_FEATURE[action];
   if (requiredFeature && !config.features[requiredFeature]) {
