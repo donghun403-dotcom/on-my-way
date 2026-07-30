@@ -24,6 +24,12 @@ brand/
 marketing/
 On My Way 로고/
 
+# 검증용 Capacitor 셸의 생성물. 셋 다 mobile/scripts/prepare.mjs와 `cap add android`가
+# 만든다. 네이티브 프로젝트를 커밋하지 않는 이유는 mobile/README.md에 적었다.
+mobile/android/
+mobile/www/
+mobile/capacitor.config.json
+
 # Local backups, agent work dirs, generated outputs (never commit)
 .backups/
 .patch-backups/
