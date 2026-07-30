@@ -1,11 +1,3 @@
-@font-face {
-  font-family: "여기어때 잘난체";
-  src: url("assets/fonts/yeogieottae-jalnan2.woff2") format("woff2");
-  font-display: swap;
-  font-style: normal;
-  font-weight: 400;
-}
-
 /* ============================================================
    Ollie design tokens — single source of truth.
    Primitive ramps -> semantic roles -> back-compat aliases.
@@ -19,10 +11,11 @@
    ============================================================ */
 :root {
   /* ---- typography families ---- */
-  --font-brand-display: "여기어때 잘난체";
-  --font-brand-ui: "여기어때 잘난체";
-  --font-body: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
-  --font-numeric: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  /* 글꼴은 한 가족이다. 제목과 본문은 --weight-*로 구분한다. */
+  --font-body: "Pretendard Variable", "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font-numeric: var(--font-body);
+  --font-brand-display: var(--font-body);
+  --font-brand-ui: var(--font-body);
 
   /* ---- typography weights ---- */
   /* 제목과 본문은 글꼴 가족이 아니라 굵기로 구분한다.
@@ -15528,7 +15521,8 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 
 .execution-page #view-today .progress-card { order: 4; }
 .execution-page .today-progress-body { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 16px; align-items: center; margin-top: var(--space-4); }
-.execution-page .today-progress-body > strong { color: var(--blue-700); font-family: var(--font-numeric); font-size: 34px; }
+/* tabular-nums: 자릿수가 바뀌어도 숫자 폭이 흔들리지 않게 고정한다. */
+.execution-page .today-progress-body > strong { color: var(--blue-700); font-family: var(--font-numeric); font-variant-numeric: tabular-nums; font-size: 34px; }
 .execution-page .today-progress-body .progress-track { margin: 0; }
 .execution-page #view-today .progress-card > p { margin-bottom: 0; }
 

@@ -1,16 +1,11 @@
-@font-face {
-  font-family: "여기어때 잘난체";
-  src: url("assets/fonts/yeogieottae-jalnan2.woff2") format("woff2");
-  font-display: swap;
-  font-style: normal;
-  font-weight: 400;
-}
-
+/* 글꼴 파일은 core-loop-v2.html이 assets/fonts/pretendard/pretendard-variable.css로
+   불러온다. 가족 값은 styles.css와 같게 유지한다 — 프로토타입만 다른 글꼴로
+   갈라지면 본 화면과 비교가 되지 않는다. */
 :root {
-  --font-brand-display: "여기어때 잘난체";
-  --font-brand-ui: "여기어때 잘난체";
-  --font-body: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
-  --font-numeric: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font-body: "Pretendard Variable", "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font-numeric: var(--font-body);
+  --font-brand-display: var(--font-body);
+  --font-brand-ui: var(--font-body);
   --ink: #354057;
   --muted: #72809a;
   --blue: #688dc1;
@@ -809,6 +804,7 @@ textarea:focus-visible {
   background: #829fb1;
   border-radius: 50%;
   font-family: var(--font-numeric);
+  font-variant-numeric: tabular-nums;
   font-weight: 850;
 }
 
@@ -1046,6 +1042,7 @@ textarea:focus-visible {
 
 .focus-orbit strong {
   font-family: var(--font-numeric);
+  font-variant-numeric: tabular-nums;
   font-size: 84px;
   font-weight: 850;
   line-height: 1;
@@ -1184,6 +1181,7 @@ textarea:focus-visible {
   background: rgba(255, 255, 255, 0.76);
   border-radius: 50%;
   font-family: var(--font-numeric);
+  font-variant-numeric: tabular-nums;
   font-weight: 900;
 }
 

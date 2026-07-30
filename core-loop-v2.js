@@ -480,13 +480,13 @@
       return;
     }
     try {
-      await document.fonts.load('32px "여기어때 잘난체"', "올리가 함께 걸어요");
-      const loaded = document.fonts.check('32px "여기어때 잘난체"', "올리가 함께 걸어요");
+      await document.fonts.load('32px "Pretendard Variable"', "올리가 함께 걸어요");
+      const loaded = document.fonts.check('32px "Pretendard Variable"', "올리가 함께 걸어요");
       document.body.dataset.fontState = loaded ? "loaded" : "failed";
-      if (!loaded) console.warn("Brand font failed to load: 여기어때 잘난체");
+      if (!loaded) console.warn("Brand font failed to load: Pretendard Variable");
     } catch {
       document.body.dataset.fontState = "failed";
-      console.warn("Brand font failed to load: 여기어때 잘난체");
+      console.warn("Brand font failed to load: Pretendard Variable");
     }
   }
 

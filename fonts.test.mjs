@@ -75,6 +75,67 @@ test("브랜드 글꼴 선언이 font-weight 400에 묶여 있지 않다", () =>
   assert.deepEqual(offenders, [], "브랜드 글꼴 선언이 400에 묶여 있다");
 });
 
+test("잘난체 참조가 저장소에 하나도 없다", () => {
+  // plan-policy.test.mjs가 폐지한 플랜 상수의 잔재를 훑는 것과 같은 관용구다.
+  // (그 테스트의 이름을 여기 그대로 적으면 그 상수 이름이 이 파일에 남아 그쪽 검사에
+  //  걸린다. 두 검사가 서로를 잡는 것이 정상이다.)
+  //
+  // 이 파일 자신은 제외한다. 찾으려는 문자열이 아래 정규식 리터럴에 그대로 들어 있어서,
+  // 제외하지 않으면 이 테스트가 스스로를 검출해 절대 통과하지 못한다.
+  // .md는 대상이 아니다 — 설계 문서와 design-tokens.md는 과거 경위를 계속 서술해야 한다.
+  const exts = /\.(mjs|js|cjs|html|css)$/;
+  const skip = /node_modules|[\\/]\.git|\.worktrees|\.claude|test-results|playwright-report|blob-report/;
+  const selfName = "fonts.test.mjs";
+  const hits = [];
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (skip.test(full)) continue;
+      if (entry.isDirectory()) { walk(full); continue; }
+      if (!exts.test(entry.name) || entry.name === selfName) continue;
+      if (/여기어때 잘난체|Jalnan|jalnan/i.test(fs.readFileSync(full, "utf8"))) hits.push(full);
+    }
+  };
+  walk(".");
+  assert.deepEqual(hits, [], "잘난체 참조가 남아 있다");
+});
+
+test("글꼴 가족 토큰이 전부 Pretendard로 해석된다", () => {
+  const css = fs.readFileSync("styles.css", "utf8");
+  assert.match(css, /--font-body:\s*"Pretendard Variable"/);
+  for (const token of ["--font-numeric", "--font-brand-display", "--font-brand-ui"]) {
+    assert.match(css, new RegExp(`${token}:\\s*var\\(--font-body\\)`), `${token}가 --font-body를 가리키지 않는다`);
+  }
+});
+
+// 이 테스트가 이번 작업의 존재 이유를 닫는다.
+//
+// 원래 버그는 "선언된 url()이 없는 파일을 가리킨" 것이 아니라 **--font-body가
+// "Pretendard"라는 이름만 가리키고 그 이름의 @font-face가 저장소 어디에도 없던 것**이다.
+// url()을 훑는 검사로는 절대 잡히지 않는다. Task 1의 리뷰가 이 구멍을 지적했다.
+//
+// 지금도 위험이 남아 있다: 벤더된 CSS가 선언하는 이름은 'Pretendard Variable'인데
+// 토큰에 "Pretendard"라고 적으면 문자열이 달라 조용히 폴백된다. 그 오타를 여기서 잡는다.
+test("--font-* 토큰이 가리키는 주 글꼴에 실제 @font-face가 있다", () => {
+  // 주석은 걷어내고 본다. styles.css:5245의 NOTE가 옛 버그를 설명하려고
+  // `--font-body: 15px`를 그대로 인용하고 있어서, 주석을 남겨 두면 그 문구가
+  // 선언으로 잡혀 "15px`"라는 유령 글꼴이 나온다.
+  const stripComments = (css) => css.replace(/\/\*[\s\S]*?\*\//g, "");
+  const styles = stripComments(fs.readFileSync("styles.css", "utf8"));
+  const vendored = stripComments(fs.readFileSync(PRETENDARD_CSS, "utf8"));
+  const declared = new Set(
+    [...`${styles}\n${vendored}`.matchAll(/@font-face\s*\{[^}]*?font-family:\s*["']([^"']+)["']/g)]
+      .map((match) => match[1]),
+  );
+  // 폴백은 시스템 글꼴이라 @font-face가 없는 것이 정상이다. 첫 가족만 검사한다.
+  const orphans = [...styles.matchAll(/--font-[a-z-]+:\s*([^;]+);/g)]
+    .map((match) => match[1].trim())
+    .filter((value) => !value.startsWith("var("))
+    .map((value) => value.split(",")[0].trim().replace(/^["']|["']$/g, ""))
+    .filter((family) => !declared.has(family));
+  assert.deepEqual([...new Set(orphans)], [], "@font-face 없이 이름만 참조된 글꼴");
+});
+
 test("font-weight는 6단계 계약 안의 값만 쓴다", () => {
   // docs/design-tokens.md:93. 650·750 같은 중간값이 다시 들어오지 않게 막는다.
   //
