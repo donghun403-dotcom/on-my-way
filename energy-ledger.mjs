@@ -50,6 +50,20 @@ const ORDER_ID_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/;
    원장에는 이제 어떤 종류의 무료 자격도 없다. */
 export const DIARY_BOOK_ACTION = "diary_book";
 
+/* 무료 치어링(축하·위로)의 하루 각 1회 상한.
+
+   왜 원장이 이것을 아는가: 크레딧을 쓰지 않지만 provider를 부른다. 상한이 묶는 것이
+   실제 AI 비용이므로 상한이 새면 돈이 샌다. 전에는 KV 유저 레코드를 read-modify-write
+   하면서 모듈 스코프 Map 락에만 기댔는데, 그 락은 아이솔레이트 안에서만 유효하고
+   Workers는 colo마다 아이솔레이트가 따로 뜬다. KV에는 CAS가 없어 그 구조로는 막을
+   방법이 없었다 — 크레딧을 DO로 옮긴 것과 똑같은 이유다.
+
+   왜 state.daily 안이 아니라 별도 필드인가: state.daily는 resetLedgerForPlan이 플랜
+   전환 때마다 통째로 비운다. 그 안에 두면 정당한 전환 한 번에 오늘 쓴 치어링이
+   되살아난다 — 체험 크레딧 무한 리필(#40)과 같은 형태의 결함이다. 상한 보장이 플랜
+   전환 이벤트에 의존해서는 안 된다. */
+export const CHEER_SLOTS = Object.freeze(["celebrate", "comfort"]);
+
 export class EnergyLedgerError extends Error {
   constructor(code, message, status = 400, details = undefined) {
     super(message);
@@ -156,6 +170,9 @@ export function emptyLedgerState(now = Date.now(), timeZone = DEFAULT_TIME_ZONE)
     trialGrantKey: "",
     // 일일 속도 제한. 키가 바뀌면 0으로 리셋한다.
     daily: { key: "", spent: 0, reserved: 0 },
+    // 무료 치어링 하루 각 1회. 값은 자리를 잡은 시각이고 0이면 아직 안 썼다는 뜻이다.
+    // daily와 같은 KST 일자 키를 쓰지만 플랜 전환에 휩쓸리지 않도록 따로 둔다(위 CHEER_SLOTS).
+    dailyCheer: { key: "", celebrate: 0, comfort: 0 },
     // 진행 중/최근 예약. requestId 멱등 처리를 겸한다.
     requests: {},
     // orderId → txnId. 같은 결제 콜백이 두 번 와도 한 번만 충전한다.
@@ -184,6 +201,15 @@ function normalizeRequests(value) {
       errorCode: String(raw.errorCode || ""),
     };
   }
+  return result;
+}
+
+/* dailyCheer가 없던 시절의 레코드가 그대로 읽힌다. 없으면 빈 값으로 채워 "오늘 아직
+   안 썼다"가 되게 한다 — 없는 필드를 근거로 상한을 걸면 기존 유저가 전부 막힌다. */
+function normalizeDailyCheer(value) {
+  const source = isRecord(value) ? value : {};
+  const result = { key: String(source.key || "") };
+  for (const slot of CHEER_SLOTS) result[slot] = finiteTimestamp(source[slot]);
   return result;
 }
 
@@ -219,6 +245,7 @@ export function normalizeLedgerState(value, now = Date.now(), timeZone = DEFAULT
       spent: nonNegativeInteger(daily.spent),
       reserved: nonNegativeInteger(daily.reserved),
     },
+    dailyCheer: normalizeDailyCheer(value.dailyCheer),
     requests: normalizeRequests(value.requests),
     purchases: normalizePurchases(value.purchases),
     revision: nonNegativeInteger(value.revision),
@@ -300,6 +327,13 @@ export async function listTransactions(storage, { limit = 50 } = {}) {
 function rollDaily(state, period) {
   if (state.daily.key === period.dayKey) return false;
   state.daily = { key: period.dayKey, spent: 0, reserved: 0 };
+  return true;
+}
+
+// 치어링 슬롯도 같은 KST 일자 경계로 열린다. 버킷만 따로일 뿐 경계는 하나다.
+function rollDailyCheer(state, period) {
+  if (state.dailyCheer.key === period.dayKey) return false;
+  state.dailyCheer = { key: period.dayKey, celebrate: 0, comfort: 0 };
   return true;
 }
 
@@ -436,6 +470,16 @@ function assertAction(action) {
   }
 }
 
+/* 치어링 종류. worker는 normalizeCheerEventType으로 걸러서 보내므로 라우트에서는 올 수
+   없는 값이지만, 새 호출자가 생겼을 때 조용히 없는 슬롯을 만들지 않도록 여기서도 막는다. */
+function assertCheerSlot(eventType) {
+  const slot = String(eventType || "").trim();
+  if (!CHEER_SLOTS.includes(slot)) {
+    throw new EnergyLedgerError("INVALID_CHEER_EVENT", "지원하지 않는 응원 종류예요.", 400);
+  }
+  return slot;
+}
+
 function assertRequestId(requestId) {
   const id = String(requestId || "").trim();
   if (!REQUEST_ID_PATTERN.test(id)) {
@@ -448,6 +492,7 @@ async function loadState(storage, { plan, now, timeZone, paywallEnabled }) {
   const state = normalizeLedgerState(await storage.get(STATE_KEY), now, timeZone);
   const period = getLedgerPeriod(now, state.timeZone);
   rollDaily(state, period);
+  rollDailyCheer(state, period);
   reclaimStaleReservations(state, now);
   await applyLazyGrant(storage, state, { plan, period, now, paywallEnabled });
   return { state, period };
@@ -641,6 +686,47 @@ export async function releaseEnergy(storage, { plan, requestId, now = Date.now()
   return { ok: true, requestId: id, releasedCredits: request.cost, idempotent: false, usage: buildUsageView(state, { plan, period, trial, paywallEnabled }) };
 }
 
+/* ---------- 무료 치어링 (크레딧을 쓰지 않는 상한) ---------- */
+
+/* 오늘의 무료 응원 자리를 잡는다. 크레딧이 오가지 않으므로 예약·확정을 거치지 않고
+   슬롯 하나를 점유할 뿐이다. 거래 기록도 남기지 않는다 — 회계상 오간 재화가 없다.
+   AI를 부르기 전에 잡아야 상한 초과 요청이 provider 비용을 만들지 않는다.
+
+   왜 이미 쓴 경우에 던지지 않고 claimed:false로 돌려주는가: 이 상한은 활성 유저가
+   매일 정상적으로 도달하는 지점이다. 예외로 만들면 워커의 catch가 정상 동작을 AI 실패로
+   기록해 진짜 실패가 묻힌다. 크레딧 소진(reserveEnergy)이 던지는 것과 다른 판단이고,
+   근거는 빈도다 — 소진은 드물고 이건 매일이다. */
+export async function claimCheer(storage, { plan, eventType, now = Date.now(), timeZone, paywallEnabled = true } = {}) {
+  const slot = assertCheerSlot(eventType);
+  const { state, period } = await loadState(storage, { plan, now, timeZone, paywallEnabled });
+  const resetsAt = new Date(period.dailyResetsAtMs).toISOString();
+
+  if (state.dailyCheer[slot]) {
+    await saveState(storage, state, now);
+    return { ok: true, claimed: false, eventType: slot, claimedAt: state.dailyCheer[slot], resetsAt };
+  }
+
+  state.dailyCheer[slot] = now;
+  await saveState(storage, state, now);
+  return { ok: true, claimed: true, eventType: slot, claimedAt: now, resetsAt };
+}
+
+/* 잡아 둔 자리를 되돌린다. AI가 답을 만들지 못했으면 오늘 다시 시도할 수 있어야 한다.
+   이미 비어 있으면 아무 일도 하지 않고 사실만 알린다(멱등). */
+export async function releaseCheer(storage, { plan, eventType, now = Date.now(), timeZone, paywallEnabled = true } = {}) {
+  const slot = assertCheerSlot(eventType);
+  const { state } = await loadState(storage, { plan, now, timeZone, paywallEnabled });
+
+  if (!state.dailyCheer[slot]) {
+    await saveState(storage, state, now);
+    return { ok: true, released: false, eventType: slot };
+  }
+
+  state.dailyCheer[slot] = 0;
+  await saveState(storage, state, now);
+  return { ok: true, released: true, eventType: slot };
+}
+
 // 팩 충전. 이번 턴에 결제 연동은 하지 않지만 거래 타입과 orderId 멱등 자리는 만들어 둔다.
 // 같은 orderId가 두 번 와도 한 번만 충전한다.
 export async function purchaseEnergy(storage, { plan, orderId, amount, now = Date.now(), timeZone, expiresAt = 0, meta, trial, paywallEnabled = true } = {}) {
@@ -765,6 +851,11 @@ export async function resetLedgerForPlan(storage, { plan, now = Date.now(), time
   state.lastGrantMonthKey = "";
   state.reserved = 0;
   state.daily = { key: period.dayKey, spent: 0, reserved: 0 };
+
+  /* state.dailyCheer는 일부러 건드리지 않는다. 여기서 비우면 정당한 플랜 전환 한 번에
+     오늘 쓴 무료 응원이 되살아나고, 전환을 반복하면 상한이 사라진다. 크레딧 무한
+     리필(#40)과 같은 형태의 결함이다 — 상한 보장이 플랜 전환 이벤트에 의존해서는 안 된다.
+     날짜 경계는 rollDailyCheer가 따로 본다. */
 
   /* 요청 레코드는 지우지 않는다. 이것이 requestId 멱등성의 유일한 근거라, 여기서
      비우면 플랜 전환 한 번에 그때까지 쓴 모든 requestId가 다시 통하게 된다.

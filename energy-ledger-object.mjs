@@ -12,11 +12,13 @@
 
 import {
   EnergyLedgerError,
+  claimCheer,
   commitEnergy,
   getEnergyUsage,
   grantTrialCredits,
   listTransactions,
   purchaseEnergy,
+  releaseCheer,
   releaseEnergy,
   reserveEnergy,
   resetLedgerForPlan,
@@ -93,6 +95,12 @@ export class EnergyLedgerObject {
             });
           case "/usage":
             return getEnergyUsage(storage, { plan, now, timeZone, trial, paywallEnabled });
+          /* 무료 치어링 상한. 크레딧이 오가지 않지만 provider를 부르므로 상한도 크레딧과
+             같은 단일 실행 보장 안에 있어야 한다. AI를 부르는 모든 경로는 원장을 통과한다. */
+          case "/cheer-claim":
+            return claimCheer(storage, { plan, eventType: body.eventType, now, timeZone, paywallEnabled });
+          case "/cheer-release":
+            return releaseCheer(storage, { plan, eventType: body.eventType, now, timeZone, paywallEnabled });
           /* 체험 회차별 지급. reset과 달리 같은 회차로 다시 오면 아무 일도 하지 않는다.
              체험 시작 엔드포인트는 반드시 이쪽을 쓴다 — reset을 쓰면 반복 호출로
              크레딧이 무한히 채워진다. */

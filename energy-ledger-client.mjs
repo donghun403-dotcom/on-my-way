@@ -81,6 +81,13 @@ export function createEnergyLedgerClient(env) {
     release: (userId, { plan, requestId, now, errorCode, trial, paywallEnabled }) =>
       call(userId, "/release", { plan, requestId, now, errorCode, trial, paywallEnabled }),
     usage: (userId, { plan, now, trial, paywallEnabled } = {}) => call(userId, "/usage", { plan, now, trial, paywallEnabled }),
+    /* 무료 치어링의 하루 각 1회 상한. 크레딧을 쓰지 않아도 provider를 부르므로 상한은
+       크레딧과 같은 자리(유저당 단일 실행)에서 잡아야 한다. claimed:false는 오류가 아니라
+       "오늘은 이미 썼다"는 정상 결과다 — 던지지 않는 이유는 energy-ledger.mjs의 claimCheer 참고. */
+    cheerClaim: (userId, { plan, eventType, now, paywallEnabled }) =>
+      call(userId, "/cheer-claim", { plan, eventType, now, paywallEnabled }),
+    cheerRelease: (userId, { plan, eventType, now, paywallEnabled }) =>
+      call(userId, "/cheer-release", { plan, eventType, now, paywallEnabled }),
     purchase: (userId, { plan, orderId, amount, expiresAt, now, meta, paywallEnabled }) =>
       call(userId, "/purchase", { plan, orderId, amount, expiresAt, now, meta, paywallEnabled }),
     /* 체험 회차별 지급. 같은 trialKey로 몇 번을 불러도 재지급되지 않는다.
