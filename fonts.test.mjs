@@ -45,3 +45,42 @@ test("글꼴 스택을 하드코딩한 곳이 없다 — 전부 --font-* 토큰�
     .map(({ number, line }) => `${number}: ${line.trim().slice(0, 80)}`);
   assert.deepEqual(offenders, [], "글꼴 스택이 토큰을 우회하고 있다");
 });
+
+const WEIGHT_TOKENS = {
+  "--weight-body": "400",
+  "--weight-emphasis": "600",
+  "--weight-title": "700",
+  "--weight-display": "800",
+};
+
+test("굵기 역할 토큰이 정의되어 있다", () => {
+  const css = fs.readFileSync("styles.css", "utf8");
+  for (const [token, value] of Object.entries(WEIGHT_TOKENS)) {
+    assert.match(css, new RegExp(`${token}:\\s*${value}\\s*;`), `${token}: ${value} 가 없다`);
+  }
+});
+
+test("브랜드 글꼴 선언이 font-weight 400에 묶여 있지 않다", () => {
+  // 잘난체는 굵기가 400 하나뿐이라 제목들이 400으로 못박혀 있었다. 가족만 바꾸고
+  // 두면 제목이 지금보다 얇아진다. 그 상태로 되돌아가지 않게 막는다.
+  const lines = fs.readFileSync("styles.css", "utf8").split(/\r?\n/);
+  const offenders = [];
+  lines.forEach((line, index) => {
+    if (!/font-family:\s*var\(--font-brand-(display|ui)\)/.test(line)) return;
+    for (let cursor = index + 1; cursor < Math.min(index + 14, lines.length); cursor += 1) {
+      if (lines[cursor].includes("}")) break;
+      if (/font-weight:\s*400\s*;/.test(lines[cursor])) offenders.push(cursor + 1);
+    }
+  });
+  assert.deepEqual(offenders, [], "브랜드 글꼴 선언이 400에 묶여 있다");
+});
+
+test("font-weight는 6단계 계약 안의 값만 쓴다", () => {
+  // docs/design-tokens.md:93. 650·750 같은 중간값이 다시 들어오지 않게 막는다.
+  const allowed = new Set(["400", "500", "600", "700", "800", "900", "inherit"]);
+  const css = fs.readFileSync("styles.css", "utf8");
+  const bad = [...css.matchAll(/font-weight:\s*([^;\n}]+)/g)]
+    .map((m) => m[1].trim())
+    .filter((value) => !allowed.has(value) && !value.startsWith("var(--weight-"));
+  assert.deepEqual([...new Set(bad)], [], "6단계 밖의 font-weight");
+});
