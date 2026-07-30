@@ -8,8 +8,64 @@ export const EXPECTED_AI_RATE_LIMIT_POLICY = Object.freeze({
   period: 60,
 });
 
+/* Durable Object 바인딩과 마이그레이션의 기대 집합. 새 DO를 추가하면 여기도 고쳐야
+   staging 배포가 통과한다 — 이것이 의도다. 검증기가 모르는 DO는 검증되지 않은 DO다. */
+export const EXPECTED_DURABLE_OBJECTS = Object.freeze({
+  GUEST_PLAN_DRAFTS: "GuestPlanDraftObject",
+  ENERGY_LEDGER: "EnergyLedgerObject",
+});
+export const EXPECTED_DURABLE_MIGRATIONS = Object.freeze({
+  "guest-plan-drafts-v1": ["GuestPlanDraftObject"],
+  "energy-ledger-v1": ["EnergyLedgerObject"],
+});
+
 function invariant(condition, message) {
   if (!condition) throw new Error(message);
+}
+
+function sortedJoin(values) {
+  return [...values].sort().join(", ");
+}
+
+function assertDurableObjects(config, label) {
+  const bindings = config.durable_objects?.bindings || [];
+  const actualNames = bindings.map((binding) => String(binding?.name || ""));
+  invariant(
+    new Set(actualNames).size === actualNames.length,
+    `${label} contains duplicate Durable Object binding names`,
+  );
+  const expectedNames = Object.keys(EXPECTED_DURABLE_OBJECTS);
+  invariant(
+    sortedJoin(actualNames) === sortedJoin(expectedNames),
+    `${label} Durable Object bindings must be exactly [${sortedJoin(expectedNames)}] but found [${sortedJoin(actualNames)}]`,
+  );
+  for (const binding of bindings) {
+    const expectedClass = EXPECTED_DURABLE_OBJECTS[binding.name];
+    invariant(
+      binding.class_name === expectedClass,
+      `${label} binding ${binding.name} must use class ${expectedClass} but found ${binding.class_name}`,
+    );
+  }
+
+  const migrations = config.migrations || [];
+  const actualTags = migrations.map((migration) => String(migration?.tag || ""));
+  invariant(
+    new Set(actualTags).size === actualTags.length,
+    `${label} contains duplicate migration tags`,
+  );
+  const expectedTags = Object.keys(EXPECTED_DURABLE_MIGRATIONS);
+  invariant(
+    sortedJoin(actualTags) === sortedJoin(expectedTags),
+    `${label} migrations must be exactly [${sortedJoin(expectedTags)}] but found [${sortedJoin(actualTags)}]`,
+  );
+  for (const migration of migrations) {
+    const expectedClasses = EXPECTED_DURABLE_MIGRATIONS[migration.tag];
+    invariant(
+      Array.isArray(migration.new_sqlite_classes)
+        && sortedJoin(migration.new_sqlite_classes) === sortedJoin(expectedClasses),
+      `${label} migration ${migration.tag} must create SQLite classes [${sortedJoin(expectedClasses)}]`,
+    );
+  }
 }
 
 function readConfig(path) {
@@ -98,27 +154,21 @@ export function validateGeneratedStagingConfig(config, knownNamespaceIds = new S
   );
   assertRateLimitPolicy(rateLimit, "Generated config AI_RATE_LIMITER");
 
-  const durableBindings = (config.durable_objects?.bindings || [])
-    .filter((binding) => binding?.name === "GUEST_PLAN_DRAFTS");
-  invariant(
-    durableBindings.length === 1 && durableBindings[0].class_name === "GuestPlanDraftObject",
-    "Generated config must define the GuestPlanDraftObject binding",
-  );
-  const migrations = (config.migrations || []).filter((migration) => migration?.tag === "guest-plan-drafts-v1");
-  invariant(
-    migrations.length === 1
-      && Array.isArray(migrations[0].new_sqlite_classes)
-      && migrations[0].new_sqlite_classes.length === 1
-      && migrations[0].new_sqlite_classes[0] === "GuestPlanDraftObject",
-    "Generated config must define the GuestPlanDraftObject SQLite migration",
-  );
+  /* 기대 집합과 실제 집합이 정확히 일치해야 한다.
 
+     전에는 GUEST_PLAN_DRAFTS로 필터한 뒤 "정확히 1개"를 셌다. 그러면 ENERGY_LEDGER가
+     통째로 빠져도 staging 배포가 통과한다 — 필터가 그것을 애초에 안 봤기 때문이다.
+     실제로 그 상태였다. 이제 새 DO 클래스를 추가하면 아래 상수를 갱신하지 않는 한
+     검증이 실패한다. 원장이 조용히 사라지는 것보다 배포가 시끄럽게 막히는 것이 낫다. */
+  assertDurableObjects(config, "Generated config");
+
+  // 서로 다른 종류의 바인딩이 같은 이름을 쓰면 워커에서 한쪽이 가려진다.
   const requiredNames = [
     config.assets.binding,
     kvBindings[0].binding,
     d1Bindings[0].binding,
     rateLimit.name,
-    durableBindings[0].name,
+    ...Object.keys(EXPECTED_DURABLE_OBJECTS),
   ];
   invariant(
     new Set(requiredNames).size === requiredNames.length,

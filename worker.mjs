@@ -1,6 +1,7 @@
 // 게스트 초안 라우트는 사라졌지만 Durable Object 클래스는 wrangler 마이그레이션이
 // 참조하므로 계속 내보낸다.
 import { GuestPlanDraftObject } from "./guest-plan-draft-object.mjs";
+import { describeBindings, paymentsIntended } from "./binding-health.mjs";
 import { createCompanionReply, createCrisisReply, detectCrisisSignal, normalizeCheerEventType } from "./ai-companion-chat.mjs";
 import { createDiaryBookText } from "./ai-diary-book.mjs";
 import { createAiPlanRevision } from "./ai-plan-revision.mjs";
@@ -583,6 +584,13 @@ async function handleFetch(request, env) {
           ai: guestAi.ready,
           payments: billing.enabled,
         },
+        /* 배포 검증이 읽는 자리. 있고 없고만 낸다 — 값·ID·시크릿은 싣지 않는다.
+           세 배포 경로(preview 워크플로 / staging-config.mjs / deploy-production.cjs)가
+           설정 파일이 아니라 이 응답을 보고 판정한다. 주입 경로가 셋인데 검증도 셋이면
+           각자 표류하기 때문이다. */
+        bindings: describeBindings(env),
+        // 결제 의도. BILLING_DB 요구가 이 값에 걸려 있다(binding-health.mjs).
+        paymentsEnabled: paymentsIntended(env),
       }, env.USERS_KV ? 200 : 503);
     }
 

@@ -383,6 +383,14 @@ jobs:
             exit 1
           fi
 
+      # 배포된 워커가 실제로 해석한 바인딩을 판정한다. 생성기(staging-config.mjs)는
+      # 설정을 검사하지만, 설정에 있는데 배포본에 없는 경우는 산출물만 잡을 수 있다.
+      # 판정 로직은 binding-health.mjs 한 곳이고 세 배포 경로가 같은 것을 부른다.
+      - name: Verify resolved Worker bindings
+        env:
+          STAGING_URL: ${{ steps.deploy.outputs.deployment-url }}
+        run: node scripts/verify-deployed-bindings.mjs "$STAGING_URL"
+
       - name: Verify Staging routes, AI, and disabled billing
         env:
           STAGING_URL: ${{ steps.deploy.outputs.deployment-url }}
