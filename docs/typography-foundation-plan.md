@@ -478,6 +478,30 @@ test("글꼴 가족 토큰이 전부 Pretendard로 해석된다", () => {
     assert.match(css, new RegExp(`${token}:\\s*var\\(--font-body\\)`), `${token}가 --font-body를 가리키지 않는다`);
   }
 });
+
+// 이 테스트가 이번 작업의 존재 이유를 닫는다.
+//
+// 원래 버그는 "선언된 url()이 없는 파일을 가리킨" 것이 아니라 **--font-body가
+// "Pretendard"라는 이름만 가리키고 그 이름의 @font-face가 저장소 어디에도 없던 것**이다.
+// url()을 훑는 검사로는 절대 잡히지 않는다. Task 1의 리뷰가 이 구멍을 지적했다.
+//
+// 지금도 위험이 남아 있다: 벤더된 CSS가 선언하는 이름은 'Pretendard Variable'인데
+// 토큰에 "Pretendard"라고 적으면 문자열이 달라 조용히 폴백된다. 그 오타를 여기서 잡는다.
+test("--font-* 토큰이 가리키는 주 글꼴에 실제 @font-face가 있다", () => {
+  const styles = fs.readFileSync("styles.css", "utf8");
+  const vendored = fs.readFileSync(PRETENDARD_CSS, "utf8");
+  const declared = new Set(
+    [...`${styles}\n${vendored}`.matchAll(/@font-face\s*\{[^}]*?font-family:\s*["']([^"']+)["']/g)]
+      .map((match) => match[1]),
+  );
+  // 폴백은 시스템 글꼴이라 @font-face가 없는 것이 정상이다. 첫 가족만 검사한다.
+  const orphans = [...styles.matchAll(/--font-[a-z-]+:\s*([^;]+);/g)]
+    .map((match) => match[1].trim())
+    .filter((value) => !value.startsWith("var("))
+    .map((value) => value.split(",")[0].trim().replace(/^["']|["']$/g, ""))
+    .filter((family) => !declared.has(family));
+  assert.deepEqual([...new Set(orphans)], [], "@font-face 없이 이름만 참조된 글꼴");
+});
 ```
 
 - [ ] **Step 2: 테스트를 돌려 실패를 확인한다**
@@ -578,15 +602,21 @@ const weights = await page.evaluate(() => ({
 expect(Number(weights.heading)).toBeGreaterThan(Number(weights.input));
 ```
 
-- **로딩 중 상태를 통과로 착각하지 않도록** `document.fonts.ready`를 먼저 기다리고,
-  폴백과 렌더 폭이 다른지까지 확인한다:
+- **로딩 중 상태를 통과로 착각하지 않도록** 폴백과 렌더 폭이 다른지까지 확인한다.
+
+  ⚠️ **`document.fonts.ready`만으로는 부족하다.** Task 1에서 실측으로 확인된 함정이다 —
+  dynamic subset은 해당 글리프가 실제로 그려질 때 fetch가 시작되므로, cold page에서는
+  `ready`가 **fetch가 시작되기도 전에** resolve되어 폴백과 같은 폭을 돌려준다.
+  반드시 `document.fonts.load()`로 그 글꼴과 그 문자열을 명시적으로 요청해 await한다:
 
 ```js
 const applied = await page.evaluate(async () => {
-  await document.fonts.ready;
+  const sample = "목표까지 가는 마일스톤";
+  // ready가 아니라 load다. 이 문자열의 subset을 실제로 요청하고 끝날 때까지 기다린다.
+  await document.fonts.load('40px "Pretendard Variable"', sample);
   const measure = (family) => {
     const span = document.createElement("span");
-    span.textContent = "목표까지 가는 마일스톤";
+    span.textContent = sample;
     span.style.cssText = "position:absolute;left:-9999px;font-size:40px;white-space:nowrap";
     span.style.fontFamily = family;
     document.body.appendChild(span);
@@ -602,7 +632,7 @@ expect(applied).toBe(true);
 - [ ] **Step 7: 유닛 테스트를 돌린다**
 
 Run: `npm test`
-Expected: **453 pass / 0 fail**
+Expected: **454 pass / 0 fail**
 
 - [ ] **Step 8: e2e를 돌린다**
 
@@ -702,7 +732,7 @@ PORT=8766 node serve-local.cjs &
 E2E_BASE_URL=http://127.0.0.1:8766 npx playwright test
 ```
 
-Expected: 유닛 453 pass. e2e 전체 통과.
+Expected: 유닛 454 pass. e2e 전체 통과.
 
 - [ ] **Step 7: 커밋**
 
@@ -756,7 +786,7 @@ git commit -m "타이포 토큰 계약 개정을 문서에 반영한다"
 
 ## 완료 조건
 
-- `npm test` — 453 pass / 0 fail
+- `npm test` — 454 pass / 0 fail
 - `E2E_BASE_URL=http://127.0.0.1:8766 npx playwright test` — 전체 통과
 - 저장소에 `여기어때 잘난체` / `Jalnan` 참조 0건, woff2 파일 삭제됨
 - 4개 화면 × 4개 폭 스크린샷 확인 완료
