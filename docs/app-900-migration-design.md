@@ -25,12 +25,14 @@ PR #55는 "`.execution-page` 계열 66곳 전수 처리"였고 그건 사실이�
 `.chat-mood-options button` · `.chat-input-label span` · `.chat-consent-agree` ·
 `.chat-recharge-link` · `.chat-bubble-headline`)가 여기 있다.
 
-## 범위 — 앱 표면 약 50곳
+## 범위 — 앱 표면 52곳 (실행으로 확정)
 
-`app`(43) + `both`(5) + script.js 생성분 중 앱 렌더분(`.execution-theme-button` ·
-`.chat-bubble-headline` 2곳) + 앱 쪽 글리프. **정확한 수는 분류 단계가 확정한다** — 버킷
-판정은 클래스 문자열 매칭이라 개별 검증이 필요하고, 사문 후보 26곳 중에도 앱에서
-script.js가 만드는 것이 섞여 있을 수 있다.
+`app`(43 중 #55가 이미 유지 처리한 글리프 1 제외 = 42) + `both`(5) + script.js 생성분 중
+앱 렌더분(`.execution-theme-button` · `.chat-bubble-headline` 2곳) + 앱 쪽 글리프 3 =
+**52**. 분류표 행 수는 여기에 판단 보류 2건을 더한 54다.
+
+**결과(2026-08-01)**: 이관 49 + 글리프 유지 3. 잔여 139 → **90**. 남은 90 중 app.html에
+렌더되는 것은 글리프 1곳뿐이다 — 앱 화면은 닫혔다.
 
 `both` 5곳(`.plan-choice-option .plan-choice-label` · `.auth-provider .naver-mark` ·
 `.billing-confirm-card > span` · `.billing-confirm-actions button` · `.energy-pack em`)은
