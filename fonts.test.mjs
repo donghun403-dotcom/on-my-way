@@ -212,5 +212,5 @@ test("font-weight:900 잔여 수 래칫 — 새 900 유입을 막는다", () => 
   const count = (css.match(/font-weight:\s*900\b/g) || []).length;
   // 아래로만 움직인다. 앱 표면 2차 이관 진행 중 — 목표 90
   // (139 − 49, docs/artifacts/app-900-classification.md).
-  assert.equal(count, 128);
+  assert.equal(count, 100);
 });
