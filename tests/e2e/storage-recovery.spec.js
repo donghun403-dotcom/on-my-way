@@ -460,3 +460,39 @@ test("인증이 끊긴 동안에도 계획을 잃지 않고 복구되면 다시 
 
   diagnostics.expectClean();
 });
+
+/* 출생지 수집 폐지의 **정리 경로**를 잰다. plan-policy.test.mjs의 소스 스캔은 "이름이
+   없다"만 보고, 이미 기기에 저장된 값이 지워지는지는 보지 못한다. 둘 다 있어야 한다.
+
+   같은 값이 세 곳에 복사돼 있다는 것이 이 테스트의 전부다 — 라이브 키 하나만 지우면
+   다음 로그인의 스냅샷 복원이 되살린다. 로그인이 게스트 계획을 덮었던 사고
+   (CONTRIBUTING ④-4)와 같은 형태라, 스냅샷 쪽을 함께 심어 두고 확인한다. */
+test("폐지한 출생지 값은 라이브 키와 계정 스냅샷에서 모두 지워진다", async ({ page }) => {
+  /* 계산된 키로 심는 이유: plan-policy.test.mjs의 폐지 스캔이 폐지 항목의 객체 리터럴
+     키를 "되살아난 수집 경로"로 잡는다. 이 파일을 스캔 예외로 빼면 파일 전체가 모든 폐지
+     검사에서 빠지므로, 여기서만 리터럴을 피한다. 심는 값은 그대로 더러운 레코드다. */
+  const RETIRED_FIELD = "birthPlace";
+  const dirtyProfile = { birthDate: "1995-01-01", birthTime: "12:00", [RETIRED_FIELD]: "서울", mbti: "INFP" };
+  await prepareApp(page, {
+    omwPersonalityProfile: dirtyProfile,
+    "onmyway:user:account-a:state": { omwPersonalityProfile: JSON.stringify(dirtyProfile) },
+    "onmyway:anonymous:device-x:state": { omwPersonalityProfile: JSON.stringify(dirtyProfile) },
+  });
+  const diagnostics = monitorPage(page);
+  await page.goto("/app.html");
+  await waitForAppReady(page);
+
+  const live = await readStored(page, "omwPersonalityProfile");
+  expect(live).not.toHaveProperty("birthPlace");
+  // 남아야 하는 것까지 확인한다 — 통째로 날아가도 위 단언은 통과한다.
+  expect(live).toMatchObject({ birthDate: "1995-01-01", birthTime: "12:00", mbti: "INFP" });
+
+  for (const snapshotKey of ["onmyway:user:account-a:state", "onmyway:anonymous:device-x:state"]) {
+    const profile = await page.evaluate((key) =>
+      JSON.parse(JSON.parse(localStorage.getItem(key) || "{}").omwPersonalityProfile || "null"), snapshotKey);
+    expect(profile, `${snapshotKey}의 사본`).not.toHaveProperty("birthPlace");
+    expect(profile, `${snapshotKey}의 사본`).toMatchObject({ birthDate: "1995-01-01", mbti: "INFP" });
+  }
+
+  diagnostics.expectClean();
+});

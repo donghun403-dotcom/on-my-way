@@ -1,0 +1,165 @@
+name: Android debug APK
+
+# ── 이 잡이 무엇을 위한 것인가 ────────────────────────────────────────────────
+#
+#   실기기 검증 루프다. mobile/의 Capacitor 검증 셸을 구성 A 또는 B로 빌드해
+#   debug APK를 아티팩트로 낸다.
+#
+#   docs/capacitor-shell-checklist.md의 항목은 전부 실기기에서만 갈린다 —
+#   CapacitorHttp가 Origin을 붙이는가, 네이티브 쿠키 잼이 SameSite=Lax 쿠키를
+#   실어 주는가, window.print()가 조용히 죽는가. 개발 머신에 Android SDK도 JDK도
+#   없지만 여기서 APK가 나오면 기기에 넣어 잴 수 있다. 그 통로를 만드는 것이 이 잡의
+#   전부다.
+#
+#   **나중에 릴리스 빌드의 기반이 된다.** 그때 바뀌는 것은 서명(debug 키 → 업로드 키,
+#   시크릿에서 키스토어를 복원)과 산출물(APK → AAB)이고, 체크아웃부터 gradle까지의
+#   단계는 그대로 남는다. 지금 debug 키로 충분한 이유는 배포가 아니라 설치가 목적이고,
+#   debug 키는 Android가 자동 생성해 주기 때문이다.
+#
+# ── 왜 PR마다 돌리지 않는가 ──────────────────────────────────────────────────
+#
+#   이 잡은 제품 코드를 검증하지 않는다. Gradle 빌드가 초록이라는 것은 네이티브
+#   프로젝트가 컴파일된다는 뜻일 뿐, 앱이 동작한다는 뜻이 아니다. 그건 기기에서만
+#   갈린다. PR마다 돌리면 신호는 없이 시간만 든다.
+#
+# ── 왜 이 잡은 빌드만 하는가 ─────────────────────────────────────────────────
+#
+#   Playwright 브라우저 설치 같은 무거운 단계를 넣지 않는다. pr-preview.yml이 이미
+#   그 부담을 지고 있고(샤드 둘 × 35분 상한), 여기에 더하면 실패 지점이 섞인다.
+#   이 잡이 빨간색이면 언제나 "네이티브 빌드가 깨졌다" 하나다.
+
+on:
+  workflow_dispatch:
+    inputs:
+      shell_config:
+        description: 검증 셸 구성 (docs/capacitor-shell-checklist.md 참고)
+        required: true
+        default: both
+        type: choice
+        options:
+          - both
+          - a
+          - b
+
+concurrency:
+  group: android-debug-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: debug APK (구성 ${{ matrix.config }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    strategy:
+      # 한 구성이 깨져도 다른 구성의 APK는 받는다. 체크리스트가 A·B를 서로의
+      # 대조군으로 쓰기 때문에, 하나만 나와도 잴 수 있는 항목이 남는다.
+      fail-fast: false
+      matrix:
+        config: ${{ inputs.shell_config == 'both' && fromJSON('["a","b"]') || fromJSON(format('["{0}"]', inputs.shell_config)) }}
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      # ubuntu-latest 이미지에 여러 JDK가 미리 깔려 있어 이 단계는 다운로드 없이
+      # JAVA_HOME만 바꾼다. Capacitor 8의 Android 템플릿이 JDK 21을 요구한다.
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      # Android SDK도 러너 이미지에 미리 있다(ANDROID_HOME). 라이선스도 미리
+      # 수락돼 있어서 Gradle이 빠진 플랫폼·빌드툴을 스스로 받아 온다.
+      # 별도 설치 액션을 넣지 않는 이유가 이것이다.
+      - name: Show the Android SDK the runner already has
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          ls "$ANDROID_HOME/platforms" || true
+
+      - name: Install the shell dependencies
+        working-directory: mobile
+        run: npm ci
+
+      - name: Prepare the shell as config ${{ matrix.config }}
+        working-directory: mobile
+        run: node scripts/prepare.mjs ${{ matrix.config }}
+
+      # 아티팩트를 나중에 열었을 때 어느 구성인지 파일 이름 말고도 알 수 있게
+      # 로그에 굽는다. 기기에서 잰 값을 기록지에 옮길 때 이 줄이 근거가 된다.
+      - name: Record the resolved config
+        working-directory: mobile
+        run: cat capacitor.config.json
+
+      # 네이티브 프로젝트는 리포에 커밋하지 않는다(이유는 mobile/README.md).
+      # 매번 템플릿에서 새로 만든다 — 그래서 이 잡은 항상 깨끗한 상태에서 빌드한다.
+      #
+      # Capacitor 8.4.2의 CLI에는 --no-interactive 같은 전역 플래그가 없다.
+      # 플랫폼을 인자로 주면 물어볼 것이 없고, 텔레메트리 동의만 첫 실행 때 물으므로
+      # 환경 변수로 끈다.
+      - name: Generate the Android project
+        working-directory: mobile
+        env:
+          CAPACITOR_TELEMETRY: "false"
+        run: npx cap add android
+
+      # cap add가 이미 copy+update를 실행하지만 그건 add의 부수효과지 계약이 아니다.
+      # 에셋이 네이티브 프로젝트에 들어갔다는 것을 명시적으로 보장한다.
+      - name: Sync the web assets into the Android project
+        working-directory: mobile
+        env:
+          CAPACITOR_TELEMETRY: "false"
+        run: npx cap sync android
+
+      - name: Assemble the debug APK
+        working-directory: mobile/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      # gradle이 0으로 끝나도 APK가 없을 수 있다(변형 이름이 바뀌는 경우).
+      # 업로드 단계의 if-no-files-found는 경고만 내고 잡을 통과시키므로,
+      # 여기서 파일 자체를 판정한다. 없으면 빨간색이어야 한다.
+      #
+      # 파일 이름에 구성을 굽는 이유: 두 구성이 모두 app-debug.apk로 나온다.
+      # 아티팩트 이름은 다르지만 압축을 풀면 같은 이름 둘이 되고, 기기에 잘못된
+      # 쪽을 설치하면 관측이 조용히 무효가 된다 — 이 스파이크가 막으려는 실수와
+      # 정확히 같은 형태다. appId가 달라 덮어쓰기도 일어나지 않으니 더 조용하다.
+      - name: Require the APK to exist
+        id: apk
+        working-directory: mobile/android
+        run: |
+          apk="app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$apk"
+          named="app/build/outputs/apk/debug/on-my-way-verify-${{ matrix.config }}.apk"
+          mv "$apk" "$named"
+          echo "path=mobile/android/$named" >> "$GITHUB_OUTPUT"
+          ls -l "$named"
+
+      - name: Upload the debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: on-my-way-verify-${{ matrix.config }}-${{ github.run_id }}
+          path: ${{ steps.apk.outputs.path }}
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload the Gradle failure report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-reports-${{ matrix.config }}-${{ github.run_id }}
+          path: mobile/android/app/build/reports/
+          if-no-files-found: ignore
+          retention-days: 7
