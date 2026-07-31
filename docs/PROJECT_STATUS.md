@@ -1691,6 +1691,22 @@ Pretendard의 한글 자폭이 이전 폴백 글꼴보다 좁다. 히트 영역�
 
 `npm test` **454 pass / 0 fail**. 전체 e2e **764 passed / 0 failed / 12 skipped**.
 
+## 온보딩 할 일 카드의 시간·삭제 버튼 디자인 복구 (2026-08-01)
+
+- `story-flow`의 포괄 입력 규칙이 96px 시간 필드에 큰 여백과 글자를 강제해
+  한국어 시간의 분 표시가 잘리던 문제를 수정했다. 데스크톱 시간 열을 120px로 넓히고
+  시간 입력만 카드용 여백·글자 크기를 복구했다.
+- `personality-form`의 CTA 규칙이 삭제 버튼을 28×52px 그라데이션 막대로 만들던 충돌을
+  카드 범위에서 해제해 다시 28×28px 원형 X 버튼으로 표시한다.
+- 759px 이하에서는 카드가 제목 / 시간·분량 / 완료 기준의 2열 구조로 바뀌어 좁은 중간
+  화면에서도 시간과 할 일이 서로 잘리지 않는다.
+
+### 검증
+
+- Chromium `ko-KR`, 768px: `오전 07:00` 전체 표시 및 X 버튼 28×28px 확인
+- Chromium `ko-KR`, 667px: 시간·분량 2열 전환과 전체 시간 표시 확인
+- `npx playwright test tests/e2e/onboarding.spec.js -g "할 일을 모두 비우면" --project=desktop-chromium`: **1 passed**
+
 ## 작업 관행
 
 - **스택 PR을 머지할 때 `--delete-branch`를 쓰지 마라.** 베이스 브랜치가 사라지면 그 위에
