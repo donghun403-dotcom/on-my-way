@@ -1609,6 +1609,72 @@ provider 4개의 `state` 처리와 세션 스키마 변경, 기존 세션 마이
 첫 사용인데 지급은 가입 시점이라 체험이 시작되기 전에 크레딧이 들어오고, ④만 빼면 체험 없는
 계정에 남용 마커가 찍힌다. 둘 다 앞뒤가 안 맞는 중간 상태다.
 
+## 타이포그래피 기반 공사 완료 — Pretendard self-host와 굵기 축 (2026-07-31)
+
+브랜치 `feat/ui-ux`. 기준 문서 `docs/typography-foundation-design.md`,
+실측 근거는 `docs/artifacts/typography-foundation-measurements.md`.
+
+### 무엇이 문제였는지
+
+`styles.css`의 `--font-body`가 `"Pretendard Variable", "Pretendard", …` 이름을
+가리켰지만, 그 이름을 실제로 로드하는 `@font-face`가 저장소에 없었다. 브라우저는
+이름이 일치하는 로컬/네트워크 글꼴을 못 찾으면 조용히 다음 폴백으로 넘어가므로,
+본문 전체가 OS 기본 한글 글꼴(Windows: Noto Sans KR/맑은 고딕, macOS: Apple SD
+Gothic Neo)로 렌더링되고 있었다. 에러도 콘솔 경고도 없었다.
+
+### 왜 기존 테스트가 못 잡았는지
+
+기존 가드는 토큰의 **문자열**만 검사했다 — `--font-body`가 `"Pretendard"`를
+포함하는지만 보고, 그 이름을 실제로 로드하는 `@font-face`가 있는지는 보지 않았다.
+선언된 이름이 맞으면 통과했으므로 글꼴 파일이 아예 없는 상태도 그대로 통과시켰다.
+반대로 이전 제목 글꼴("여기어때 잘난체")은 실제 woff2 응답까지 검증하는 테스트가
+있었다 — 같은 저장소 안에서 검증 강도가 비대칭이었다.
+
+### 무엇을 바꿨는지
+
+- Pretendard Variable **dynamic subset**을 self-host했다(woff2 92개, 2,957,724바이트
+  ≈ 2.82MB). 이전 제목 글꼴(414,464바이트)과 그 참조를 7개 파일(`styles.css`,
+  `assets/fonts/yeogieottae-jalnan2.woff2` 삭제, `assets/fonts/README.md`,
+  `script.js`, `core-loop-v2.css`, `core-loop-v2.html`, `core-loop-v2.js`)에서
+  제거했다.
+- 글꼴 가족 토큰(`--font-body` / `--font-numeric` / `--font-brand-display` /
+  `--font-brand-ui`)을 전부 Pretendard 하나로 통일했다. 제목과 본문은 이제 글꼴
+  가족이 아니라 **굵기**로 구분한다.
+- `--weight-*` 축을 신설했다: `--weight-body`(400) / `--weight-emphasis`(600,
+  라벨·메타·칩·탭) / `--weight-title`(700, 섹션·카드 제목) / `--weight-display`(800,
+  화면 제목·큰 숫자·주요 CTA). 지적된 4개 화면(온보딩 조건 입력·1차 계획 보기, 앱
+  오늘 탭·계획 탭)을 실측해 `font-weight: 900` 34곳을 이 축으로 이관했다
+  (237 → **203** 잔량). 이후 재검토에서 그중 30곳을 `--weight-title`에서
+  `--weight-emphasis`로 재분류했다. **남은 203개는 A·B 단계로 넘긴다** — 4개 화면
+  밖이라 실측하지 않았고, 렌더링을 보지 않은 채 일괄 변환하지 않았다.
+- 법적 고지 4개 페이지(`legal.css`)도 같은 글꼴로 맞추고, 가드(`fonts.test.mjs`의
+  하드코딩 글꼴 스택·6단계 굵기 검사)를 그 파일까지 넓혔다.
+
+### 실측 — 첫 화면이 실제로 받는 subset
+
+92개 dynamic subset 중 첫 로드 시 실제로 내려받는 것은 일부다(390×844, 캐시 없는
+새 컨텍스트, `document.fonts.ready` 이후 `PerformanceResourceTiming` 기준).
+
+| 화면 | 내려받은 subset | 합계 |
+| --- | --- | --- |
+| `/index.html` | **10개** | 259,052 B (약 253 KB) |
+| `/app.html` | **12개** | 309,504 B (약 302 KB) |
+
+두 화면 모두에서 공통으로 쓰이는 subset.91·subset.90 두 개만 `<link rel="preload">`
+했다 — 추측으로 늘리지 않았다.
+
+### 글꼴 전환이 탭 타깃을 깨뜨렸다가 고쳐진 일
+
+Pretendard의 한글 자폭이 이전 폴백 글꼴보다 좁다. 히트 영역이 글자 폭을 따라가던
+푸터 법적 링크(`.footer-legal-links a`)의 `::after` 오버레이가 44 → **38.03px**로
+내려가 `tests/e2e/tap-targets.spec.js` **8건이 실패**했다. 계획 단계에서는 예상하지
+못했고, 실측 단계가 없었다면 그대로 놓쳤을 종류의 회귀다. `::after`에
+`min-width: 44px`를 추가해 글자 폭과 무관하게 만들었다 — 8건 모두 통과로 돌아왔다.
+
+### 검증
+
+`npm test` **454 pass / 0 fail**. 전체 e2e **764 passed / 0 failed / 12 skipped**.
+
 ## 작업 관행
 
 - **스택 PR을 머지할 때 `--delete-branch`를 쓰지 마라.** 베이스 브랜치가 사라지면 그 위에
