@@ -210,5 +210,6 @@ test("font-weight:900 잔여 수 래칫 — 새 900 유입을 막는다", () => 
   // docs/artifacts/execution-900-classification.md에 근거를 남겨라.
   const css = fs.readFileSync("styles.css", "utf8");
   const count = (css.match(/font-weight:\s*900\b/g) || []).length;
-  assert.equal(count, 154);
+  // 이관 완료 상태: 137(다음 단계 몫) + 글리프 유지 2(#30 · #52). 아래로만 움직인다.
+  assert.equal(count, 139);
 });

@@ -11501,7 +11501,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .execution-page .focus-task-copy > span {
   color: var(--blue-700);
   font-size: var(--text-2xs);
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
   letter-spacing: 0.08em;
 }
 
@@ -11570,6 +11570,8 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   content: "✓";
   color: #ffffff;
   font-size: 17px;
+  /* 글리프 굵기("✓") — 텍스트 위계 아님, 역할 토큰 비대상.
+     execution-900-classification.md #52 */
   font-weight: 900;
   opacity: 0;
   transform: scale(0.6);
@@ -11625,7 +11627,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .execution-page .task-afternoon .task-period { color: var(--blush-600); }
 .execution-page .task-evening .task-period,
 .execution-page .task-night .task-period { color: var(--lilac-600); }
-.execution-page .task-content > span:not(.task-row-head) { color: var(--blue-800); font-size: 12px; font-weight: 900; line-height: 1.4; }
+.execution-page .task-content > span:not(.task-row-head) { color: var(--blue-800); font-size: 12px; font-weight: var(--weight-title); line-height: 1.4; }
 .execution-page .task-content .minimum-action { color: var(--blue-700); font-size: var(--text-2xs); font-weight: 700; }
 .execution-page .task-row.is-complete .task-content { opacity: 0.66; }
 .execution-page .task-row.is-complete .task-content > span:not(.task-row-head) { text-decoration: line-through; }
@@ -11680,7 +11682,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .execution-page .focus-mode-kicker {
   color: var(--blue-700);
   font-size: var(--text-2xs);
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
   letter-spacing: .06em;
 }
 
@@ -11718,7 +11720,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   border: 0;
   border-radius: var(--r-sm);
   font-size: 19px;
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
   cursor: pointer;
 }
 
@@ -11734,7 +11736,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 }
 
 .execution-page .focus-time-adjust label > span { color: var(--blue-700); font-size: var(--text-2xs); font-weight: 800; }
-.execution-page .focus-time-adjust input { width: 45px; padding: 0; color: var(--blue-700); background: transparent; border: 0; outline: 0; font: inherit; font-size: 14px; font-weight: 900; text-align: right; }
+.execution-page .focus-time-adjust input { width: 45px; padding: 0; color: var(--blue-700); background: transparent; border: 0; outline: 0; font: inherit; font-size: 14px; font-weight: var(--weight-display); text-align: right; }
 .execution-page .focus-time-adjust b { color: var(--blue-700); font-size: var(--text-2xs); }
 
 .execution-page .focus-mode-actions {
@@ -14721,21 +14723,21 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .execution-page .plan-adjust-sheet > header h2 { margin: 4px 0 0; color: var(--blue-900); font-size: 25px; }
 .execution-page .task-edit-sheet > header button,
 .execution-page .plan-adjust-sheet > header button { flex: 0 0 44px; width: 44px; height: 44px; color: var(--n-600); background: var(--blue-50); border: 0; border-radius: 50%; font-size: 21px; cursor: pointer; }
-.execution-page .task-edit-sheet label { display: grid; gap: 6px; color: var(--blue-700); font-size: var(--text-2xs); font-weight: 900; }
+.execution-page .task-edit-sheet label { display: grid; gap: 6px; color: var(--blue-700); font-size: var(--text-2xs); font-weight: var(--weight-emphasis); }
 .execution-page .task-edit-sheet input,
 .execution-page .task-edit-sheet textarea,
 .execution-page .task-edit-sheet select { width: 100%; min-height: 46px; padding: 11px; color: var(--blue-900); background: rgba(255,255,255,.9); border: 1px solid rgba(107,122,166,.15); border-radius: var(--r-sm); font: inherit; }
 .execution-page .task-edit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .execution-page .task-edit-grid label:first-child { grid-column: 1 / -1; }
 .execution-page .task-edit-scope { display: grid; gap: 8px; min-width: 0; margin: 0; padding: 12px; border: 1px solid rgba(107,122,166,.13); border-radius: var(--r-sm); }
-.execution-page .task-edit-scope legend { padding: 0 5px; color: var(--blue-700); font-size: var(--text-2xs); font-weight: 900; }
+.execution-page .task-edit-scope legend { padding: 0 5px; color: var(--blue-700); font-size: var(--text-2xs); font-weight: var(--weight-emphasis); }
 .execution-page .task-edit-scope label { display: flex; grid-template-columns: none; align-items: center; gap: 9px; min-height: 44px; padding: 8px 10px; background: rgba(244, 247, 250,.72); border-radius: var(--r-sm); }
 .execution-page .task-edit-scope input { width: 18px; min-height: 18px; padding: 0; flex: 0 0 18px; }
 .execution-page .task-edit-scope-hint { margin: -3px 2px 0; color: var(--blue-700); font-size: var(--text-2xs); line-height: 1.5; }
 .execution-page .task-edit-preview { padding: 12px 14px; color: var(--blue-700); background: rgba(228, 238, 248,.82); border: 1px solid rgba(83, 127, 183,.2); border-radius: var(--r-sm); }
 .execution-page .task-edit-preview strong { font-size: 11px; }
 .execution-page .task-edit-preview p { margin: 5px 0 0; font-size: var(--text-2xs); line-height: 1.55; }
-.execution-page .sheet-secondary-button { min-height: 44px; color: var(--blue-700); background: rgba(255,255,255,.78); border: 1px solid rgba(107,122,166,.15); border-radius: var(--r-sm); font-weight: 900; }
+.execution-page .sheet-secondary-button { min-height: 44px; color: var(--blue-700); background: rgba(255,255,255,.78); border: 1px solid rgba(107,122,166,.15); border-radius: var(--r-sm); font-weight: var(--weight-emphasis); }
 .execution-page .plan-adjust-sheet > p { margin: 0 22px 16px; color: var(--blue-700); font-size: 11px; line-height: 1.55; }
 .execution-page .plan-adjust-scope { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 7px; margin: 0 22px 14px; }
 .execution-page .plan-adjust-scope button { min-height: 44px; padding: 8px; color: var(--blue-700); background: rgba(244, 247, 250,.8); border: 1px solid rgba(107,122,166,.13); border-radius: var(--r-sm); font-size: var(--text-2xs); font-weight: var(--weight-emphasis); }
@@ -16762,7 +16764,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 
 .execution-page .revision-detail-intro strong {
   font-size: 13px;
-  font-weight: 900;
+  font-weight: var(--weight-title);
 }
 
 .execution-page .revision-detail-intro p {
@@ -16811,7 +16813,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .execution-page .revision-detail-heading span {
   color: var(--blue-800);
   font-size: 12px;
-  font-weight: 900;
+  font-weight: var(--weight-title);
 }
 
 .execution-page .revision-detail-heading small {
@@ -16835,7 +16837,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   gap: 6px;
   color: var(--blue-700);
   font-size: var(--text-2xs);
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
 }
 
 .execution-page .revision-field-wide {
@@ -16900,7 +16902,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .execution-page .revision-days legend {
   color: var(--blue-700);
   font-size: var(--text-2xs);
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
 }
 
 .execution-page .revision-days > div {
@@ -16928,7 +16930,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   border: 1px solid var(--blue-100);
   border-radius: var(--r-xs);
   font-size: var(--text-2xs);
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
 }
 
 .execution-page .revision-days input:checked + span {
@@ -16946,7 +16948,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   margin-top: 2px;
   color: var(--blue-700);
   font-size: var(--text-2xs);
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
 }
 
 .execution-page .revision-quick-actions {
@@ -16979,7 +16981,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .execution-page .proposal-detail-grid small {
   color: var(--n-600);
   font-size: var(--text-2xs);
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
 }
 
 .execution-page .proposal-detail-grid b {
