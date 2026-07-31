@@ -858,6 +858,91 @@ git commit -m "타이포 토큰 계약 개정을 문서에 반영한다"
 
 ---
 
+### Task 7: 법적 고지 4개 페이지도 같은 글꼴로 맞춘다
+
+Task 4의 리뷰가 찾아낸 스펙 범위 누락이다. `privacy.html` · `terms.html` · `support.html` ·
+`delete-account.html`은 `/legal.css`만 링크하고 `styles.css`도 벤더 폰트 CSS도 쓰지 않아
+**혼자 시스템 글꼴로 남아 있다.** "글꼴은 한 가족" 목표와 어긋난다. (제품 오너 승인)
+
+**Files:**
+- Modify: `legal.css` (36줄, 자체 토큰 체계를 가진 독립 파일)
+- Modify: `privacy.html`, `terms.html`, `support.html`, `delete-account.html`
+- Modify: `tests/e2e/tap-targets.spec.js`
+- Modify: `fonts.test.mjs`
+
+**Interfaces:**
+- Consumes: Task 1의 `assets/fonts/pretendard/pretendard-variable.css`, 가족명 `"Pretendard Variable"`
+
+#### ⚠️ 이 태스크의 핵심 위험
+
+**이 4개 페이지에는 탭 타깃 테스트가 없다.** `tap-targets.spec.js`는 `/index.html`과
+`/app.html`만 방문한다(`:61`, `:64`, `:74`). `legal.spec.js`도 탭 타깃을 보지 않는다.
+
+그런데 이 브랜치는 **글꼴 가족을 바꾸면 글자 폭이 바뀌어 히트 영역이 44px 밑으로 내려간다는
+것을 이미 한 번 겪었다**(푸터 법적 링크, 44 → 38.03px, e2e 8건 실패). `.legal-nav-links`는
+13px 링크가 `gap: 12px` flex row로 늘어서 있어 같은 형태다.
+
+**측정 없이 글꼴만 바꾸면 같은 실수를 잡아줄 장치 없이 반복하는 것이다.**
+
+- [ ] **Step 1: 바꾸기 전에 현재 값을 측정한다**
+
+Playwright로 4개 페이지의 모든 컨트롤(`a`, `button`, `input`) 히트 영역을 320px·390px에서
+잰다. **지금 44px를 만족하는지부터 확인한다.**
+
+- 이미 만족한다면 → 글꼴 변경 후 다시 재서 유지되는지 본다
+- 이미 만족하지 못한다면 → **이 태스크는 그것까지 고치지 않는다.** 선행 문제이므로
+  수치를 기록하고 보고한 뒤, 글꼴 변경이 **더 나빠지게 만들지 않았다는 것**만 보인다
+
+측정 스크립트는 `.superpowers/sdd/typography-foundation-plan/` 아래에 둔다(커밋하지 않는다).
+
+- [ ] **Step 2: 폰트 CSS를 연결한다**
+
+4개 HTML 각각의 `<link rel="stylesheet" href="/legal.css" />` **바로 앞**에 넣는다.
+이 페이지들은 절대 경로를 쓰므로 폰트 CSS도 절대 경로로 맞춘다.
+
+```html
+<link rel="stylesheet" href="/assets/fonts/pretendard/pretendard-variable.css" />
+```
+
+- [ ] **Step 3: `legal.css`의 글꼴 스택을 바꾼다**
+
+`body`의 `font-family`를 `styles.css`의 `--font-body`와 같은 스택으로 맞춘다.
+`-apple-system`을 넣지 않는다(가드 테스트와 충돌한다).
+
+```css
+font-family:"Pretendard Variable","Pretendard","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+```
+
+`legal.css`의 **색 토큰 체계는 건드리지 않는다.** 이 파일은 앱과 다른 팔레트(세이지 그린)를
+쓰는데, 그것까지 통일하는 것은 이 태스크의 범위가 아니다.
+
+- [ ] **Step 4: 가드를 넓힌다**
+
+`fonts.test.mjs`의 "글꼴 스택을 하드코딩한 곳이 없다" 테스트는 지금 `styles.css`만 본다.
+`legal.css`도 함께 보도록 넓힌다 — 그래야 이 파일이 다시 시스템 글꼴로 되돌아가는 것을 막는다.
+
+- [ ] **Step 5: 탭 타깃 커버리지를 추가한다**
+
+`tests/e2e/tap-targets.spec.js`가 4개 법적 고지 페이지도 훑도록 넓힌다.
+**Step 1에서 이미 44px를 못 지키는 컨트롤이 있었다면** 그것은 이 태스크가 만든 문제가
+아니므로, 새로 추가하는 검사가 **선행 실패로 빨갛게 되지 않도록** 범위를 정한다 —
+예를 들어 "글꼴 변경 전후로 나빠지지 않았다"를 단언하거나, 선행 실패 항목을 명시적
+예외로 문서화한다. **임의로 예외를 넓히지 말고, 무엇을 왜 제외했는지 보고서에 적는다.**
+
+- [ ] **Step 6: 검증**
+
+```bash
+npm test
+PORT=8766 node serve-local.cjs &
+E2E_BASE_URL=http://127.0.0.1:8766 npx playwright test tests/e2e/tap-targets.spec.js tests/e2e/legal.spec.js
+```
+
+Step 1의 측정을 글꼴 변경 후 다시 돌려 전후 수치를 나란히 보고한다.
+
+- [ ] **Step 7: 커밋**
+
+---
+
 ## 완료 조건
 
 - `npm test` — 454 pass / 0 fail
