@@ -6274,6 +6274,7 @@ body.sheet-open {
 
 .auth-trust-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; padding: 4px 24px 12px; }
 .auth-trust-list span { display: inline-flex; align-items: center; gap: 4px; padding: 6px 9px; color: var(--n-600); background: var(--blue-50); border-radius: 999px; font-size: var(--text-2xs); font-weight: 700; }
+/* 글리프 굵기("✓") — 텍스트 위계 아님, 역할 토큰 비대상. app-900-classification.md #54 */
 .auth-trust-list span::before { content: "✓"; color: var(--blue-700); font-weight: 900; }
 .admin-password-form { display: grid; gap: 11px; margin: 22px 24px 14px; padding: var(--space-4); background: linear-gradient(145deg, var(--blue-50), var(--lilac-100)); border: 1px solid rgba(83, 127, 183, 0.14); border-radius: var(--r-md); }
 .admin-password-form > div:first-child { display: grid; gap: 3px; }
@@ -6343,6 +6344,7 @@ body.sheet-open {
 button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .mypage-benefit-list { display: grid; gap: 8px; margin: 14px 0; padding: 0; list-style: none; }
 .mypage-benefit-list li { color: var(--n-600); font-size: 11px; font-weight: 600; }
+/* 글리프 굵기("✓") — 텍스트 위계 아님, 역할 토큰 비대상. app-900-classification.md #52 */
 .mypage-benefit-list li::before { margin-right: 8px; content: "✓"; color: var(--blue-700); font-weight: 900; }
 .mypage-actions { display: flex; justify-content: flex-end; gap: 7px; }
 .mypage-actions button { min-height: 44px; padding: 0 11px; color: var(--n-600); background: var(--n-50); border: 0; border-radius: var(--r-xs); font-size: var(--text-2xs); font-weight: 700; cursor: pointer; }
@@ -10429,6 +10431,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   margin-right: 8px;
   color: var(--blue-700);
   content: "✓";
+  /* 글리프 굵기 — 텍스트 위계 아님, 역할 토큰 비대상. app-900-classification.md #53 */
   font-weight: 900;
 }
 
@@ -10618,7 +10621,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .billing-confirm-card > span {
   color: var(--blue-700);
   font-size: 11px;
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
   letter-spacing: 0.08em;
 }
 
@@ -10647,7 +10650,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .billing-confirm-actions button {
   min-height: 48px;
   border-radius: var(--r-sm);
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
 }
 
 .trial-locked {
@@ -11148,7 +11151,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   color: var(--blue-700);
   font-size: 12px;
   font-style: normal;
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
 }
 
 .energy-pack.is-featured {
@@ -19008,7 +19011,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   border-radius: var(--r-sm);
   font: inherit;
   font-size: 12px;
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
   cursor: pointer;
 }
 
@@ -19073,7 +19076,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   margin: 4px 0 3px;
   color: var(--blue-800);
   font-size: 16px;
-  font-weight: 900;
+  font-weight: var(--weight-title);
 }
 
 .sample-book-head p {
@@ -19091,7 +19094,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   background: var(--blue-600);
   border-radius: 999px;
   font-size: 10px;
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
   letter-spacing: 0.08em;
 }
 
@@ -19105,7 +19108,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   border-radius: var(--r-sm);
   font: inherit;
   font-size: 12px;
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
   cursor: pointer;
 }
 
@@ -19130,7 +19133,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   margin: 0 0 14px;
   color: #2f4a72;
   font-size: 14px;
-  font-weight: 900;
+  font-weight: var(--weight-title);
   letter-spacing: 0.02em;
 }
 
@@ -19182,7 +19185,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   justify-content: space-between;
   margin-bottom: 5px;
 }
-.sample-book-pages .book-day header strong { color: #2f4a72; font-size: 12px; font-weight: 900; }
+.sample-book-pages .book-day header strong { color: #2f4a72; font-size: 12px; font-weight: var(--weight-emphasis); }
 .sample-book-pages .book-day header span { color: #6b7aa6; font-size: 10px; font-weight: 700; }
 .sample-book-pages .book-day h3 { margin: 0 0 5px; color: #1f3358; font-size: 13px; font-weight: 800; }
 .sample-book-pages .book-day-note {
@@ -19223,7 +19226,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   border-radius: var(--r-md);
   box-shadow: var(--shadow-md);
   font-size: 13px;
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
 }
 
 /* 인쇄는 PRO 전용이다. 샘플이 떠 있는 상태로 인쇄 창이 열려도 샘플이 종이에 나가지 않게 한다. */
