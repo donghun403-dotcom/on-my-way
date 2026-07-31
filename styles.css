@@ -17941,10 +17941,11 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   content: "";
   position: absolute;
   top: 50%;
-  left: 0;
+  left: 50%;
+  min-width: 44px;
   width: 100%;
   height: 44px;
-  transform: translateY(-50%);
+  transform: translate(-50%, -50%);
 }
 
 /* Header logo link and menu toggle: the compact header keeps these under
