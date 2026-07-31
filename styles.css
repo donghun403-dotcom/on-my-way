@@ -11419,7 +11419,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   font-family: var(--font-brand-display);
   font-synthesis: none;
   font-size: clamp(34px, 4.7vw, 58px);
-  font-weight: var(--weight-title);
+  font-weight: var(--weight-display);
   line-height: 1.08;
   letter-spacing: -0.03em;
 }

@@ -188,3 +188,17 @@ test("font-weight는 6단계 계약 안의 값만 쓴다", () => {
   assert.deepEqual(badTokens, [], "6단계 밖의 값을 가진 --weight-* 토큰");
   assert.deepEqual(bad, [], "6단계 밖의 font-weight");
 });
+
+// core-loop-v2.css의 tabular-nums는 core-loop-v2.test.mjs와 e2e로 이중 검증되는데,
+// styles.css 쪽은 문자열조차 단언되지 않았다 — 정확히 이 브랜치가 고치려던 버그와 같은
+// 비대칭(프로토타입은 실제 응답까지 보고, 제품은 토큰 이름만 봤다)이 여기서도 반복되고
+// 있었다. 화면에 노출되는 숫자(오늘 진행률)의 자릿수 흔들림을 막는 선언이 조용히
+// 지워져도 아무 테스트도 못 잡는 상태였다.
+test("오늘 진행률 숫자가 tabular-nums로 고정되어 있다", () => {
+  const css = fs.readFileSync("styles.css", "utf8");
+  assert.match(
+    css,
+    /\.execution-page \.today-progress-body > strong\s*\{[^}]*font-variant-numeric:\s*tabular-nums/s,
+    "오늘 진행률 숫자에 tabular-nums가 없다",
+  );
+});
