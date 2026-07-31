@@ -37,9 +37,11 @@ document.head.append(Object.assign(document.createElement("style"), {
 
 ## 1. 900이 실제로 렌더링되는 곳
 
-`styles.css` 전체에는 `font-weight: 900`이 238곳 있었지만, **4개 화면에서 실제로 렌더링되고
-캐스케이드까지 이기는 규칙은 34개**였다. 나머지는 이 화면에 나타나지 않거나, 더 구체적인
-다른 규칙에 가려져 화면에 영향을 주지 않는다.
+`styles.css` 전체에서 `font-weight: 900`은 문자열로 238번 매칭되지만, 그중 하나는 캐스케이드를
+설명하는 주석 안의 예시 문구(`.execution-page .focus-start-button` 관련 설명, 실제 선언이 아님)라
+**실제 선언은 237개**다. 그중 **4개 화면에서 실제로 렌더링되고 캐스케이드까지 이기는 규칙은
+34개**였다. 나머지는 이 화면에 나타나지 않거나, 더 구체적인 다른 규칙에 가려져 화면에 영향을
+주지 않는다.
 
 가려진 예 두 가지 — 둘 다 옮기지 않았다(옮겨도 화면이 바뀌지 않는다):
 
@@ -62,7 +64,7 @@ document.head.append(Object.assign(document.createElement("style"), {
 | `.execution-page .focus-start-button` | ③ | 11px | `--weight-display` (주요 CTA "지금 시작하기") |
 | `.ollie-message span, .ollie-chat-preview span, .today-plan-card span, .tomorrow-card span` | ①② | 12px | `--weight-title` |
 | `.ollie-message p, .ollie-chat-preview p` | ① | 12/15px | `--weight-title` |
-| `.home-page .hero-poster span, .home-page .eyebrow` | ① | 13px | `--weight-title` |
+| `.home-page .hero-poster span, .home-page .eyebrow` | ① | 11px | `--weight-title` |
 | `.builder-field` | ① | 12px | `--weight-title` |
 | `.analysis-header span, .analysis-grid span` | ② | 13px | `--weight-title` |
 | `.result-section-head > span` | ② | 11px | `--weight-title` |
@@ -70,7 +72,7 @@ document.head.append(Object.assign(document.createElement("style"), {
 | `.result-details-disclosure > summary strong` | ② | 12px | `--weight-title` |
 | `.app-toast` | ② | 13px | `--weight-title` |
 | `.card-title.compact strong, .soft-badge` | ③ | 11/12px | `--weight-title` |
-| `.eyebrow` | ③ | 11px | `--weight-title` |
+| `.eyebrow` | ③ | 13px | `--weight-title` |
 | `.coach-card-chat` | ③ | 13px | `--weight-title` |
 | `.execution-page .task-period` | ③ | 11px | `--weight-title` |
 | `.execution-page .task-edit-button` | ③ | 11px | `--weight-title` |
@@ -94,6 +96,16 @@ document.head.append(Object.assign(document.createElement("style"), {
 | `.execution-page .execution-tabbar .tab.active` (`@media (max-width:759px)`) | ③④ | 16px | `--weight-title` |
 
 옮긴 뒤 재측정: **4개 화면에서 900을 선언하고 이기는 규칙 0개.**
+
+> **정정 (Task 5b 라운드 1, `01b6aae` 이후).** 위 표의 "옮긴 값" 열은 Task 5 커밋(`3b10904`)
+> 시점 기준이다. 이후 재리뷰에서, 3단계 역할표 중 "라벨·메타·칩·탭처럼 짧은 UI 문구"
+> (`--weight-emphasis`, 600) 단계가 이 절 서두의 브리프 인용에서 빠져 있었다는 지적이 나왔다.
+> 그 결과 위 표의 `--weight-title` 32곳 중 30곳이 실제로는 세 번째 단계에 해당해, `styles.css`에서
+> `--weight-emphasis`로 다시 옮겼다. `.builder-actions button`·`.execution-page
+> .focus-start-button`의 `--weight-display`와 `.ollie-message p, .ollie-chat-preview p`·
+> `.app-toast`의 `--weight-title`(판단 보류)만 유지했다. 위 표는 Task 5 당시 측정 기록 그대로
+> 남기고, 선택자별 재판단 근거와 HTML 검증은 `task-5b-report.md`의 "Task 5 수정 라운드 1"
+> 절에 표로 남겼다.
 
 ### 남긴 것 — 판단 보류
 
@@ -221,8 +233,10 @@ document.head.append(Object.assign(document.createElement("style"), {
 - `index.html` — **91**, **90**, 89, 88, 87, 86, 79, 85, 84, 82
 - `app.html` — 77, 88, **90**, **91**, 0, 87, 89, 86, 84, 79, 85, 68
 
-두 화면 모두 첫 요청 묶음에 **subset 91**(37,996 B)과 **subset 90**(20,852 B)이 들어 있고,
-둘 다 상대 화면에서도 반드시 쓰인다. 이 둘만 preload 대상으로 골랐다.
+`index.html`은 **subset 91**(37,996 B)·**subset 90**(20,852 B)이 요청 순서 1·2번으로 자연히
+먼저 온다. 반면 `app.html`은 77·88이 먼저 오고 91·90은 3·4번째다 — **자연 순서가 아니라
+preload를 걸어야** 91·90이 앞으로 온다. 그래도 이 둘을 고른 이유는 둘 다 상대 화면에서도
+반드시 쓰이는 공통 subset이기 때문이다. 그래서 이 둘만 preload 대상으로 골랐다.
 
 ```html
 <link rel="preload" href="assets/fonts/pretendard/PretendardVariable.subset.91.woff2" as="font" type="font/woff2" crossorigin />
