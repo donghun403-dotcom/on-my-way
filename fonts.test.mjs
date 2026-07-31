@@ -202,3 +202,14 @@ test("오늘 진행률 숫자가 tabular-nums로 고정되어 있다", () => {
     "오늘 진행률 숫자에 tabular-nums가 없다",
   );
 });
+
+test("font-weight:900 잔여 수 래칫 — 새 900 유입을 막는다", () => {
+  // 900은 6단계 계약 안의 값이라 위의 계약 테스트로는 유입을 못 잡는다.
+  // 이관(docs/execution-900-migration-plan.md)이 진행될 때마다 이 수를 내린다.
+  // 올라갔다면 새 900이 들어온 것이다 — 역할 토큰으로 쓰거나
+  // docs/artifacts/execution-900-classification.md에 근거를 남겨라.
+  const css = fs.readFileSync("styles.css", "utf8");
+  const count = (css.match(/font-weight:\s*900\b/g) || []).length;
+  // 이관 완료 상태: 137(다음 단계 몫) + 글리프 유지 2(#30 · #52). 아래로만 움직인다.
+  assert.equal(count, 139);
+});

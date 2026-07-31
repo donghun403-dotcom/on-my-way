@@ -294,3 +294,33 @@ preload를 걸어야** 91·90이 앞으로 온다. 그래도 이 둘을 고른 �
 측정·촬영 스크립트와 스크린샷은 저장소에 넣지 않았다(계획 디렉터리에만 둔다):
 `.superpowers/sdd/typography-foundation-plan/measure-out/`
 (`shots/{before,after}-{320,390,430,1440}-{1..4}-*.png`, `diffs/cmp-*.png`)
+
+---
+
+## 실행 화면 900 이관 실측 (2026-07-31, feat/execution-900-migration)
+
+`.execution-page` 계열 66곳 이관(분류: `execution-900-classification.md`)의 전후 실측.
+측정 스크립트는 이번엔 저장소에 있다: `scripts/measure-execution-weights.cjs`
+(390×844, 오늘·계획·메이트·기억 탭 순회). 이전 계획의 스크립트가 커밋되지 않아
+소실된 전례의 재발 방지다.
+
+기본 상태에서 측정 가능한 10곳 전부가 분류표의 배정대로 착지했고, 이관하지 않은
+묶음이 움직인 라운드는 없었다:
+
+| selector | view | 이관 전 | 이관 후 | 배정 |
+| --- | --- | --- | --- | --- |
+| `.bond-reaction` | mate | 900 | 600 | emphasis |
+| `.companion-next-inline small` | mate | 900 | 600 | emphasis |
+| `.companion-relationship-heading > span` | mate | 900 | 600 | emphasis |
+| `.companion-relationship-summary dd` | mate | 900 | 600 | emphasis |
+| `.companion-touch-secondary` | mate | 900 | 600 | emphasis |
+| `.journey-pro-link` | mate | 900 | 600 | emphasis |
+| `.memory-kicker` | memory | 900 | 600 | emphasis |
+| `.memory-mood-picker button` | memory | 900 | 600 | emphasis |
+| `.memory-mood-picker legend` | memory | 900 | 600 | emphasis |
+| `.save-memory-button` | memory | 900 | **800** | display |
+
+미측정 14곳(포커스 모드·달력 서브뷰·시트 내부·딥 스테이트)은 분류표의 마크업 근거와
+e2e(plan·mate·ollie-memory-ux·records·day-page·diary-book·today·tap-targets, 전부
+0 failed)가 판정을 맡았다. 잔여 검산: `font-weight: 900` 총 139 = 다음 단계 몫 137 +
+글리프 유지 2, `.execution-page` 스코프 잔여는 글리프 2곳뿐.
