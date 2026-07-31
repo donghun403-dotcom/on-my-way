@@ -4,7 +4,7 @@ body { margin:0; background:#f8faf9; color:var(--ink); font-family:"Pretendard V
 a { color:var(--brand); text-underline-offset:3px; }
 .legal-header { position:sticky; top:0; z-index:10; border-bottom:1px solid var(--line); background:rgba(255,255,255,.94); backdrop-filter:blur(12px); }
 .legal-nav { display:flex; width:min(100% - 32px,880px); min-height:64px; margin:auto; align-items:center; justify-content:space-between; gap:16px; }
-.legal-brand { display:flex; align-items:center; gap:9px; color:var(--ink); font-weight:800; text-decoration:none; }
+.legal-brand { display:flex; align-items:center; gap:9px; min-height:44px; color:var(--ink); font-weight:800; text-decoration:none; }
 .legal-brand img { width:34px; height:34px; border-radius:10px; }
 .legal-nav-links { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:12px; font-size:13px; }
 .legal-main { width:min(100% - 32px,800px); margin:0 auto; padding:58px 0 80px; }
