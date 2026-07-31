@@ -29,6 +29,11 @@
     <meta name="twitter:image" content="https://on-my-way.jungslawyer.workers.dev/assets/og-ollie-share-v2.jpg" />
     <meta name="twitter:image:alt" content="작은 별을 들고 목표를 향해 한 걸음 나아가는 올리" />
     <link rel="icon" href="assets/logo-ollie-symbol.png" type="image/png" />
+    <!-- Pretendard dynamic subset 92개 중 이 화면이 실제로 내려받는 것은 12개고, 그중
+         가장 먼저 요청되는 둘만 미리 받는다(실측: docs/artifacts/typography-foundation-measurements.md).
+         추측으로 늘리면 쓰지도 않는 subset을 받게 된다. -->
+    <link rel="preload" href="assets/fonts/pretendard/PretendardVariable.subset.91.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="assets/fonts/pretendard/PretendardVariable.subset.90.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="assets/fonts/pretendard/pretendard-variable.css" />
     <link rel="stylesheet" href="styles.css" />
     <link rel="preload" href="assets/ollie-action.png" as="image" />
