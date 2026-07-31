@@ -12,9 +12,25 @@ const { prepareApp, waitForAppReady, waitForBootstrap } = require("./helpers");
 // absolutely-positioned ::after/::before overlay, because several controls
 // keep a small visual box and expand only the hit area.
 //
-// Two documented exemptions:
+// Four documented exemptions:
 //   - links inline inside a sentence (WCAG 2.5.8 explicitly exempts these)
 //   - .plan-week-day, where 7 columns cannot each be 44px wide at 320px
+//   - .legal-nav-links a (the 개인정보/이용약관/고객지원/계정 탈퇴 header nav on the
+//     four legal pages) — pre-existing gap, not created by Task 7's font swap.
+//     Height is 22.09px on every legal page at every measured width because the
+//     links carry no vertical padding at all (line-height:1.7 * 13px font ≈
+//     22px is the whole box). That is font-size/line-height driven, not
+//     glyph-width driven, so switching the font family cannot fix or worsen
+//     it. Measured before/after with
+//     .superpowers/sdd/typography-foundation-plan/measure-legal-tap-targets.cjs:
+//     height was byte-for-byte identical (22.09 -> 22.09) and width moved
+//     (52 -> 44.95 / 55.56 -> 48.22) but never crossed back over 44 in either
+//     direction. Adding the missing padding is a legal.css layout fix, out of
+//     scope for a font-family task.
+//   - #deleteAgreement, the account-deletion confirmation checkbox on
+//     /delete-account (13x20, hardcoded by `.check-row input { width:20px;
+//     height:20px }` in legal.css). Pre-existing and font-independent —
+//     confirmed unchanged (13x20 -> 13x20) by the same before/after script.
 for (const [width, height] of [[320, 568], [390, 844]]) {
   test(`${width}x${height} 모든 독립 컨트롤이 44px 탭 타깃을 만족한다`, async ({ page }) => {
     await page.setViewportSize({ width, height });
@@ -51,6 +67,8 @@ for (const [width, height] of [[320, 568], [390, 844]]) {
           })
           .filter((el) => !isInlineInSentence(el))
           .filter((el) => !el.className.toString().includes("plan-week-day"))
+          .filter((el) => !el.closest(".legal-nav-links"))
+          .filter((el) => el.id !== "deleteAgreement")
           .map((el) => ({ ...effectiveSize(el), label: (el.getAttribute("aria-label") || el.textContent.trim() || el.id).slice(0, 30) }))
           // Sub-pixel tolerance: fractional layout makes a nominally 44px
           // control measure 43.99997, which is a rounding artefact rather
@@ -75,5 +93,36 @@ for (const [width, height] of [[320, 568], [390, 844]]) {
     await waitForBootstrap(page);
     await expect(page.locator("#authSheet")).toBeVisible();
     expect(await collect(), `${width}px 로그인 시트`).toEqual([]);
+
+    // Legal pages: static documents that link legal.css (not styles.css), so
+    // they were never covered by the sweeps above. Task 7 gave them a
+    // font-family for the first time; this is the only tap-target coverage
+    // they have. /delete-account renders two different DOMs depending on
+    // session state (login prompt vs. the delete confirmation form), so it is
+    // swept twice — waitForLoadState("networkidle") + document.fonts.ready
+    // matches the wait used to take the Task 7 before/after measurements, so
+    // the assertion sees the same settled, webfont-swapped layout.
+    for (const pathname of ["/privacy", "/terms", "/support", "/delete-account"]) {
+      if (pathname === "/delete-account") {
+        await page.route("**/api/auth/me", (route) => route.fulfill({ status: 200, contentType: "application/json", body: '{"user":null}' }));
+      }
+      await page.goto(pathname);
+      await page.waitForLoadState("networkidle");
+      await page.evaluate(() => document.fonts.ready);
+      expect(await collect(), `${width}px ${pathname}`).toEqual([]);
+      if (pathname === "/delete-account") await page.unroute("**/api/auth/me");
+    }
+
+    await page.route("**/api/auth/me", (route) => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ user: { id: "usr_e2e", name: "탭 타깃 테스트", email: "tap-target@example.com" } }),
+    }));
+    await page.goto("/delete-account");
+    await page.waitForLoadState("networkidle");
+    await page.evaluate(() => document.fonts.ready);
+    await expect(page.locator("#deleteAccountForm")).toBeVisible();
+    expect(await collect(), `${width}px 계정 탈퇴(로그인)`).toEqual([]);
+    await page.unroute("**/api/auth/me");
   });
 }

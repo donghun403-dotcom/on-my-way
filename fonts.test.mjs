@@ -37,12 +37,17 @@ test("OFL 라이선스 원문을 함께 배포한다", () => {
 });
 
 test("글꼴 스택을 하드코딩한 곳이 없다 — 전부 --font-* 토큰을 거친다", () => {
-  const css = fs.readFileSync("styles.css", "utf8");
-  const lines = css.split(/\r?\n/);
-  const offenders = lines
-    .map((line, index) => ({ line, number: index + 1 }))
-    .filter(({ line }) => /-apple-system/.test(line))
-    .map(({ number, line }) => `${number}: ${line.trim().slice(0, 80)}`);
+  // legal.css는 --font-* 토큰 체계를 쓰지 않는 독립 파일이라 이 테스트의 취지(토큰 우회
+  // 탐지)와는 별개지만, -apple-system이 있으면 시스템 글꼴로 되돌아간다는 신호는 같다.
+  // Task 7: 법적 고지 4개 페이지가 legal.css를 통해 시스템 글꼴로 남아 있던 것을
+  // Pretendard로 맞췄다 — 이 파일도 같이 훑어서 되돌아가지 못하게 막는다.
+  const offenders = ["styles.css", "legal.css"].flatMap((file) => {
+    const lines = fs.readFileSync(file, "utf8").split(/\r?\n/);
+    return lines
+      .map((line, index) => ({ line, number: index + 1 }))
+      .filter(({ line }) => /-apple-system/.test(line))
+      .map(({ number, line }) => `${file}:${number}: ${line.trim().slice(0, 80)}`);
+  });
   assert.deepEqual(offenders, [], "글꼴 스택이 토큰을 우회하고 있다");
 });
 
@@ -142,25 +147,44 @@ test("font-weight는 6단계 계약 안의 값만 쓴다", () => {
   // 토큰 참조를 통째로 면제하면 안 된다. `--weight-subtle: 450`을 만들어
   // `font-weight: var(--weight-subtle)`로 쓰면 막으려던 바로 그 값이 조용히 통과한다.
   // 그래서 토큰의 '값'까지 따라가 검사한다.
+  //
+  // legal.css도 같이 훑는다. 위의 -apple-system 검사와 같은 이유다. 이 검사가 styles.css만
+  // 보던 동안 `label { font-weight: 750 }`이 조용히 살아남아 있었다.
+  // 계약이 750을 지운 근거는 "폴백 글꼴(맑은 고딕, Apple SD Gothic Neo)에 750이 없어 어차피
+  // 700으로 스냅되니 의미 없는 변주"였는데, Task 7이 이 파일을 Pretendard **Variable**로
+  // 옮기면서 그 전제가 사라졌다 — 가변 글꼴은 750을 그대로 그린다. 안 보이던 위반이
+  // 이제 보이는 위반이 됐다.
   const allowed = new Set(["400", "500", "600", "700", "800", "900", "inherit"]);
-  const css = fs.readFileSync("styles.css", "utf8");
-
-  const tokenValues = new Map(
-    [...css.matchAll(/(--weight-[a-z-]+):\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]),
-  );
-  const badTokens = [...tokenValues].filter(([, value]) => !allowed.has(value));
-  assert.deepEqual(badTokens, [], "6단계 밖의 값을 가진 --weight-* 토큰");
-
+  const badTokens = [];
   const bad = [];
-  for (const match of css.matchAll(/font-weight:\s*([^;\n}]+)/g)) {
-    const value = match[1].trim();
-    const reference = value.match(/^var\((--weight-[a-z-]+)\)$/);
-    if (reference) {
-      // 선언되지 않은 토큰을 참조하면 그 규칙은 굵기가 없는 것과 같다. 오타를 잡는다.
-      if (!tokenValues.has(reference[1])) bad.push(`${value} — 선언되지 않은 토큰`);
-      continue;
+
+  // 파일마다 토큰 표를 따로 만든다. 법적 고지 4개 페이지는 styles.css를 링크하지 않으므로
+  // (privacy/terms/support/delete-account → pretendard-variable.css + legal.css 뿐)
+  // 저쪽 --weight-* 토큰이 여기서는 해석되지 않는다. 파일 안에서 선언된 것만 유효하다.
+  for (const file of ["styles.css", "legal.css"]) {
+    const css = fs.readFileSync(file, "utf8");
+    const lineOf = (index) => css.slice(0, index).split(/\r?\n/).length;
+
+    const tokenValues = new Map(
+      [...css.matchAll(/(--weight-[a-z-]+):\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]),
+    );
+    for (const [token, value] of tokenValues) {
+      if (!allowed.has(value)) badTokens.push(`${file}: ${token}: ${value}`);
     }
-    if (!allowed.has(value)) bad.push(value);
+
+    for (const match of css.matchAll(/font-weight:\s*([^;\n}]+)/g)) {
+      const value = match[1].trim();
+      const where = `${file}:${lineOf(match.index)}`;
+      const reference = value.match(/^var\((--weight-[a-z-]+)\)$/);
+      if (reference) {
+        // 선언되지 않은 토큰을 참조하면 그 규칙은 굵기가 없는 것과 같다. 오타를 잡는다.
+        if (!tokenValues.has(reference[1])) bad.push(`${where}: ${value} — 선언되지 않은 토큰`);
+        continue;
+      }
+      if (!allowed.has(value)) bad.push(`${where}: ${value}`);
+    }
   }
-  assert.deepEqual([...new Set(bad)], [], "6단계 밖의 font-weight");
+
+  assert.deepEqual(badTokens, [], "6단계 밖의 값을 가진 --weight-* 토큰");
+  assert.deepEqual(bad, [], "6단계 밖의 font-weight");
 });
