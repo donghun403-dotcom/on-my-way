@@ -6,6 +6,22 @@
 - 판단 기준: 현재 소스와 작업 트리 → 테스트/CI → Git 커밋·PR → 배포 근거 → 기존 문서
 - 인증 안정화 변경은 전용 `fix/omw-auth-stabilization` 브랜치와 PR #9에서만 수행하며, 혼합 worktree와 외부 복구 백업은 수정하지 않는다.
 
+## 실행 화면 900 이관 완료 — 굵기 위계 2단계 (2026-07-31)
+
+브랜치 `feat/execution-900-migration`. 타이포 기반 재설계(PR #54)가 남긴 `font-weight: 900`
+203개 중 `.execution-page` 계열 66곳을 전수 처리했다 — 이관 64(emphasis 56 · title 5 ·
+display 3), 글리프 유지 2("✓" 캐리어, 리터럴 + 주석). 66행 전부 실제 마크업을 근거로
+분류했고 그 표가 `docs/artifacts/execution-900-classification.md`에 있다. 잔여는 139개
+(다음 단계 몫 137 + 글리프 2)이며 `fonts.test.mjs`의 래칫 테스트가 이 수를 고정한다.
+
+부수 발견: 사문 선언 4곳(`.memory-list-head span` · `.bond-kicker` · `.bond-next-unlock
+small` · `.focus-task-copy > span` — DOM 매칭 없음)은 배정대로 옮기되 표에 기록만 남겼다.
+삭제는 별도 판단. 실측 스크립트는 `scripts/measure-execution-weights.cjs`로 커밋했다 —
+이전 계획의 스크립트가 커밋되지 않아 소실된 전례의 재발 방지.
+
+남은 137개의 분포: 랜딩·온보딩 27, 결제·체험·가격 9, 샘플 북 4, 관리자 7, 롱테일 약 90.
+굵기 역할 표의 본문 강조 공백(올리 말풍선·토스트, 700 판단 보류)도 그대로 남아 있다.
+
 ## P1 완료 — 무료 티어 폐지와 하드 페이월 (2026-07-30)
 
 브랜치 `feature/hard-paywall-p1`. 영구 무료 티어를 없애고 플랜 상태를 `trial · expired · pro`
