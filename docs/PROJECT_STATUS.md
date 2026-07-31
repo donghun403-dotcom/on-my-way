@@ -1707,6 +1707,17 @@ Pretendard의 한글 자폭이 이전 폴백 글꼴보다 좁다. 히트 영역�
 - Chromium `ko-KR`, 667px: 시간·분량 2열 전환과 전체 시간 표시 확인
 - `npx playwright test tests/e2e/onboarding.spec.js -g "할 일을 모두 비우면" --project=desktop-chromium`: **1 passed**
 
+## 결과 화면 이해 카드 비율 수정 (2026-08-01)
+
+- 결과 화면에서 표시되는 이해 카드 4개를 데스크톱 3열(`3 + 1`)에서 2열(`2 + 2`)로 바꿔 빈 공간 없이 균형 있게 배치했다.
+- 759px 이하의 기존 1열 배치는 유지했다.
+
+### 검증
+
+- Chromium 958px: 2열 × 2행, 카드 너비 353px로 동일, 가로 넘침 0px 확인
+- Chromium 430px: 기존 1열 × 4행 유지, 가로 넘침 0px 확인
+- `npx playwright test tests/e2e/responsive.spec.js -g "320x568 수동 빌더 결과 화면" --project=responsive-chromium --workers=1`: **1 passed**
+
 ## 작업 관행
 
 - **스택 PR을 머지할 때 `--delete-branch`를 쓰지 마라.** 베이스 브랜치가 사라지면 그 위에
