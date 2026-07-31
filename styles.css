@@ -12970,7 +12970,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   background: rgba(234, 239, 245, 0.68);
   border-radius: var(--r-sm);
 }
-.execution-page .diary-next-step span { color: var(--n-600); font-size: var(--text-2xs); font-weight: 900; }
+.execution-page .diary-next-step span { color: var(--n-600); font-size: var(--text-2xs); font-weight: var(--weight-emphasis); }
 .execution-page .diary-next-step strong { color: var(--blue-700); font-size: var(--text-2xs); line-height: 1.45; }
 .execution-page .memory-dialogue { padding: 11px 12px; color: var(--blue-700); background: linear-gradient(145deg,rgba(228, 238, 248,.78),rgba(243,239,248,.72)); border-radius: var(--r-sm); }
 .execution-page .memory-dialogue span,
@@ -13022,7 +13022,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 
 .execution-page .day-page-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
 .execution-page .day-page-heading { display: grid; gap: 2px; }
-.execution-page .day-page-heading small { color: var(--n-600); font-size: var(--text-2xs); font-weight: 900; letter-spacing: .08em; }
+.execution-page .day-page-heading small { color: var(--n-600); font-size: var(--text-2xs); font-weight: var(--weight-emphasis); letter-spacing: .08em; }
 .execution-page .day-page-heading h2 { margin: 0; color: var(--blue-800); font-size: 15px; }
 .execution-page .day-page-heading span { color: var(--blue-700); font-size: var(--text-2xs); font-weight: 700; }
 
@@ -13040,7 +13040,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   border-radius: var(--r-sm);
   font: inherit;
   font-size: 18px;
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
   cursor: pointer;
 }
 .execution-page .day-page-step:hover:not(:disabled) { background: rgba(234,239,245,.95); }
@@ -13078,7 +13078,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   border-radius: var(--r-xs);
   font: inherit;
   font-size: 11px;
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
   cursor: pointer;
 }
 
@@ -13086,12 +13086,12 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .execution-page .day-page-entry { display: grid; gap: 10px; }
 .execution-page .day-page-stats { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
 .execution-page .day-page-stats > div { display: grid; gap: 3px; padding: 10px 12px; background: rgba(242,245,249,.76); border-radius: var(--r-sm); }
-.execution-page .day-page-stats small { color: var(--n-600); font-size: var(--text-2xs); font-weight: 900; }
+.execution-page .day-page-stats small { color: var(--n-600); font-size: var(--text-2xs); font-weight: var(--weight-emphasis); }
 .execution-page .day-page-stats strong { color: var(--blue-700); font-size: 12px; }
 .execution-page .day-page-entry-title { margin: 0; color: var(--blue-800); font-size: 15px; line-height: 1.35; }
 
 .execution-page .day-page-note { padding: 12px; background: rgba(248,244,239,.72); border-radius: var(--r-sm); }
-.execution-page .day-page-note small { display: block; margin-bottom: 4px; color: var(--n-600); font-size: var(--text-2xs); font-weight: 900; }
+.execution-page .day-page-note small { display: block; margin-bottom: 4px; color: var(--n-600); font-size: var(--text-2xs); font-weight: var(--weight-emphasis); }
 .execution-page .day-page-note p { margin: 0; color: var(--blue-700); font-size: 12px; font-weight: 700; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
 .execution-page .day-page-note.is-empty p { color: var(--n-600); }
 
@@ -13107,7 +13107,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   padding: 0 12px;
   color: var(--blue-800);
   font-size: 12px;
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
   list-style: none;
   cursor: pointer;
 }
@@ -13144,7 +13144,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   border-radius: var(--r-sm);
   font: inherit;
   font-size: 11px;
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
   cursor: pointer;
 }
 .execution-page .day-page-empty-actions button.is-quiet {
@@ -13165,7 +13165,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   border-radius: var(--r-sm);
   font: inherit;
   font-size: 11px;
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
   cursor: pointer;
 }
 .execution-page .day-page-erase-confirm {
@@ -13190,7 +13190,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   border-radius: var(--r-sm);
   font: inherit;
   font-size: 11px;
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
   cursor: pointer;
 }
 .execution-page .day-page-erase-buttons button.is-destructive { color: #fff; background: var(--lilac-600); border-color: var(--lilac-600); }
@@ -13208,13 +13208,13 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 }
 .execution-page .diary-book-head { display: grid; grid-template-columns: 52px minmax(0,1fr); gap: 12px; align-items: start; }
 .execution-page .diary-book-head img { width: 52px; height: 58px; object-fit: contain; }
-.execution-page .diary-book-head small { color: var(--n-600); font-size: var(--text-2xs); font-weight: 900; letter-spacing: .08em; }
+.execution-page .diary-book-head small { color: var(--n-600); font-size: var(--text-2xs); font-weight: var(--weight-emphasis); letter-spacing: .08em; }
 .execution-page .diary-book-head h2 { margin: 1px 0 0; color: var(--blue-800); font-size: 15px; }
 .execution-page .diary-book-head p { margin: 3px 0 0; color: var(--blue-700); font-size: 11px; font-weight: 700; line-height: 1.6; }
 
 .execution-page .diary-book-form { display: grid; gap: 10px; }
 .execution-page .diary-book-month { display: grid; gap: 5px; }
-.execution-page .diary-book-month > span { color: var(--n-600); font-size: var(--text-2xs); font-weight: 900; }
+.execution-page .diary-book-month > span { color: var(--n-600); font-size: var(--text-2xs); font-weight: var(--weight-emphasis); }
 .execution-page .diary-book-month select {
   min-height: 44px;
   padding: 0 10px;
@@ -13243,7 +13243,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   border-radius: var(--r-sm);
   font: inherit;
   font-size: 12px;
-  font-weight: 900;
+  font-weight: var(--weight-display);
   cursor: pointer;
 }
 .execution-page .diary-book-create:disabled { opacity: .55; cursor: default; }
@@ -13264,7 +13264,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   border-radius: var(--r-sm);
   font: inherit;
   font-size: 11px;
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
   cursor: pointer;
 }
 .execution-page .diary-book-done-actions button.is-quiet {
@@ -13293,7 +13293,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   border-radius: var(--r-sm);
   font: inherit;
   font-size: 11px;
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
   cursor: pointer;
 }
 .execution-page .diary-book-tidy-buttons button.is-destructive { color: #fff; background: var(--lilac-600); border-color: var(--lilac-600); }
