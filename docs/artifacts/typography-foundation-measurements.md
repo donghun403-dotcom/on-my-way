@@ -324,3 +324,65 @@ preload를 걸어야** 91·90이 앞으로 온다. 그래도 이 둘을 고른 �
 e2e(plan·mate·ollie-memory-ux·records·day-page·diary-book·today·tap-targets, 전부
 0 failed)가 판정을 맡았다. 잔여 검산: `font-weight: 900` 총 139 = 다음 단계 몫 137 +
 글리프 유지 2, `.execution-page` 스코프 잔여는 글리프 2곳뿐.
+
+---
+
+## 앱 표면 900 이관 실측 (2026-08-01, feat/app-900-migration)
+
+`.execution-page` 접두사 밖의 앱 렌더 요소 52곳 이관(분류:
+`app-900-classification.md`)과 굵기 역할 표 개정의 전후 실측. 측정 스크립트는
+`scripts/measure-execution-weights.cjs`(PR #55에서 커밋, 이번에 `TARGETS` 확장).
+
+### 올리 표면 — 역할 표 공백을 닫은 결과
+
+굵기 역할 표에 "본문 성격의 강조" 자리가 없어 `--weight-title`(700)에 판단 보류로
+남아 있던 둘을 `--weight-emphasis`(600)로 옮겼다. 스크린샷 전후:
+`docs/artifacts/app-900-ollie-shots/{before,after}-{app-chat,landing-ollie}.png`
+
+| 요소 | 이관 전 | 이관 후 |
+| --- | --- | --- |
+| `.chat-bubble > span` (말풍선 이름표) | 900 | 600 |
+| `.chat-bubble-headline` (말풍선 첫 줄) | 900 | 600 |
+| `.chat-energy` (에너지 배지) | 900 | 600 |
+| `.app-toast` | 700 | 600 |
+| `.ollie-message p` (올리 말풍선 본문, 랜딩) | 700 | 600 |
+
+**육안 판단**: 헤드라인이 본문보다 여전히 뚜렷하게 굵고, 시트 제목 "올리와 대화해요"가
+말풍선 내용보다 확실히 위에 선다 — 의도한 위계 회복이다. 되돌리려면 배정을
+`--weight-title`로 되돌리는 한 줄이면 된다.
+
+`.ollie-message`는 `app.html`이 아니라 `index.html`에 있다 — 이 결정은 랜딩에도 걸린다.
+
+### 탭 순회로 측정 가능한 대상
+
+| selector | view | 이관 전 | 이관 후 | 메모 |
+| --- | --- | --- | --- | --- |
+| `.journey-map span` | mate | 900 | 600 | |
+| `.card-title span` | today | 500 | 500 | 캐스케이드 패 — 아래 표 |
+| `.companion-stats span` | mate | 500 | 500 | 캐스케이드 패 |
+| `.text-button` | today | 700 | 700 | 캐스케이드 패 |
+
+### 측정이 판정을 바꾼 곳 — 캐스케이드에서 지는 선언 3곳
+
+셀렉터만 보면 "900이 적용 중"으로 읽히지만 실제 렌더 값은 다르다. 셋 다 배정대로
+이관했고 화면 변화는 없다.
+
+| 셀렉터 | 실측 | 이기는 규칙 |
+| --- | --- | --- |
+| `.card-title span` | 500 | `.card-title.compact span`(styles.css:5436 그룹). 앱은 전부 compact지만 **관리자의 비-compact `card-title` 10곳에서는 이 900이 살아 있다** — 사문이 아니다 |
+| `.companion-stats span` | 500 | 같은 5436 그룹 — 동일 특정성, 뒤에 있어 이긴다 |
+| `.text-button` | 700 | `.text-button`(styles.css:5287) — 동일 셀렉터, 뒤에 있어 이긴다 |
+
+### 검증
+
+- `npm test` 458 pass / 0 fail
+- e2e: cheer·mate·modal 56 passed · today·plan·paywall-ui·pricing·auth 274 passed ·
+  diary-book·paywall-ui·**tap-targets** 99 passed
+- 잔여 검산: `font-weight: 900` 총 90 = 다음 단계 몫 87 + 글리프 유지 3
+
+**이 브랜치와 무관한 e2e 실패 둘을 만났다.** `today.spec.js:6`(4개 프로젝트)은 손대지
+않은 `origin/main`(2f0bd0d)에서 재현해 선행 결함으로 확인했다 — 픽스처가 어제부터 7일
+계획을 만드는데 실행일이 8월 1일이라 1일차가 지난달이고, 달력이 이번 달만 그려
+`.calendar-day.selected`를 못 찾는다(`today.spec.js:98`). **월 경계에서만 터진다.**
+`paywall-ui.spec.js:178`은 PR #54에서 이미 부하 플레이키로 판정된 테스트이고, 직렬
+재실행에서 10.2초 만에 통과했다.

@@ -19,6 +19,12 @@ const TARGETS = [
   ".companion-relationship-heading > span", ".companion-relationship-summary dd",
   ".journey-pro-link", ".plan-subview-header > div > span",
   "#myPageSheet > header span",
+  // 앱 표면 2차 이관(app-900) 대상 — 탭 순회로 도달 가능한 것만
+  ".plan-badge", ".card-title span", ".text-button", ".execution-tabbar a",
+  ".calendar-weekdays span", ".calendar-day span", ".journey-map span",
+  ".companion-stats span", ".plan-preview-list article > span",
+  ".trial-status-banner > span", ".trial-status-banner a",
+  ".mypage-usage-heading span", ".mypage-usage-row span",
 ];
 
 (async () => {
