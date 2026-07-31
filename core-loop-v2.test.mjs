@@ -17,15 +17,19 @@ test("core loop prototype is isolated from the default product path and provider
   assert.match(script, /aiCalls:\s*\{\s*generation:\s*0,\s*revision:\s*0\s*\}/);
 });
 
-test("brand font is local, explicit, and separate from the body stack", () => {
-  assert.match(css, /font-family:\s*"여기어때 잘난체"/);
-  assert.match(css, /--font-brand-display:\s*"여기어때 잘난체"/);
-  assert.match(css, /--font-brand-ui:\s*"여기어때 잘난체"/);
-  assert.match(css, /--font-body:\s*"Pretendard",\s*"Apple SD Gothic Neo",\s*"Malgun Gothic",\s*sans-serif/);
-  assert.match(css, /assets\/fonts\/yeogieottae-jalnan2\.woff2/);
+test("brand font is local, explicit, and shared with the body stack", () => {
+  // 프로토타입은 자체 @font-face를 갖고 있었다. 지금은 본 화면과 같은 벤더된 CSS를
+  // 불러오고, 가족 토큰도 전부 --font-body 하나로 모인다.
+  assert.match(html, /<link rel="stylesheet" href="assets\/fonts\/pretendard\/pretendard-variable\.css" \/>/);
+  assert.doesNotMatch(css, /@font-face/);
+  assert.match(css, /--font-body:\s*"Pretendard Variable",\s*"Pretendard",\s*"Apple SD Gothic Neo",\s*"Malgun Gothic",\s*sans-serif/);
+  for (const token of ["--font-numeric", "--font-brand-display", "--font-brand-ui"]) {
+    assert.match(css, new RegExp(`${token}:\\s*var\\(--font-body\\)`), `${token}가 --font-body를 가리키지 않는다`);
+  }
   assert.doesNotMatch(css, /https?:\/\//);
   assert.match(css, /font-synthesis:\s*none/);
   assert.match(css, /\.focus-orbit strong\s*\{[^}]*font-family:\s*var\(--font-numeric\)/s);
+  assert.match(css, /\.focus-orbit strong\s*\{[^}]*font-variant-numeric:\s*tabular-nums/s);
   assert.match(server, /\.woff2":\s*"font\/woff2"/);
 });
 

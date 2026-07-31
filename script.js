@@ -355,8 +355,8 @@ async function verifyBrandFont() {
   document.body.dataset.brandFontState = "loading";
   try {
     if (!document.fonts?.load || !document.fonts?.check) throw new Error("Font Loading API unavailable");
-    await document.fonts.load('32px "여기어때 잘난체"', "올리가 함께 걸어요");
-    const loaded = document.fonts.check('32px "여기어때 잘난체"', "올리가 함께 걸어요");
+    await document.fonts.load('32px "Pretendard Variable"', "올리가 함께 걸어요");
+    const loaded = document.fonts.check('32px "Pretendard Variable"', "올리가 함께 걸어요");
     document.body.dataset.brandFontState = loaded ? "loaded" : "failed";
     if (!loaded) showBrandFontFailure();
     return loaded;

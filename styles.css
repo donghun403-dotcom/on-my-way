@@ -1,11 +1,3 @@
-@font-face {
-  font-family: "여기어때 잘난체";
-  src: url("assets/fonts/yeogieottae-jalnan2.woff2") format("woff2");
-  font-display: swap;
-  font-style: normal;
-  font-weight: 400;
-}
-
 /* ============================================================
    Ollie design tokens — single source of truth.
    Primitive ramps -> semantic roles -> back-compat aliases.
@@ -19,10 +11,19 @@
    ============================================================ */
 :root {
   /* ---- typography families ---- */
-  --font-brand-display: "여기어때 잘난체";
-  --font-brand-ui: "여기어때 잘난체";
-  --font-body: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
-  --font-numeric: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  /* 글꼴은 한 가족이다. 제목과 본문은 --weight-*로 구분한다. */
+  --font-body: "Pretendard Variable", "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font-numeric: var(--font-body);
+  --font-brand-display: var(--font-body);
+  --font-brand-ui: var(--font-body);
+
+  /* ---- typography weights ---- */
+  /* 제목과 본문은 글꼴 가족이 아니라 굵기로 구분한다.
+     값은 docs/design-tokens.md:93의 6단계 계약 안에서 고른다. */
+  --weight-body: 400;
+  --weight-emphasis: 600;
+  --weight-title: 700;
+  --weight-display: 800;
 
   /* ---- primitive: cloud blue ---- */
   --blue-50: #f3f7fc;
@@ -232,23 +233,56 @@ textarea {
   font: inherit;
 }
 
+/* 이 셀렉터 목록은 원래 하나의 규칙으로 굵기 400 하나를 공유했다. 화면 제목·CTA·
+   섹션 제목·탭 라벨이 섞여 있어 역할 토큰 하나로 옮길 수 없으므로 역할별로 나눈다.
+   font-family와 font-synthesis는 그대로 유지해 렌더링에는 영향이 없다.
+
+   주의: .focus-start-button의 font-weight는 여기서 적용되지 않는다. 브랜드 글꼴과
+   무관한 기존 규칙 `.execution-page .focus-start-button { min-height: 58px; ... }`가
+   동일 명시도([0,2,0])·더 뒤 소스 순서로 캐스케이드를 이긴다(줄 번호는 쉽게 낡으므로
+   셀렉터로 찾을 것). Task 3 시점에는 그 규칙이 900을 리터럴로 들고 있어 이 토큰 값을
+   바꿔도 화면이 바뀌지 않았다. Task 5의 실측이 그 900을 오늘 탭에서 확인해
+   var(--weight-display)로 옮겼으므로, 이제 두 규칙이 같은 토큰을 가리킨다 —
+   토큰을 바꾸면 화면도 함께 바뀐다. 이기는 쪽은 여전히 그 규칙이다. */
+.execution-page .today-welcome h1,
+.execution-page .focus-start-button {
+  font-family: var(--font-brand-display);
+  font-synthesis: none;
+  font-weight: var(--weight-display);
+}
+
 .brand-display,
 .home-page #designFlow h2,
 .home-page #diagnosisStepTitle,
 .home-page #draftUnderstandingTitle,
 .home-page #roadmapTitle,
-.home-page #aiPreviewButton,
-.home-page #trialStartInlineLink,
-.execution-page .today-welcome h1,
 .execution-page .today-next-action h2,
-.execution-page .focus-start-button,
 .execution-page .plan-overview-head h2,
-.execution-page .plan-roadmap-summary h3,
+.execution-page .plan-roadmap-summary h3 {
+  font-family: var(--font-brand-display);
+  font-synthesis: none;
+  font-weight: var(--weight-title);
+}
+
+/* #aiPreviewButton과 #trialStartInlineLink는 여기 넣지 않는다. 더 구체적인
+   .home-page .goal-builder-shell #aiPreviewButton / .home-page #trialStartInlineLink
+   규칙(주요 CTA, --weight-display)이 이미 이 둘을 완전히 담당하고, 특정성이
+   더 높거나(전자) 순서상 더 뒤에 오므로(후자) 캐스케이드에서 항상 그 규칙이
+   이긴다. 여기 같이 넣으면 실제로는 적용되지 않는 --weight-emphasis를
+   적용되는 것처럼 보이게 해 혼동만 남긴다.
+
+   주의: .execution-tabbar .tab-label의 font-weight도 여기서 실제로 적용되지
+   않는다. 브랜드 글꼴과 무관한 기존 규칙 `.execution-page .execution-tabbar
+   .tab-label { font-size: 11px; font-weight: 700; ... }`(줄 번호는 쉽게 낡으므로
+   셀렉터로 찾을 것)가 동일 명시도([0,3,0])·더 뒤 소스 순서로 캐스케이드를 이긴다.
+   Task 3 이전부터 있던 문제다(그때도 700이 이겼다 — 여기가 400이었을 뿐). 이 토큰 값을 바꿔도
+   화면은 바뀌지 않는다. 고치려면 브랜드 선언이 아닌 그 규칙을 건드려야 해서
+   범위 밖으로 남겨둔다. */
 .execution-page .execution-tabbar .tab-label,
 .execution-page .ollie-growth-milestones strong {
   font-family: var(--font-brand-display);
   font-synthesis: none;
-  font-weight: 400;
+  font-weight: var(--weight-emphasis);
 }
 
 .site-header {
@@ -376,7 +410,7 @@ textarea {
   margin: 0 0 12px;
   color: var(--red);
   font-size: 13px;
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
   text-transform: uppercase;
 }
 
@@ -551,7 +585,7 @@ footer p {
 .analysis-grid span {
   color: var(--muted);
   font-size: 13px;
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
 }
 
 .analysis-header strong {
@@ -1809,7 +1843,7 @@ footer p {
 .home-page .eyebrow {
   color: var(--app-mint);
   font-size: 11px;
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
   letter-spacing: 0;
 }
 
@@ -2392,7 +2426,7 @@ footer p {
 .tomorrow-card span {
   color: var(--app-mint);
   font-size: 12px;
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
 }
 
 .ollie-message p,
@@ -2400,7 +2434,7 @@ footer p {
   margin: 4px 0 0;
   color: var(--app-text);
   font-size: 20px;
-  font-weight: 900;
+  font-weight: var(--weight-title);
   line-height: 1.35;
 }
 
@@ -2971,7 +3005,7 @@ footer p {
   border-radius: 999px;
   padding: 7px 10px;
   font-size: 12px;
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
   white-space: nowrap;
 }
 
@@ -3162,7 +3196,7 @@ footer p {
   color: var(--n-900);
   background: var(--app-mint);
   border-radius: var(--r-sm);
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
 }
 
 .weekly-plan strong {
@@ -4626,7 +4660,7 @@ body.sheet-open {
   border: 1px solid var(--routine-green);
   border-radius: 999px;
   font-size: 13px;
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
   cursor: pointer;
 }
 
@@ -4884,7 +4918,7 @@ body.sheet-open {
   transform: translate(-50%, 14px);
   transition: opacity 180ms ease, transform 180ms ease;
   font-size: 13px;
-  font-weight: 900;
+  font-weight: var(--weight-title);
   text-align: center;
 }
 
@@ -6123,7 +6157,7 @@ body.sheet-open {
   border-radius: var(--r-xl);
   box-shadow: 0 28px 80px rgba(30, 58, 95, 0.25), 0 4px 18px rgba(44, 74, 111, 0.08);
   transform: translateX(-50%);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  font-family: var(--font-body);
   letter-spacing: -0.018em;
 }
 
@@ -6168,7 +6202,7 @@ body.sheet-open {
   font-family: var(--font-brand-display);
   font-synthesis: none;
   font-size: clamp(24px, 7vw, 31px);
-  font-weight: 700;
+  font-weight: var(--weight-title);
   line-height: 1.22;
   letter-spacing: -0.045em;
 }
@@ -6212,7 +6246,7 @@ body.sheet-open {
   min-height: 54px;
   padding: 0 16px;
   border-radius: var(--r-md);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  font-family: var(--font-body);
   font-size: 15px;
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -6253,12 +6287,12 @@ body.sheet-open {
 .admin-password-control button { min-height: 44px; padding: 0 var(--space-3); color: #fff; background: var(--brand-solid); border: 0; border-radius: var(--r-sm); font: inherit; font-size: 11px; font-weight: 800; cursor: pointer; }
 .admin-password-control button:disabled { opacity: .6; cursor: wait; }
 .admin-password-form > p { min-height: 14px; margin: 0; color: var(--rose-600); font-size: var(--text-2xs); font-weight: 700; }
-.execution-page .auth-sheet-terms { margin: 0; padding: 0 28px var(--space-5); color: var(--n-600); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; font-size: var(--text-2xs); font-weight: 500; line-height: 1.6; text-align: center; word-break: keep-all; }
+.execution-page .auth-sheet-terms { margin: 0; padding: 0 28px var(--space-5); color: var(--n-600); font-family: var(--font-body); font-size: var(--text-2xs); font-weight: 500; line-height: 1.6; text-align: center; word-break: keep-all; }
 .execution-page .auth-sheet-terms a { color: var(--n-600); text-underline-offset: 2px; }
 
 /* Account drawer */
 .execution-page .app-menu-backdrop { position: fixed; inset: 0; z-index: 68; background: rgba(31, 44, 51, 0.26); backdrop-filter: blur(5px); }
-.execution-page .app-menu-drawer { position: fixed; top: 88px; right: max(14px, calc((100vw - 1120px) / 2)); z-index: 70; width: min(calc(100% - 28px), 342px); padding: var(--space-4); color: var(--blue-900); background: rgba(253, 254, 252, 0.97); border: 1px solid rgba(255, 255, 255, 0.9); border-radius: var(--r-xl); box-shadow: var(--shadow-xl); backdrop-filter: blur(20px); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+.execution-page .app-menu-drawer { position: fixed; top: 88px; right: max(14px, calc((100vw - 1120px) / 2)); z-index: 70; width: min(calc(100% - 28px), 342px); padding: var(--space-4); color: var(--blue-900); background: rgba(253, 254, 252, 0.97); border: 1px solid rgba(255, 255, 255, 0.9); border-radius: var(--r-xl); box-shadow: var(--shadow-xl); backdrop-filter: blur(20px); font-family: var(--font-body); }
 .drawer-guest { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 12px; align-items: center; }
 .drawer-guest img { width: 58px; height: 66px; object-fit: contain; }
 .drawer-guest strong, .drawer-member strong { display: block; color: var(--blue-900); font-size: 15px; }
@@ -6642,7 +6676,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .home-page .hero-poster h1 span {
   font-family: var(--font-brand-display);
   font-synthesis: none;
-  font-weight: 600;
+  font-weight: var(--weight-emphasis);
   letter-spacing: -0.01em;
 }
 
@@ -6650,7 +6684,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .home-page .section-heading h2 {
   font-family: var(--font-brand-display);
   font-synthesis: none;
-  font-weight: 700;
+  font-weight: var(--weight-title);
   letter-spacing: -0.01em;
 }
 
@@ -7137,7 +7171,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   gap: 8px;
   color: var(--blue-800);
   font-size: 12px;
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
 }
 
 .builder-field > span {
@@ -7380,7 +7414,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   padding: 0 var(--space-5);
   border-radius: var(--r-sm);
   font-size: 13px;
-  font-weight: 900;
+  font-weight: var(--weight-display);
   cursor: pointer;
   transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease;
 }
@@ -7652,7 +7686,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .result-details-disclosure > summary strong {
   color: var(--blue-800);
   font-size: 12px;
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
 }
 
 .result-details-disclosure > summary small {
@@ -7844,7 +7878,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .result-section-head > span {
   color: var(--blue-700);
   font-size: var(--text-2xs);
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
   letter-spacing: 0.12em;
 }
 
@@ -7874,7 +7908,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .result-schedule-list time {
   color: var(--blue-700);
   font-size: var(--text-2xs);
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
   line-height: 1.45;
 }
 
@@ -8508,14 +8542,14 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   font-family: var(--font-brand-display);
   font-synthesis: none;
   font-size: clamp(24px, 3vw, 32px);
-  font-weight: 600;
+  font-weight: var(--weight-emphasis);
   letter-spacing: -0.02em;
 }
 
 .footer-brand-block span {
   color: var(--lilac-700);
   font-size: 12px;
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
@@ -8869,7 +8903,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   font-family: var(--font-brand-display);
   font-synthesis: none;
   font-size: clamp(27px, 3.7vw, 40px);
-  font-weight: 700;
+  font-weight: var(--weight-title);
   line-height: 1.28;
 }
 
@@ -10859,7 +10893,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   border-radius: 999px;
   font-family: inherit;
   font-size: 12px;
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
   line-height: 1;
   cursor: pointer;
   transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
@@ -10869,7 +10903,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   display: inline;
   font-style: normal;
   font-size: var(--text-2xs);
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
 }
 
 .menu-toggle {
@@ -10884,7 +10918,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   border: 1px solid rgba(107, 122, 166, 0.18);
   border-radius: var(--r-sm);
   font-family: inherit;
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
   cursor: pointer;
 }
 
@@ -11385,7 +11419,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   font-family: var(--font-brand-display);
   font-synthesis: none;
   font-size: clamp(34px, 4.7vw, 58px);
-  font-weight: 700;
+  font-weight: var(--weight-display);
   line-height: 1.08;
   letter-spacing: -0.03em;
 }
@@ -11587,7 +11621,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .execution-page .task-evening .task-content { background: linear-gradient(145deg, rgba(245, 240, 251, 0.92), rgba(251, 249, 253, 0.94)); }
 .execution-page .task-night .task-content { background: linear-gradient(145deg, rgba(238, 241, 250, 0.94), rgba(249, 249, 253, 0.94)); }
 .execution-page .task-row-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.execution-page .task-period { color: var(--blue-700); font-size: var(--text-2xs); font-weight: 900; }
+.execution-page .task-period { color: var(--blue-700); font-size: var(--text-2xs); font-weight: var(--weight-emphasis); }
 .execution-page .task-afternoon .task-period { color: var(--blush-600); }
 .execution-page .task-evening .task-period,
 .execution-page .task-night .task-period { color: var(--lilac-600); }
@@ -11607,7 +11641,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .execution-page .focus-start-button {
   min-height: 58px;
   font-size: 12px;
-  font-weight: 900;
+  font-weight: var(--weight-display);
 }
 
 .execution-page .focus-mode {
@@ -11894,7 +11928,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .execution-page .view-head > div > span {
   color: var(--lilac-600);
   font-size: var(--text-2xs);
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
   letter-spacing: 0.11em;
 }
 
@@ -14508,7 +14542,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   border: 0;
   font: inherit;
   font-size: 12px;
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
   cursor: pointer;
 }
 .execution-page .schedule-list-toggle { width: 100%; }
@@ -14516,7 +14550,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .execution-page .today-tools > summary { display: flex; align-items: center; justify-content: space-between; list-style: none; }
 .execution-page .today-tools > summary::after { content: "+"; font-size: 18px; }
 .execution-page .today-tools[open] > summary::after { content: "−"; }
-.execution-page .today-progress-details > summary { min-height: 44px; cursor: pointer; color: var(--blue-700); font-size: 11px; font-weight: 900; }
+.execution-page .today-progress-details > summary { min-height: 44px; cursor: pointer; color: var(--blue-700); font-size: 11px; font-weight: var(--weight-emphasis); }
 .execution-page .today-progress-details .coach-card { display: grid; grid-template-columns: 72px 1fr; gap: 12px; align-items: center; padding-top: 12px; }
 .execution-page .today-progress-details .coach-card img { width: 68px; height: 78px; object-fit: contain; }
 
@@ -14561,7 +14595,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   .execution-page #view-today .coach-card { box-shadow: none; background: transparent; }
   .execution-page .execution-tabbar { bottom: 0; width: 100%; max-width: none; min-height: calc(var(--mobile-tabbar-height) + env(safe-area-inset-bottom)); padding: 6px max(8px, env(safe-area-inset-left)) env(safe-area-inset-bottom) max(8px, env(safe-area-inset-right)); border-radius: var(--r-md) var(--r-md) 0 0; }
   .execution-page .execution-tabbar .tab { min-width: 0; min-height: 52px; padding: 5px 2px; border-radius: var(--r-sm); }
-  .execution-page .execution-tabbar .tab.active { font-weight: 900; background: rgba(83, 127, 183,.16); }
+  .execution-page .execution-tabbar .tab.active { font-weight: var(--weight-emphasis); background: rgba(83, 127, 183,.16); }
 }
 
 @media (max-width: 360px) {
@@ -14649,25 +14683,25 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 
 .execution-page #view-today .recovery-card { order: 2; }
 .execution-page #view-today .today-card { order: 3; }
-.execution-page .today-plan-adjust-button { display: inline-flex; min-height: 44px; padding: 0 14px; align-items: center; justify-content: center; color: var(--blue-700); background: rgba(255,255,255,.72); border: 1px solid rgba(107,122,166,.15); border-radius: var(--r-sm); font-size: var(--text-2xs); font-weight: 900; }
+.execution-page .today-plan-adjust-button { display: inline-flex; min-height: 44px; padding: 0 14px; align-items: center; justify-content: center; color: var(--blue-700); background: rgba(255,255,255,.72); border: 1px solid rgba(107,122,166,.15); border-radius: var(--r-sm); font-size: var(--text-2xs); font-weight: var(--weight-emphasis); }
 .execution-page #view-today .task-row.is-next { border-color: rgba(83, 127, 183,.42); box-shadow: var(--shadow-md); }
 .execution-page #view-today .task-row.is-next .task-content > label { font-size: 13px; }
 .execution-page #view-today .task-row-head { display: flex; align-items: center; justify-content: space-between; }
-.execution-page .task-edit-button { min-width: 44px; min-height: 45px; padding: 0 9px; color: var(--blue-700); background: rgba(255,255,255,.82); border: 1px solid rgba(107,122,166,.12); border-radius: var(--r-sm); font-size: var(--text-2xs); font-weight: 900; }
+.execution-page .task-edit-button { min-width: 44px; min-height: 45px; padding: 0 9px; color: var(--blue-700); background: rgba(255,255,255,.82); border: 1px solid rgba(107,122,166,.12); border-radius: var(--r-sm); font-size: var(--text-2xs); font-weight: var(--weight-emphasis); }
 .execution-page .task-edit-button:disabled { opacity: .35; }
 .execution-page .today-plan-support { display: grid; gap: 7px; margin-top: 10px; }
 .execution-page .today-plan-support p { display: grid; grid-template-columns: 70px minmax(0,1fr); gap: 9px; margin: 0; padding: 10px 12px; color: var(--blue-700); background: rgba(234, 239, 245,.65); border-radius: var(--r-sm); font-size: var(--text-2xs); line-height: 1.5; }
 .execution-page .today-plan-support b { color: var(--blue-700); }
 .execution-page .plan-criteria-card { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; margin: 16px 0; }
 .execution-page .plan-criteria-card > div { min-width: 0; padding: 12px; background: rgba(255,255,255,.7); border: 1px solid rgba(107,122,166,.1); border-radius: var(--r-sm); }
-.execution-page .plan-criteria-card dt { color: var(--blue-700); font-size: var(--text-2xs); font-weight: 900; }
+.execution-page .plan-criteria-card dt { color: var(--blue-700); font-size: var(--text-2xs); font-weight: var(--weight-emphasis); }
 .execution-page .plan-criteria-card dd { margin: 5px 0 0; color: var(--blue-800); font-size: 11px; font-weight: 800; overflow-wrap: anywhere; }
 .execution-page .plan-range-switch { display: grid; grid-template-columns: 1fr 1fr; margin-top: var(--space-4); padding: 3px; background: rgba(107,122,166,.08); border-radius: var(--r-sm); }
-.execution-page .plan-range-switch button { min-height: 40px; color: var(--blue-700); background: transparent; border: 0; border-radius: var(--r-xs); font-weight: 900; }
+.execution-page .plan-range-switch button { min-height: 40px; color: var(--blue-700); background: transparent; border: 0; border-radius: var(--r-xs); font-weight: var(--weight-emphasis); }
 .execution-page .plan-range-switch button.active { color: var(--blue-700); background: #fff; box-shadow: var(--shadow-sm); }
 .execution-page .plan-schedule-list { display: grid; gap: 10px; margin-top: 12px; }
 .execution-page .plan-schedule-list > details { overflow: clip; background: rgba(255,255,255,.68); border: 1px solid rgba(107,122,166,.1); border-radius: var(--r-md); }
-.execution-page .plan-schedule-list > details > summary { padding: var(--space-3) var(--space-4); color: var(--blue-700); font-size: 11px; font-weight: 900; cursor: pointer; }
+.execution-page .plan-schedule-list > details > summary { padding: var(--space-3) var(--space-4); color: var(--blue-700); font-size: 11px; font-weight: var(--weight-emphasis); cursor: pointer; }
 .execution-page .plan-schedule-week { display: grid; gap: 8px; padding: 0 10px 10px; }
 .execution-page .plan-schedule-week section { display: grid; gap: 6px; padding: 10px; background: rgba(244, 247, 250,.72); border-radius: var(--r-sm); }
 .execution-page .plan-schedule-week h3 { margin: 0; color: var(--blue-700); font-size: var(--text-2xs); }
@@ -14742,7 +14776,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   color: var(--blue-900);
   font-family: var(--font-brand-display);
   font-synthesis: none;
-  font-weight: 400;
+  font-weight: var(--weight-title);
   word-break: keep-all;
 }
 
@@ -14781,7 +14815,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   font-family: var(--font-brand-ui);
   font-synthesis: none;
   font-size: clamp(16px, 2vw, 20px);
-  font-weight: 400;
+  font-weight: var(--weight-display);
 }
 
 .home-page .quiet-note {
@@ -14893,7 +14927,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   font-family: var(--font-brand-display);
   font-synthesis: none;
   font-size: 16px;
-  font-weight: 400;
+  font-weight: var(--weight-emphasis);
 }
 
 .home-page .first-week-disclosure {
@@ -14922,7 +14956,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   color: var(--blue-800);
   font-family: var(--font-brand-ui);
   font-synthesis: none;
-  font-weight: 400;
+  font-weight: var(--weight-emphasis);
 }
 
 .home-page .first-week-disclosure > ol {
@@ -14946,7 +14980,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .execution-page .plan-roadmap-summary > div > span {
   color: var(--blue-700);
   font-size: var(--text-2xs);
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
 }
 
 .execution-page .plan-roadmap-summary h3 {
@@ -15099,7 +15133,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   margin: 4px 0 0;
   color: var(--blue-900);
   font-family: var(--font-brand-display);
-  font-weight: 400;
+  font-weight: var(--weight-title);
   font-synthesis: none;
 }
 
@@ -15361,7 +15395,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   border: 0;
   border-radius: var(--r-xs);
   font-size: var(--text-2xs);
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
   cursor: pointer;
 }
 .execution-page .schedule-mode-switch button.active {
@@ -15385,7 +15419,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   border-radius: var(--r-md);
 }
 .execution-page .today-next-action > div:first-child { min-width: 0; }
-.execution-page .today-next-action > div:first-child > span { color: var(--blue-700); font-size: var(--text-2xs); font-weight: 900; letter-spacing: 0.06em; }
+.execution-page .today-next-action > div:first-child > span { color: var(--blue-700); font-size: var(--text-2xs); font-weight: var(--weight-emphasis); letter-spacing: 0.06em; }
 .execution-page .today-next-action h3 { margin: 4px 0 2px; color: var(--app-ink); font-size: 13px; line-height: 1.35; }
 .execution-page .today-next-action p { margin: 0; color: var(--app-muted); font-size: var(--text-2xs); font-weight: 700; }
 .execution-page .today-next-action .focus-task-goal { min-width: 92px; padding: 9px 10px; border-radius: var(--r-sm); }
@@ -15488,7 +15522,8 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 
 .execution-page #view-today .progress-card { order: 4; }
 .execution-page .today-progress-body { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 16px; align-items: center; margin-top: var(--space-4); }
-.execution-page .today-progress-body > strong { color: var(--blue-700); font-family: var(--font-numeric); font-size: 34px; }
+/* tabular-nums: 자릿수가 바뀌어도 숫자 폭이 흔들리지 않게 고정한다. */
+.execution-page .today-progress-body > strong { color: var(--blue-700); font-family: var(--font-numeric); font-variant-numeric: tabular-nums; font-size: 34px; }
 .execution-page .today-progress-body .progress-track { margin: 0; }
 .execution-page #view-today .progress-card > p { margin-bottom: 0; }
 
@@ -15696,7 +15731,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .execution-page .plan-overview-head > div > span {
   color: var(--blue-700);
   font-size: var(--text-2xs);
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
   letter-spacing: 0.08em;
 }
 
@@ -15723,7 +15758,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   background: var(--blue-50);
   border-radius: 999px;
   font-size: var(--text-2xs);
-  font-weight: 900;
+  font-weight: var(--weight-emphasis);
   white-space: nowrap;
 }
 
@@ -17791,11 +17826,16 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .home-page #designFlow .brand-display,
 .home-page #designFlow #diagnosisStepTitle,
 .home-page #firstStep #draftUnderstandingTitle,
-.home-page #firstStep #roadmapTitle,
+.home-page #firstStep #roadmapTitle {
+  font-family: var(--font-brand-display);
+  font-synthesis: none;
+  font-weight: var(--weight-title);
+}
+
 .home-page #firstStep .result-roadmap-list strong {
   font-family: var(--font-brand-display);
   font-synthesis: none;
-  font-weight: 400;
+  font-weight: var(--weight-emphasis);
 }
 
 .execution-page .execution-app {
@@ -17901,10 +17941,11 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   content: "";
   position: absolute;
   top: 50%;
-  left: 0;
+  left: 50%;
+  min-width: 44px;
   width: 100%;
   height: 44px;
-  transform: translateY(-50%);
+  transform: translate(-50%, -50%);
 }
 
 /* Header logo link and menu toggle: the compact header keeps these under
@@ -18093,7 +18134,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   font-family: var(--font-brand-ui);
   font-synthesis: none;
   font-size: var(--text-sm);
-  font-weight: 400;
+  font-weight: var(--weight-emphasis);
   letter-spacing: 0;
   transition: color 160ms ease, background 160ms ease, border-color 160ms ease;
 }

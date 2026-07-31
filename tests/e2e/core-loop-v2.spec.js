@@ -13,11 +13,33 @@ async function prototypeState(page) {
   return page.evaluate(() => window.__coreLoopPrototype.getState());
 }
 
-test("actual Goal and Today paths load the local brand font without applying it to user text or numbers", async ({ page }) => {
+const SUBSET_URL = /\/assets\/fonts\/pretendard\/PretendardVariable\.subset\.\d+\.woff2$/;
+
+/* 글꼴이 "선언만 되고 실제로는 폴백으로 그려지는" 상태를 통과로 착각하지 않기 위한 실측.
+   document.fonts.ready로는 부족하다 — dynamic subset은 해당 글리프가 실제로 그려질 때
+   fetch가 시작되므로, cold page에서는 ready가 fetch가 시작되기도 전에 resolve되어
+   폴백과 같은 폭을 돌려준다. load()로 그 글꼴과 그 문자열을 명시적으로 요청해 await한다. */
+async function pretendardRendersDifferentlyFromFallback(page) {
+  return page.evaluate(async () => {
+    const sample = "목표까지 가는 마일스톤";
+    await document.fonts.load('40px "Pretendard Variable"', sample);
+    const measure = (family) => {
+      const span = document.createElement("span");
+      span.textContent = sample;
+      span.style.cssText = "position:absolute;left:-9999px;font-size:40px;white-space:nowrap";
+      span.style.fontFamily = family;
+      document.body.appendChild(span);
+      const width = span.getBoundingClientRect().width;
+      span.remove();
+      return width;
+    };
+    return measure('"Pretendard Variable", monospace') !== measure("monospace");
+  });
+}
+
+test("actual Goal and Today paths render one Pretendard family and split titles from body by weight", async ({ page }) => {
   await prepareApp(page);
-  const fontResponse = page.waitForResponse((response) =>
-    response.url().endsWith("/assets/fonts/yeogieottae-jalnan2.woff2"),
-  );
+  const fontResponse = page.waitForResponse((response) => SUBSET_URL.test(response.url()));
   await page.goto("/index.html#designFlow");
   await waitForBootstrap(page);
   await expect(page.locator("body")).toHaveAttribute("data-brand-font-state", "loaded");
@@ -25,17 +47,26 @@ test("actual Goal and Today paths load the local brand font without applying it 
   expect(response.status()).toBe(200);
   expect(response.headers()["content-type"]).toContain("font/woff2");
   const goalStyles = await page.evaluate(() => ({
-    ready: document.fonts.check('32px "여기어때 잘난체"', "올리가 함께 걸어요"),
+    ready: document.fonts.check('32px "Pretendard Variable"', "올리가 함께 걸어요"),
     heading: getComputedStyle(document.querySelector("#diagnosisStepTitle")).fontFamily,
     cta: getComputedStyle(document.querySelector("#aiPreviewButton")).fontFamily,
     input: getComputedStyle(document.querySelector("#designGoal")).fontFamily,
     synthesis: getComputedStyle(document.querySelector("#aiPreviewButton")).fontSynthesis,
+    headingWeight: getComputedStyle(document.querySelector("#diagnosisStepTitle")).fontWeight,
+    ctaWeight: getComputedStyle(document.querySelector("#aiPreviewButton")).fontWeight,
+    bodyWeight: getComputedStyle(document.body).fontWeight,
   }));
   expect(goalStyles.ready).toBe(true);
-  expect(goalStyles.heading).toContain("여기어때 잘난체");
-  expect(goalStyles.cta).toContain("여기어때 잘난체");
-  expect(goalStyles.input).not.toContain("여기어때 잘난체");
+  // 제목·CTA·사용자 입력이 전부 같은 한 가족이다. 예전에는 제목과 CTA만 잘난체였다.
+  expect(goalStyles.heading).toContain("Pretendard Variable");
+  expect(goalStyles.cta).toContain("Pretendard Variable");
+  expect(goalStyles.input).toContain("Pretendard Variable");
   expect(goalStyles.synthesis).toBe("none");
+  // 가족이 하나가 됐으니 제목과 본문을 가르는 것은 이제 굵기뿐이다. 이 단언이
+  // 무너지면 화면에서 제목이 본문과 구분되지 않는다.
+  expect(Number(goalStyles.headingWeight)).toBeGreaterThan(Number(goalStyles.bodyWeight));
+  expect(Number(goalStyles.ctaWeight)).toBeGreaterThan(Number(goalStyles.bodyWeight));
+  expect(await pretendardRendersDifferentlyFromFallback(page)).toBe(true);
 
   await page.goto("/app.html");
   await waitForAppReady(page);
@@ -48,11 +79,14 @@ test("actual Goal and Today paths load the local brand font without applying it 
     body: getComputedStyle(document.body).fontFamily,
     bodyToken: getComputedStyle(document.body).getPropertyValue("--font-body").trim(),
     paragraph: getComputedStyle(document.querySelector(".today-next-action p, .today-card p")).fontFamily,
+    headingWeight: getComputedStyle(document.querySelector(".today-welcome h1")).fontWeight,
+    bodyWeight: getComputedStyle(document.body).fontWeight,
   }));
-  expect(appStyles.heading).toContain("여기어때 잘난체");
-  expect(appStyles.action).toContain("여기어때 잘난체");
-  expect(appStyles.tab).toContain("여기어때 잘난체");
-  expect(appStyles.date).not.toContain("여기어때 잘난체");
+  expect(appStyles.heading).toContain("Pretendard Variable");
+  expect(appStyles.action).toContain("Pretendard Variable");
+  expect(appStyles.tab).toContain("Pretendard Variable");
+  expect(appStyles.date).toContain("Pretendard Variable");
+  expect(Number(appStyles.headingWeight)).toBeGreaterThan(Number(appStyles.bodyWeight));
 
   // Regression guard: `.execution-page` once redeclared --font-body as a size
   // (15px). Since <body> carries that class, `font-family: var(--font-body)`
@@ -63,19 +97,18 @@ test("actual Goal and Today paths load the local brand font without applying it 
   expect(appStyles.bodyToken).not.toMatch(/^\d+px$/);
   expect(appStyles.body).toContain("Pretendard");
   expect(appStyles.paragraph).toContain("Pretendard");
+  expect(await pretendardRendersDifferentlyFromFallback(page)).toBe(true);
 });
 
-test("local brand font loads for display and short UI roles while body and numeric roles stay neutral", async ({ page }) => {
-  const fontResponse = page.waitForResponse((response) =>
-    response.url().endsWith("/assets/fonts/yeogieottae-jalnan2.woff2"),
-  );
+test("prototype loads Pretendard locally and renders every text role in that one family", async ({ page }) => {
+  const fontResponse = page.waitForResponse((response) => SUBSET_URL.test(response.url()));
   await resetPrototype(page);
   const response = await fontResponse;
   expect(response.status()).toBe(200);
   expect(response.headers()["content-type"]).toContain("font/woff2");
 
   const styles = await page.evaluate(() => ({
-    fontReady: document.fonts.check('32px "여기어때 잘난체"', "올리가 함께 걸어요"),
+    fontReady: document.fonts.check('32px "Pretendard Variable"', "올리가 함께 걸어요"),
     title: getComputedStyle(document.querySelector("#goalTitle")).fontFamily,
     roadmap: getComputedStyle(document.querySelector("#roadmapTitle")).fontFamily,
     milestone: getComputedStyle(document.querySelector(".journey-path h2")).fontFamily,
@@ -87,44 +120,35 @@ test("local brand font loads for display and short UI roles while body and numer
     diaryBody: getComputedStyle(document.querySelector(".diary-list p")).fontFamily,
     diaryDate: getComputedStyle(document.querySelector(".diary-list time")).fontFamily,
     duration: getComputedStyle(document.querySelector(".focus-orbit strong")).fontFamily,
+    durationVariant: getComputedStyle(document.querySelector(".focus-orbit strong")).fontVariantNumeric,
     synthesis: getComputedStyle(document.querySelector(".secondary-action")).fontSynthesis,
     body: getComputedStyle(document.body).fontFamily,
-    brandViolations: [...document.querySelectorAll("body *")]
+    /* 이 태스크의 결과물 자체를 단언한다: 화면에 글자를 그리는 모든 요소가 한 가족이다.
+       예전에는 제목/짧은 UI는 잘난체, 본문/숫자는 본문 스택으로 두 가족이 섞여 있었다.
+       어떤 규칙이 다른 가족을 다시 들여오면 여기서 그 요소가 잡힌다. */
+    otherFamilies: [...document.querySelectorAll("body *")]
+      .filter((element) => !["SCRIPT", "STYLE", "TEMPLATE"].includes(element.tagName))
       .filter((element) => element.textContent.trim())
-      .map((element) => ({ element, style: getComputedStyle(element) }))
-      .filter(({ style }) => style.fontFamily.includes("여기어때 잘난체"))
-      .filter(({ style }) => {
-        const letterSpacing = style.letterSpacing === "normal" ? 0 : Number.parseFloat(style.letterSpacing);
-        return (
-          Number.parseFloat(style.fontSize) < 12 ||
-          Number.parseInt(style.fontWeight, 10) > 400 ||
-          letterSpacing < -1
-        );
-      })
-      .map(({ element, style }) => ({
+      .map((element) => ({ element, family: getComputedStyle(element).fontFamily }))
+      .filter(({ family }) => !family.includes("Pretendard Variable"))
+      .map(({ element, family }) => ({
         tag: element.tagName,
         text: element.textContent.trim().slice(0, 40),
-        fontSize: style.fontSize,
-        fontWeight: style.fontWeight,
-        letterSpacing: style.letterSpacing,
+        family,
       })),
   }));
   expect(styles.fontReady).toBe(true);
-  expect(styles.title).toContain("여기어때 잘난체");
-  expect(styles.roadmap).toContain("여기어때 잘난체");
-  expect(styles.milestone).toContain("여기어때 잘난체");
-  expect(styles.primary).toContain("여기어때 잘난체");
-  expect(styles.secondary).toContain("여기어때 잘난체");
-  expect(styles.bottomNav).toContain("여기어때 잘난체");
-  expect(styles.quickChip).toContain("여기어때 잘난체");
-  expect(styles.ollieSpeech).toContain("여기어때 잘난체");
+  for (const role of [
+    "title", "roadmap", "milestone", "primary", "secondary",
+    "bottomNav", "quickChip", "ollieSpeech", "diaryBody", "diaryDate", "duration", "body",
+  ]) {
+    expect(styles[role], role).toContain("Pretendard Variable");
+  }
   expect(styles.synthesis).toBe("none");
-  expect(styles.diaryBody).not.toContain("여기어때 잘난체");
-  expect(styles.diaryDate).not.toContain("여기어때 잘난체");
-  expect(styles.duration).not.toContain("여기어때 잘난체");
-  expect(styles.body).not.toContain("여기어때 잘난체");
-  expect(styles.body).toContain("Pretendard");
-  expect(styles.brandViolations).toEqual([]);
+  // 1초마다 바뀌는 집중 타이머 숫자가 자릿수에 따라 들썩이지 않게 고정한다.
+  expect(styles.durationVariant).toBe("tabular-nums");
+  expect(styles.otherFamilies).toEqual([]);
+  expect(await pretendardRendersDifferentlyFromFallback(page)).toBe(true);
 });
 
 for (const width of [320, 390, 430]) {
