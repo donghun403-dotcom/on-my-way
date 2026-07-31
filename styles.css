@@ -18722,7 +18722,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .task-builder-item {
   position: relative;
   display: grid;
-  grid-template-columns: 96px minmax(0, 1fr) 84px;
+  grid-template-columns: 120px minmax(0, 1fr) 84px;
   grid-template-areas:
     "time title minutes"
     "rule rule rule";
@@ -18766,6 +18766,13 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   font-weight: 700;
 }
 
+/* 상위 story-flow 입력 규칙의 여백·글자 크기가 좁은 시간 필드를 자르지 않게 한다. */
+.home-page .story-flow .task-time-field input {
+  padding-inline: 10px !important;
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
 .task-builder-item input:focus-visible {
   border-color: var(--border-brand);
   background: var(--surface);
@@ -18789,7 +18796,23 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   font-weight: 900;
 }
 
+/* personality-form의 기본 CTA 스타일보다 카드 삭제 컨트롤의 원형 디자인을 우선한다. */
+.home-page .personality-form .task-remove-button {
+  min-height: 28px;
+  padding: 0;
+  grid-column: auto;
+  color: var(--ink-muted);
+  background: var(--surface-muted);
+  border-radius: var(--r-circle);
+  box-shadow: none;
+}
+
 .task-remove-button:hover {
+  color: var(--ink-inverse);
+  background: var(--ink-danger);
+}
+
+.home-page .personality-form .task-remove-button:hover {
   color: var(--ink-inverse);
   background: var(--ink-danger);
 }
@@ -18854,7 +18877,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   box-shadow: var(--shadow-sm);
 }
 
-@media (max-width: 640px) {
+@media (max-width: 759px) {
   .task-builder-item {
     grid-template-columns: 1fr 1fr;
     grid-template-areas:
