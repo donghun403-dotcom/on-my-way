@@ -203,14 +203,25 @@ test("오늘 진행률 숫자가 tabular-nums로 고정되어 있다", () => {
   );
 });
 
-test("font-weight:900 잔여 수 래칫 — 새 900 유입을 막는다", () => {
+test("남은 font-weight:900은 전부 글리프 캐리어 — 사유 주석을 요구한다", () => {
   // 900은 6단계 계약 안의 값이라 위의 계약 테스트로는 유입을 못 잡는다.
-  // 이관(docs/execution-900-migration-plan.md)이 진행될 때마다 이 수를 내린다.
-  // 올라갔다면 새 900이 들어온 것이다 — 역할 토큰으로 쓰거나
-  // docs/artifacts/execution-900-classification.md에 근거를 남겨라.
-  const css = fs.readFileSync("styles.css", "utf8");
-  const count = (css.match(/font-weight:\s*900\b/g) || []).length;
-  // 아래로만 움직인다. 이관 완료 상태: 남은 12곳은 전부 글리프 캐리어다.
-  // 다음 커밋에서 이 숫자 래칫을 "글리프 사유 주석" 계약으로 승격한다.
-  assert.equal(count, 12);
+  // 네 라운드에 걸친 이관이 끝나(237 → 203 → 139 → 90 → 12) 남은 900은 전부
+  // 글리프 캐리어다 — "✓"·"×"·"!"·"♡" 같은 문자 아이콘을 그리는 선언이다.
+  //
+  // 그래서 숫자를 세는 대신 규칙을 지킨다. 숫자 래칫은 이관이 진행될 때만
+  // 뜻이 있었고 이제 내릴 숫자가 없다. 새 900이 들어오면 사유 주석이 없어서
+  // 걸리고, 실패 메시지가 줄 번호를 지목한다.
+  //
+  // 텍스트 위계에 굵기가 필요하면 역할 토큰을 써라: docs/design-tokens.md
+  // 글리프라면 아래 형식으로 사유를 남겨라 (문자열 "글리프 굵기"가 표지다).
+  //   /* 글리프 굵기("✓" 캐리어) — 텍스트 위계 아님, 역할 토큰 비대상.
+  //      final-900-classification.md #N */
+  const lines = fs.readFileSync("styles.css", "utf8").split("\n");
+  const offenders = [];
+  lines.forEach((line, i) => {
+    if (!/font-weight:\s*900\b/.test(line)) return;
+    const near = lines.slice(Math.max(0, i - 4), i).join("\n");
+    if (!/글리프 굵기/.test(near)) offenders.push(i + 1);
+  });
+  assert.deepEqual(offenders, [], `글리프 사유 주석이 없는 900: ${offenders.join(", ")}줄`);
 });
