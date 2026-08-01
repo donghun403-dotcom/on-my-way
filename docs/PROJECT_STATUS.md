@@ -1882,6 +1882,26 @@ Pretendard의 한글 자폭이 이전 폴백 글꼴보다 좁다. 히트 영역�
 
 셀렉터 목록에서 한 줄을 지울 때 삭제 범위는 **쉼표 경계**이지 줄 경계가 아니다. 그리고 이런 결함은 렌더링이 조용히 달라지는 종류라, 눈으로 보는 검증만으로는 절대 잡히지 않는다.
 
+## worktree e2e 포트 격리 (2026-08-02)
+
+- `playwright.config.js`가 `baseURL`과 `webServer.url`에 `8765`를 하드코딩하고 있었다. 포트를 정하는 자리가 셋인데 둘이 굳어 있으니 갈라진다. `PORT=8899`를 줘도 `serve-local.cjs`만 8899에 붙고 Playwright는 8765를 테스트했다.
+- 더 나쁜 쪽은 두 번째다. 다른 worktree가 8765를 쓰고 있으면 `reuseExistingServer: !CI`가 **아무 경고 없이** 남의 서버에 붙어 남의 HTML을 테스트했다. 재사용 분기는 `DEBUG=pw:webserver` 뒤에서만 로그를 남긴다. 결함의 증상은 "테스트가 실패한다"가 아니라 **"통과도 실패도 무의미해진다"**였다.
+- 이건 이론이 아니었다. 이 저장소의 과거 계획 문서 **5개**가 각자 이 문제를 수동으로 우회하고 있었다 — "이 worktree는 8768을 쓴다", "8765는 다른 워크트리 것이니 절대 건드리지 마라". 그 우회가 필요한 이유를 없앴다.
+- 포트를 한 번만 정하고(`PORT` → `E2E_PORT` → `8765`) 함께 움직여야 하는 세 곳(`use.baseURL`·`webServer.url`·서버에 넘기는 `env.PORT`)에 같은 값을 쓴다. `reuseExistingServer`는 항상 `false`다. 사용법은 아래 「작업 관행」 항목에 있다.
+- **CI는 영향이 없다.** e2e 두 곳 모두 `E2E_BASE_URL`을 주므로 `webServer`가 아예 구성되지 않고, 그러면 `reuseExistingServer`는 읽히지도 않는다. 이 변경은 로컬 개발 전용이다.
+- `webServer.env`가 `process.env`를 대체하면 서버가 `PATH` 없이 뜬다. Playwright 소스에서 `{ ...DEFAULT_ENVIRONMENT_VARIABLES, ...process.env, ...options.env }` 병합인 것을 확인했다(`playwright/lib/runner/index.js`).
+
+### 검증
+
+- `PORT=8899`로 실제 e2e 1건 **통과**. 8765에는 아무것도 떠 있지 않았으므로, 세 값이 갈라져 있었다면 Playwright가 8765를 기다리다 타임아웃으로 죽었을 것이다 — 통과 자체가 일원화의 증거다.
+- 8899에 가짜 서버를 띄우고 같은 명령을 돌리니 `already used`로 **실패**(exit 1). 예전 설정이라면 말없이 그 가짜 서버를 테스트했다. 이쪽이 이번 수정의 핵심 증거다.
+- `npm test`: **468 passed** (기존 459 + 신규 `playwright-port-isolation.test.mjs` 9)
+- PR #68 CI 4건 전부 통과 후 머지(`1b8697d`).
+
+### 남는 교훈
+
+로컬 e2e가 "그냥 통과"할 때 무엇을 통과한 것인지 물어야 한다. 이 결함은 실패를 만들지 않고 **결과의 의미만 지웠기 때문에** 오래 살아남았다. 그리고 계획 문서 5개가 같은 우회를 반복하고 있었다면 그건 개별 실수가 아니라 도구의 결함이라는 신호다.
+
 ## 작업 관행
 
 - **worktree에서 `gh pr merge --delete-branch`를 쓰지 마라.** 로컬 브랜치를 지우려고 베이스를
