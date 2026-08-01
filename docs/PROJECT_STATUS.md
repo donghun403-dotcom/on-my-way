@@ -1855,8 +1855,32 @@ Pretendard의 한글 자폭이 이전 폴백 글꼴보다 좁다. 히트 영역�
 - 인앱 브라우저 390px: 시간·분량 125px 동일 폭과 12px 간격, 7일 전체 문구 줄바꿈, 문서 가로 넘침 0px
 - `E2E_BASE_URL=http://127.0.0.1:8768 npx playwright test tests/e2e/responsive.spec.js -g "320x568 수동 빌더 결과 화면" --project=responsive-chromium --workers=1`: **1 passed**
 
+## 블록 없이 매달린 셀렉터가 삼킨 @media 수정 (2026-08-01)
+
+- 사문 CSS 삭제가 셀렉터 목록의 마지막 줄을 지우면서 `{`와 선언까지 함께 가져가, 앞의 두 줄이 쉼표로 끝난 채 매달려 있었다. CSS 파서는 `{`를 만날 때까지 프렐류드를 읽으므로 **뒤따르는 `@media`를 셀렉터의 일부로 삼키고** 무효한 규칙이라 통째로 버렸다. CSSOM에 해당 규칙이 없는 것으로 확인했다.
+- 그래서 온보딩 뒤로가기 버튼(`.wizard-back`, `index.html` 2곳)의 **키보드 포커스 아웃라인이 사라져 있었다.** 키보드 사용자만 겪는 손실이라 눈으로 보는 검증으로는 잡히지 않았다.
+- 함께 매달려 있던 `.analysis-question-controls`는 사문이라 되살리지 않았고, 삼켜졌던 `@media (max-width: 430px)`는 안이 비어 껍데기째 지웠다.
+- `fonts.test.mjs`에 계약 테스트를 넣었다. 프렐류드가 `@`로 시작하지 않는데 안에 `@`가 들어 있으면 at-rule을 삼킨 것이다. 고치기 전에 먼저 실패(14942줄 지목)하는 것을 확인한 뒤 통과시켰다.
+
+### 검증
+
+- CDP `CSS.forcePseudoState`로 `:focus-visible` 강제: 전 `auto 1px rgb(16,16,16)`(브라우저 기본) → 후 `solid 3px rgb(63,99,148) / offset 2px`(`--brand-solid`, 앱의 다른 포커스 링과 동일)
+- 비포커스 computed-style 스냅샷 3페이지 × 2폭: **6100 노드 차이 0** — 변화가 포커스 링 하나로 국한
+- 같은 검사로 `legal.css`·`core-loop-v2.css`를 훑어 둘 다 깨끗함을 확인 — 이 결함은 한 곳뿐이었다
+- `npm test`: **459 passed**
+- `E2E_BASE_URL=http://127.0.0.1:8778 npx playwright test tests/e2e/onboarding.spec.js tests/e2e/tap-targets.spec.js tests/e2e/responsive.spec.js --workers=1`: **70 passed**
+
+### 남는 교훈
+
+셀렉터 목록에서 한 줄을 지울 때 삭제 범위는 **쉼표 경계**이지 줄 경계가 아니다. 그리고 이런 결함은 렌더링이 조용히 달라지는 종류라, 눈으로 보는 검증만으로는 절대 잡히지 않는다.
+
 ## 작업 관행
 
+- **worktree에서 `gh pr merge --delete-branch`를 쓰지 마라.** 로컬 브랜치를 지우려고 베이스를
+  체크아웃하는데, `main`이 주 체크아웃에 잡혀 있으면
+  `fatal: 'main' is already used by worktree at ...`로 실패한다. **머지 자체는 이미 끝난 뒤라**
+  실패 메시지만 보고 머지가 안 됐다고 오해하기 쉽다(#66이 그랬다). worktree에서는
+  `--delete-branch` 없이 머지하고, 원격 브랜치는 `git push origin --delete`로 따로 지워라.
 - **스택 PR을 머지할 때 `--delete-branch`를 쓰지 마라.** 베이스 브랜치가 사라지면 그 위에
   쌓은 PR이 자동으로 닫히고, **닫힌 PR은 베이스를 바꿀 수 없다.** #44가 그렇게 없어졌다
   (같은 내용을 main 위로 리베이스해 #45로 다시 열어야 했다). 스택을 정리하려면 머지한 뒤
