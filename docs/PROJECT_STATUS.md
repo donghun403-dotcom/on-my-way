@@ -1795,6 +1795,16 @@ Pretendard의 한글 자폭이 이전 폴백 글꼴보다 좁다. 히트 영역�
 
 - 일정 완료·기록·축하 흐름과 320~430px 모바일 화면 관련 Playwright 테스트: **7 passed**
 
+## 결과 화면 이해 카드 내부 정렬 수정 (2026-08-01)
+
+- 2×2 카드의 박스 크기와 overflow는 정상이었지만, 같은 행의 긴 카드에 높이를 맞추는 과정에서 짧은 카드의 내부 grid 행까지 늘어나 제목과 본문 사이가 불균일해지던 문제를 수정했다.
+- 카드 내부에 `align-content: start`를 적용해 문장 길이와 관계없이 제목과 본문을 같은 위쪽 기준선에 모았다.
+
+### 검증
+
+- Chromium 958px·768px·430px: 모든 카드 제목 상단 12px, 본문 상단 30px, 가로·세로 overflow 0px 확인
+- `npx playwright test tests/e2e/responsive.spec.js -g "320x568 수동 빌더 결과 화면" --project=responsive-chromium --workers=1`: **1 passed**
+
 ## 작업 관행
 
 - **스택 PR을 머지할 때 `--delete-branch`를 쓰지 마라.** 베이스 브랜치가 사라지면 그 위에
