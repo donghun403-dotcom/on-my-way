@@ -386,3 +386,62 @@ e2e(plan·mate·ollie-memory-ux·records·day-page·diary-book·today·tap-targe
 `.calendar-day.selected`를 못 찾는다(`today.spec.js:98`). **월 경계에서만 터진다.**
 `paywall-ui.spec.js:178`은 PR #54에서 이미 부하 플레이키로 판정된 테스트이고, 직렬
 재실행에서 10.2초 만에 통과했다.
+
+## 마지막 900 정리 (final-900) — 2026-08-01
+
+브랜치 `feat/final-900-migration`. **굵기 이관이 끝났다.** 90 → **12**
+(사문 48곳 삭제 + 살아있는 30곳 이관 + 글리프 12곳 유지).
+
+### 삭제 안전 증명
+
+사문 클래스가 거느린 규칙 244개 · 1496줄을 지웠다(`styles.css`의 7.8%).
+증거는 `scripts/snapshot-computed-styles.cjs`의 계산값 전수 diff다 —
+`index`·`app`·`admin` 세 페이지를 390·1280 두 폭에서 열고 21종 속성을 노드마다
+비교해 **6150 노드에서 차이 0**. 자세한 것은 `final-900-deletion-report.md`.
+
+### 이관 전후 렌더값
+
+측정은 390px, 랜딩은 서버로, 관리자는 마크업을 `setContent`로 심고 `<base href>`로
+스타일시트를 물려서 했다(`/admin.html`은 인증 게이트라 서버로 열면 앱으로 302된다).
+
+| 셀렉터 | 화면 | 전 | 후 |
+| --- | --- | --- | --- |
+| `.personality-form button` | 랜딩 | **400** (캐스케이드 패자) | 400 (변화 없음) |
+| `.builder-header > span` | 랜딩 | **800** (캐스케이드 패자) | 800 (변화 없음) |
+| `.summary-head span` | 랜딩 | 900 | 600 |
+| `.live-summary dd` | 랜딩 | 900 | 600 |
+| `.feature-number` | 랜딩 | 900 | 600 |
+| `.mini-schedule-row span` | 랜딩 | 900 | 600 |
+| `.feature-app-link` | 랜딩 | 900 | 600 |
+| `.pricing-recommended-badge` | 랜딩 | 900 | 600 |
+| `.pricing-plan-cta` | 랜딩 | 900 | 600 |
+| `.pricing-comparison-row dd` | 랜딩 | 900 | 600 |
+| `.pricing-faq details > summary` | 랜딩 | 900 | **700** (아코디언 제목) |
+| `.builder-choice-section > legend` | 랜딩 | 900 | **700** (섹션 제목) |
+| `.hero-trial-button` | 랜딩 | 900 | **800** (화면의 단일 주요 CTA) |
+| `.admin-stat-grid em` | 관리자 | 900 | 600 |
+| `.admin-table th` | 관리자 | 900 | 600 |
+| `.status-pill` | 관리자 | 900 | 600 |
+| `.admin-health-strip small` | 관리자 | 900 | 600 |
+| `.admin-funnel-visual span` | 관리자 | 900 | 600 |
+| `.retention-summary small` | 관리자 | 900 | 600 |
+| `.plan-pill` | 관리자 | 900 | 600 |
+| `.admin-password-change-form button` | 관리자 | 900 | 600 |
+| `.health-icon` | 관리자 | 900 | **900 유지** (글리프 `!`·`↗`·`✓`) |
+
+속성 단위로 확인한 결과 **바뀐 것은 `font-weight`뿐이다.** 랜딩 이관은 130 노드
+(900→600 112 · 900→700 16 · 900→800 2), 관리자 이관은 130 노드(전부 900→600),
+양쪽 다 **레이아웃 변경 0**. 히어로 버튼 폭이 266.36 → 266.86px로 0.5px 움직인 것이
+전부이고 44px 근처가 아니다.
+
+### 이번 라운드에 배운 것
+
+- **분류가 생존 검사를 대신할 수 없다.** `::before`가 붙었다는 이유로 "글리프"로
+  먼저 분류된 두 규칙이 "이 클래스가 존재하는가"를 묻지 않고 지나갔다. 둘 다 사문이었다.
+- **글리프 판정 기준은 셀렉터 모양이 아니라 담는 것이다.** `::before`여도 `counter()`로
+  숫자를 그리면 글리프가 아니고, 평범한 `<button>`이어도 내용이 `×` 하나뿐이면 글리프다.
+- **측정 도구가 틀렸을 가능성을 먼저 의심한다.** 이 라운드에서 도구가 조용히 잘못된
+  답을 준 것이 세 번이다 — 인증 게이트로 엉뚱한 페이지 측정, 레이아웃 속성 누락,
+  CRLF/LF 차이로 인한 가짜 오삭제 248건.
+- **`git stash`를 A/B에 쓰지 않는다.** 스택이 저장소 전체에 하나뿐이라 다른 세션과
+  충돌한다. 파일 복사로 한다.
