@@ -114,6 +114,13 @@ jobs:
           CAPACITOR_TELEMETRY: "false"
         run: npx cap add android
 
+      # 1회차(2026-08-02)에서 .md 내보내기가 A·B 모두 실패했다 — WebView가 blob
+      # 다운로드를 DownloadListener 없이 흘린다. 네이티브 프로젝트는 커밋하지 않으므로
+      # 생성된 MainActivity를 여기서 갈아끼운다. 빈 템플릿이 아니면 이 단계가 실패한다.
+      - name: Attach the native download handling
+        working-directory: mobile
+        run: node scripts/patch-download.mjs
+
       # cap add가 이미 copy+update를 실행하지만 그건 add의 부수효과지 계약이 아니다.
       # 에셋이 네이티브 프로젝트에 들어갔다는 것을 명시적으로 보장한다.
       - name: Sync the web assets into the Android project

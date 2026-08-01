@@ -75,6 +75,32 @@ A·B 모두 `window.print()`가 **1ms 안에 반환하고 예외를 던지지 �
 
 **리드타임 추정은 아직 하지 않는다.** 인증 경로가 서지 않은 상태의 숫자는 근거가 없다.
 
+### 후속 — 네이티브 다운로드 처리를 붙였다 (같은 날)
+
+`mobile/scripts/patch-download.mjs`. `cap add android`가 만든 `MainActivity`를 갈아끼워
+WebView에 `DownloadListener`를 심는다. `blob:`은 DownloadManager가 모르는 스킴이라
+페이지 안에서 읽어 data URL로 되돌린 뒤 `MediaStore.Downloads`에 쓴다.
+
+**제품 코드는 한 줄도 바꾸지 않았다.** 결함이 "WebView가 blob 다운로드를 흘린다"이므로
+고칠 자리가 네이티브다. `script.js`를 고치는 쪽은 구성 A가 실서버를 열기 때문에
+프로덕션 배포를 먼저 해야 잴 수 있고, 브라우저에서는 이미 되는 경로에 네이티브 분기를
+남긴다.
+
+세 가지를 계약으로 고정했다(`mobile-download-patch.test.mjs`, 7건).
+
+| 고정한 것 | 왜 |
+| --- | --- |
+| 빈 템플릿이 아니면 **덮어쓰지 않고 실패**한다 | Capacitor가 템플릿에 코드를 넣기 시작했는데 조용히 지우면 원인 모를 버그가 된다 |
+| 저장 전에 **현재 페이지 출처를 확인**한다 | `JavascriptInterface`는 WebView의 모든 페이지에 노출된다. 구성 A는 로그인 중 provider 도메인으로 이동한다 |
+| blob은 **`CapacitorWebFetch`를 먼저** 집는다 | 구성 B는 전역 `fetch`가 네이티브로 빼돌려져 `blob:`을 못 읽는다 |
+
+테스트가 실제로 잡는지 출처 검사를 일부러 지워 확인했다(`not ok 2`).
+
+**아직 관측이 아니다.** 이 패치는 CI에서만 돌고 산출물이 APK 안으로 사라지므로,
+다음 빌드를 기기에 넣어 9번을 다시 재기 전까지는 가설이다. 그때 함께 볼 것:
+`blob:`에는 `Content-Disposition`이 없어 `<a download>`가 정한 이름이 살아남지 못할 수
+있다 — 파일이 생기는지가 먼저라 이름 보존은 다음 단으로 미뤘다.
+
 ### 곁가지 — provider 버튼이 잠긴 채 남는다 (셸과 무관)
 
 구글로 앱을 떠났다 돌아오니 인증 시트의 세 버튼이 전부 `disabled=true`였고 새로고침해야

@@ -34,8 +34,9 @@ Android SDK와 JDK 21이 필요하다. 없으면 GitHub Actions의 `Android debu
 ```bash
 cd mobile
 npm ci
-node scripts/prepare.mjs b      # 또는 a
-npx cap add android             # 이미 있으면 건너뛴다
+node scripts/prepare.mjs b        # 또는 a
+npx cap add android               # 이미 있으면 건너뛴다
+node scripts/patch-download.mjs   # cap add 다음에, sync 전에
 npx cap sync android
 cd android && ./gradlew assembleDebug
 ```
@@ -49,15 +50,37 @@ cd android && ./gradlew assembleDebug
 rm -rf mobile/android
 ```
 
+## 다운로드 처리는 생성 시점에 심는다
+
+`scripts/patch-download.mjs`가 생성된 `MainActivity.java`를 갈아끼워 WebView에
+`DownloadListener`를 붙인다. **1회차에서 `.md` 내보내기가 A·B 모두 실패했기 때문이다** —
+앱은 "내보냈어요" 토스트를 띄우는데 파일이 생기지 않았고, DownloadManager에 기록조차
+없었다(`docs/capacitor-shell-checklist.md` 9번).
+
+`blob:`은 DownloadManager가 모르는 스킴이라 페이지 안에서 읽어 data URL로 되돌린 뒤
+`MediaStore.Downloads`에 쓴다. 그 통로(`OmwBlobBridge`)는 WebView에 들어온 **모든**
+페이지에 노출되므로, 저장 직전에 현재 페이지가 우리 출처인지 확인한다 — 구성 A는 원격을
+열고 로그인 중 provider 도메인으로 이동한다.
+
+**알려진 한계**: `blob:` 다운로드에는 `Content-Disposition`이 없어 `<a download>`가 정한
+이름(`on-my-way-기록-YYYY-MM-DD.md`)이 `URLUtil.guessFileName`의 기본값으로 떨어질 수
+있다. 파일이 생기는지가 먼저라 그대로 두고 잰다. 이름까지 살려야 하면 페이지 로드
+시점에 이름을 기억하는 JS를 먼저 주입하는 쪽으로 올린다.
+
+계약은 `mobile-download-patch.test.mjs`가 지킨다 — 특히 **빈 템플릿이 아니면 덮어쓰지
+않고 실패한다.** 이 패치는 CI에서만 돌고 산출물이 APK 안으로 사라져서, 조용히 빠지면
+기기에서 파일이 안 생기는 것으로만 드러난다. 1회차에 우리를 속인 실패 형태 그대로다.
+
 ## 왜 `mobile/android/`를 커밋하지 않는가
 
-`cap add android`가 만드는 것은 Gradle 보일러플레이트 수십 파일이고, 우리가 손댈 내용이
-아직 하나도 없다. 커밋하면 (1) 리뷰할 수 없는 디프가 리포에 들어오고 (2) Capacitor 버전을
-올릴 때마다 그 디프를 사람이 병합해야 한다.
+`cap add android`가 만드는 것은 Gradle 보일러플레이트 수십 파일이다. 커밋하면
+(1) 리뷰할 수 없는 디프가 리포에 들어오고 (2) Capacitor 버전을 올릴 때마다 그 디프를
+사람이 병합해야 한다.
 
-지금은 템플릿에서 매번 새로 만드는 쪽이 재현 가능하다. **네이티브 쪽에 우리 코드가
-생기는 순간**(딥링크 인텐트 필터, 인쇄 브릿지 등) 이 판단을 다시 한다 — 그때는 커밋해야
-한다.
+네이티브 쪽에 우리 코드가 생겼지만(위 다운로드 처리) **그 코드는 생성 스크립트 안에
+있고 그쪽이 리뷰 대상이다.** 생성물이 아니라 생성기를 커밋하는 한 판단은 그대로다.
+딥링크 인텐트 필터처럼 `AndroidManifest.xml`을 건드려야 할 것이 늘어나 패치 스크립트가
+프로젝트를 재구성하는 수준이 되면 그때 다시 판단한다.
 
 ## 번들 목록이 낡으면 빌드가 깨진다
 
