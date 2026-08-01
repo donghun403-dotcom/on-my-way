@@ -14939,10 +14939,9 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 /* --- shared wizard actions --- */
 .home-page .wizard-actions { display: grid; gap: var(--space-3); }
 
-.home-page .wizard-back:focus-visible,
-.home-page .analysis-question-controls button:focus-visible,
-
-@media (max-width: 430px) {
+.home-page .wizard-back:focus-visible {
+  outline: 3px solid var(--brand-solid);
+  outline-offset: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {
