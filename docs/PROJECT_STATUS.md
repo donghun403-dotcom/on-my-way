@@ -1336,6 +1336,14 @@ PR #9 최신 head의 자동 검증과 diff·리뷰·충돌 상태를 최종 확�
 - Automated regression passed: 130 unit tests, 39 JavaScript syntax checks, and 37 targeted mobile/responsive Playwright tests, with no failures, unrun tests, or skips. The first managed-webServer invocation completed all test bodies but hung during Windows teardown; the unchanged suite exited cleanly with an externally managed local server.
 - Stage 3D is not complete and private beta is not approved until both actual devices, provider logins/account isolation, and exactly one Staging AI proposal/application flow pass.
 
+## Stage 3D QA documentation merge and Production verification (2026-07-21)
+
+- PR #22 was squash-merged at approved head `e231899f6e5e0ff278f1a8349aeb45f6bd1b4abe`; main advanced to `4db735a0c1e1d31707f559d91009c5fa673b6022`.
+- Production run `29773701977` passed unit, syntax, canonical config, 223/224 release Playwright tests with one existing intentional skip, deploy, initial 3/3 health checks, the exact 120-second overwrite guard, and both-origin 3/3 surveillance. Rollback was skipped and no Workers Builds overwrite recurred.
+- Both Production origins remain `environment=production`, `payments=false`, account storage and AI ready, Google/Kakao/Naver configured, Apple hidden, and developer login disabled.
+- Staging remains `environment=staging`, `payments=false`, account storage ready, and `ai=false`. No `OPENAI_API_KEY` Secret name is registered. The current guarded workflow does not yet include that name in its validation, temporary secrets file, or post-deploy verification, so it must not be dispatched for AI validation yet.
+- Actual iPhone, Galaxy, provider test accounts, and a dedicated Staging OpenAI key remain unavailable or unverified. Stage 3D actual-device QA and private beta approval remain blocked.
+
 ## Guarded Staging OpenAI Secret sync (2026-07-21)
 
 - Staging AI remained blocked because `OPENAI_API_KEY` was not part of the guarded Staging Worker Secret delivery path.
