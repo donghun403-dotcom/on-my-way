@@ -24,10 +24,6 @@ function guestAiHealthFixture(overrides = {}) {
           return { success: true };
         },
       },
-      GUEST_PLAN_DRAFTS: {
-        idFromName(name) { return name; },
-        get() { return { async fetch() { return new Response(); } }; },
-      },
       ENERGY_LEDGER: {
         idFromName(name) { return name; },
         get() { return { async fetch() { return new Response(); } }; },
@@ -81,9 +77,8 @@ test("상태 점검 API는 비밀값 없이 운영 의존성 준비 여부를 �
 
 test("health AI readiness matches the dependencies required by the in-app AI routes", async () => {
   const cases = [
-    { name: "API key only", overrides: { AI_RATE_LIMITER: null, GUEST_PLAN_DRAFTS: null, SESSION_SECRET: "" } },
+    { name: "API key only", overrides: { AI_RATE_LIMITER: null, ENERGY_LEDGER: null, SESSION_SECRET: "" } },
     { name: "limiter missing", overrides: { AI_RATE_LIMITER: null } },
-    { name: "Durable Object missing", overrides: { GUEST_PLAN_DRAFTS: null } },
     // 에너지 원장 DO가 없으면 유료 재화를 안전하게 셀 수 없으므로 AI는 준비 안 됨이다.
     { name: "energy ledger missing", overrides: { ENERGY_LEDGER: null } },
     { name: "account storage missing", overrides: { USERS_KV: null } },

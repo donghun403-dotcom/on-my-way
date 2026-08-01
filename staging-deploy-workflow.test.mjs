@@ -328,7 +328,7 @@ test("generated config validation and Wrangler dry-run precede every remote Stag
   assert.match(dryRunStep, /--dry-run/);
   assert.match(dryRunStep, /--config wrangler\.staging\.generated\.jsonc/);
   assert.match(dryRunStep, /staging-worker-dry-run\.log/);
-  assert.match(dryRunStep, /GUEST_PLAN_DRAFTS AI_RATE_LIMITER/);
+  assert.match(dryRunStep, /ENERGY_LEDGER AI_RATE_LIMITER/);
   assert.match(dryRunStep, /find "\$dry_run_dir" -type f/);
   assert.match(dryRunStep, /grep -Fq "\$binding_name" "\$dry_run_log"/);
   assert.doesNotMatch(dryRunStep, /--remote/);

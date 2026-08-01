@@ -32,10 +32,6 @@ function removalFixture() {
       AI_RATE_LIMITER: {
         async limit() { touched.limiter += 1; return { success: true }; },
       },
-      GUEST_PLAN_DRAFTS: {
-        idFromName(name) { touched.drafts += 1; return name; },
-        get() { touched.drafts += 1; return { async fetch() { return new Response(); } }; },
-      },
       ASSETS: {
         async fetch() { touched.assets += 1; return new Response("<!doctype html>", { status: 200, headers: { "Content-Type": "text/html" } }); },
       },
@@ -89,8 +85,4 @@ test("남아 있는 AI 라우트는 로그인 없이는 401로 막히고 게스�
     assert.equal(fixture.touched.assets, 0, route);
   }
 });
-
-test("게스트 초안 Durable Object 클래스는 wrangler 마이그레이션을 위해 계속 내보낸다", async () => {
-  const module = await import("./worker.mjs");
-  assert.equal(typeof module.GuestPlanDraftObject, "function");
-});
+

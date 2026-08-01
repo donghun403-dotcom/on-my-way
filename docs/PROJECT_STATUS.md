@@ -1922,8 +1922,37 @@ Pretendard의 한글 자폭이 이전 폴백 글꼴보다 좁다. 히트 영역�
 
 ### 남긴 것과 그 근거
 
-- **`GuestPlanDraftObject`(531줄 + 테스트 887줄).** draft 저장소로 닿는 라우트가 없다(`GUEST_PLAN_DRAFTS.`가 프로덕션 코드에 한 번도 안 나온다). 그런데 `/api/health`의 `services.ai`가 이 바인딩을 검사하고 **스테이징 배포가 그 값으로 게이트**한다(`worker.mjs:185`). 즉 지금은 **아무것도 지키지 않으면서 배포 조건으로만 남아 있다.** 걷어내려면 wrangler 설정과 배포 워크플로까지 건드려야 해서 별도 판단으로 남긴다.
+- ~~**`GuestPlanDraftObject`(531줄 + 테스트 887줄).**~~ → **아래 「게스트 초안 Durable Object 제거」에서 해결했다(2026-08-02).**
 - **문서의 릴리스 서술이 2026-07-24에서 멈춰 있다.** `RELEASE_BLOCKED`와 AI 게이트 4개 항목(달성 불가능 입력의 domain 안정성, guest revision 4,500 token, 자료 범위 검증, 제외 날짜 계약)은 **나흘 뒤 삭제된 기능**을 가리킨다. 이번 조사에서 그 기록을 두 번 사실로 믿고 헛짚었다. 실제 제품 방향은 그 뒤 PRO 가격 확정·스토어 IAP·EnergyLedger·Core Loop v2로 옮겨갔다.
+
+## 게스트 초안 Durable Object 제거 (2026-08-02)
+
+- 라우트는 2026-07-28(`4afaad2`)에 사라졌는데 클래스와 바인딩이 남아, **아무것도 지키지 않으면서 스테이징 배포 조건만 하나 더 걸고 있었다.** `/api/health`의 `services.ai` 판정이 이 바인딩을 요구했고 배포 워크플로가 그 값으로 게이트했다.
+- `guest-plan-draft-object.mjs`(531줄), 테스트(887줄), fixture, `worker.mjs`의 import·export·readiness 검사, wrangler 설정 4개의 바인딩을 걷어냈다.
+
+### 데이터 손실이 없다는 근거
+
+- **Production 최초 성공 배포는 2026-07-30**으로 게스트 라우트 제거(07-28) **이후**다. Production은 게스트 초안을 한 번도 만든 적이 없다.
+- Staging은 2026-07-26에 만들었지만 초안은 **절대 24시간 TTL**이라 전부 만료됐다.
+
+### migration을 다루는 방식
+
+Cloudflare migration은 **태그가 붙은 누적 로그**다. 이미 적용된 `guest-plan-drafts-v1`은 그대로 두고 `guest-plan-drafts-v2-deleted`(`deleted_classes`)를 **덧붙였다.** 과거 태그를 빼면 원격이 적용한 것을 로컬이 선언하지 않는 상태가 되어 배포가 거부된다. 클래스를 export하지 않으면서 migration에만 남겨도 마찬가지라 **코드·바인딩·migration을 함께** 옮겨야 한다.
+
+배포 검증기(`.github/scripts/staging-config.mjs`)는 태그마다 **"무엇을 하는가"**(`new_sqlite_classes` / `deleted_classes`)를 선언하게 바꿨다. 전에는 모든 태그가 클래스를 만든다고 가정해서, 삭제 migration을 표현할 방법이 없었다.
+
+### 검증
+
+- `wrangler deploy --dry-run` **4개 설정 전부 성공** — 여기서 migration 체인이 유효한지 판정된다
+- 서버 표면(라우트 10개 × 상태코드·응답 키) **전후 차이 0**
+- `npm test`: **418 passed**
+- `deleted_classes` 태그를 빼보니 계약 테스트 **2건이 잡는다**(원복 후 0건) — 공허한 검사가 아니다
+
+### 남는 것
+
+**실제 클래스 삭제는 다음 배포 때 각 환경에 적용된다.** 이 변경 자체는 배포하지 않았다. Preview·Staging을 먼저 배포해 migration이 적용되는 것을 확인한 뒤 Production으로 가는 것이 안전하다.
+
+`wrangler.jsonc`는 확장자와 달리 **순수 JSON이어야 한다.** 검증기와 `jq`가 `JSON.parse`로 읽으므로 주석을 넣으면 배포가 깨진다(`binding-health.test.mjs`에 이미 적혀 있고, 이번에 주석을 넣었다가 테스트 14건이 무관해 보이는 곳까지 무너지며 확인했다).
 
 ## 작업 관행
 
