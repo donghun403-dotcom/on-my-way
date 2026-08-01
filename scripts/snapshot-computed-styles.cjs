@@ -17,16 +17,34 @@ const { chromium } = require("@playwright/test");
 const { prepareApp, waitForAppReady } = require("../tests/e2e/helpers.js");
 
 const BASE = process.env.BASE || "http://127.0.0.1:8772";
+// 레이아웃 속성(width·height·min-height·line-height·gap…)이 반드시 들어가야 한다.
+// 타이포/색만 재면 히트 영역이 44px 밑으로 내려가는 회귀를 놓친다 —
+// 이 프로젝트는 글꼴 폭 변화로 탭 타깃이 깨진 전례가 두 번 있다.
 const PROPS = [
-  "font-weight", "font-size", "font-family", "color", "background-color",
-  "padding", "margin", "border-radius", "box-shadow", "display",
+  "font-weight", "font-size", "font-family", "line-height", "letter-spacing",
+  "color", "background-color", "border-radius", "box-shadow",
+  "display", "position", "padding", "margin",
+  "width", "height", "min-width", "min-height",
+  "gap", "flex", "grid-template-columns",
 ];
+// admin은 `mode: "inline"`이다. /admin.html은 인증 게이트라 세션 없이 열면
+// app.html로 302 리다이렉트되고, 그러면 관리자 화면 대신 앱을 재게 된다
+// (조용히 틀린 결과가 나오므로 Step 0의 자기 점검이 이를 잡는다).
+// 대신 디스크의 관리자 마크업을 setContent로 심고 <base href>로 서버의
+// styles.css를 물린다 — 게이트는 우회하되 스타일은 진짜를 쓴다.
 const PAGES = [
-  { name: "landing", path: "/", app: false },
-  { name: "admin", path: "/admin.html", app: false },
-  { name: "app", path: "/app.html", app: true },
+  { name: "landing", mode: "goto", path: "/" },
+  { name: "admin", mode: "inline", file: "admin.html" },
+  { name: "app", mode: "app", path: "/app.html" },
 ];
 const WIDTHS = [390, 1280];
+
+// 페이지가 기대한 것인지 확인한다. 리다이렉트로 엉뚱한 문서를 재는 것을 막는다.
+const SENTINEL = {
+  landing: ".hero-trial-button",
+  admin: ".admin-health-strip",
+  app: ".execution-tabbar",
+};
 
 // 페이지 안에서 실행된다. 클로저를 쓰지 않아야 직렬화된다.
 function collect(props) {
@@ -51,10 +69,26 @@ async function snapshot(file) {
         baseURL: BASE,
         reducedMotion: "reduce", // 트랜지션 중간값이 스냅샷에 섞이지 않게 한다
       });
-      if (page.app) await prepareApp(p);
-      await p.goto(page.path);
-      if (page.app) await waitForAppReady(p);
-      else await p.waitForLoadState("networkidle");
+      if (page.mode === "app") {
+        await prepareApp(p);
+        await p.goto(page.path);
+        await waitForAppReady(p);
+      } else if (page.mode === "inline") {
+        const html = fs.readFileSync(require("path").join(process.cwd(), page.file), "utf8");
+        await p.setContent(html.replace(/<head(\s[^>]*)?>/i, (m) => `${m}<base href="${BASE}/">`),
+          { waitUntil: "networkidle" });
+      } else {
+        await p.goto(page.path);
+        await p.waitForLoadState("networkidle");
+      }
+
+      // 기대한 문서를 재고 있는지 확인한다 — 리다이렉트로 엉뚱한 페이지를
+      // 조용히 재면 diff가 0이어도 아무것도 증명하지 못한다.
+      const sentinel = SENTINEL[page.name];
+      if (!(await p.locator(sentinel).count())) {
+        throw new Error(`${page.name}@${width}: 표지 셀렉터 ${sentinel} 가 없다 — 다른 문서를 재고 있다`);
+      }
+
       const data = await p.evaluate(collect, PROPS);
       for (const [k, v] of Object.entries(data)) all[`${page.name}@${width} ${k}`] = v;
       console.log(`  ${page.name}@${width}: ${Object.keys(data).length} 노드`);
