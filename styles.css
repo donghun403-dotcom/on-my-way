@@ -1764,7 +1764,6 @@ footer p {
 
 
 
-.quick-use-cases .use-grid article:hover button > span,
 
 
 
@@ -2038,7 +2037,6 @@ footer p {
   filter: brightness(1.35) saturate(1.16) drop-shadow(0 0 12px rgba(107, 122, 166, 0.18));
 }
 
-.ghost-link,
 .text-button {
   display: inline-flex;
   align-items: center;
@@ -2675,7 +2673,6 @@ footer p {
 
 
 
-.diagnosis-stepper span.active,
 
 .diagnosis-step {
   display: none;
@@ -4058,7 +4055,6 @@ body.sheet-open {
   filter: none;
 }
 
-.ghost-link,
 .text-button {
   min-height: 34px;
   color: var(--soft-primary-dark);
@@ -5722,7 +5718,6 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 
 
 
-.goal-suggestions .custom-goal-button:hover,
 
 .goal-category-help,
 .goal-validation-message {
@@ -8676,7 +8671,6 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   width: clamp(142px, 15vw, 178px);
 }
 
-.execution-page .ghost-link,
 .execution-page .text-button {
   color: var(--blue-700);
   background: rgba(255, 255, 255, 0.74);
@@ -14798,7 +14792,6 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 /* Selectors here mirror the specificity of the rules they correct:
    .today-schedule-actions .text-button pins min-height to 34px at 0,3,0,
    so a plain .execution-page .text-button would lose whatever the order. */
-.execution-page .ghost-link,
 .execution-page .text-button,
 .execution-page .today-schedule-actions .text-button,
 .execution-page .view-jump-link,
