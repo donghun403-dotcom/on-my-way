@@ -1954,6 +1954,34 @@ Cloudflare migration은 **태그가 붙은 누적 로그**다. 이미 적용된 
 
 `wrangler.jsonc`는 확장자와 달리 **순수 JSON이어야 한다.** 검증기와 `jq`가 `JSON.parse`로 읽으므로 주석을 넣으면 배포가 깨진다(`binding-health.test.mjs`에 이미 적혀 있고, 이번에 주석을 넣었다가 테스트 14건이 무관해 보이는 곳까지 무너지며 확인했다).
 
+## Staging 배포 — 게스트 초안 DO 제거 반영 (2026-08-02)
+
+- `698f708c03a2a430c383ac51ed1a437f38004d6e`를 run `30721628457`로 Staging에 배포했다. 배포된 Worker version은 `5bffbf33-3bd9-4ac0-886a-73eb262cc2fe`이다.
+- 직전 Staging 배포는 `3f2ca3a`(2026-07-26)였다. 이번 배포는 그 사이 쌓인 **171커밋·247파일(+29,931/−14,674)**을 함께 실어 보냈다 — 온보딩 전면 개편(#54), 게스트 AI 라우트 제거와 사문 청소(#69·#71), 계획 캘린더 우선 UI(#59), font-weight 900 이관 3단계, 타이포그래피 기반 공사가 포함된다.
+- **`deleted_classes` migration이 적용됐다.** 배포 로그의 바인딩 표에 `env.ENERGY_LEDGER (EnergyLedgerObject)` 하나만 남았고, 공개 health의 `bindings`에도 `GUEST_PLAN_DRAFTS`가 없다. `services.ai`는 그 바인딩 없이 `true`를 유지한다 — 의도한 결과다.
+
+### 워크플로는 실패로 끝났지만 배포는 성공이다
+
+- 단계 16 `Deploy isolated Staging Worker`는 성공했고, 실패한 것은 단계 19 `Verify resolved Worker bindings`다. 오류는 `health 응답에 bindings가 없습니다 — 배포본이 검증기보다 오래됐습니다`였다.
+- 원인은 **전파 경쟁**이다. 단계 18 `Wait for stable Staging endpoints`가 통과한 뒤에도 검증기가 이전 버전을 읽었다. 단계 20 `Verify Staging routes, AI, and disabled billing`은 그 실패로 건너뛰어졌다.
+- 건너뛴 단계 20의 판정 기준을 직접 실행해 **7건 전부 통과**를 확인했다: `environment=staging`, `services.accountStorage=true`, `services.ai=true`, `services.payments=false`, providers 4개(kakao·naver·google·apple), `GUEST_PLAN_DRAFTS` 없음, `ENERGY_LEDGER` 있음.
+
+### 검증기 수정
+
+`checkBindingInvariants`는 "읽기 실패"만 재시도하고 불변식 위반은 즉시 실패시켰다. 낡은 배포본이 우연히 통과하는 창을 막으려는 **옳은 선택**이지만, "배포본이 낡았다"는 판정 자체가 위반으로 분류돼 재시도 없이 떨어졌다.
+
+낡음은 위반과 성질이 다르다 — 위반은 다시 읽어도 그대로지만 낡음은 전파가 끝나면 사라진다. 그래서 판정에 `stale` 표시를 붙이고 **그 경우에만** 다시 읽게 했다. 진짜 위반은 여전히 첫 판정에서 즉시 실패한다.
+
+검증:
+- 처음 2회만 낡은 응답을 주는 서버로 재시도가 도는 것을 확인(2회 재시도 후 통과)
+- 항상 `USERS_KV=false`를 주는 서버로 **0초 만에 즉시 실패**하는 것을 확인 — 재시도가 위반을 덮지 않는다
+- 살아있는 Staging에 대고 실행해 통과(exit 0)
+- `npm test`: 419 passed
+
+### 남는 것
+
+Production 배포는 하지 않았다. `deleted_classes`는 **다음 Production 배포 시점에** 적용된다.
+
 ## 작업 관행
 
 - **worktree에서 `gh pr merge --delete-branch`를 쓰지 마라.** 로컬 브랜치를 지우려고 베이스를

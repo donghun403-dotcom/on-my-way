@@ -215,3 +215,26 @@ test("네 설정 모두 로컬 산출물 디렉터리를 자산에서 제외한�
     );
   }
 });
+
+/* 2026-08-02 Staging 배포에서, 배포는 성공했는데 배포 후 검증이 실패로 끝났다.
+   방금 배포한 워커가 몇 초 동안 이전 버전을 서빙했고, 그 이전 버전에는 bindings가
+   없어 "낡은 배포본" 판정이 나왔다. 검증기는 읽기 실패만 재시도하고 불변식 위반은
+   즉시 실패시키므로 — 낡은 배포본이 우연히 통과하는 창을 막으려는 옳은 선택이다 —
+   이 경우가 재시도 없이 실패했다.
+
+   낡음은 위반과 성질이 다르다. 위반은 다시 읽어도 그대로지만 낡음은 전파가 끝나면
+   사라진다. 그래서 판정에 기계가 읽는 표시를 붙여 그 경우만 재시도하게 한다. */
+test("낡은 배포본 판정은 불변식 위반과 구분되는 표시를 단다", () => {
+  const stale = checkBindingInvariants({ environment: "staging", services: {} });
+  assert.equal(stale.ok, false);
+  assert.equal(stale.stale, true, "bindings가 없으면 stale 표시가 있어야 한다");
+
+  // 진짜 위반은 재시도 대상이 아니다 — 다시 읽어도 그대로다.
+  const violation = checkBindingInvariants({
+    environment: "staging",
+    paymentsEnabled: false,
+    bindings: { USERS_KV: false, ENERGY_LEDGER: true, AI_RATE_LIMITER: true, BILLING_DB: true, ASSETS: true },
+  });
+  assert.equal(violation.ok, false);
+  assert.notEqual(violation.stale, true, "실제 위반에는 stale 표시가 없어야 한다");
+});
