@@ -118,7 +118,6 @@ async function harness({ plan = "pro", userId = "energy-user", aiHandler, paywal
     // 차단 동작 전체가 이 플래그 뒤에 있다. 기본값은 꺼짐이다.
     HARD_PAYWALL_ENABLED: paywall ? "true" : "false",
     AI_RATE_LIMITER: { async limit() { return { success: true }; } },
-    GUEST_PLAN_DRAFTS: durableObjectNamespace(),
     ENERGY_LEDGER: durableObjectNamespace(),
   };
 

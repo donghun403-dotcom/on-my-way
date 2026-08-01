@@ -22,19 +22,23 @@ test("모든 Worker 환경은 같은 SQLite Durable Object binding과 migration�
   for (const file of CONFIG_FILES) {
     const value = await config(file);
     assert.deepEqual(value.durable_objects?.bindings, [{
-      name: "GUEST_PLAN_DRAFTS",
-      class_name: "GuestPlanDraftObject",
-    }, {
       // 에너지 원장은 유저별 단일 실행이 필요해 DO여야 한다 (KV에는 CAS가 없다).
       name: "ENERGY_LEDGER",
       class_name: "EnergyLedgerObject",
     }], file);
+    /* migration은 태그가 붙은 누적 로그다. 게스트 초안 클래스를 없앴지만
+       guest-plan-drafts-v1은 이미 적용된 태그라 목록에 남는다 — 과거 태그를 빼면
+       원격이 적용한 것을 로컬이 선언하지 않는 상태가 되어 배포가 거부된다.
+       삭제는 뒤에 붙인 deleted_classes 태그가 수행한다. */
     assert.deepEqual(value.migrations, [{
       tag: "guest-plan-drafts-v1",
       new_sqlite_classes: ["GuestPlanDraftObject"],
     }, {
       tag: "energy-ledger-v1",
       new_sqlite_classes: ["EnergyLedgerObject"],
+    }, {
+      tag: "guest-plan-drafts-v2-deleted",
+      deleted_classes: ["GuestPlanDraftObject"],
     }], file);
     assert.equal("exports" in value, false, `${file}: migrations와 exports를 혼용하지 않음`);
     assert.equal(value.vars.PAYMENTS_ENABLED, "false", file);
@@ -71,8 +75,10 @@ test("Every AI-enabled Worker config defines the canonical rate limiter contract
 });
 
 test("Durable Object config classes are exported by the Worker entry", async () => {
-  // 클래스 이름이 wrangler migration과 정확히 맞아야 배포가 깨지지 않는다.
+  // 바인딩된 클래스 이름이 Worker export와 정확히 맞아야 배포가 깨지지 않는다.
   const worker = await readFile(new URL("worker.mjs", import.meta.url), "utf8");
-  assert.match(worker, /export\s*\{[^}]*\bGuestPlanDraftObject\b[^}]*\}/);
   assert.match(worker, /export\s*\{[^}]*\bEnergyLedgerObject\b[^}]*\}/);
+  /* 삭제한 클래스는 반대로 export가 남아 있으면 안 된다. deleted_classes 태그와
+     export가 공존하면 wrangler가 배포를 거부한다. */
+  assert.doesNotMatch(worker, /\bGuestPlanDraftObject\b/);
 });

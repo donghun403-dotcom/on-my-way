@@ -1,6 +1,3 @@
-// 게스트 초안 라우트는 사라졌지만 Durable Object 클래스는 wrangler 마이그레이션이
-// 참조하므로 계속 내보낸다.
-import { GuestPlanDraftObject } from "./guest-plan-draft-object.mjs";
 import { describeBindings, paymentsIntended } from "./binding-health.mjs";
 import { createCompanionReply, createCrisisReply, detectCrisisSignal, normalizeCheerEventType } from "./ai-companion-chat.mjs";
 import { createDiaryBookText } from "./ai-diary-book.mjs";
@@ -183,8 +180,9 @@ const AI_GENERATION_ROUTES = Object.freeze({
 });
 
 // 게스트 온보딩 라우트는 사라졌지만 /api/health의 services.ai가 이 판정을 쓰고,
-// 스테이징 배포 워크플로가 그 값으로 게이트한다. GUEST_PLAN_DRAFTS는 아직 모든
-// wrangler 설정에 바인딩돼 있어 검사 대상으로 남긴다.
+// 스테이징 배포 워크플로가 그 값으로 게이트한다. 그래서 판정 자체는 남기되,
+// 실제로 쓰이는 의존성만 본다 — 없어진 기능의 바인딩을 요구하면 게이트가
+// 아무것도 지키지 않으면서 배포 조건만 하나 더 거는 셈이 된다.
 export function getGuestAiReadiness(env = {}) {
   const missingDependencies = [];
   const invalidDependencies = [];
@@ -202,9 +200,6 @@ export function getGuestAiReadiness(env = {}) {
     typeof value?.get === "function" && typeof value?.put === "function"
   ));
   requireBinding("AI_RATE_LIMITER", env.AI_RATE_LIMITER, (value) => typeof value?.limit === "function");
-  requireBinding("GUEST_PLAN_DRAFTS", env.GUEST_PLAN_DRAFTS, (value) => (
-    typeof value?.idFromName === "function" && typeof value?.get === "function"
-  ));
   requireBinding("ENERGY_LEDGER", env.ENERGY_LEDGER, (value) => (
     typeof value?.idFromName === "function" && typeof value?.get === "function"
   ));
@@ -783,7 +778,7 @@ async function handleFetch(request, env) {
     return fetchStaticAsset(request, env);
 }
 
-export { GuestPlanDraftObject, EnergyLedgerObject };
+export { EnergyLedgerObject };
 
 export default {
   async fetch(request, env) {

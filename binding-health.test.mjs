@@ -191,8 +191,13 @@ test("기대 집합은 실제 배포 설정과 일치한다", () => {
     const actual = Object.fromEntries((config.durable_objects?.bindings || [])
       .map((binding) => [binding.name, binding.class_name]));
     assert.deepEqual(actual, { ...EXPECTED_DURABLE_OBJECTS }, file);
-    const tags = Object.fromEntries((config.migrations || [])
-      .map((migration) => [migration.tag, migration.new_sqlite_classes]));
+    /* 태그마다 동작(생성/삭제)과 대상을 함께 본다. 클래스를 없앨 때 과거 태그를 지우는
+       대신 deleted_classes 태그를 덧붙이므로, 만들지 않는 태그도 목록에 남는다. */
+    const ACTIONS = ["new_sqlite_classes", "new_classes", "deleted_classes", "renamed_classes"];
+    const tags = Object.fromEntries((config.migrations || []).map((migration) => {
+      const action = ACTIONS.find((key) => migration[key] !== undefined);
+      return [migration.tag, { [action]: migration[action] }];
+    }));
     assert.deepEqual(tags, { ...EXPECTED_DURABLE_MIGRATIONS }, file);
   }
 });

@@ -11,12 +11,15 @@ export const EXPECTED_AI_RATE_LIMIT_POLICY = Object.freeze({
 /* Durable Object 바인딩과 마이그레이션의 기대 집합. 새 DO를 추가하면 여기도 고쳐야
    staging 배포가 통과한다 — 이것이 의도다. 검증기가 모르는 DO는 검증되지 않은 DO다. */
 export const EXPECTED_DURABLE_OBJECTS = Object.freeze({
-  GUEST_PLAN_DRAFTS: "GuestPlanDraftObject",
   ENERGY_LEDGER: "EnergyLedgerObject",
 });
+/* 태그마다 "무엇을 하는가"를 적는다. 클래스를 없앨 때는 과거 태그를 지우는 게 아니라
+   deleted_classes 태그를 뒤에 붙인다 — 이미 적용된 태그를 빼면 배포가 거부된다.
+   그래서 만들지 않는 태그도 이 목록에 남는다. */
 export const EXPECTED_DURABLE_MIGRATIONS = Object.freeze({
-  "guest-plan-drafts-v1": ["GuestPlanDraftObject"],
-  "energy-ledger-v1": ["EnergyLedgerObject"],
+  "guest-plan-drafts-v1": { new_sqlite_classes: ["GuestPlanDraftObject"] },
+  "energy-ledger-v1": { new_sqlite_classes: ["EnergyLedgerObject"] },
+  "guest-plan-drafts-v2-deleted": { deleted_classes: ["GuestPlanDraftObject"] },
 });
 
 function invariant(condition, message) {
@@ -59,11 +62,20 @@ function assertDurableObjects(config, label) {
     `${label} migrations must be exactly [${sortedJoin(expectedTags)}] but found [${sortedJoin(actualTags)}]`,
   );
   for (const migration of migrations) {
-    const expectedClasses = EXPECTED_DURABLE_MIGRATIONS[migration.tag];
+    const expected = EXPECTED_DURABLE_MIGRATIONS[migration.tag];
+    // 기대한 동작(생성/삭제)과 그 대상이 정확히 일치해야 한다. 생성을 기대한 태그가
+    // 삭제로 바뀌거나 그 반대가 되면 여기서 걸린다.
+    const [action] = Object.keys(expected);
     invariant(
-      Array.isArray(migration.new_sqlite_classes)
-        && sortedJoin(migration.new_sqlite_classes) === sortedJoin(expectedClasses),
-      `${label} migration ${migration.tag} must create SQLite classes [${sortedJoin(expectedClasses)}]`,
+      Array.isArray(migration[action])
+        && sortedJoin(migration[action]) === sortedJoin(expected[action]),
+      `${label} migration ${migration.tag} must declare ${action} [${sortedJoin(expected[action])}]`,
+    );
+    const unexpected = ["new_sqlite_classes", "new_classes", "deleted_classes", "renamed_classes"]
+      .filter((key) => key !== action && migration[key] !== undefined);
+    invariant(
+      unexpected.length === 0,
+      `${label} migration ${migration.tag} must not also declare [${sortedJoin(unexpected)}]`,
     );
   }
 }

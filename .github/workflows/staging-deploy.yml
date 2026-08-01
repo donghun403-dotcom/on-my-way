@@ -136,7 +136,7 @@ jobs:
             --config wrangler.staging.generated.jsonc \
             --outdir "$dry_run_dir" 2>&1 | tee "$dry_run_log"
           test -n "$(find "$dry_run_dir" -type f -print -quit)"
-          for binding_name in GUEST_PLAN_DRAFTS AI_RATE_LIMITER; do
+          for binding_name in ENERGY_LEDGER AI_RATE_LIMITER; do
             if ! grep -Fq "$binding_name" "$dry_run_log"; then
               echo "Wrangler dry-run did not recognize required binding: $binding_name"
               exit 1
