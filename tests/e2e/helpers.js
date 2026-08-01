@@ -118,11 +118,22 @@ async function settleWizardStep(page, stepTitle) {
   }));
 }
 
-async function completeManualPlan(page, { goal = "3개월 안에 토익 900점 달성하기", tasks = null } = {}) {
+async function completeManualPlan(page, { goal = "3개월 안에 토익 900점 달성하기", tasks = null, everyDay = false } = {}) {
   await page.locator("#designGoal").fill(goal);
   const next = page.locator("#diagnosisNextButton");
   await next.click();                       // 1 → 2 (리듬)
   await settleWizardStep(page, "언제, 얼마나 해볼까요?");
+  /* 빌더의 기본 실행 요일은 월~금이라 토·일에 만든 계획은 그날이 휴식일로 비어 있다.
+     "만든 할 일이 오늘 화면에 보인다"를 확인하는 테스트는 그대로 두면 주말마다 깨지므로,
+     그런 테스트만 7일 실행으로 만들어 요일에 기대지 않게 한다.
+     체크박스를 label이 감싸고 있어 포인터 클릭이 가로채인다 — 입력 요소를 직접 클릭해
+     change 이벤트까지 정상적으로 발생시킨다. */
+  if (everyDay) {
+    await page.locator("[data-design-day]").evaluateAll((inputs) => {
+      inputs.forEach((input) => { if (!input.checked) input.click(); });
+    });
+    await expect(page.locator("[data-design-day]:not(:checked)")).toHaveCount(0);
+  }
   await next.click();                       // 2 → 3 (할 일)
   await settleWizardStep(page, "어떤 일을 하면 될까요?");
   await page.locator("#taskBuilderList .task-builder-item").first().waitFor();
