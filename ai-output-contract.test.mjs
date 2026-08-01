@@ -8,7 +8,6 @@ import {
   safeAiSuccessDiagnostics,
   validateStructuredValue,
 } from "./ai-output-contract.mjs";
-import { GOAL_PLAN_SCHEMA } from "./ai-goal-plan.mjs";
 import { PLAN_REVISION_SCHEMA } from "./ai-plan-revision.mjs";
 
 const schema = {
@@ -59,8 +58,9 @@ function assertStrictObjectSchemas(node, path = "$") {
   for (const [index, child] of (node.anyOf || []).entries()) assertStrictObjectSchemas(child, `${path}/anyOf/${index}`);
 }
 
-test("generation and revision schemas keep strict required object contracts", () => {
-  assertStrictObjectSchemas(GOAL_PLAN_SCHEMA);
+/* 생성(goal-plan) 스키마도 함께 검사했지만, 게스트 AI 라우트가 사라지면서 생성 경로가
+   없어졌다. 남은 revision 스키마만 본다. */
+test("revision schema keeps strict required object contracts", () => {
   assertStrictObjectSchemas(PLAN_REVISION_SCHEMA);
 });
 

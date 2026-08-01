@@ -5,9 +5,7 @@ import {
 } from "./ai-material-contract.mjs";
 
 export const AI_OUTPUT_BUDGET_VERSION = "ai-output-budget.v2";
-export const GOAL_PLAN_MAX_OUTPUT_TOKENS = 6000;
 export const PLAN_REVISION_MAX_OUTPUT_TOKENS = 4500;
-export const GOAL_PLAN_MAX_PARSED_BYTES = 48_000;
 export const PLAN_REVISION_MAX_PARSED_BYTES = 40_000;
 
 export const PLAN_ITEM_TYPES = Object.freeze(["ACTION", "REVIEW", "TIP", "SYSTEM_RULE"]);
@@ -17,37 +15,16 @@ export const MAX_DAY_ITEM_COUNT = 5;
 export const PLAN_TIMEZONE = "Asia/Seoul";
 
 export const DOMAIN_RULES = Object.freeze({
-  FEASIBILITY_OPTION_REQUIRED: Object.freeze({ classification: "FEASIBILITY", stage: "blueprint" }),
-  FEASIBILITY_SCHEDULE_CONFLICT: Object.freeze({ classification: "FEASIBILITY", stage: "schedule" }),
-  FIRST_WEEK_SCHEDULE_INVALID: Object.freeze({ classification: "SERVER_DERIVED", stage: "schedule" }),
-  GOAL_BLUEPRINT_DAY_COUNT_INVALID: Object.freeze({ classification: "MODEL_REQUIRED", stage: "blueprint" }),
-  GOAL_BLUEPRINT_TEMPLATE_LIMIT: Object.freeze({ classification: "MODEL_REQUIRED", stage: "blueprint" }),
-  GOAL_BLUEPRINT_DUPLICATE_TASK_TEMPLATE: Object.freeze({ classification: "MODEL_REQUIRED", stage: "blueprint" }),
-  GOAL_BLUEPRINT_DUPLICATE_DAY_REFERENCE: Object.freeze({ classification: "MODEL_REQUIRED", stage: "blueprint" }),
-  GOAL_BLUEPRINT_REFERENCE_INVALID: Object.freeze({ classification: "MODEL_REQUIRED", stage: "blueprint" }),
-  GOAL_BLUEPRINT_ACTION_INCOMPLETE: Object.freeze({ classification: "MODEL_REQUIRED", stage: "blueprint" }),
-  GOAL_BLUEPRINT_ACTION_DURATION: Object.freeze({ classification: "MODEL_REQUIRED", stage: "blueprint" }),
-  GOAL_BLUEPRINT_ACTION_REQUIRED: Object.freeze({ classification: "MODEL_REQUIRED", stage: "blueprint" }),
-  GOAL_BLUEPRINT_ENGAGEMENT_FREQUENCY_UNDERFILLED: Object.freeze({ classification: "MODEL_REQUIRED", stage: "blueprint" }),
   REVISION_BLUEPRINT_DAY_COUNT_INVALID: Object.freeze({ classification: "MODEL_REQUIRED", stage: "blueprint" }),
   REVISION_BLUEPRINT_DUPLICATE_DAY_REFERENCE: Object.freeze({ classification: "MODEL_REQUIRED", stage: "blueprint" }),
   REVISION_BLUEPRINT_REFERENCE_INVALID: Object.freeze({ classification: "MODEL_REQUIRED", stage: "blueprint" }),
   REVISION_BLUEPRINT_COMPLETED_TASK: Object.freeze({ classification: "HARD", stage: "blueprint" }),
   EXCLUDED_WEEKDAY_ACTION: Object.freeze({ classification: "HARD", stage: "schedule" }),
-  EXCLUDED_DATE_ACTION: Object.freeze({ classification: "HARD", stage: "schedule" }),
   REST_PERIOD_ACTION: Object.freeze({ classification: "HARD", stage: "schedule" }),
   AVAILABILITY_OVER_CAPACITY: Object.freeze({ classification: "HARD", stage: "schedule" }),
   SOURCE_REFERENCE_MISSING: Object.freeze({ classification: "HARD", stage: "blueprint" }),
-  SYSTEM_RULE_EXPOSED: Object.freeze({ classification: "HARD", stage: "schedule" }),
-  SCHEDULE_DAY_ORDER_INVALID: Object.freeze({ classification: "SERVER_DERIVED", stage: "schedule" }),
-  PLAN_ITEM_TYPE_INVALID: Object.freeze({ classification: "MODEL_REQUIRED", stage: "schedule" }),
   ACTION_IDENTITY_MISSING: Object.freeze({ classification: "SERVER_DERIVED", stage: "schedule" }),
   ACTION_IDENTITY_DUPLICATE: Object.freeze({ classification: "SERVER_DERIVED", stage: "schedule" }),
-  ACTION_PLAN_ID_MISMATCH: Object.freeze({ classification: "SERVER_DERIVED", stage: "schedule" }),
-  ACTION_TITLE_INVALID: Object.freeze({ classification: "HARD", stage: "schedule" }),
-  ACTION_DURATION_MISSING: Object.freeze({ classification: "HARD", stage: "schedule" }),
-  ACTION_COMPLETION_RULE_MISSING: Object.freeze({ classification: "MODEL_REQUIRED", stage: "schedule" }),
-  ACTION_RANGE_MISSING: Object.freeze({ classification: "MODEL_REQUIRED", stage: "schedule" }),
   REVISION_OUTPUT_INVALID: Object.freeze({ classification: "MODEL_REQUIRED", stage: "schedule" }),
   REVISION_SUMMARY_MISSING: Object.freeze({ classification: "MODEL_REQUIRED", stage: "schedule" }),
   REVISION_ACTIONS_MISSING: Object.freeze({ classification: "MODEL_REQUIRED", stage: "schedule" }),
@@ -133,62 +110,6 @@ const DAY_TEMPLATE_SCHEMA = {
       maxItems: MAX_DAY_ITEM_COUNT,
       items: { type: "integer", minimum: 0, maximum: MAX_WEEK_TEMPLATE_COUNT - 1 },
     },
-  },
-};
-
-export const GOAL_PLAN_BLUEPRINT_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  required: [
-    "personalitySummary",
-    "planningStyle",
-    "weekTitle",
-    "coachMessage",
-    "feasibility",
-    "phases",
-    "taskTemplates",
-    "days",
-    "assumptions",
-    "checkInRules",
-    "fallbackPlan",
-  ],
-  properties: {
-    personalitySummary: SHORT_TEXT,
-    planningStyle: { type: "string", minLength: 1, maxLength: 80 },
-    weekTitle: { type: "string", minLength: 1, maxLength: 120 },
-    coachMessage: SHORT_TEXT,
-    feasibility: FEASIBILITY_SCHEMA,
-    phases: {
-      type: "array",
-      minItems: 3,
-      maxItems: 5,
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["phase", "days", "focus", "successMetric"],
-        properties: {
-          phase: { type: "string", minLength: 1, maxLength: 80 },
-          days: { type: "string", minLength: 1, maxLength: 40 },
-          focus: { type: "string", minLength: 1, maxLength: 180 },
-          successMetric: { type: "string", minLength: 1, maxLength: 180 },
-        },
-      },
-    },
-    taskTemplates: {
-      type: "array",
-      minItems: 5,
-      maxItems: MAX_WEEK_TEMPLATE_COUNT,
-      items: TASK_TEMPLATE_SCHEMA,
-    },
-    days: {
-      type: "array",
-      minItems: 7,
-      maxItems: 7,
-      items: DAY_TEMPLATE_SCHEMA,
-    },
-    assumptions: { type: "array", items: SHORT_TEXT, minItems: 1, maxItems: 5 },
-    checkInRules: { type: "array", items: SHORT_TEXT, minItems: 3, maxItems: 5 },
-    fallbackPlan: SHORT_TEXT,
   },
 };
 
@@ -392,71 +313,8 @@ function referencedTemplates(blueprint) {
   ));
 }
 
-export function countGoalBlueprintItems(blueprint) {
-  return (blueprint?.days || []).reduce((total, day) => total + (day?.taskIndexes?.length || 0), 0);
-}
-
 export function countRevisionBlueprintItems(blueprint) {
   return (blueprint?.days || []).reduce((total, day) => total + (day?.taskIndexes?.length || 0), 0);
-}
-
-export function validateGoalPlanBlueprint(input, blueprint) {
-  const errors = [];
-  const templates = Array.isArray(blueprint?.taskTemplates) ? blueprint.taskTemplates : [];
-  const days = Array.isArray(blueprint?.days) ? blueprint.days : [];
-  if (days.length !== 7) errors.push("GOAL_BLUEPRINT_DAY_COUNT_INVALID");
-  if (templates.length > MAX_WEEK_TEMPLATE_COUNT) errors.push("GOAL_BLUEPRINT_TEMPLATE_LIMIT");
-  if (new Set(templates.map(taskSemanticKey)).size !== templates.length) {
-    errors.push("GOAL_BLUEPRINT_DUPLICATE_TASK_TEMPLATE");
-  }
-  let actionCount = 0;
-  let materialActionCount = 0;
-
-  days.slice(0, 7).forEach((day) => {
-    const indexes = Array.isArray(day?.taskIndexes) ? day.taskIndexes : [];
-    if (new Set(indexes).size !== indexes.length) errors.push("GOAL_BLUEPRINT_DUPLICATE_DAY_REFERENCE");
-    const items = indexes.map((index) => templates[index]).filter(Boolean);
-    if (items.length !== indexes.length) errors.push("GOAL_BLUEPRINT_REFERENCE_INVALID");
-    const actions = items.filter((item) => item?.type === "ACTION");
-    for (const item of actions) {
-      actionCount += 1;
-      if (!clean(item?.completionRule) || !clean(item?.quantityOrRange, 200)) errors.push("GOAL_BLUEPRINT_ACTION_INCOMPLETE");
-      if (Number(item?.durationMinutes) < 5) errors.push("GOAL_BLUEPRINT_ACTION_DURATION");
-      if (input.material.hasMaterial && clean(item?.sourceReference, 200)) materialActionCount += 1;
-      if (input.material.hasMaterial) errors.push(...validateMaterialActionContract(input.material, item));
-    }
-  });
-
-  if (actionCount < 1) errors.push("GOAL_BLUEPRINT_ACTION_REQUIRED");
-  if (input.material.hasMaterial && materialActionCount === 0) errors.push("SOURCE_REFERENCE_MISSING");
-  const availableDays = new Set(normalizeWeekdayList(input?.availability?.availableDays));
-  const difficultDays = new Set(normalizeWeekdayList(input?.availability?.difficultDays));
-  const requestedFrequency = Math.max(
-    1,
-    Math.min(7, Number(input?.availability?.weeklyFrequency) || availableDays.size || 1),
-  );
-  const eligibleWeekdayCount = WEEKDAY_LABELS.filter((day) => (
-    availableDays.has(day) && !difficultDays.has(day)
-  )).length;
-  const referencedEngagementDays = days.slice(0, 7).filter((day) => (
-    (day?.taskIndexes || []).some((index) => ["ACTION", "REVIEW"].includes(templates[index]?.type))
-  )).length;
-  if (
-    eligibleWeekdayCount >= requestedFrequency
-    && referencedEngagementDays < requestedFrequency
-  ) {
-    errors.push("GOAL_BLUEPRINT_ENGAGEMENT_FREQUENCY_UNDERFILLED");
-  }
-  const feasibility = blueprint?.feasibility;
-  const adjustmentOptions = Array.isArray(feasibility?.adjustmentOptions) ? feasibility.adjustmentOptions : [];
-  if (
-    adjustmentOptions.length === 0
-    || !adjustmentOptions.includes(feasibility?.recommendedOption)
-    || (feasibility?.status === "infeasible_as_requested" && adjustmentOptions.includes("keep_current_plan"))
-  ) {
-    errors.push("FEASIBILITY_OPTION_REQUIRED");
-  }
-  return [...new Set(errors)];
 }
 
 function normalizedFeasibility(value) {
@@ -563,287 +421,6 @@ function makeScheduleItem({
     scheduledAt: `${date}T${time}:00+09:00`,
     status: "pending",
     recurrenceGroupId,
-  };
-}
-
-export function enrichGoalPlanBlueprint(input, blueprint, { now = Date.now(), maxScheduleDays = 365 } = {}) {
-  const planId = clean(input.draftPlanId, 100) || `draft-${stableHash(input.goal)}`;
-  const startDate = dateKey(input?.availability?.scheduleStartDate) || kstDateKey(now);
-  const scheduleDayCount = Math.max(7, Math.min(maxScheduleDays, Number(input?.periodDays) || 7));
-  const allowedDays = new Set(normalizeWeekdayList(input?.availability?.availableDays));
-  const difficultDays = new Set(normalizeWeekdayList(input?.availability?.difficultDays));
-  const excludedDates = excludedDateSet(input?.availability?.excludedDates, { referenceDate: startDate });
-  const requestedFrequency = Math.max(
-    1,
-    Math.min(7, Number(input?.availability?.weeklyFrequency) || allowedDays.size || 1),
-  );
-  const sessionMinutes = Math.max(5, Number(input?.availability?.sessionMinutes) || 5);
-  const material = input?.material?.semanticRange
-    ? input.material
-    : normalizeMaterialContract(input?.material);
-  const scheduleWindowContracts = [];
-  const reviewOffsets = new Set(
-    (blueprint.days || []).flatMap((day, relativeDayIndex) => (
-      (day?.taskIndexes || []).some((index) => blueprint.taskTemplates?.[index]?.type === "REVIEW")
-        ? [relativeDayIndex]
-        : []
-    )),
-  );
-  const scheduleRows = Array.from({ length: scheduleDayCount }, (_, dayIndex) => {
-    const date = addUtcDays(startDate, dayIndex);
-    const dayLabel = weekdayForDate(date);
-    const sourceDay = blueprint.days[dayIndex % 7] || { taskIndexes: [] };
-    return {
-      dayIndex,
-      date,
-      dayLabel,
-      sourceDay,
-      actions: [],
-      actionMinutes: 0,
-    };
-  });
-
-  for (let windowStart = 0; windowStart < scheduleRows.length; windowStart += 7) {
-    const windowRows = scheduleRows.slice(windowStart, windowStart + 7);
-    const expectedEngagementDays = Math.min(
-      windowRows.length,
-      Math.max(1, Math.ceil((requestedFrequency * windowRows.length) / 7)),
-    );
-    const preferredOffsets = new Set(
-      (blueprint.days || []).flatMap((day, relativeDayIndex) => (
-        (day?.taskIndexes || []).some((index) => blueprint.taskTemplates?.[index]?.type === "ACTION")
-          ? [relativeDayIndex]
-          : []
-      )),
-    );
-    const eligibleRows = windowRows
-      .filter((row) => (
-        allowedDays.has(row.dayLabel)
-        && !difficultDays.has(row.dayLabel)
-        && !excludedDates.has(row.date)
-      ))
-      .sort((left, right) => {
-        const preferredDifference = Number(preferredOffsets.has(right.dayIndex % 7))
-          - Number(preferredOffsets.has(left.dayIndex % 7));
-        return preferredDifference || left.dayIndex - right.dayIndex;
-      });
-    const selectedRows = eligibleRows
-      .slice(0, expectedEngagementDays)
-      .sort((left, right) => left.dayIndex - right.dayIndex);
-
-    const actionReferences = (blueprint.days || []).flatMap((day, preferredOffset) => (
-      (day?.taskIndexes || [])
-        .filter((templateIndex) => blueprint.taskTemplates?.[templateIndex]?.type === "ACTION")
-        .map((templateIndex) => ({ templateIndex, preferredOffset }))
-    )).filter((reference) => reference.preferredOffset < windowRows.length);
-    for (const reference of actionReferences) {
-      const template = blueprint.taskTemplates[reference.templateIndex];
-      const preferred = selectedRows.find((row) => row.dayIndex % 7 === reference.preferredOffset);
-      const candidates = [
-        ...(preferred ? [preferred] : []),
-        ...selectedRows
-          .filter((row) => row !== preferred)
-          .sort((left, right) => (
-            left.actions.length - right.actions.length
-            || left.actionMinutes - right.actionMinutes
-            || left.dayIndex - right.dayIndex
-          )),
-      ];
-      const target = candidates.find((row) => (
-        row.actions.length < MAX_DAY_ITEM_COUNT
-        && row.actionMinutes + Math.max(5, Math.min(sessionMinutes, Number(template.durationMinutes) || sessionMinutes))
-          <= sessionMinutes
-      ));
-      if (!target) continue;
-      const durationMinutes = Math.max(5, Math.min(sessionMinutes, Number(template.durationMinutes) || sessionMinutes));
-      target.actions.push({ templateIndex: reference.templateIndex, durationMinutes });
-      target.actionMinutes += durationMinutes;
-    }
-    const scheduledReferenceCount = windowRows.reduce((count, row) => count + row.actions.length, 0);
-    const requiredTemplateIndexes = new Set(actionReferences.map((reference) => reference.templateIndex));
-    const scheduledTemplateIndexes = new Set(windowRows.flatMap((row) => (
-      row.actions.map((assignment) => assignment.templateIndex)
-    )));
-    const distinctTemplateUnderfilled = [...requiredTemplateIndexes]
-      .some((templateIndex) => !scheduledTemplateIndexes.has(templateIndex));
-    const boundedReviewOffsets = [...reviewOffsets].filter((offset) => offset < windowRows.length);
-    const scheduledEngagementDays = new Set([
-      ...windowRows
-        .filter((row) => row.actions.length > 0)
-        .map((row) => row.dayIndex % 7),
-      ...boundedReviewOffsets,
-    ]).size;
-    scheduleWindowContracts.push({
-      weekNumber: Math.floor(windowStart / 7) + 1,
-      daysInPeriod: windowRows.length,
-      expectedEngagementDays,
-      eligibleUnderfilled: eligibleRows.length < expectedEngagementDays,
-      frequencyUnderfilled: scheduledEngagementDays < expectedEngagementDays,
-      rawReferenceUnderfilled: scheduledReferenceCount < actionReferences.length,
-      capacityUnderfilled: distinctTemplateUnderfilled,
-      materialReferencesDropped: material.hasMaterial && distinctTemplateUnderfilled,
-    });
-  }
-
-  const materialOccurrenceContract = buildMaterialOccurrenceContract(
-    material,
-    scheduleRows.reduce((count, row) => count + row.actions.length, 0),
-  );
-  let materialOccurrenceIndex = 0;
-  scheduleRows.forEach((row) => {
-    row.actions = row.actions.map((assignment) => ({
-      ...assignment,
-      materialAllocation: materialOccurrenceContract.allocations[materialOccurrenceIndex++],
-    }));
-  });
-
-  const scheduleOccurrences = scheduleRows.map((row) => {
-    const relativeIndexes = Array.isArray(row.sourceDay.taskIndexes) ? row.sourceDay.taskIndexes : [];
-    const supplemental = relativeIndexes
-      .filter((templateIndex) => ["REVIEW", "TIP"].includes(blueprint.taskTemplates?.[templateIndex]?.type))
-      .map((templateIndex) => ({ templateIndex, durationMinutes: null }));
-    const assigned = [...row.actions, ...supplemental].slice(0, MAX_DAY_ITEM_COUNT);
-    const recurrenceOrdinals = new Map();
-    const items = assigned.map(({ templateIndex, durationMinutes, materialAllocation }) => {
-      const template = templateWithMaterialAllocation(
-        blueprint.taskTemplates[templateIndex],
-        materialAllocation,
-        materialOccurrenceContract.mode,
-      );
-      const recurrenceGroupId = recurrenceGroupIdFor(planId, template);
-      const recurrenceOrdinal = recurrenceOrdinals.get(recurrenceGroupId) || 0;
-      recurrenceOrdinals.set(recurrenceGroupId, recurrenceOrdinal + 1);
-      return makeScheduleItem({
-        input,
-        template,
-        templateIndex,
-        planId,
-        date: row.date,
-        recurrenceOrdinal,
-        durationMinutesOverride: durationMinutes,
-      });
-    });
-    const hasAction = items.some((item) => item.type === "ACTION");
-    return {
-      dayNumber: row.dayIndex + 1,
-      date: row.date,
-      dayLabel: row.dayLabel,
-      isRestDay: !hasAction,
-      items,
-    };
-  });
-  const firstWeekSchedule = scheduleOccurrences.slice(0, 7);
-  const occurrences = firstWeekSchedule.flatMap((day) => day.items);
-  const actionOccurrences = scheduleOccurrences.flatMap((day) => day.items).filter((item) => item.type === "ACTION");
-  const firstActionTemplate = blueprint.taskTemplates[actionTemplateIndexes(blueprint)[0]];
-  const firstAction = actionOccurrences[0] || (firstActionTemplate ? {
-    title: firstActionTemplate.title,
-    time: firstActionTemplate.time,
-    durationMinutes: Math.max(5, Math.min(
-      Number(input?.availability?.sessionMinutes) || 5,
-      Number(firstActionTemplate.durationMinutes) || Number(input?.availability?.sessionMinutes) || 5,
-    )),
-    completionRule: firstActionTemplate.completionRule,
-  } : null);
-  const weekPlanCandidates = [
-    ...actionOccurrences.slice(0, 7).map((item) => item.title),
-    ...occurrences.filter((item) => item.type === "REVIEW").map((item) => item.title),
-    ...blueprint.phases.map((phase) => phase.focus),
-  ];
-  const weekPlan = [...new Set(weekPlanCandidates.filter(Boolean))].slice(0, 5);
-  while (weekPlan.length < 5) weekPlan.push(blueprint.fallbackPlan);
-  const currentDate = kstDateKey(now);
-  const todaySource = scheduleOccurrences
-    .find((day) => day.date === currentDate)
-    ?.items.filter((item) => item.type === "ACTION") || [];
-  scheduleWindowContracts.forEach((contract, windowIndex) => {
-    const windowStart = windowIndex * 7;
-    const actualEngagementDays = scheduleOccurrences
-      .slice(windowStart, windowStart + contract.daysInPeriod)
-      .filter((day) => day.items.some((item) => ["ACTION", "REVIEW"].includes(item.type)))
-      .length;
-    contract.actualEngagementDays = actualEngagementDays;
-    contract.frequencyUnderfilled = actualEngagementDays < contract.expectedEngagementDays;
-  });
-  const underfilledWindows = scheduleWindowContracts.filter((contract) => (
-    contract.eligibleUnderfilled
-    || contract.frequencyUnderfilled
-    || contract.capacityUnderfilled
-    || contract.materialReferencesDropped
-  ));
-  const eligibleUnderfilled = underfilledWindows.some((contract) => contract.eligibleUnderfilled);
-  const capacityUnderfilled = underfilledWindows.some((contract) => contract.capacityUnderfilled);
-  const modelReferenceUnderfilled = scheduleWindowContracts.some((contract) => (
-    contract.frequencyUnderfilled
-    && !contract.eligibleUnderfilled
-    && !contract.capacityUnderfilled
-  ));
-  const materialReferencesDropped = underfilledWindows.some((contract) => contract.materialReferencesDropped)
-    || (material.hasMaterial && actionOccurrences.some((item) => !clean(item.sourceReference, 200)));
-  const requestedScheduleUnderfilled = underfilledWindows.length > 0 || materialReferencesDropped;
-  const modelFeasibility = normalizedFeasibility(blueprint.feasibility);
-  const feasibility = requestedScheduleUnderfilled
-    && (modelFeasibility.status !== "infeasible_as_requested" || eligibleUnderfilled) ? {
-    status: "infeasible_as_requested",
-    summary: materialReferencesDropped
-      ? "현재 조건에서는 요청한 자료 범위와 실행 횟수를 모두 배치할 수 없어 조정이 필요해요."
-      : "현재 가능한 요일과 시간으로는 요청한 주간 실행 횟수를 채울 수 없어 조정이 필요해요.",
-    recommendedOption: eligibleUnderfilled ? "extend_duration" : "increase_session_duration",
-    adjustmentOptions: eligibleUnderfilled
-      ? ["extend_duration", "reduce_scope"]
-      : ["increase_session_duration", "reduce_scope", "extend_duration"],
-  } : modelFeasibility;
-  const requiresAdjustmentBeforeClaim = feasibility.status === "infeasible_as_requested"
-    || actionOccurrences.length === 0
-    || requestedScheduleUnderfilled;
-
-  return {
-    personalitySummary: blueprint.personalitySummary,
-    planningStyle: blueprint.planningStyle,
-    firstAction: firstAction?.title || weekPlan[0],
-    weekTitle: blueprint.weekTitle,
-    weekPlan,
-    coachMessage: blueprint.coachMessage,
-    feasibility,
-    feasibilitySummary: feasibility.summary,
-    dashboard: { goal: input.goal, progress: 0, pace: feasibility.summary },
-    fullSchedule: blueprint.phases,
-    todaySchedule: todaySource.map((item) => ({
-      date: item.scheduledAt.slice(0, 10),
-      scheduledAt: item.scheduledAt,
-      time: item.time,
-      durationMinutes: item.durationMinutes,
-      task: item.title,
-      completionRule: item.completionRule,
-    })),
-    firstWeekSchedule,
-    scheduleOccurrences,
-    scheduleContract: {
-      timezone: PLAN_TIMEZONE,
-      startDate,
-      generatedDays: scheduleDayCount,
-      exactDatesServerDerived: true,
-      requiresAdjustmentBeforeClaim,
-      requestedWeeklyFrequency: requestedFrequency,
-      periodBoundedFrequencyTargets: scheduleWindowContracts.map((contract) => ({
-        weekNumber: contract.weekNumber,
-        daysInPeriod: contract.daysInPeriod,
-        expectedEngagementDays: contract.expectedEngagementDays,
-        actualEngagementDays: contract.actualEngagementDays,
-      })),
-      underfilledWeeks: underfilledWindows.map((contract) => contract.weekNumber),
-      eligibleUnderfilled,
-      capacityUnderfilled,
-      modelReferenceUnderfilled,
-      materialReferencesDropped,
-    },
-    materialContract: input.material?.semanticRange ? {
-      sourceId: input.material.sourceId || "",
-      semanticRange: input.material.semanticRange,
-    } : null,
-    assumptions: blueprint.assumptions,
-    checkInRules: blueprint.checkInRules,
-    fallbackPlan: blueprint.fallbackPlan,
   };
 }
 
