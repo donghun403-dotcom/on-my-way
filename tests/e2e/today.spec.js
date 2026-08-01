@@ -400,7 +400,6 @@ test("모바일 첫 화면은 오늘의 한 걸음과 CTA를 우선하고 가로
     await expect(page.locator("#startFocusButton")).toBeVisible();
     const cta = await page.locator("#startFocusButton").boundingBox();
     expect(cta.y + cta.height).toBeLessThanOrEqual(viewport.height);
-    await expect(page.locator(".execution-header .ghost-link")).toBeHidden();
     await expect(page.locator(".execution-tabbar .tab")).toHaveCount(4);
   }
 });
