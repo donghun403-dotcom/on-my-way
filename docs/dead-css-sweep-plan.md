@@ -3,7 +3,7 @@
 > **에이전트 작업자에게:** REQUIRED SUB-SKILL: superpowers:subagent-driven-development(권장)
 > 또는 superpowers:executing-plans로 태스크 단위 실행. 각 단계는 체크박스(`- [ ]`)다.
 
-**목표:** `styles.css`에서 아무것도 렌더하지 않는 규칙 325개(1609줄, 전체의 9.1%)를
+**목표:** `styles.css`에서 아무것도 렌더하지 않는 규칙 325개(1716줄, 전체의 9.6%)를
 지우고, `.ghost-link`의 CSS 잔재와 아무것도 검증하지 않는 테스트 단언을 함께 정리한다.
 
 **접근:** 사문 판정을 문자열 검색에만 맡기지 않는다. 클래스 이름이 런타임에 조립되는
@@ -40,7 +40,7 @@
 | --- | --- |
 | `docs/artifacts/dead-css-live-set.md` (신규) | 런타임 조립 지점 5곳과 각 접두사의 값. 다음 라운드가 같은 조사를 반복하지 않게 하는 산출물 |
 | `docs/artifacts/dead-css-sweep-report.md` (신규) | 무엇을 왜 지웠는지와 증거 |
-| `styles.css` (수정) | 규칙 325개·1609줄 삭제 + `.ghost-link` 조각 4곳 제거 |
+| `styles.css` (수정) | 규칙 325개·1716줄 삭제(껍데기 @media 7개 포함) + `.ghost-link` 조각 4곳 제거 |
 | `tests/e2e/today.spec.js` (수정) | 공허한 단언 1줄 삭제 |
 | `docs/design-tokens.md` · `docs/PROJECT_STATUS.md` (수정) | 결과 기록 |
 
@@ -50,7 +50,7 @@
 | --- | --- |
 | `styles.css` | 규칙 3037개 / 17,779줄 / 셀렉터에 등장하는 클래스 849개 |
 | 사문 클래스 | **144개** |
-| 규칙째 삭제 | **325개 / 1609줄** (전체의 9.1%, `@media` 안 50개) |
+| 규칙째 삭제 | **325개 / 1716줄** (전체의 9.6%, `@media` 안 50개, 껍데기 @media 7개 포함) |
 | 손대지 않는 혼합 규칙 | **95개** (그중 4개는 Task 3이 `.ghost-link` 조각만 뺀다) |
 
 ---
@@ -155,12 +155,12 @@ git commit -m "런타임 조립 지점을 산출물로 남긴다"
 ### Task 2: 사문 325규칙 삭제 + 증거
 
 **Files:**
-- Modify: `styles.css` (규칙 325개 · 1609줄 삭제)
+- Modify: `styles.css` (규칙 325개 · 1716줄 삭제)
 - Create: `docs/artifacts/dead-css-sweep-report.md`
 
 **Interfaces:**
 - Consumes: Task 1의 조립 산출물 목록
-- Produces: `styles.css` 17,779줄 → 16,170줄
+- Produces: `styles.css` 17,779줄 → 16,063줄
 
 - [ ] **Step 1: 포트를 확인하고 서버를 띄운다**
 
@@ -260,12 +260,16 @@ node $TMP/build-dead-list.cjs $TMP/dead.txt
 `$TMP/delete-dead.cjs`:
 
 ```js
-// 사문 규칙을 지운다. 구간을 문자 단위로 파싱한다 — 셀렉터가 여러 줄에 걸치고
-// @media 안에도 규칙이 있다. 주석은 줄 수를 보존한 채 지워 중괄호 오인을 막는다.
+// 사문 규칙을 지운다. v3 = v2(구간 시작 버그 수정) + 껍데기만 남은 @미디어 블록 정리.
+//
+// 구간의 시작은 `{`가 있는 줄이 아니라 셀렉터 텍스트가 시작된 줄이다. 셀렉터가
+// 여러 줄에 걸치면 start를 `{` 줄로 잡고 지울 때 앞부분이 고아로 남아 **다음
+// 살아있는 규칙에 들러붙는다.** 렌더는 안 바뀌므로 계산값 diff로는 안 잡힌다.
+//
+// 안의 규칙이 전부 사문이라 껍데기만 남는 @미디어 블록은 함께 지운다. 단
+// **원래부터 비어 있던 블록은 건드리지 않는다** — 내 작업이 만든 것만 치운다.
 //
 // :not()/:has()/:is()/:where() 안의 클래스로는 사문 판정을 내리지 않는다.
-// :not(.foo)는 .foo가 없어도 모든 것에 매치하므로 그 규칙은 살아 있다.
-// 그런 규칙을 만나면 지우지 않고 목록에 남긴다.
 const fs = require("fs");
 const [cssPath, listPath, mode] = process.argv.slice(2);
 const raw = fs.readFileSync(cssPath, "utf8");
@@ -276,26 +280,34 @@ const lines = masked.split("\n");
 const spans = [];
 const stack = [];
 let pending = "";
+let selStart = null;
+
 lines.forEach((line, i) => {
   let buf = "";
   for (const ch of line) {
-    if (ch === "{") { stack.push({ sel: (pending + buf).replace(/\s+/g, " ").trim(), start: i + 1 }); pending = ""; buf = ""; }
-    else if (ch === "}") { const r = stack.pop(); if (r) spans.push({ ...r, end: i + 1, depth: stack.length }); pending = ""; buf = ""; }
-    else buf += ch;
+    if (ch === "{") {
+      const sel = (pending + buf).replace(/\s+/g, " ").trim();
+      stack.push({ sel, start: selStart !== null ? selStart : i + 1 });
+      pending = ""; buf = ""; selStart = null;
+    } else if (ch === "}") {
+      const r = stack.pop();
+      if (r) spans.push({ ...r, end: i + 1, depth: stack.length });
+      pending = ""; buf = ""; selStart = null;
+    } else {
+      buf += ch;
+      if (selStart === null && /\S/.test(ch)) selStart = i + 1;
+    }
   }
   pending += buf + " ";
 });
 
-// 조각에서 :not(...) 등의 괄호 안 내용을 지운 뒤 클래스를 뽑는다
-const outsideFunctional = (part) => part.replace(/:(?:not|is|where|has)\([^)]*\)/g, "");
-const partDead = (part) => {
-  const cls = [...outsideFunctional(part).matchAll(/\.([\w-]+)/g)].map((m) => m[1]);
+const outside = (p) => p.replace(/:(?:not|is|where|has)\([^)]*\)/g, "");
+const partDead = (p) => {
+  const cls = [...outside(p).matchAll(/\.([\w-]+)/g)].map((m) => m[1]);
   return cls.length > 0 && cls.some((c) => DEAD.has(c));
 };
-// 괄호 안 클래스를 세었더라면 지웠을 규칙 — 즉 위 제외 덕분에 살아남은 규칙.
-// 이게 0이 아니면 :not() 처리가 실제로 오삭제를 막고 있다는 뜻이므로 기록한다.
-const savedByExclusion = [];
 
+const savedByExclusion = [];
 const doomed = [];
 for (const s of spans) {
   if (s.sel.startsWith("@") || !s.sel) continue;
@@ -305,21 +317,31 @@ for (const s of spans) {
     return cls.length > 0 && cls.some((c) => DEAD.has(c));
   };
   const strict = parts.some(partDead) && parts.every(partDead);
-  if (!strict) {
-    if (parts.every(naiveDead)) savedByExclusion.push(s);
-    continue;
-  }
+  if (!strict) { if (parts.every(naiveDead)) savedByExclusion.push(s); continue; }
   doomed.push(s);
 }
 
 const doomedLines = new Set();
 for (const s of doomed) for (let l = s.start; l <= s.end; l++) doomedLines.add(l);
+
+// 껍데기만 남는 @미디어 정리 — 안에 규칙이 있었는데 전부 사문이 된 것만.
+const atBlocks = spans.filter((s) => s.sel.startsWith("@"));
+const emptiedAt = [];
+for (const at of atBlocks) {
+  const inner = spans.filter((s) => !s.sel.startsWith("@") && s.sel && s.start > at.start && s.end < at.end);
+  if (!inner.length) continue;                       // 원래부터 비어 있던 블록은 건드리지 않는다
+  if (!inner.every((s) => doomedLines.has(s.start))) continue;
+  emptiedAt.push(at);
+  for (let l = at.start; l <= at.end; l++) doomedLines.add(l);
+}
+
 const rawLines = raw.split("\n");
 const kept = rawLines.filter((_, i) => !doomedLines.has(i + 1));
 
 console.log(`삭제: 규칙 ${doomed.length}개 / ${doomedLines.size}줄  (@media 안 ${doomed.filter((s) => s.depth > 0).length}개)`);
+console.log(`껍데기만 남아 함께 지운 @미디어 블록: ${emptiedAt.length}개`);
+emptiedAt.forEach((s) => console.log(`  ${s.start}-${s.end}  ${s.sel.slice(0, 70)}`));
 console.log(`:not() 제외 덕분에 살아남은 규칙: ${savedByExclusion.length}개`);
-savedByExclusion.slice(0, 10).forEach((s) => console.log(`  ${s.start}  ${s.sel.slice(0, 100)}`));
 console.log(`줄 수 ${rawLines.length} → ${kept.length}`);
 
 if (mode === "--write") { fs.writeFileSync(cssPath, kept.join("\n")); console.log("styles.css 갱신"); }
@@ -335,9 +357,10 @@ node $TMP/delete-dead.cjs styles.css $TMP/dead.txt
 기대:
 
 ```
-삭제: 규칙 325개 / 1609줄  (@media 안 50개)
+삭제: 규칙 325개 / 1716줄  (@media 안 50개)
+껍데기만 남아 함께 지운 @미디어 블록: 7개
 :not() 제외 덕분에 살아남은 규칙: 0개
-줄 수 17779 → 16170
+줄 수 17779 → 16063
 ```
 
 두 번째 줄은 **`:not()` 안의 클래스까지 세었더라면 지웠을 규칙**의 수다. 0이면 이번
@@ -699,7 +722,7 @@ wc -l < styles.css
 grep -c 'font-weight:\s*900' styles.css
 ```
 
-기대: `458 pass`, 약 `16170`줄, 900은 **12** (글리프 캐리어 — 삭제가 건드리지 않았다).
+기대: `458 pass`, 약 `16063`줄, 900은 **12** (글리프 캐리어 — 삭제가 건드리지 않았다).
 
 - [ ] **Step 4: 커밋**
 
@@ -712,7 +735,7 @@ git commit -m "사문 CSS 청소를 문서에 적는다"
 
 ## 완료 조건
 
-- `styles.css` 17,779 → **16,170줄** (1609줄 삭제)
+- `styles.css` 17,779 → **16,063줄** (1716줄 삭제)
 - 계산값 전수 diff **차이 0** — 3페이지 × 2폭 × 21종 속성
 - 규칙 셀렉터 다중집합 대조 **오삭제 0**
 - `npm test` 458 pass / 0 fail, `font-weight: 900`은 **12** 그대로
