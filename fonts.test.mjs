@@ -210,7 +210,7 @@ test("font-weight:900 잔여 수 래칫 — 새 900 유입을 막는다", () => 
   // docs/artifacts/execution-900-classification.md에 근거를 남겨라.
   const css = fs.readFileSync("styles.css", "utf8");
   const count = (css.match(/font-weight:\s*900\b/g) || []).length;
-  // 아래로만 움직인다. 랜딩 21곳 이관 완료 상태:
-  // 이관 대상 9(관리자 8·script 1) + 글리프 유지 12.
-  assert.equal(count, 21);
+  // 아래로만 움직인다. 이관 완료 상태: 남은 12곳은 전부 글리프 캐리어다.
+  // 다음 커밋에서 이 숫자 래칫을 "글리프 사유 주석" 계약으로 승격한다.
+  assert.equal(count, 12);
 });
