@@ -38,6 +38,8 @@ mobile/capacitor.config.json
 .codex-artifacts/
 .codex-backups/
 .worktrees/
+# 기기 검증용으로 내려받는 빌드 산출물. 한 벌에 15MB 넘는다.
+apk/
 _to_delete/
 output/
 outputs/
