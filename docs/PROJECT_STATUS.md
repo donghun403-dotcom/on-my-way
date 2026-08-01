@@ -1902,6 +1902,29 @@ Pretendard의 한글 자폭이 이전 폴백 글꼴보다 좁다. 히트 영역�
 
 로컬 e2e가 "그냥 통과"할 때 무엇을 통과한 것인지 물어야 한다. 이 결함은 실패를 만들지 않고 **결과의 의미만 지웠기 때문에** 오래 살아남았다. 그리고 계획 문서 5개가 같은 우회를 반복하고 있었다면 그건 개별 실수가 아니라 도구의 결함이라는 신호다.
 
+## 게스트 AI 생성 경로 사문 청소 (2026-08-02)
+
+- 2026-07-28(`4afaad2`)에 게스트 AI 온보딩 라우트를 전부 걷어냈지만 **그 라우트만 쓰던 코드가 남았다.** 테스트는 계속 통과했다 — 자기 테스트가 자기를 살아있게 만들었기 때문이다. 그렇게 9일을 버텼다.
+- 지운 것: `ai-goal-plan.mjs`(386줄, 진입점 7곳에서 도달 불가·export 6개 전부 소비자 0), `ai-plan-output-policy.mjs`의 goal-plan 심볼 6개(423줄), 그 삭제로 함께 죽은 `DOMAIN_RULES` 21개, 그리고 위를 겨냥하던 테스트(`ai-plan-output-policy.test.mjs` 25블록 중 22개).
+- 경계는 **생성/revision**이다. `ai-plan-revision.mjs`는 `worker.mjs:503`과 `serve-local.cjs:306`에서 살아 있어 손대지 않았다.
+- `DOMAIN_RULES`는 삭제 전 상태로도 재서 갈랐다. **21개는 이번 삭제로 죽었고 4개(`PLAN_INPUT_HASH_MISMATCH`, `GOAL_BLUEPRINT_REST_ACTION`, `GOAL_BLUEPRINT_UNAVAILABLE_DAY`, `GOAL_BLUEPRINT_DAILY_DURATION`)는 원래부터 등록만 돼 있던 부채다.** 후자는 이번 범위에서 뺐다.
+
+### 검증
+
+- 진입점 도달성: 삭제 후 고아 0. 삭제 전 상태에서는 계약 테스트가 `ai-goal-plan.mjs`를 지목하며 실패하는 것을 먼저 확인했다.
+- 서버 표면: 라우트 10개의 상태코드와 응답 키가 **전후 차이 0**. 제거된 게스트 라우트는 404, 살아있는 `plan-revision`·`companion-chat`은 401로 그대로다.
+- `npm test`: **436 passed**. 사문 테스트가 빠져 468에서 줄었다.
+- 규칙 이름이 동적으로 조립되는 곳이 없음을 확인한 뒤에 `DOMAIN_RULES`를 건드렸다.
+
+### 재발 방지
+
+`module-reachability.test.mjs`를 넣었다. **"테스트가 참조한다"를 살아있음의 근거로 치지 않는다** — 진짜 진입점(`worker.mjs`, `serve-local.cjs`, 클라이언트 4개, 배포 스크립트)에서 도달할 수 있어야 살아있는 것이다. 동적 `import()`도 따라간다(`serve-local.cjs`가 그렇게 쓴다). fixture는 제외하되, 어느 테스트도 안 쓰는 fixture는 별도 검사로 잡는다.
+
+### 남긴 것과 그 근거
+
+- **`GuestPlanDraftObject`(531줄 + 테스트 887줄).** draft 저장소로 닿는 라우트가 없다(`GUEST_PLAN_DRAFTS.`가 프로덕션 코드에 한 번도 안 나온다). 그런데 `/api/health`의 `services.ai`가 이 바인딩을 검사하고 **스테이징 배포가 그 값으로 게이트**한다(`worker.mjs:185`). 즉 지금은 **아무것도 지키지 않으면서 배포 조건으로만 남아 있다.** 걷어내려면 wrangler 설정과 배포 워크플로까지 건드려야 해서 별도 판단으로 남긴다.
+- **문서의 릴리스 서술이 2026-07-24에서 멈춰 있다.** `RELEASE_BLOCKED`와 AI 게이트 4개 항목(달성 불가능 입력의 domain 안정성, guest revision 4,500 token, 자료 범위 검증, 제외 날짜 계약)은 **나흘 뒤 삭제된 기능**을 가리킨다. 이번 조사에서 그 기록을 두 번 사실로 믿고 헛짚었다. 실제 제품 방향은 그 뒤 PRO 가격 확정·스토어 IAP·EnergyLedger·Core Loop v2로 옮겨갔다.
+
 ## 작업 관행
 
 - **worktree에서 `gh pr merge --delete-branch`를 쓰지 마라.** 로컬 브랜치를 지우려고 베이스를
