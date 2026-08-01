@@ -147,7 +147,6 @@ test("완료, 해제, 재완료에도 XP와 완료 기록이 중복되지 않는
   const diagnostics = monitorPage(page);
   await page.goto("/app.html");
   await waitForAppReady(page);
-  await page.locator("#todayTools summary").click();
   await page.locator("#completeTodayButton").click();
   const rewarded = await readStored(page, "omwCompanionState");
   const firstState = await page.evaluate(() => getExecutionState());
@@ -645,7 +644,6 @@ test("하루를 모두 완료하면 완주 도장으로 축하한다", async ({ 
   await page.goto("/app.html");
   await waitForAppReady(page);
 
-  await page.locator("#todayTools summary").click();
   await page.locator("#completeTodayButton").click();
   await expect(page.locator("#ollieCelebration")).toBeVisible();
   await expect(page.locator("#ollieCelebrationStamp")).toHaveText("오늘 완주");
