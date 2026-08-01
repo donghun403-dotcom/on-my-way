@@ -94,8 +94,8 @@ test("날짜가 바뀌면 Today는 실제 계획 일차로 이동하고 Plan의 
   expect(completedAfterStaleClick).toBe(completedBeforeStaleClick);
 
   await page.locator("#tab-plan").click();
-  await page.locator("#planOpenDetailButton").click();
-  /* 픽스처의 계획은 어제 시작한다. 달력은 오늘이 속한 달로 열리므로 매달 1일에는
+  /* 달력이 계획 홈의 첫 카드라 서브뷰로 들어갈 필요가 없다.
+     픽스처의 계획은 어제 시작한다. 달력은 오늘이 속한 달로 열리므로 매달 1일에는
      보존된 선택일(1일차 = 어제)이 지난달에 있어 이번 달 격자에서 찾을 수 없다.
      날짜에 기대지 않도록, 없으면 지난달로 넘겨서 확인한다. */
   if ((await page.locator(".calendar-day.selected").count()) === 0) {
@@ -147,7 +147,6 @@ test("완료, 해제, 재완료에도 XP와 완료 기록이 중복되지 않는
   const diagnostics = monitorPage(page);
   await page.goto("/app.html");
   await waitForAppReady(page);
-  await page.locator("#todayTools summary").click();
   await page.locator("#completeTodayButton").click();
   const rewarded = await readStored(page, "omwCompanionState");
   const firstState = await page.evaluate(() => getExecutionState());
@@ -644,7 +643,6 @@ test("하루를 모두 완료하면 완주 도장으로 축하한다", async ({ 
   await page.goto("/app.html");
   await waitForAppReady(page);
 
-  await page.locator("#todayTools summary").click();
   await page.locator("#completeTodayButton").click();
   await expect(page.locator("#ollieCelebration")).toBeVisible();
   await expect(page.locator("#ollieCelebrationStamp")).toHaveText("오늘 완주");

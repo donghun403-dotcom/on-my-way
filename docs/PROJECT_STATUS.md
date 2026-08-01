@@ -1812,6 +1812,26 @@ Pretendard의 한글 자폭이 이전 폴백 글꼴보다 좁다. 히트 영역�
 - Chromium 430px: 기존 1열 × 4행 유지, 가로 넘침 0px 확인
 - `npx playwright test tests/e2e/responsive.spec.js -g "320x568 수동 빌더 결과 화면" --project=responsive-chromium --workers=1`: **1 passed**
 
+## 오늘 진행률 숫자·게이지 겹침 수정 (2026-08-01)
+
+- 오늘 진행률의 숫자 열이 72px로 고정돼 `100%` 텍스트가 게이지 안으로 11.4px 침범하던 문제를 수정했다.
+- 숫자 열을 최소 100px로 확보하고 내용이 더 넓으면 자동 확장되도록 해 진행률 자릿수가 바뀌어도 게이지와 분리되게 했다.
+
+### 검증
+
+- Chromium 1440px·430px·320px: `100%`와 게이지 사이 16.6px 간격, 가로 넘침 0px 확인
+- `npx playwright test tests/e2e/today.spec.js -g "모바일 첫 화면" --project=mobile-chromium --workers=1`: **1 passed**
+
+## 오늘 일정 도구 기본 노출 (2026-08-01)
+
+- Today 카드의 `일정 도구`를 기본으로 열어 시간순·우선순위 전환과 `모두 완료`를 바로 사용할 수 있게 했다.
+- 네이티브 `<details>` 구조는 유지해 사용자가 원하면 다시 접을 수 있으며, 별도 JS 상태는 추가하지 않았다.
+- 기본 닫힘을 전제로 summary를 먼저 클릭하던 E2E 준비 동작 4곳을 제거했다.
+
+### 검증
+
+- 일정 완료·기록·축하 흐름과 320~430px 모바일 화면 관련 Playwright 테스트: **7 passed**
+
 ## 작업 관행
 
 - **스택 PR을 머지할 때 `--delete-branch`를 쓰지 마라.** 베이스 브랜치가 사라지면 그 위에

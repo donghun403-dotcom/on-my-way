@@ -14,7 +14,10 @@ const { prepareApp, waitForAppReady, waitForBootstrap } = require("./helpers");
 //
 // Four documented exemptions:
 //   - links inline inside a sentence (WCAG 2.5.8 explicitly exempts these)
-//   - .plan-week-day, where 7 columns cannot each be 44px wide at 320px
+//   - .calendar-day, where 7 month-grid columns cannot each be 44px wide at
+//     320px (grid ≈247px but 7 x 44 = 308px even at zero gap). Cells measure
+//     ~31x68 at 320px / ~40x69 at 375px, clearing the 24x24 WCAG 2.5.8 AA
+//     minimum; only the 44px AAA/HIG target is missed.
 //   - .legal-nav-links a (the 개인정보/이용약관/고객지원/계정 탈퇴 header nav on the
 //     four legal pages) — pre-existing gap, not created by Task 7's font swap.
 //     Height is 22.09px on every legal page at every measured width because the
@@ -66,7 +69,7 @@ for (const [width, height] of [[320, 568], [390, 844]]) {
             return style.visibility !== "hidden" && style.display !== "none" && style.opacity !== "0" && rect.width >= 1 && rect.height >= 1;
           })
           .filter((el) => !isInlineInSentence(el))
-          .filter((el) => !el.className.toString().includes("plan-week-day"))
+          .filter((el) => !el.className.toString().includes("calendar-day"))
           .filter((el) => !el.closest(".legal-nav-links"))
           .filter((el) => el.id !== "deleteAgreement")
           .map((el) => ({ ...effectiveSize(el), label: (el.getAttribute("aria-label") || el.textContent.trim() || el.id).slice(0, 30) }))

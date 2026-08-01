@@ -114,7 +114,7 @@ test("모든 탭을 클릭과 키보드로 이동한다", async ({ page }) => {
   diagnostics.expectClean();
 });
 
-test("계획 홈은 7일 요약과 AI·직접 편집 진입을 구분한다", async ({ page, isMobile }, testInfo) => {
+test("계획 홈은 달력을 먼저 보여주고 일정 목록은 서브뷰로 보낸다", async ({ page, isMobile }, testInfo) => {
   await page.goto("/app.html");
   await waitForAppReady(page);
   await page.evaluate(() => {
@@ -126,15 +126,28 @@ test("계획 홈은 7일 요약과 AI·직접 편집 진입을 구분한다", as
   await waitForAppReady(page);
   await page.locator("#tab-plan").click();
   await captureAcceptance(page, testInfo, "plan-week-view");
-  await expect(page.locator("#planWeekStrip .plan-week-day")).toHaveCount(7);
-  await expect(page.locator("#weeklyPlanList > li")).toHaveCount(3);
-  await expect(page.locator("#planOpenDetailButton")).toContainText("직접 편집");
-  await expect(page.locator("#planOpenEditorButton")).toContainText("AI로 조정");
-  const actionOrder = await page.evaluate(() => ({
-    actionTop: document.querySelector("#planOpenEditorButton").getBoundingClientRect().top,
-    weekTop: document.querySelector("#planWeekStrip").getBoundingClientRect().top,
+  // 달력이 홈 최상단 카드로 먼저 나오고, 목표 상세 카드는 그 아래로 내려간다.
+  await expect(page.locator(".schedule-calendar-card")).toBeVisible();
+  expect(await page.locator("#scheduleCalendar .calendar-day").count()).toBeGreaterThan(27);
+  const cardOrder = await page.evaluate(() => ({
+    calendarTop: document.querySelector(".schedule-calendar-card").getBoundingClientRect().top,
+    upcomingTop: document.querySelector(".plan-upcoming-card").getBoundingClientRect().top,
+    overviewTop: document.querySelector(".plan-overview-card").getBoundingClientRect().top,
   }));
-  expect(actionOrder.actionTop).toBeLessThan(actionOrder.weekTop);
+  expect(cardOrder.calendarTop).toBeLessThan(cardOrder.upcomingTop);
+  expect(cardOrder.upcomingTop).toBeLessThan(cardOrder.overviewTop);
+  await expect(page.locator("#weeklyPlanList > li")).toHaveCount(3);
+  await expect(page.locator("#planOpenDetailButton")).toContainText("전체 일정 보기");
+  await expect(page.locator("#planOpenEditorButton")).toContainText("AI로 조정");
+  // 로드맵·생성 기준은 접힌 상태로 시작한다.
+  const disclosures = page.locator(".plan-detail-disclosure");
+  await expect(disclosures).toHaveCount(2);
+  for (const disclosure of await disclosures.all()) {
+    expect(await disclosure.getAttribute("open")).toBeNull();
+  }
+  // 일정 목록은 '전체 일정' 서브뷰에서 확인하고 수정한다.
+  await page.locator("#planOpenDetailButton").click();
+  await expect(page.locator("#view-plan")).toHaveAttribute("data-active-plan-screen", "detail");
   await expect(page.locator("#planScheduleList")).toBeVisible();
   await expect(page.locator("#planScheduleList > details")).toHaveCount(1);
   const allRange = page.getByRole("button", { name: "전체 일정", exact: true });
@@ -144,6 +157,8 @@ test("계획 홈은 7일 요약과 AI·직접 편집 진입을 구분한다", as
   expect(await page.locator("#planScheduleList > details").count()).toBeGreaterThan(1);
   await page.getByRole("button", { name: "주간", exact: true }).click();
   await expect(page.locator("#planScheduleList > details")).toHaveCount(1);
+  await page.locator("[data-plan-screen='detail'] [data-plan-back]").click();
+  await expect(page.locator("#view-plan")).toHaveAttribute("data-active-plan-screen", "home");
   if (isMobile) await expect(page.locator("#planOpenDetailButton")).not.toHaveCSS("background-color", "rgb(34, 34, 34)");
   await expect(page.locator("#view-plan")).not.toHaveCSS("overflow-x", "scroll");
 });
@@ -171,6 +186,7 @@ test("Roadmap 고정 요일 변경은 AI 재호출 없이 hard constraint를 적
   await page.goto("/app.html");
   await waitForAppReady(page);
   await page.locator("#tab-plan").press("Enter");
+  await page.locator("#planOpenDetailButton").press("Enter");
   await page.getByRole("button", { name: "전체 일정", exact: true }).press("Enter");
   const scheduledDays = await page.locator("#planScheduleList [data-edit-task]").evaluateAll((buttons) =>
     buttons.map((button) => ({
@@ -788,14 +804,13 @@ test("같은 목표의 새 planId는 과거 실행 상태를 재사용하지 않
   expect(result.memoryCount).toBe(result.historicalMemoryCount + 1);
 });
 
-test("주간 날짜에서 상세 시트로 이동하고 Escape로 닫으면 초점이 복원된다", async ({ page, isMobile }) => {
+test("홈 달력 날짜에서 상세 시트로 이동하고 Escape로 닫으면 초점이 복원된다", async ({ page, isMobile }) => {
   test.skip(!isMobile, "모바일 시트 동작");
   await page.goto("/app.html");
   await waitForAppReady(page);
   await page.locator("#tab-plan").click();
-  const firstDay = page.locator("#planWeekStrip .plan-week-day").first();
+  const firstDay = page.locator("#scheduleCalendar .calendar-day:not([disabled])").first();
   await firstDay.click();
-  await expect(page.locator("#view-plan")).toHaveAttribute("data-active-plan-screen", "detail");
   await expect(page.locator("#calendarDayDetail")).toBeVisible();
   await expect(page.locator("#calendarDayDetail")).toHaveAttribute("aria-modal", "true");
   const sheetBounds = await page.evaluate(() => {
@@ -866,7 +881,7 @@ test("계획 조정 범위는 오늘 직접 편집과 주간 일정 목록에 �
   await page.locator("#planOpenEditorButton").click();
   await page.locator("[data-plan-adjust-scope='week']").click();
   await page.locator("#planDirectAdjustButton").click();
-  await expect(page.locator("#view-plan")).toHaveAttribute("data-active-plan-screen", "home");
+  await expect(page.locator("#view-plan")).toHaveAttribute("data-active-plan-screen", "detail");
   await expect(page.locator("[data-plan-range='week']")).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("#planScheduleList [data-edit-task]").first()).toBeVisible();
 });

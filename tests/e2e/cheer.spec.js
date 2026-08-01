@@ -8,9 +8,8 @@ const {
   waitForAppReady,
 } = require("./helpers");
 
-/* 오늘 계획을 한 번에 완료해 축하 치어링을 발화시킨다. 완료 버튼은 오늘 도구 안에 접혀 있다. */
+/* 오늘 계획을 한 번에 완료해 축하 치어링을 발화시킨다. */
 async function completeToday(page) {
-  await page.locator("#todayTools summary").click();
   await page.locator("#completeTodayButton").click();
 }
 
