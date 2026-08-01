@@ -14121,7 +14121,7 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
 .execution-page #view-today .today-card > .view-jump-link { display: none; }
 
 .execution-page #view-today .progress-card { order: 4; }
-.execution-page .today-progress-body { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 16px; align-items: center; margin-top: var(--space-4); }
+.execution-page .today-progress-body { display: grid; grid-template-columns: minmax(100px, max-content) minmax(0, 1fr); gap: 16px; align-items: center; margin-top: var(--space-4); }
 /* tabular-nums: 자릿수가 바뀌어도 숫자 폭이 흔들리지 않게 고정한다. */
 .execution-page .today-progress-body > strong { color: var(--blue-700); font-family: var(--font-numeric); font-variant-numeric: tabular-nums; font-size: 34px; }
 .execution-page .today-progress-body .progress-track { margin: 0; }
