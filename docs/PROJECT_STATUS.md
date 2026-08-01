@@ -1893,3 +1893,22 @@ Pretendard의 한글 자폭이 이전 폴백 글꼴보다 좁다. 히트 영역�
   쌓은 PR이 자동으로 닫히고, **닫힌 PR은 베이스를 바꿀 수 없다.** #44가 그렇게 없어졌다
   (같은 내용을 main 위로 리베이스해 #45로 다시 열어야 했다). 스택을 정리하려면 머지한 뒤
   다음 PR을 main으로 리베이스하고, 브랜치 삭제는 그 다음이다.
+
+- **worktree에서 e2e를 돌릴 때는 `PORT`로 포트를 갈라라.** `playwright.config.js`가 포트를
+  `PORT`(없으면 `E2E_PORT`, 그것도 없으면 8765) 하나에서 뽑아 `baseURL`·`webServer.url`·
+  서버에 넘기는 `env.PORT`에 함께 쓴다. 예: `PORT=8899 npx playwright test`.
+
+  그전에는 설정이 8765를 하드코딩해서 두 가지가 깨져 있었다. (1) `PORT=8899`를 줘도
+  `serve-local.cjs`만 8899에 붙고 Playwright는 8765를 테스트했다. (2) 다른 worktree가 8765를
+  쓰고 있으면 `reuseExistingServer: !CI`가 **아무 경고 없이** 남의 서버에 붙어 남의 HTML을
+  테스트했다 — 재사용 분기가 `DEBUG=pw:webserver` 뒤에서만 로그를 남기기 때문이다. 통과·실패가
+  전부 무의미해진다. worktree를 23개 굴리는 저장소에서 이건 기본 상태였다.
+
+  그래서 `reuseExistingServer`를 **항상 `false`로** 두었다. 포트를 명시했는지로 재사용을
+  허용해 볼 수도 있었지만, `.claude/launch.json`이 gitignore라 worktree 사이에서 **그대로
+  복사되고**(이 저장소에서 실제로 8765인 채 복사돼 있었다) 명시했다는 사실이 "내 서버"임을
+  보장하지 못한다. 이제 포트가 겹치면 Playwright가 `already used`로 크게 실패한다.
+  이미 띄워 둔 서버에 붙이려면 예전처럼 `E2E_BASE_URL`로 **명시한다**(CI가 쓰는 경로이고,
+  이 값을 주면 `webServer` 자체가 뜨지 않는다).
+
+  회귀는 `playwright-port-isolation.test.mjs`가 고정한다(`npm test`에 포함).
