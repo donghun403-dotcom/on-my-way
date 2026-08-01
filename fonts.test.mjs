@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 
 const PRETENDARD_CSS = "assets/fonts/pretendard/pretendard-variable.css";
 
@@ -88,20 +89,23 @@ test("잘난체 참조가 저장소에 하나도 없다", () => {
   // 이 파일 자신은 제외한다. 찾으려는 문자열이 아래 정규식 리터럴에 그대로 들어 있어서,
   // 제외하지 않으면 이 테스트가 스스로를 검출해 절대 통과하지 못한다.
   // .md는 대상이 아니다 — 설계 문서와 design-tokens.md는 과거 경위를 계속 서술해야 한다.
+  // 파일시스템이 아니라 git 추적 목록을 훑는다. 이 검사가 지키려는 건 "저장소"이지
+  // 작업자의 디스크가 아니다. 디렉터리를 훑으면 .backups/ 에 남은 옛 스냅샷이 걸려
+  // 그런 폴더가 있는 체크아웃에서만 실패한다 — 실제로 주 체크아웃에서만 깨졌다.
+  // 제외 목록을 늘리는 건 끝이 없다. 무시 대상은 애초에 추적되지 않으니 여기 안 온다.
   const exts = /\.(mjs|js|cjs|html|css)$/;
-  const skip = /node_modules|[\\/]\.git|\.worktrees|\.claude|test-results|playwright-report|blob-report/;
   const selfName = "fonts.test.mjs";
-  const hits = [];
-  const walk = (dir) => {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      const full = path.join(dir, entry.name);
-      if (skip.test(full)) continue;
-      if (entry.isDirectory()) { walk(full); continue; }
-      if (!exts.test(entry.name) || entry.name === selfName) continue;
-      if (/여기어때 잘난체|Jalnan|jalnan/i.test(fs.readFileSync(full, "utf8"))) hits.push(full);
-    }
-  };
-  walk(".");
+  const listed = spawnSync("git", ["ls-files"], { encoding: "utf8", windowsHide: true });
+  assert.equal(listed.status, 0, "git ls-files 실패 — 저장소 안에서 실행해야 한다");
+  const files = listed.stdout
+    .split("\n")
+    .map((f) => f.trim())
+    .filter((f) => f && exts.test(f) && !f.endsWith(selfName))
+    // 워킹트리에서 지웠지만 아직 스테이징하지 않은 파일은 목록에 남는다.
+    .filter((f) => fs.existsSync(f));
+  // 훑을 게 없어도 통과하는 공허한 검사가 되지 않도록 규모를 못 박는다.
+  assert.ok(files.length > 50, `훑은 파일이 ${files.length}개뿐 — 검사가 비어 있다`);
+  const hits = files.filter((f) => /여기어때 잘난체|Jalnan|jalnan/i.test(fs.readFileSync(f, "utf8")));
   assert.deepEqual(hits, [], "잘난체 참조가 남아 있다");
 });
 
