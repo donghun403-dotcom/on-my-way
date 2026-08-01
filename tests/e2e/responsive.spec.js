@@ -54,7 +54,7 @@ test("320x568 수동 빌더 결과 화면이 가로로 넘치지 않는다", asy
   await completeManualPlan(page, {
     goal: "3개월 안에 토익 900점 달성하기",
     tasks: [
-      { time: "07:00", text: "단어 40개 외우기", minutes: 20, rule: "테스트에서 35개 이상 맞히면 완료" },
+      { time: "07:00", text: "기출문제 1세트를 풀고 채점과 오답 표시까지 하기", minutes: 20, rule: "테스트에서 35개 이상 맞히면 완료" },
       { time: "21:00", text: "기출 1세트 풀기", minutes: 40, rule: "채점과 오답 표시까지 하면 완료" },
     ],
   });
@@ -63,6 +63,24 @@ test("320x568 수동 빌더 결과 화면이 가로로 넘치지 않는다", asy
   const firstStepOverflow = await page.locator("#firstStep")
     .evaluate((element) => element.scrollWidth - element.clientWidth);
   expect(firstStepOverflow, "#firstStep horizontal overflow").toBeLessThanOrEqual(1);
+
+  const visibleWeekCopies = page.locator("#aiVisibleWeekPlan > li:visible > p");
+  await expect(visibleWeekCopies).toHaveCount(3);
+  const collapsedCopyMetrics = await visibleWeekCopies.evaluateAll((elements) => elements.map((element) => ({
+    whiteSpace: getComputedStyle(element).whiteSpace,
+    overflow: element.scrollWidth - element.clientWidth,
+    height: element.getBoundingClientRect().height,
+    lineHeight: Number.parseFloat(getComputedStyle(element).lineHeight),
+  })));
+  expect(collapsedCopyMetrics.every(({ whiteSpace }) => whiteSpace === "normal")).toBe(true);
+  expect(collapsedCopyMetrics.every(({ overflow }) => overflow <= 1)).toBe(true);
+  expect(collapsedCopyMetrics.some(({ height, lineHeight }) => height > lineHeight + 1)).toBe(true);
+
+  await page.locator("#weekPreviewToggle").click();
+  await expect(visibleWeekCopies).toHaveCount(7);
+  const expandedCopyOverflow = await visibleWeekCopies.evaluateAll((elements) =>
+    elements.map((element) => element.scrollWidth - element.clientWidth));
+  expect(expandedCopyOverflow.every((overflow) => overflow <= 1)).toBe(true);
 
   // 접어 둔 상세(주간 일정 표)를 펼쳐도 화면을 밀지 않는다.
   await page.locator(".result-details-disclosure summary").click();
