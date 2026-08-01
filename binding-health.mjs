@@ -61,8 +61,15 @@ export function checkBindingInvariants(health) {
 
   const bindings = health.bindings;
   if (!bindings || typeof bindings !== "object") {
-    // 구버전 워커에 새 검증기를 걸면 여기서 걸린다. 조용히 통과시키지 않는다.
-    return { ok: false, failures: ["health 응답에 bindings가 없습니다 — 배포본이 검증기보다 오래됐습니다."] };
+    /* 구버전 워커에 새 검증기를 걸면 여기서 걸린다. 조용히 통과시키지 않는다.
+       다만 이건 불변식 위반과 성질이 다르다 — 위반은 다시 읽어도 그대로지만,
+       갓 배포한 워커가 잠깐 이전 버전을 서빙하는 것은 전파가 끝나면 사라진다.
+       stale 표시로 그 차이를 알려 호출자가 이 경우만 재시도하게 한다. */
+    return {
+      ok: false,
+      stale: true,
+      failures: ["health 응답에 bindings가 없습니다 — 배포본이 검증기보다 오래됐습니다."],
+    };
   }
 
   for (const name of VERIFIED_BINDINGS) {

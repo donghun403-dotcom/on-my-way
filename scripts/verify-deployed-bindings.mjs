@@ -44,14 +44,25 @@ async function readHealth() {
   return { body: null, status: 0, error: lastError };
 }
 
-const { body, status, error } = await readHealth();
+/* 낡은 배포본은 위반이 아니라 전파 지연이다. 다시 읽으면 사라지므로 그 경우만
+   재시도한다 — 진짜 위반은 여전히 첫 판정에서 즉시 실패한다.
+   (2026-08-02 Staging: 배포는 성공했는데 검증기가 이전 버전을 읽어 실패로 끝났다.) */
+let body, status, error, result;
+for (let attempt = 1; attempt <= ATTEMPTS; attempt += 1) {
+  ({ body, status, error } = await readHealth());
+  if (!body) break;
+  result = checkBindingInvariants(body);
+  if (!result.stale) break;
+  if (attempt < ATTEMPTS) {
+    console.log(`배포본이 아직 이전 버전입니다 — ${RETRY_DELAY_MS / 1000}초 뒤 다시 읽습니다 (${attempt}/${ATTEMPTS}).`);
+    await sleep(RETRY_DELAY_MS);
+  }
+}
 
 if (!body) {
   console.error(`바인딩 검증 실패: ${healthUrl}를 읽지 못했습니다 (${error})`);
   process.exit(1);
 }
-
-const result = checkBindingInvariants(body);
 const reported = body.bindings && typeof body.bindings === "object"
   ? Object.entries(body.bindings).map(([name, ok]) => `${name}=${ok}`).join(" ")
   : "(없음)";
