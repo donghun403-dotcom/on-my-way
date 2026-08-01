@@ -193,7 +193,6 @@ const planOverviewStatus = document.querySelector("#planOverviewStatus");
 const planOverviewPeriod = document.querySelector("#planOverviewPeriod");
 const planOverviewWeek = document.querySelector("#planOverviewWeek");
 const planOverviewRhythm = document.querySelector("#planOverviewRhythm");
-const planWeekStrip = document.querySelector("#planWeekStrip");
 const planCriteriaMaterial = document.querySelector("#planCriteriaMaterial");
 const planCriteriaAvailability = document.querySelector("#planCriteriaAvailability");
 const planCriteriaIntensity = document.querySelector("#planCriteriaIntensity");
@@ -882,7 +881,8 @@ async function applyPlanChoice(choice) {
 
 function setPlanScreen(screen, { scroll = true, focus = true } = {}) {
   const nextScreen = ["home", "detail", "editor"].includes(screen) ? screen : "home";
-  if (nextScreen !== "detail" && calendarDetailOpen) closeCalendarDayDetail({ restoreFocus: false });
+  // 달력이 홈 화면에 있으므로, 홈을 벗어날 때 날짜 상세 시트를 닫는다.
+  if (nextScreen !== "home" && calendarDetailOpen) closeCalendarDayDetail({ restoreFocus: false });
   activePlanScreen = nextScreen;
   planScreenElements.forEach((element) => {
     const isVisible = element.dataset.planScreen === nextScreen;
@@ -893,7 +893,7 @@ function setPlanScreen(screen, { scroll = true, focus = true } = {}) {
   const firstVisible = [...planScreenElements].find((element) => element.dataset.planScreen === nextScreen);
   if (scroll) window.scrollTo({ top: 0, behavior: "smooth" });
   if (focus && nextScreen !== "home") window.setTimeout(() => firstVisible?.focus({ preventScroll: true }), 80);
-  announce(nextScreen === "detail" ? "전체 계획 화면" : nextScreen === "editor" ? "계획 수정 화면" : "내 계획 화면");
+  announce(nextScreen === "detail" ? "전체 일정 화면" : nextScreen === "editor" ? "계획 수정 화면" : "내 계획 화면");
 }
 
 function readTrialAccess() {
@@ -6861,6 +6861,7 @@ const focusSessionKey = "omwFocusSession";
 const legacyOllieStorageKeys = [companionStateKey, companionEventKey];
 let activeFocusTaskIndex = 0;
 let calendarViewDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+let calendarViewAligned = false;
 let calendarDetailOpen = false;
 let calendarDetailTrigger = null;
 
@@ -6869,7 +6870,14 @@ function closeCalendarDayDetail({ restoreFocus = true } = {}) {
   if (calendarDayDetail) calendarDayDetail.hidden = true;
   if (calendarDayDetailBackdrop) calendarDayDetailBackdrop.hidden = true;
   document.body.classList.remove("calendar-sheet-open");
-  if (restoreFocus) calendarDetailTrigger?.focus({ preventScroll: true });
+  // 시트가 열리는 사이 달력이 다시 그려지면 트리거가 detached 노드가 되므로,
+  // 현재 DOM의 같은 날짜 셀로 초점을 되돌린다.
+  if (restoreFocus) {
+    const trigger = calendarDetailTrigger?.isConnected
+      ? calendarDetailTrigger
+      : scheduleCalendar?.querySelector(".calendar-day.selected");
+    trigger?.focus({ preventScroll: true });
+  }
 }
 let focusTimerInterval = null;
 let focusSession = {
@@ -8557,6 +8565,19 @@ function isSameCalendarDate(first, second) {
 function renderCalendar(schedule, state, plan) {
   if (!scheduleCalendar) return;
 
+  // 홈 첫 화면이 빈 달로 열리지 않도록, 오늘이 계획 밖이면 계획이 있는 달에서 시작한다.
+  if (!calendarViewAligned) {
+    calendarViewAligned = true;
+    const planStart = getPlanStartDate(plan, state);
+    const todayPlanDay = getCalendarDayDifference(new Date(), planStart) + 1;
+    if (todayPlanDay < 1) {
+      calendarViewDate = new Date(planStart.getFullYear(), planStart.getMonth(), 1);
+    } else if (todayPlanDay > schedule.length) {
+      const planEnd = new Date(planStart.getFullYear(), planStart.getMonth(), planStart.getDate() + Math.max(0, schedule.length - 1));
+      calendarViewDate = new Date(planEnd.getFullYear(), planEnd.getMonth(), 1);
+    }
+  }
+
   scheduleCalendar.replaceChildren();
   const year = calendarViewDate.getFullYear();
   const month = calendarViewDate.getMonth();
@@ -8702,6 +8723,8 @@ function renderPlanOverview(plan, schedule, state) {
   const activeDays = week.filter((dayPlan) => dayPlan.tasks.length > 0).length;
   const taskCount = week.reduce((sum, dayPlan) => sum + dayPlan.tasks.length, 0);
   if (planOverviewGoal) planOverviewGoal.textContent = plan.goal || "나의 목표";
+  const planHeadGoal = document.querySelector("#planHeadGoal");
+  if (planHeadGoal) planHeadGoal.textContent = plan.goal || "진행 중인 계획을 한눈에 봐요.";
   if (planOverviewStatus) {
     planOverviewStatus.textContent = state.pendingPlanText ? "변경안 확인 필요" : state.status === "적용 완료" ? "최신 계획" : "진행 중";
     planOverviewStatus.classList.toggle("has-pending", Boolean(state.pendingPlanText));
@@ -8719,7 +8742,6 @@ function renderPlanOverview(plan, schedule, state) {
     planCriteriaAvailability.textContent = `${days.join("·") || "요일 유연"} · 회당 ${Number(plan.availability?.sessionMinutes) || 25}분`;
   }
   if (planCriteriaIntensity) planCriteriaIntensity.textContent = plan.availability?.intensity || "균형 있게";
-  renderPlanWeekStrip(schedule, plan, state);
   renderPlanScheduleList(schedule, plan, state);
 }
 
@@ -8757,27 +8779,6 @@ function renderPlanScheduleList(schedule, plan, state) {
     group.append(summary, list);
     planScheduleList.append(group);
   }
-}
-
-function renderPlanWeekStrip(schedule, plan, state) {
-  if (!planWeekStrip) return;
-  planWeekStrip.replaceChildren();
-  const startIndex = Math.max(0, Number(state.selectedDay || 1) - 1);
-  const planStartDate = getPlanStartDate(plan, state);
-  schedule.slice(startIndex, startIndex + 7).forEach((dayPlan) => {
-    const date = new Date(planStartDate.getFullYear(), planStartDate.getMonth(), planStartDate.getDate() + dayPlan.day - 1);
-    const completion = getDayCompletion(dayPlan, state.checkedByDay);
-    const button = document.createElement("button");
-    button.type = "button";
-    button.dataset.day = String(dayPlan.day);
-    button.className = "plan-week-day";
-    button.classList.toggle("is-today", isSameCalendarDate(date, new Date()));
-    button.classList.toggle("is-complete", completion.percent === 100 && dayPlan.tasks.length > 0);
-    button.classList.toggle("is-rest", dayPlan.tasks.length === 0);
-    button.setAttribute("aria-label", `${date.toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "long" })}, ${dayPlan.tasks.length ? `일정 ${dayPlan.tasks.length}개, ${completion.percent}% 완료` : "휴식일"}`);
-    button.innerHTML = `<span>${date.toLocaleDateString("ko-KR", { weekday: "narrow" })}</span><strong>${date.getDate()}</strong><i aria-hidden="true">${completion.percent === 100 && dayPlan.tasks.length ? "✓" : dayPlan.tasks.length ? "•" : "−"}</i>`;
-    planWeekStrip.append(button);
-  });
 }
 
 function renderWeeklyPlan(schedule, plan, state) {
@@ -10908,8 +10909,9 @@ planDirectAdjustButton?.addEventListener("click", () => {
     button.setAttribute("aria-pressed", String(active));
   });
   renderPlanScheduleList(bundle.schedule, bundle.plan, bundle.state);
-  setPlanScreen("home");
-  window.requestAnimationFrame(() => planScheduleList?.scrollIntoView({ block: "start", behavior: "smooth" }));
+  // 일정 목록은 이제 '전체 일정' 서브뷰에 있다.
+  setPlanScreen("detail");
+  document.querySelector("#tab-plan")?.click();
   trackCompanionEvent("plan_direct_edit_opened", { scope: activePlanAdjustScope });
 });
 
@@ -11081,23 +11083,6 @@ planUndoButton?.addEventListener("click", async () => {
   renderExecutionPage(bundle);
   await saveAccountStateToServer();
   showToast("직전 변경을 되돌렸어요.");
-});
-
-planWeekStrip?.addEventListener("click", (event) => {
-  const button = event.target.closest(".plan-week-day");
-  if (!button?.dataset.day) return;
-  const bundle = getPlanBundle();
-  bundle.state.selectedDay = Number(button.dataset.day);
-  savePlanBundleState(bundle.state);
-  calendarDetailOpen = true;
-  calendarDetailTrigger = button;
-  const selectedDate = new Date(getPlanStartDate(bundle.plan, bundle.state));
-  selectedDate.setDate(selectedDate.getDate() + bundle.state.selectedDay - 1);
-  calendarViewDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
-  setPlanScreen("detail");
-  renderExecutionPage(bundle);
-  calendarDetailTrigger = scheduleCalendar?.querySelector(`[data-day="${bundle.state.selectedDay}"]`) || button;
-  window.setTimeout(() => calendarDayDetail?.focus({ preventScroll: true }), 80);
 });
 
 planBackButtons.forEach((button) => {

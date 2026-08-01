@@ -380,77 +380,16 @@
       <!-- ============ 계획 (Plan) ============ -->
       <div class="app-view" id="view-plan" data-view="plan" role="tabpanel" aria-labelledby="tab-plan" hidden>
         <div class="view-head plan-view-head" data-plan-screen="home">
-          <div><span>MY PLAN</span><h1>내 계획</h1><p>핵심만 확인하고, 필요할 때 수정해요.</p></div>
+          <div><span>MY PLAN</span><h1>내 계획</h1><p id="planHeadGoal">진행 중인 계획을 한눈에 봐요.</p></div>
           <img src="assets/ollie-thinking.png" alt="계획을 함께 고민하는 올리" />
         </div>
 
-        <section class="execution-card weekly-plan-card plan-overview-card" data-plan-screen="home">
-          <div class="plan-overview-head">
-            <div>
-              <span>현재 진행 중</span>
-              <h2 id="planOverviewGoal">나의 목표</h2>
-              <p>올리가 지금 적용 중인 계획이에요.</p>
-            </div>
-            <span class="plan-overview-status" id="planOverviewStatus">진행 중</span>
-          </div>
-
-          <section class="plan-roadmap-summary" aria-labelledby="planRoadmapTitle">
-            <div>
-              <span>큰 길과 이번 주</span>
-              <h3 id="planRoadmapTitle">목표까지 가는 마일스톤</h3>
-            </div>
-            <ol id="planRoadmapList">
-              <li><b>지금 여기</b><strong>첫 실행 리듬 만들기</strong><small>현재 계획을 불러오는 중이에요.</small></li>
-            </ol>
-          </section>
-
-          <div class="plan-overview-metrics" aria-label="현재 계획 핵심 정보">
-            <div><span>전체 기간</span><strong id="planOverviewPeriod">30일</strong></div>
-            <div><span>이번 주</span><strong id="planOverviewWeek">실행 5일</strong></div>
-            <div><span>집중 시간</span><strong id="planOverviewRhythm">아침</strong></div>
-          </div>
-
-          <dl class="plan-criteria-card" id="planCriteriaCard" aria-label="계획 생성 기준">
-            <div><dt>사용 자료</dt><dd id="planCriteriaMaterial">정해진 자료 없음</dd></div>
-            <div><dt>가능 시간</dt><dd id="planCriteriaAvailability">일정 확인 중</dd></div>
-            <div><dt>진행 방식</dt><dd id="planCriteriaIntensity">균형 있게</dd></div>
-          </dl>
-
-          <div class="plan-home-actions">
-            <button id="planOpenEditorButton" type="button"><span><strong>AI로 조정</strong><small>변경안을 먼저 확인한 뒤 적용해요</small></span><b aria-hidden="true">›</b></button>
-            <button id="planOpenDetailButton" type="button"><span><strong>직접 편집</strong><small>날짜별 일정과 시간을 바로 바꿔요</small></span><b aria-hidden="true">›</b></button>
-          </div>
-
-          <div class="plan-week-strip" id="planWeekStrip" aria-label="이번 주 계획"></div>
-
-          <div class="plan-week-preview-head">
-            <strong>다가오는 일정</strong>
-            <span>먼저 할 핵심 3개만 보여드려요</span>
-          </div>
-          <ol class="weekly-plan" id="weeklyPlanList">
-            <li><span>월</span><strong>오늘의 핵심 일정</strong><p>09:00 · 예상 15분</p></li>
-            <li><span>화</span><strong>다음 핵심 일정</strong><p>18:00 · 예상 20분</p></li>
-            <li><span>수</span><strong>주간 점검</strong><p>완료한 계획을 가볍게 확인</p></li>
-          </ol>
-
-          <div class="plan-range-switch" role="group" aria-label="계획 일정 범위">
-            <button type="button" class="active" data-plan-range="week" aria-pressed="true">주간</button>
-            <button type="button" data-plan-range="all" aria-pressed="false">전체 일정</button>
-          </div>
-          <div class="plan-schedule-list" id="planScheduleList" aria-live="polite"></div>
-        </section>
-
-        <header class="plan-subview-header" data-plan-screen="detail" tabindex="-1" hidden>
-          <button type="button" data-plan-back aria-label="내 계획으로 돌아가기">‹ <span>내 계획</span></button>
-          <div><span>PLAN OVERVIEW</span><h1>전체 계획</h1><p>날짜를 눌러 그날의 일정을 확인해요.</p></div>
-        </header>
-
-        <section class="execution-card schedule-calendar-card" data-plan-screen="detail" hidden>
+        <section class="execution-card schedule-calendar-card" data-plan-screen="home" aria-labelledby="calendarMonthTitle">
           <div class="card-title compact">
             <div>
               <small class="calendar-kicker">OLLIE'S MONTH</small>
               <h2 id="calendarMonthTitle">이번 달 진행</h2>
-              <span id="calendarSummary">하루 플랜 완성률을 한눈에 확인합니다</span>
+              <span id="calendarSummary">날짜를 누르면 그날 일정이 열려요</span>
             </div>
             <div class="calendar-head-actions">
               <div class="calendar-progress-badge">
@@ -485,6 +424,71 @@
             </div>
             <ul class="calendar-day-detail-list" id="calendarDayDetailList"></ul>
           </div>
+        </section>
+
+        <section class="execution-card plan-upcoming-card" data-plan-screen="home" aria-label="다가오는 일정">
+          <div class="plan-week-preview-head">
+            <strong>다가오는 일정</strong>
+            <span>먼저 할 핵심 3개만 보여드려요</span>
+          </div>
+          <ol class="weekly-plan" id="weeklyPlanList">
+            <li><span>월</span><strong>오늘의 핵심 일정</strong><p>09:00 · 예상 15분</p></li>
+            <li><span>화</span><strong>다음 핵심 일정</strong><p>18:00 · 예상 20분</p></li>
+            <li><span>수</span><strong>주간 점검</strong><p>완료한 계획을 가볍게 확인</p></li>
+          </ol>
+        </section>
+
+        <section class="execution-card weekly-plan-card plan-overview-card" data-plan-screen="home">
+          <div class="plan-overview-head">
+            <div>
+              <span>현재 진행 중</span>
+              <h2 id="planOverviewGoal">나의 목표</h2>
+              <p>올리가 지금 적용 중인 계획이에요.</p>
+            </div>
+            <span class="plan-overview-status" id="planOverviewStatus">진행 중</span>
+          </div>
+
+          <div class="plan-overview-metrics" aria-label="현재 계획 핵심 정보">
+            <div><span>전체 기간</span><strong id="planOverviewPeriod">30일</strong></div>
+            <div><span>이번 주</span><strong id="planOverviewWeek">실행 5일</strong></div>
+            <div><span>집중 시간</span><strong id="planOverviewRhythm">아침</strong></div>
+          </div>
+
+          <div class="plan-home-actions">
+            <button id="planOpenEditorButton" type="button"><span><strong>AI로 조정</strong><small>변경안을 먼저 확인한 뒤 적용해요</small></span><b aria-hidden="true">›</b></button>
+            <button id="planOpenDetailButton" type="button"><span><strong>전체 일정 보기</strong><small>목록에서 하나씩 바로 수정해요</small></span><b aria-hidden="true">›</b></button>
+          </div>
+
+          <details class="plan-detail-disclosure">
+            <summary><span><strong>목표까지 가는 마일스톤</strong><small>큰 길과 지금 위치</small></span><b aria-hidden="true">＋</b></summary>
+            <section class="plan-roadmap-summary" aria-label="목표까지 가는 마일스톤">
+              <ol id="planRoadmapList">
+                <li><b>지금 여기</b><strong>첫 실행 리듬 만들기</strong><small>현재 계획을 불러오는 중이에요.</small></li>
+              </ol>
+            </section>
+          </details>
+
+          <details class="plan-detail-disclosure">
+            <summary><span><strong>계획 생성 기준</strong><small>자료 · 가능 시간 · 진행 방식</small></span><b aria-hidden="true">＋</b></summary>
+            <dl class="plan-criteria-card" id="planCriteriaCard" aria-label="계획 생성 기준">
+              <div><dt>사용 자료</dt><dd id="planCriteriaMaterial">정해진 자료 없음</dd></div>
+              <div><dt>가능 시간</dt><dd id="planCriteriaAvailability">일정 확인 중</dd></div>
+              <div><dt>진행 방식</dt><dd id="planCriteriaIntensity">균형 있게</dd></div>
+            </dl>
+          </details>
+        </section>
+
+        <header class="plan-subview-header" data-plan-screen="detail" tabindex="-1" hidden>
+          <button type="button" data-plan-back aria-label="내 계획으로 돌아가기">‹ <span>내 계획</span></button>
+          <div><span>ALL SCHEDULE</span><h1>전체 일정</h1><p>일정을 누르면 바로 수정할 수 있어요.</p></div>
+        </header>
+
+        <section class="execution-card plan-schedule-card" data-plan-screen="detail" hidden aria-label="전체 일정 목록">
+          <div class="plan-range-switch" role="group" aria-label="계획 일정 범위">
+            <button type="button" class="active" data-plan-range="week" aria-pressed="true">주간</button>
+            <button type="button" data-plan-range="all" aria-pressed="false">전체 일정</button>
+          </div>
+          <div class="plan-schedule-list" id="planScheduleList" aria-live="polite"></div>
         </section>
 
         <header class="plan-subview-header" data-plan-screen="editor" tabindex="-1" hidden>
