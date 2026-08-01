@@ -1950,7 +1950,7 @@ Cloudflare migration은 **태그가 붙은 누적 로그**다. 이미 적용된 
 
 ### 남는 것
 
-**실제 클래스 삭제는 다음 배포 때 각 환경에 적용된다.** 이 변경 자체는 배포하지 않았다. Preview·Staging을 먼저 배포해 migration이 적용되는 것을 확인한 뒤 Production으로 가는 것이 안전하다.
+**정정(2026-08-02):** 이 자리에 "실제 클래스 삭제는 다음 배포 때 적용된다, 이 변경 자체는 배포하지 않았다"고 적었지만 **틀렸다.** `production.yml`은 `push: branches: [main]`이라 **머지되는 순간 Production에 자동 배포된다.** PR #71 머지(`698f708`)와 함께 run `30721411251`이 돌아 성공했고, `deleted_classes`는 그때 Production에 적용됐다. 아래 「Production 자동 배포 확인」 참고.
 
 `wrangler.jsonc`는 확장자와 달리 **순수 JSON이어야 한다.** 검증기와 `jq`가 `JSON.parse`로 읽으므로 주석을 넣으면 배포가 깨진다(`binding-health.test.mjs`에 이미 적혀 있고, 이번에 주석을 넣었다가 테스트 14건이 무관해 보이는 곳까지 무너지며 확인했다).
 
@@ -1978,9 +1978,27 @@ Cloudflare migration은 **태그가 붙은 누적 로그**다. 이미 적용된 
 - 살아있는 Staging에 대고 실행해 통과(exit 0)
 - `npm test`: 419 passed
 
-### 남는 것
+## Production 자동 배포 확인 — 게스트 초안 DO 제거 (2026-08-02)
 
-Production 배포는 하지 않았다. `deleted_classes`는 **다음 Production 배포 시점에** 적용된다.
+- **`production.yml`은 `push: branches: [main]`이다.** main에 머지되는 순간 Production이 자동 배포된다. 앞선 두 기록에서 "Production 배포는 하지 않았다", "다음 배포 시점에 적용된다"고 적은 것은 **틀렸다** — 머지 시점에 이미 적용됐다. 그 두 줄은 정정했다.
+- PR #71 머지(`698f708c03a2a430c383ac51ed1a437f38004d6e`)와 함께 run `30721411251`이 돌아 **성공**했다. `deleted_classes` migration은 2026-08-01 22:30에 Production에 적용됐다.
+- PR #72 머지(`5e166c3`)도 같은 경로로 자동 배포됐다.
+
+### 배포 후 Production health (직접 확인)
+
+```
+환경: production | paymentsEnabled: false
+bindings: USERS_KV=true ENERGY_LEDGER=true AI_RATE_LIMITER=true BILLING_DB=false ASSETS=true
+services: accountStorage=true, ai=true, payments=false
+```
+
+`GUEST_PLAN_DRAFTS`가 **없고** `ENERGY_LEDGER`는 있다. `services.ai`는 그 바인딩 없이 `true`를 유지한다 — 의도한 결과다. `PAYMENTS_ENABLED=false`도 그대로다.
+
+`BILLING_DB=false`는 Staging(`true`)과 다르지만 위반이 아니다. 이 불변식은 `paymentsEnabled === true`일 때만 `BILLING_DB`를 요구한다.
+
+### 이 사실이 뜻하는 것
+
+**main에 머지하는 것이 곧 Production 배포다.** 이 저장소의 다른 기록들은 "Staging 인수 뒤 Production 승인" 절차를 전제로 쓰여 있지만, 실제 배선은 자동이다. 배포 게이트는 머지 전 CI이지 머지 후 승인 단계가 아니다. 위험한 변경을 머지할 때 이 점을 전제로 판단해야 한다.
 
 ## 작업 관행
 
