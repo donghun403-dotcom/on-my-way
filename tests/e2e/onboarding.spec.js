@@ -110,9 +110,11 @@ test("게스트가 계획을 완성하면 로그인 게이트가 열리고, 로�
 
   await page.goto("/index.html#designFlow");
   await waitForBootstrap(page);
+  // everyDay: 아래에서 "오늘 화면에 보인다"를 확인하므로 주말에도 오늘이 실행일이어야 한다.
   await completeManualPlan(page, {
     goal: "90일 안에 첫 유료 고객 10명 만들기",
     tasks: [{ time: "09:00", text: "잠재 고객 한 명에게 인터뷰 요청", minutes: 15, rule: "메시지를 보내면 완료" }],
+    everyDay: true,
   });
 
   // 게스트 상태에서는 CTA가 로그인 유도 카피로 바뀐다.
@@ -156,10 +158,10 @@ test("게스트가 계획을 완성하면 로그인 게이트가 열리고, 로�
 
 /* 게스트가 계획을 완성하고 로그인 게이트를 연 상태를 만든다. 여기까지 오면
    sessionStorage에 이어가기 의도와 계획 사본이 둘 다 들어 있다. 로그인은 아직이다. */
-async function buildPlanAndOpenSignupGate(page, task) {
+async function buildPlanAndOpenSignupGate(page, task, { everyDay = false } = {}) {
   await page.goto("/index.html#designFlow");
   await waitForBootstrap(page);
-  await completeManualPlan(page, { goal: "90일 안에 첫 유료 고객 10명 만들기", tasks: [task] });
+  await completeManualPlan(page, { goal: "90일 안에 첫 유료 고객 10명 만들기", tasks: [task], everyDay });
 
   await page.locator("#trialStartInlineLink").click();
   await expect(page.locator("#authSheet")).toBeVisible();
@@ -287,9 +289,10 @@ test("의도 TTL이 지난 뒤 로그인해도 만든 계획은 그대로 이어
   skipRedundantHandoffProject(testInfo);
   const diagnostics = monitorPage(page);
   const account = await mockAccountExperience(page);
+  // everyDay: 아래에서 "오늘 화면에 보인다"를 확인하므로 주말에도 오늘이 실행일이어야 한다.
   await buildPlanAndOpenSignupGate(page, {
     time: "07:00", text: "지원 공고 한 곳 정리", minutes: 20, rule: "요구사항을 적어두면 완료",
-  });
+  }, { everyDay: true });
   signInAfterGate(account);
 
   // 소셜 가입에 20분이 걸린 상태를 만든다.
@@ -337,9 +340,11 @@ test("이미 로그인한 사용자는 게이트 없이 바로 체험을 시작�
 
   await page.goto("/index.html#designFlow");
   await waitForBootstrap(page);
+  // everyDay: 아래에서 "오늘 화면에 보인다"를 확인하므로 주말에도 오늘이 실행일이어야 한다.
   await completeManualPlan(page, {
     goal: "8주 동안 주 3회 근력 운동하기",
     tasks: [{ time: "07:00", text: "근력 운동 30분", minutes: 30, rule: "정한 세트를 끝내면 완료" }],
+    everyDay: true,
   });
 
   await expect(page.locator("#previewConversionAction")).toHaveText("이 계획으로 시작하기");
