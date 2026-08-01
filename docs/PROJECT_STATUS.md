@@ -1842,6 +1842,19 @@ Pretendard의 한글 자폭이 이전 폴백 글꼴보다 좁다. 히트 영역�
 - Chromium 958px·768px·430px: 모든 카드 제목 상단 12px, 본문 상단 30px, 가로·세로 overflow 0px 확인
 - `npx playwright test tests/e2e/responsive.spec.js -g "320x568 수동 빌더 결과 화면" --project=responsive-chromium --workers=1`: **1 passed**
 
+## 모바일 7일 미리보기·할 일 입력 폭 수정 (2026-08-01)
+
+- `첫 7일 미리보기`의 일정 문구에 남아 있던 `nowrap + ellipsis`를 제거하고 긴 문구와 공백 없는 문구도 행 높이를 늘려 전부 줄바꿈하도록 바꿨다.
+- 모바일 할 일 카드의 두 열을 `minmax(0, 1fr)`로 고정하고 입력칸에 `min-width: 0`과 `max-width: 100%`를 직접 적용했다. 실기기의 네이티브 `time` 입력이 고유 너비를 유지해 분량 칸 위로 돌출하는 경우에도 각 입력이 자기 열 안에 머문다.
+- 320px 결과 화면 회귀 테스트에 긴 일정 문구의 줄바꿈·클리핑 없음·7일 펼침 상태 검증을 추가했다.
+
+### 검증
+
+- Chromium·WebKit 320/360/390/430px: 시간·분량 입력 모두 동일 폭, 12px 간격, 각 label 내부 유지, 문서 가로 넘침 0px
+- Chromium·WebKit 320/360/390/430px: 펼친 7개 일정 모두 `white-space: normal`, 최대 내부 overflow 0px, 긴 문구 줄바꿈 확인
+- 인앱 브라우저 390px: 시간·분량 125px 동일 폭과 12px 간격, 7일 전체 문구 줄바꿈, 문서 가로 넘침 0px
+- `E2E_BASE_URL=http://127.0.0.1:8768 npx playwright test tests/e2e/responsive.spec.js -g "320x568 수동 빌더 결과 화면" --project=responsive-chromium --workers=1`: **1 passed**
+
 ## 작업 관행
 
 - **스택 PR을 머지할 때 `--delete-branch`를 쓰지 마라.** 베이스 브랜치가 사라지면 그 위에
