@@ -225,3 +225,38 @@ test("남은 font-weight:900은 전부 글리프 캐리어 — 사유 주석을 
   });
   assert.deepEqual(offenders, [], `글리프 사유 주석이 없는 900: ${offenders.join(", ")}줄`);
 });
+
+test("셀렉터가 선언 블록 없이 at-rule을 삼키지 않는다", () => {
+  // CSS 파서는 셀렉터 프렐류드를 `{`가 나올 때까지 읽는다. 셀렉터가 쉼표로
+  // 끝난 채 `{`를 만나지 못하면 **뒤따르는 @media를 통째로 프렐류드에 삼키고**
+  // 그 블록을 자기 것으로 여긴다. 결과는 무효한 규칙이라 브라우저가 버린다 —
+  // 그 셀렉터의 스타일도, 삼켜진 @media 안의 규칙도 전부 죽는다.
+  //
+  // 실제로 이 저장소에서 일어났다. 셀렉터 목록의 마지막 줄을 지우면서 `{`와
+  // 선언까지 함께 지웠고, 앞의 두 줄이 쉼표로 끝난 채 남아 온보딩 뒤로가기
+  // 버튼의 키보드 포커스 아웃라인이 사라졌다. 눈에 띄지 않는 종류의 손실이라
+  // 테스트로 잡는다.
+  //
+  // 판정: 프렐류드가 `@`로 시작하지 않는데 그 안에 `@`가 들어 있으면 삼킨 것이다.
+  const css = fs.readFileSync("styles.css", "utf8").split("\r\n").join("\n");
+  const masked = css.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "));
+  const offenders = [];
+  let prelude = "";
+  let preludeLine = 0;
+  let line = 1;
+  for (const ch of masked) {
+    if (ch === "\n") { line += 1; continue; }
+    if (ch === "{") {
+      const sel = prelude.replace(/\s+/g, " ").trim();
+      if (sel && !sel.startsWith("@") && sel.includes("@")) {
+        offenders.push(`${preludeLine}줄: ${sel.slice(0, 90)}`);
+      }
+      prelude = ""; preludeLine = 0;
+      continue;
+    }
+    if (ch === "}") { prelude = ""; preludeLine = 0; continue; }
+    if (!prelude.trim() && /\S/.test(ch)) preludeLine = line;
+    prelude += ch;
+  }
+  assert.deepEqual(offenders, [], `선언 블록 없이 at-rule을 삼킨 셀렉터:\n  ${offenders.join("\n  ")}`);
+});
