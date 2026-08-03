@@ -1,0 +1,156 @@
+name: Android release AAB
+
+# ── 이 잡이 무엇을 위한 것인가 ────────────────────────────────────────────────
+#
+#   Play 스토어에 올릴 서명된 AAB를 만든다. android-debug-apk.yml이 예고한
+#   "나중에 릴리스 빌드의 기반이 된다"의 그 나중이다 — 체크아웃부터 gradle까지의
+#   단계는 그 잡과 같고, 바뀐 것은 셋이다:
+#
+#     · 구성이 검증 셸(a·b·c)이 아니라 release다 — appId com.olivenrich.onmyway.
+#       구성 내용은 실기기 4회차까지 검증이 끝난 구성 C와 자구까지 같다.
+#     · debug 키 대신 시크릿의 업로드 키스토어로 서명한다. 키스토어는 openssl로
+#       만든 PKCS12다(개발 머신에 JDK가 없어 keytool을 쓸 수 없다). Play App
+#       Signing을 쓰므로 앱 서명 키는 구글이 쥐고, 이 키는 업로드 전용이다 —
+#       분실해도 구글에 재설정을 요청할 수 있다.
+#     · 산출물이 APK가 아니라 AAB다. Play는 AAB만 받는다.
+#
+# ── versionCode를 왜 run_number로 하는가 ─────────────────────────────────────
+#
+#   Play는 업로드마다 versionCode가 이전보다 커야 한다. run_number는 이 워크플로
+#   안에서 단조 증가하므로 상태 관리 없이 그 요구를 만족한다.
+#   ponytail: 워크플로 파일을 지웠다 다시 만들면 run_number가 1로 돌아온다.
+#   그때는 오프셋 env 하나를 더하는 것으로 풀린다 — 지금 만들 이유는 없다.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: 사용자에게 보이는 버전 (x.y.z)
+        required: true
+        default: 0.1.0
+
+concurrency:
+  group: android-release-aab
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: release AAB
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      # 시크릿이 비어 있으면 gradle 단계에서 알 수 없는 형태로 죽는다.
+      # 여기서 먼저, 무엇이 없는지 말하며 죽는다.
+      - name: Require the signing secrets
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
+        run: |
+          test -n "$KEYSTORE_BASE64" || { echo "ANDROID_UPLOAD_KEYSTORE_BASE64 시크릿이 없습니다"; exit 1; }
+          test -n "$KEYSTORE_PASSWORD" || { echo "ANDROID_UPLOAD_KEYSTORE_PASSWORD 시크릿이 없습니다"; exit 1; }
+
+      - name: Install the shell dependencies
+        working-directory: mobile
+        run: npm ci
+
+      - name: Prepare the release configuration
+        working-directory: mobile
+        run: node scripts/prepare.mjs release
+
+      # 아티팩트를 나중에 열었을 때 무엇으로 구워졌는지 로그에 남긴다.
+      - name: Record the resolved config
+        working-directory: mobile
+        run: cat capacitor.config.json
+
+      - name: Generate the Android project
+        working-directory: mobile
+        env:
+          CAPACITOR_TELEMETRY: "false"
+        run: npx cap add android
+
+      # 검증 셸과 같은 이유로 같은 패치를 쓴다 — WebView는 blob 다운로드를
+      # DownloadListener 없이 흘리고, .md 내보내기는 법적 요건이다.
+      - name: Attach the native download handling
+        working-directory: mobile
+        run: node scripts/patch-download.mjs
+
+      - name: Inject the version and signing config
+        working-directory: mobile
+        env:
+          ANDROID_VERSION_CODE: ${{ github.run_number }}
+          ANDROID_VERSION_NAME: ${{ inputs.version_name }}
+        run: node scripts/patch-release-signing.mjs
+
+      # 키스토어는 android/ 밖에 둔다 — 패키징 대상 디렉터리에 비밀 파일을 두지 않는다.
+      - name: Restore the upload keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+        run: printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload-keystore.p12"
+
+      - name: Sync the web assets into the Android project
+        working-directory: mobile
+        env:
+          CAPACITOR_TELEMETRY: "false"
+        run: npx cap sync android
+
+      - name: Build the signed release AAB
+        working-directory: mobile/android
+        env:
+          ANDROID_UPLOAD_KEYSTORE_FILE: ${{ runner.temp }}/upload-keystore.p12
+          ANDROID_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
+          ANDROID_UPLOAD_KEY_ALIAS: upload
+        run: |
+          chmod +x gradlew
+          ./gradlew bundleRelease --no-daemon --stacktrace
+
+      # debug 잡과 같은 이유: gradle이 0으로 끝나도 산출물이 없을 수 있다.
+      # 서명이 실제로 붙었는지도 여기서 판정한다 — 서명 없는 AAB는 업로드에서야
+      # 드러나는 조용한 실패다.
+      - name: Require the signed AAB to exist
+        id: aab
+        working-directory: mobile/android
+        run: |
+          aab="app/build/outputs/bundle/release/app-release.aab"
+          test -s "$aab"
+          unzip -l "$aab" | grep -q "META-INF/" || { echo "AAB에 서명 흔적(META-INF)이 없습니다"; exit 1; }
+          named="app/build/outputs/bundle/release/on-my-way-${{ inputs.version_name }}-vc${{ github.run_number }}.aab"
+          mv "$aab" "$named"
+          echo "path=mobile/android/$named" >> "$GITHUB_OUTPUT"
+          ls -l "$named"
+
+      - name: Upload the release AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: on-my-way-release-${{ inputs.version_name }}-vc${{ github.run_number }}
+          path: ${{ steps.aab.outputs.path }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload the Gradle failure report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-reports-release-${{ github.run_id }}
+          path: mobile/android/app/build/reports/
+          if-no-files-found: ignore
+          retention-days: 7
