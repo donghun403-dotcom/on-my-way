@@ -1635,6 +1635,9 @@ test("Worker responses include release security headers", async () => {
   assert.deepEqual(csp.get("frame-ancestors"), ["'none'"]);
   assert.ok(csp.get("connect-src").includes("'self'"));
   assert.ok(csp.get("connect-src").includes("https://*.tosspayments.com"));
+  // blob: 이 빠지면 네이티브 셸의 .md 내보내기가 조용히 실패한다 (실기기 2회차, 2026-08-03).
+  // 웹에서는 증상이 없어 이 테스트가 없으면 다음 CSP 정리에서 지워진다.
+  assert.ok(csp.get("connect-src").includes("blob:"));
   assert.deepEqual(csp.get("frame-src"), ["https://*.tosspayments.com"]);
 
   const matchesCloudflareBeaconFixture = (candidate) => {

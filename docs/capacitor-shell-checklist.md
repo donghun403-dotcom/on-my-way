@@ -494,10 +494,54 @@ B는 그 대조군이다.
 
 | # | 관측 | A′ | B |
 | --- | --- | --- | --- |
-| D-a | 파일이 실제로 생기는가 (`adb shell find /sdcard -iname '*.md'`) | | |
-| D-b | 이름이 `on-my-way-기록-YYYY-MM-DD.md`로 남는가 | | |
-| D-c | 열어서 내용이 보이는가 | | |
-| D-d | logcat `OmwDownload` 태그에 무엇이 찍히는가 | | |
+| D-a | 파일이 실제로 생기는가 | **실패** — CSP가 blob 읽기를 막는다 | **통과** — `/sdcard/Download/…md` 83 bytes |
+| D-b | 이름이 `on-my-way-기록-YYYY-MM-DD.md`로 남는가 | 측정 불가 (D-a에서 멈춤) | **실패** — `851527af-2396-4b6f-81a8-882976aecfcd.md` (blob UUID) |
+| D-c | 열어서 내용이 보이는가 | 측정 불가 | **통과** — `# 내 기록 원본 / 내보낸 날: 2026-08-03 / 아직 남긴 기록이 없어요.` |
+| D-d | logcat `OmwDownload` | `blob 읽기 실패: TypeError: Failed to fetch` | `저장 완료: …md (83 bytes)` |
+
+**네이티브 패치는 동작한다.** B가 그 증거다 — `DownloadListener`가 잡고, 페이지에서 blob을
+읽고, `MediaStore.Downloads`에 쓰는 경로가 끝까지 돌았다. 1회차의 실패 원인(DownloadListener
+부재)은 닫혔다.
+
+### D-a가 A′에서만 실패하는 이유 — 워커의 CSP
+
+WebView 콘솔이 원인을 그대로 말한다:
+
+```
+Connecting to 'blob:https://onmyway.olivenrich.com/f38551e1-…' violates the following
+Content Security Policy directive: "connect-src 'self' https://*.tosspayments.com".
+```
+
+**[코드]** `worker.mjs:67`의 `connect-src`에 `blob:`이 없다. `'self'`는 blob URL을 덮지
+않는다 — blob 스킴은 따로 적어야 한다. 그래서 패치가 주입한 읽기 조각의 `fetch(blob:…)`가
+거부되고 `OmwBlobBridge.fail`로 떨어진다.
+
+**B에서는 같은 코드가 통과한다.** B의 페이지는 Capacitor 로컬 서버가 주므로 워커의 CSP
+헤더가 붙지 않는다(`meta[http-equiv=Content-Security-Policy]`도 없음을 확인했다).
+**변수 하나만 다른 대조**이고 결과가 뒤집혔으므로 원인 판정은 이것으로 닫힌다.
+
+웹에는 이 문제가 없다 — 브라우저의 `<a download>`는 blob을 `fetch`하지 않고 직접
+내려받는다. **네이티브 경로에서만 blob을 읽어야 해서 드러난 것이다.**
+
+### D-b — 이름이 blob UUID로 떨어진다
+
+체크리스트가 예고한 그대로다. `blob:`에는 `Content-Disposition`이 없어
+`URLUtil.guessFileName`이 URL 경로 조각(UUID)을 이름으로 쓴다. `<a download>`가 정한
+이름은 네이티브까지 전달되지 않는다.
+
+**D-a와 한 칸에 적지 않은 이유가 여기서 갈렸다** — 파일은 생기므로 열람·이동권은 선다.
+이름은 그 다음 단이다.
+
+### 측정 방법 정정 — `find /sdcard`를 쓰지 마라
+
+**이 문서가 지정했던 `adb shell find /sdcard -iname '*.md'`는 파일이 있어도 못 찾는다.**
+같은 시점에 `ls /sdcard/Download/*.md`는 파일을 보여 준다. 스코프드 스토리지의 FUSE
+계층을 `find`가 제대로 훑지 못한다.
+
+1회차의 9번 "실패" 판정은 유지된다 — 근거가 셋이었고 나머지 둘(DownloadManager 기록
+없음, logcat 무음)이 독립적으로 같은 결론을 가리켰다. 하지만 **`find` 하나만 봤다면
+거짓 음성이었다.** 앞으로는 `ls /sdcard/Download/*.md` 또는
+`content query --uri content://media/external/downloads`로 판정한다.
 
 **D-b가 갈리는 지점**: `blob:`에는 `Content-Disposition`이 없어 `<a download>`가 정한
 이름이 살아남지 못할 수 있다. 이름이 깨져도 **D-a가 통과하면 페이월 차단은 풀린다** —
@@ -515,9 +559,34 @@ WebView 안에서 열므로, **카카오 로그인 화면에 머문 상태에서
 
 | provider | 어디서 열림 | 완주 후 | `authState` |
 | --- | --- | --- | --- |
-| 카카오 | | | |
-| 네이버 | | | |
-| 구글 | | | |
+| 카카오 | **WebView 안** — 최상위 액티비티가 `…verifya/.MainActivity`. 페이지는 `accounts.kakao.com/login/?continue=…kauth.kakao.com/oauth/authorize…` | 미검증 — 자격증명 입력이 필요하다 | 미검증 |
+| 네이버 | **WebView 안** — 같은 액티비티. 페이지는 `nid.naver.com/oauth2.0/authorize?client_id=…` | 미검증 — 같은 이유 | 미검증 |
+| 구글 | **WebView 안** — 같은 액티비티. 페이지는 `accounts.google.com/v3/signin/identifier`, 제목 "로그인 - Google 계정", 이메일 입력 폼이 실제로 렌더된다 | 미검증 — 같은 이유 | 미검증 |
+
+**셋 다 시스템 브라우저로 나가지 않았다.** 1회차에서 셋 모두 삼성 인터넷으로 이탈했던
+것이 `allowNavigation` 한 줄로 뒤집혔다.
+
+### 예상이 틀렸다 — 구글이 막지 않았다
+
+**[관측]** UA는 `Mozilla/5.0 (Linux; Android 12; SM-G977N Build/SP1A.210812.016; wv)
+AppleWebKit/537.36 … Chrome/150.0.7871.181 Mobile Safari/537.36`이다. **`; wv)`가 그대로
+들어 있다** — 구글이 WebView를 식별하지 못해서 통과한 것이 아니다. 식별할 수 있는 상태로
+로그인 화면을 내줬다.
+
+이 문서는 `disallowed_useragent`를 예상했고, 그래서 구글을 목록에 넣은 이유가 "거절 화면이
+WebView 안에서 뜨는 것과 브라우저로 나가는 것은 다른 관측이기 때문"이었다. **셋째 결과가
+나왔다 — 거절 자체가 없었다.**
+
+**이것을 "구글 로그인이 된다"로 읽으면 안 된다.** 잰 것은 식별 단계 화면이 렌더된다는
+것뿐이다. 자격증명을 넣은 뒤 거절될 수 있고, 구글이 정책 집행을 바꾸면 예고 없이 막힐 수
+있다. **완주는 미검증이고, 이 경로의 안정성은 우리가 통제하지 못한다.**
+
+### 와일드카드가 실제로 필요했다
+
+카카오는 `kauth.kakao.com`에서 시작해 **`accounts.kakao.com`으로 리다이렉트**했다.
+`allowNavigation`에 `kauth.kakao.com`만 적었다면 그 리다이렉트에서 앱을 벗어났고,
+관측은 "WebView에서 OAuth가 안 된다"는 **틀린 결론**으로 적혔을 것이다.
+`*.kakao.com`으로 적은 판단이 여기서 값을 했다.
 
 "어디서 열림"은 **최상위 액티비티로 판정한다** — `adb shell dumpsys activity activities`
 가 앱 패키지면 WebView 안, `com.sec.android.app.sbrowser`면 이탈이다. 화면만 보고
@@ -539,10 +608,37 @@ WebView 안에서 열므로, **카카오 로그인 화면에 머문 상태에서
 
 | # | 항목 | 값 |
 | --- | --- | --- |
-| 7 | `/api/auth/me` 상태 + `document.cookie` | |
-| 8 | `am force-stop` 후 `/api/auth/me`와 `localStorage` 키 수 | |
-| 10a | 제품 경로 `printDiaryBook()`가 열리는가 (**Pro 승격 후**) | |
-| 10b | `document.title` 탈출 경로 — 화면 탭 후 원래 값으로 돌아오는가 | |
+| 7 | `/api/auth/me` 상태 + `document.cookie` | **통과** — 200 `{"user":{…}}`, `usr_jnqNBEje…` / provider `kakao` / plan `expired`, `authState: "member"`. `document.cookie`는 빈 문자열 — 세션 쿠키가 `HttpOnly`라 정상이다 |
+| 8 | `am force-stop` 후 `/api/auth/me`와 `localStorage` 키 수 | **통과** — 세션 유지(`kakao`/`expired`, `authState: "member"`), `localStorage` 11키 그대로 |
+| 10a | 제품 경로 `printDiaryBook()`가 열리는가 (**Pro 승격 후**) | **미검증** — 아래 참조 |
+| 10b | `document.title` 탈출 경로 — 화면 탭 후 원래 값으로 돌아오는가 | **미검증** — 10a가 선행 |
+
+### 7번이 이번 회차의 결론이다
+
+**앱 안에서 로그인이 완주되고 세션이 선다. 제품 코드는 한 줄도 바꾸지 않았다.**
+1회차에서 A가 "가장 나쁜 형태의 성공"(뜨지만 로그인 불가)이었던 것이 `allowNavigation`
+한 줄로 닫혔다.
+
+**측정 경로에 관한 정직한 기록**: 자격증명은 사용자가 직접 폰에서 입력했고, 이 세션은
+그 뒤 `/api/auth/kakao/start`를 다시 밟아 **자격증명 입력 없이 왕복이 완주되는 것**을
+관측했다(카카오 세션이 WebView 잼에 남아 있었다). 즉 OAuth 왕복 전체가 WebView 안에서
+끝나고 우리 세션 쿠키가 같은 잼에 앉는다는 것이 확인된 것이고, 로그인 폼 입력 자체를
+이 세션이 관측한 것은 아니다.
+
+**8번은 1회차와 성격이 다르다.** 1회차 8번은 "없던 것이 여전히 없다"를 본 것이었다.
+이번에는 세션이 실재하는 상태에서 죽였다 살렸으므로 유지 여부가 실제로 갈렸다.
+
+### 10번이 미검증인 이유 — 측정자가 아니라 권한 문제다
+
+`printDiaryBook()`은 `canCreateDiaryBook()` 뒤에 있고 계정이 `expired`다. Pro 승격은
+`/api/admin/users/update`인데 그 앞에 `role === "admin"` 세션이 필요하고, 관리자 로그인은
+`ADMIN_PASSWORD`를 요구한다(`auth-service.mjs:1123-1125`). **비밀번호 입력이 필요한
+단계라 이 세션에서 진행하지 않았다.**
+
+우선순위는 낮다 — 1회차에서 `window.print()`가 A·B 모두 신호 없이 죽는 것이 이미
+확정됐고(`docs/native-print-bridge.md` §5 후보 E는 그때 닫혔다), 10번이 추가로 답하는 것은
+`document.title`이 갇히지 않는지 하나다. 스토어 등록 정보에서 인쇄·PDF 줄을 빼야 한다는
+결론은 이 칸과 무관하게 이미 서 있다.
 
 **7번의 판정 기준을 1회차 값으로 고쳐 둔다**: 실패는 401이 아니라
 **200 `{"user":null}`** 로 나타난다. 로그인이 섰다면 `user`에 객체가 들어 있어야 한다.
