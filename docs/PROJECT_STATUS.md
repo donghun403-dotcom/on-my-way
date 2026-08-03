@@ -6,6 +6,30 @@
 - 판단 기준: 현재 소스와 작업 트리 → 테스트/CI → Git 커밋·PR → 배포 근거 → 기존 문서
 - 인증 안정화 변경은 전용 `fix/omw-auth-stabilization` 브랜치와 PR #9에서만 수행하며, 혼합 worktree와 외부 복구 백업은 수정하지 않는다.
 
+## 릴리스 AAB 체계 — 스토어에 올릴 파일이 손에 있다 (2026-08-04)
+
+PR #79. 셸 측정 루프가 닫힌 구성 C를 그대로 제품 이름으로 굽는 체계다.
+
+| 조각 | 내용 |
+| --- | --- |
+| `prepare.mjs`의 `release` 구성 | 구성 C와 자구까지 동일, appId `com.olivenrich.onmyway` · appName `On My Way`. **appId는 Play 첫 업로드 순간 영구히 굳는다** |
+| `patch-release-signing.mjs` | 생성된 `build.gradle`에 버전·서명 주입. 비밀번호는 파일에 박지 않고 gradle 평가 시점 `System.getenv`로만 — 테스트가 잠근다(6건) |
+| `android-release-aab.yml` | 서명된 AAB 빌드. versionCode = `run_number`(Play 단조 증가 요구), 산출물에서 서명 흔적(META-INF)까지 판정 |
+| 업로드 키스토어 | openssl PKCS12(개발 머신에 JDK 없음), RSA 4096 · 30년 · 별칭 `upload`. GitHub 시크릿 2개로 등록, 백업은 저장소 밖. Play App Signing 전제라 업로드 전용 — 분실 시 재설정 가능 |
+
+**첫 산출물이 나왔고 검증까지 통과했다** — run 30827401455, `on-my-way-0.1.0-vc1.aab`
+(12.3 MB). 로컬에서 서명 인증서를 직접 깠다: `CN=On My Way upload key, O=olivenrich`,
+유효 2056년까지. 번들 안 `capacitor.config.json`이 구성 C와 일치하고 웹 에셋 139개가
+들어 있다.
+
+`workflow_dispatch`는 워크플로 파일이 기본 브랜치에 있어야 한다는 것을 이번에 배웠다 —
+브랜치에서 디스패치하려던 첫 시도가 404였고, 그래서 첫 실행이 머지 뒤가 됐다.
+
+**다음**: 구글 개발자 계정 승인이 나면 Play Console에서 앱 생성 → 내부 테스트 트랙에
+이 AAB 업로드 → Play App Signing 등록. 데이터 안전 양식 답안은
+`docs/play-store-submission.md`에 준비돼 있다(열린 항목 10개 포함). 결제(Play Billing)는
+여전히 코드 0줄 — 출시 관점의 다음 병목이다.
+
 ## Capacitor 셸 4회차 — 구성 C가 닫혔다. 셸 측정 루프는 여기서 끝난다 (2026-08-03)
 
 기기 SM-G977N, 앱은 3회차와 같은 빌드. 재빌드 없이 서버만 두 번 배포됐다 —
