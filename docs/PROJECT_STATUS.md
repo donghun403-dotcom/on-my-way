@@ -6,6 +6,30 @@
 - 판단 기준: 현재 소스와 작업 트리 → 테스트/CI → Git 커밋·PR → 배포 근거 → 기존 문서
 - 인증 안정화 변경은 전용 `fix/omw-auth-stabilization` 브랜치와 PR #9에서만 수행하며, 혼합 worktree와 외부 복구 백업은 수정하지 않는다.
 
+## Capacitor 셸 2회차 준비 — `allowNavigation` 한 줄에 로그인이 걸려 있다 (2026-08-03)
+
+구성 A의 `server.allowNavigation`에 `*.kakao.com` · `*.naver.com` ·
+`accounts.google.com`을 넣었다(`mobile/scripts/prepare.mjs`). **이번 회차가 움직인
+변수는 이것 하나다** — 서버도 `script.js`도 구성 B도 1회차 그대로다. 3번(절대 URL)은
+넣지 않았다. 한 회차에 변수를 둘 움직이면 결과가 어느 쪽 것인지 갈리지 않는다.
+
+**이 한 줄에 로그인 전체가 걸려 있는 이유**: 구성 A는 페이지 origin이 곧 서버 origin이라
+스파이크 §1의 블로커 셋(상대 경로 · 403 · `SameSite=Lax`)이 애초에 해당되지 않는다.
+1회차에서 A-2 · A-3이 이미 통과했다. A가 실패한 이유는 단 하나, OAuth가 앱 밖으로
+나가서 돌아오지 않는 것이었다. 콜백이 WebView 안에서 끝나면 쿠키는 같은 잼에 앉는다 —
+**서면 제품 코드 수정 0곳으로 로그인이 선다.**
+
+**예상은 먼저 적어 둔다**: 구글은 실패한다고 본다(WebView 내 OAuth를 정책으로 막는다 —
+`disallowed_useragent`). 카카오·네이버는 선다고 본다. 구글도 목록에 넣은 이유는 거절
+화면이 WebView **안에서** 뜨는 것과 브라우저로 나가는 것이 서로 다른 관측이기 때문이다.
+
+절차와 빈 기록지는 `docs/capacitor-shell-checklist.md`의 「2회차 (A′)」에 있다. 재는
+순서는 ① 다운로드(로그인과 무관하게 잴 수 있고 페이월의 선행 조건) → ② A′-6 provider
+3종 → ③ 6이 서야 열리는 7 · 8 · 10이다. 10의 제품 경로에 필요한 Pro 계정은 결제가 꺼져
+있으므로 관리자 승격으로 만든다(`/api/admin/users/update`, `auth-service.mjs:1312-1322`).
+
+**아직 관측이 아니다.** APK를 기기에 넣기 전까지 위는 전부 예상이다.
+
 ## Capacitor 셸 실기기 1회차 — 페이월을 켤 수 없다는 것이 확정됐다 (2026-08-02)
 
 `docs/capacitor-shell-checklist.md`의 기록지를 채웠다. 소스만 읽고 쓴 스파이크의 §5에
