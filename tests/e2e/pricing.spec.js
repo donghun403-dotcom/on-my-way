@@ -218,6 +218,64 @@ test("체험 자격이 남은 회원은 무료 체험을 한 번 시작한 뒤 �
   diagnostics.expectClean();
 });
 
+/* 결제 인증은 Toss 결제 페이지로 최상위 이동을 한다. 웹은 문서가 파괴되며 잠금도 같이 사라지지만,
+   Capacitor 셸은 그 URL을 시스템 브라우저로 넘기고 WebView 문서를 그대로 살려둔다. 그러면
+   requestBillingAuth 약속이 끝내 안 끝나 startSubscription의 finally가 돌지 않고, 잠금과
+   billingStartPromise가 함께 남는다. 끝나지 않는 약속이 곧 그 상태다. */
+test("외부 브라우저로 넘어간 뒤 앱으로 돌아오면 결제 CTA 잠금이 풀리고 다시 시도할 수 있다", async ({ page }) => {
+  const diagnostics = monitorPage(page);
+  await page.addInitScript(() => {
+    window.TossPayments = () => ({
+      payment: () => ({ requestBillingAuth: () => new Promise(() => {}) }),
+    });
+  });
+  await mockAccountExperience(page, {
+    user: { id: "usr_billing_return", provider: "google", name: "결제 복귀 회원", email: "billing-return@example.com", plan: "expired", role: "member" },
+    usage: createUsageResponse({ plan: "expired", trialEligible: false }),
+    paymentsEnabled: true,
+  });
+  let configRequests = 0;
+  await page.route("**/api/billing/config", (route) => {
+    configRequests += 1;
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        configured: true,
+        enabled: true,
+        environment: "test",
+        clientKey: "test_ck_BROWSER_FIXTURE",
+        customerKey: "omw_BROWSER_FIXTURE",
+        demo: false,
+      }),
+    });
+  });
+
+  await page.goto("/index.html#pricing");
+  await waitForBootstrap(page);
+
+  const proCta = page.locator("#pricingProCta");
+  const bottomProCta = page.locator("#pricingBottomProCta");
+  await expect(proCta).toHaveText("Pro 시작하기");
+  await expect(proCta).toBeEnabled();
+  await proCta.click();
+  await expect.poll(() => configRequests).toBe(1);
+
+  // 떠나 있는 동안은 잠긴 채로 둔다 — 연속 클릭이 결제를 두 번 시작하면 안 된다.
+  await expect(proCta).toBeDisabled();
+  await expect(bottomProCta).toBeDisabled();
+
+  // 앱 복귀. 문서가 살아있으므로 셸에서는 visibilitychange만 들어온다.
+  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  await expect(proCta).toBeEnabled();
+  await expect(bottomProCta).toBeEnabled();
+
+  // 잠금만 풀고 billingStartPromise가 남으면 startSubscription이 첫 줄에서 돌아나가 재시도가 죽는다.
+  await proCta.click();
+  await expect.poll(() => configRequests).toBe(2);
+  diagnostics.expectClean();
+});
+
 test("무료 체험 중 결제가 비활성이면 체험은 유지하고 Pro 결제 CTA를 비활성화한다", async ({ page }) => {
   const diagnostics = monitorPage(page);
   await mockAccountExperience(page, {
