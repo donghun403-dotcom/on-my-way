@@ -70,6 +70,15 @@ test("허용 출처는 구성 B의 hostname에서도 같은 값이 된다", asyn
   assert.equal(result.origin, "https://onmyway.olivenrich.com");
 });
 
+/* 구성 C는 hostname 위장을 버리고 Capacitor 기본 origin을 쓴다. 예전에는 이 경우
+   allowedOrigin이 예외를 던져 빌드가 통째로 실패했다 — 설정 실수를 잡으려던 검사가
+   정상 구성 하나를 막고 있었다(run 30801472313에서 실제로 터졌다). */
+test("허용 출처는 hostname이 없으면 Capacitor 기본값 localhost가 된다", async () => {
+  const { dir } = await shell({ config: { server: { androidScheme: "https" } } });
+  const result = await patchDownload(dir);
+  assert.equal(result.origin, "https://localhost");
+});
+
 test("blob 읽기는 CapacitorHttp가 가로채지 않은 fetch를 먼저 쓴다", async () => {
   const { dir, activity } = await shell({ config: CONFIG_B });
   await patchDownload(dir);

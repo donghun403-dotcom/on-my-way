@@ -1719,3 +1719,38 @@ test("차단이 켜져도 만료 계정은 탈퇴할 수 있다", async () => {
   assert.equal(deleted.status, 202, "개인정보 자기결정권은 결제 상태와 무관하다");
   assert.equal((await store.getUser(user.id)).status, "deletion_pending");
 });
+
+/* 셸은 번들 페이지(https://localhost)에서 로그인을 시작한다. 경로만 넘기면 서버가 자기
+   origin으로 돌려보내 앱이 실서버 페이지에 주저앉는다 — 실기기 3회차에서 관측했다.
+   그래서 그 origin 하나만 절대 URL로 통과시키는데, 그 예외가 열린 리다이렉트가 되지
+   않는다는 것을 여기서 잠근다. 위 "OAuth 시작은 allowlist…" 테스트가 attacker.example을
+   이미 막고 있지만, 이 예외는 origin 접두사를 새로 다루므로 우회 형태가 따로 있다. */
+test("셸 복귀 URL은 번들 origin만 통과하고 우회 형태는 전부 막힌다", async () => {
+  const env = testEnv({ GOOGLE_CLIENT_ID: "google-client", GOOGLE_CLIENT_SECRET: "google-secret" });
+  const startedRedirect = async (redirect) => {
+    const store = memoryStore();
+    await handleAccountApi(context({
+      path: `/api/auth/google/start?redirect=${encodeURIComponent(redirect)}`,
+      env,
+      store,
+    }));
+    return [...store.oauth.values()][0].redirect;
+  };
+
+  // 통과해야 하는 것 — 번들 origin + 허용된 경로
+  assert.equal(await startedRedirect("https://localhost/app.html"), "https://localhost/app.html");
+  assert.equal(await startedRedirect("https://localhost/delete-account"), "https://localhost/delete-account");
+  assert.equal(await startedRedirect("https://localhost/?resumeGoal=1"), "https://localhost/?resumeGoal=1");
+
+  // 막혀야 하는 것 — 전부 기본값으로 떨어진다
+  for (const hostile of [
+    "https://localhost.evil.example/app.html",  // 접두사만 같은 다른 호스트
+    "https://localhost@evil.example/app.html",  // userinfo 로 호스트를 가림
+    "https://localhost//evil.example",          // 스킴 상대 URL
+    "http://localhost/app.html",                // 평문
+    "https://localhost/steal",                  // 허용되지 않은 경로
+    "https://attacker.example/steal",
+  ]) {
+    assert.equal(await startedRedirect(hostile), "/app.html", `막지 못했다: ${hostile}`);
+  }
+});

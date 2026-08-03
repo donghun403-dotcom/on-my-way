@@ -66,8 +66,14 @@ async function findMainActivity(androidDir) {
 function allowedOrigin(config) {
   const server = config.server || {};
   if (server.url) return new URL(server.url).origin;
-  if (server.hostname) return `${server.androidScheme || "https"}://${server.hostname}`;
-  throw new Error("capacitor.config.json에 server.url도 server.hostname도 없습니다.");
+  /* hostname을 주지 않으면 Capacitor Android의 기본값은 `localhost`다
+     (**[CAP]** `CapConfig.java`). 구성 C가 그 경우다 — 위장을 버리고 기본 origin을
+     쓰기 때문에 여기 걸린다.
+
+     예전에는 이 자리에서 예외를 던졌다. 설정 실수를 잡으려던 것인데, 실제로는
+     **정상적인 구성 하나를 막고 있었다.** 기본값을 그대로 쓰는 것은 실수가 아니고,
+     그 기본값이 무엇인지는 Capacitor가 정해 두었으므로 추측이 아니다. */
+  return `${server.androidScheme || "https"}://${server.hostname || "localhost"}`;
 }
 
 function javaSource(packageName, origin) {
