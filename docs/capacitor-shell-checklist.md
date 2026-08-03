@@ -107,6 +107,44 @@ provider마다 따로 적는다.
 `allowNavigation`에 provider 호스트를 넣어 WebView 안에 붙잡아 두는 변형을 다음 회차에
 잰다(이번에는 기본 동작을 봐야 하므로 넣지 않았다).
 
+#### A-6에서 잡힌 제품 결함: 복귀 후 provider 버튼이 잠긴 채 남음 (2026-08-02, 수정 완료)
+
+구성 A / 실기기 Android / 프로덕션에서 관측했다. 로그인 시트 → "Google로 계속하기" →
+시스템 브라우저 → 앱 복귀 시점에 `button.auth-provider`가 kakao·naver·google **전부**
+`disabled === true`였다. `location.reload()` 후에는 셋 다 풀렸고, 그 시점에도 서버는
+`/api/auth/providers`에서 셋 다 `configured:true, visible:true`로 내려주고 있었다. 서버 상태가
+아니라 클라이언트 pending 상태다.
+
+원인은 `startOAuth`가 **문서가 파괴된다고 가정**하는 데 있다. `setAuthProviderBusy(provider)`로
+버튼을 모두 잠그고 `activeAuthProvider`를 세운 뒤 `location.assign`으로 떠나는데, 잠금을 푸는
+경로가 시작 실패 catch와 `openAuthSheet` 둘뿐이다. 웹은 문서가 실제로 파괴되며 잠금도 같이
+사라지지만, 셸은 그 URL을 시스템 브라우저로 넘기고 WebView 문서를 그대로 살려두므로 잠금만
+남는다. `activeAuthProvider`도 남아 `startOAuth` 첫 줄 early return에 걸려 재시도까지 죽는다.
+
+**데스크톱 웹은 재현되지 않는다** — 셸 전용이다. 근거 둘:
+
+- Playwright 실측: OAuth 이동 후 뒤로가기로 복귀하면 문서가 새로 뜨고(사전에 심은 마커 소실)
+  버튼 4개가 모두 `disabled:false`
+- 프로덕션 `app.html` 응답이 `cache-control: no-cache, no-store, must-revalidate`. Chrome은
+  `no-store` 문서를 bfcache에서 구조적으로 제외하므로 bfcache 복원 경로 자체가 성립하지 않는다
+
+수정은 복귀 신호에서 잠금을 거두는 것이다(`script.js`, `releasePendingHandoffOnReturn`).
+셸 복귀는 `visibilitychange`, bfcache 복원은 `pageshow`로 들어오므로 둘 다 연결했다. 회귀
+테스트는 `tests/e2e/auth.spec.js`의 "외부 브라우저로 넘어간 뒤 앱으로 돌아오면 provider 잠금이
+풀리고 다시 시도할 수 있다" — 떠나 있는 동안은 잠긴 채로 두어 연속 클릭 방지가 살아 있는지도
+함께 잠근다.
+
+**같은 결함이 결제 흐름에도 있었고 함께 고쳤다.** `performStartSubscription`의
+`await payment.requestBillingAuth(...)`도 Toss 결제 페이지로 최상위 이동을 한다. 셸이 그 URL을
+시스템 브라우저로 넘기면 약속이 끝내 끝나지 않아 `startSubscription`의 `.finally()`가 아예 돌지
+않고, CTA 잠금과 `billingStartPromise`가 함께 남는다. `.finally()` 본문을 `settleBillingStart()`로
+뽑아 복귀 핸들러가 같은 정리를 부르게 했다. 회귀 테스트는 `tests/e2e/pricing.spec.js`의
+"외부 브라우저로 넘어간 뒤 앱으로 돌아오면 결제 CTA 잠금이 풀리고 다시 시도할 수 있다".
+
+> 이 셸은 외부 URL을 시스템 브라우저로 넘기면서 WebView 문서를 살려둔다. **"떠난다"를 전제로
+> 상태를 잠그는 코드는 전부 이 결함의 후보다.** 새로 그런 코드를 넣을 때는 복귀 신호에서
+> 거두는 경로를 함께 넣는다.
+
 ### A-7. 완주 후 세션 쿠키가 웹뷰에서 유효한가
 
 A-6에서 앱으로 복귀한 provider에 대해서만 잰다.

@@ -2035,15 +2035,20 @@ async function performStartSubscription() {
   }
 }
 
+/* 결제 시작이 끝났다는 선언은 여기 하나뿐이다. 두 render가 CTA의 enabled 상태를 다시
+   계산하므로 setBillingStartPending(false)는 aria-busy만 거두면 된다(잠금을 직접 풀면
+   결제 비활성처럼 계속 잠겨 있어야 할 CTA까지 열어버린다). */
+function settleBillingStart() {
+  billingStartPromise = null;
+  renderAccountUi();
+  renderPricingExperience();
+  setBillingStartPending(false);
+}
+
 function startSubscription() {
   if (billingStartPromise) return billingStartPromise;
   setBillingStartPending(true);
-  billingStartPromise = performStartSubscription().finally(() => {
-    billingStartPromise = null;
-    renderAccountUi();
-    renderPricingExperience();
-    setBillingStartPending(false);
-  });
+  billingStartPromise = performStartSubscription().finally(settleBillingStart);
   return billingStartPromise;
 }
 
@@ -2290,6 +2295,21 @@ const accountExperienceReady = initAccountExperience();
 window.addEventListener("pageshow", (event) => {
   if (!event.persisted || !authUiState.loaded || authUiState.user || !authSheet) return;
   restorePendingFullPlanAuthChooser({ fromPageShow: true });
+});
+
+/* 외부로 넘기는 두 흐름(OAuth 시작, 결제 인증)은 모두 문서가 파괴된다고 가정하고 버튼을 잠근다.
+   웹에서는 실제로 파괴되므로 잠금도 같이 사라진다(app.html은 no-store라 bfcache 대상도 아니다).
+   그런데 Capacitor 셸은 그 URL을 시스템 브라우저로 넘기고 WebView 문서는 그대로 살려둔다.
+   그래서 앱으로 돌아오면 잠금만 남는다. 게다가 activeAuthProvider·billingStartPromise가 함께
+   남아 각 진입점 첫 줄에서 돌아나가므로 재시도까지 막힌다 — reload 전까지 풀리지 않는다.
+   돌아온 신호에서 거둔다. 셸 복귀는 visibilitychange, bfcache 복원은 pageshow로 들어온다. */
+function releasePendingHandoffOnReturn() {
+  if (activeAuthProvider) setAuthProviderBusy(null);
+  if (billingStartPromise) settleBillingStart();
+}
+window.addEventListener("pageshow", releasePendingHandoffOnReturn);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) releasePendingHandoffOnReturn();
 });
 
 function formatWon(value) {
