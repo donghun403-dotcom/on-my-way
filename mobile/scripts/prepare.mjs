@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* 실기기 검증용 Capacitor 셸을 구성 A 또는 B로 준비한다.
+/* 실기기 검증용 Capacitor 셸을 구성 A·B·C 중 하나로 준비한다.
  *
  *   node scripts/prepare.mjs a
  *   node scripts/prepare.mjs b
@@ -112,9 +112,49 @@ const CONFIGS = {
          않는다. 변수를 하나씩 움직인다 — 이건 다음 회차의 변수다. */
     },
   },
+  c: {
+    appId: "com.olivenrich.onmyway.verifyc",
+    appName: "OMW 검증 C",
+    webDir: "www",
+    /* ── B와 무엇이 다른가 ────────────────────────────────────────────────
+       **`hostname` 위장을 버린다.** B는 origin을 실서버 도메인으로 위장해
+       상대 경로가 저절로 서버를 가리키게 하려 했는데, 1회차에서 그 origin 전체를
+       Capacitor 로컬 서버가 소유한다는 것이 관측됐다 — `/api/*`가 상대·절대
+       가릴 것 없이 번들 `index.html`로 돌아왔다(B-4). 위장이 문제를 만들었지
+       풀지 않았다.
+
+       그래서 C는 기본 origin(`https://localhost`)을 그대로 쓰고, 대신
+       `script.js`가 API를 **절대 URL**로 부른다(`apiUrl()`). 다른 호스트로
+       나가는 요청은 네이티브로 빠지고 `Origin`도 붙지 않는다는 것을 1회차
+       B-5가 확인했으므로, 서버의 동일 출처 검사도 통과한다. **서버 변경은
+       불필요하다.**
+
+       구성 A와의 차이는 심사다. A는 `server.url`로 실서버를 여는 웹 래퍼 형태라
+       거절 위험이 가장 크다. C가 서면 그 위험 없이 같은 결과를 얻는다. */
+    server: {
+      androidScheme: "https",
+    },
+    plugins: {
+      CapacitorHttp: { enabled: true },
+      /* ── 이번 회차의 새 변수 ────────────────────────────────────────────
+         1회차는 이것을 **일부러 껐다**. 쿠키가 안 붙을 때 원인이 네이티브 잼인지
+         `SameSite=Lax`인지 갈리지 않기 때문이었고, 그래서 B-7이 미검증으로 남았다.
+
+         C에서는 켠다. 페이지 origin이 `https://localhost`이고 API가
+         `https://onmyway.olivenrich.com`이라 요청이 cross-site가 되는데,
+         `SameSite=Lax` 세션 쿠키는 브라우저 규칙상 거기 실리지 않는다
+         (스파이크 §1-③). 네이티브 쿠키 잼이 그 규칙 밖에서 쿠키를 실어 주는지가
+         **구성 C의 성패를 가르는 단 하나의 질문**이다.
+
+         실리지 않으면 남는 선택지는 `SameSite=None; Secure`인데, 그건 웹의 CSRF
+         방어를 낮추는 거래라 이 셸 하나를 위해 치를 값이 아니다. 그때는 A의 심사
+         위험을 감수할지로 판단이 넘어간다. */
+      CapacitorCookies: { enabled: true },
+    },
+  },
 };
 
-/* 구성 B가 번들에 넣을 것. 명시 목록인 이유: .assetsignore의 제외 규칙을 흉내 내면
+/* 번들 구성(B·C)이 넣을 것. 명시 목록인 이유: .assetsignore의 제외 규칙을 흉내 내면
    "번들에 무엇이 들어갔는지"가 규칙 해석에 달리게 된다. 검증 셸에서 그건 관측을
    흐린다 — 화면이 깨졌을 때 파일이 빠진 건지 코드가 깨진 건지 알 수 없다.
    목록에 있는 항목이 하나라도 없으면 빌드를 실패시킨다(아래 assertExists).
@@ -175,7 +215,7 @@ async function writeConfigA() {
   return ["index.html (폴백 표지판)"];
 }
 
-async function writeConfigB() {
+async function writeBundle() {
   const copied = [];
   for (const entry of BUNDLE_ENTRIES) {
     const source = join(REPO_DIR, entry);
@@ -197,7 +237,7 @@ async function main() {
   await rm(WWW_DIR, { recursive: true, force: true });
   await mkdir(WWW_DIR, { recursive: true });
 
-  const copied = name === "a" ? await writeConfigA() : await writeConfigB();
+  const copied = name === "a" ? await writeConfigA() : await writeBundle();
 
   await writeFile(
     join(MOBILE_DIR, "capacitor.config.json"),

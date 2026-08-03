@@ -1,3 +1,8 @@
+/* script.js와 같은 이유·같은 규칙이다. 두 파일이 서로를 불러오지 않으므로 두 벌이다 —
+   합치려면 모듈 체계를 들여야 하고, 이 두 줄을 위해 그건 과하다. */
+const API_ORIGIN = globalThis.Capacitor?.isNativePlatform?.() ? "https://onmyway.olivenrich.com" : "";
+const apiUrl = (path) => `${API_ORIGIN}${path}`;
+
 const accountState = document.querySelector("#accountState");
 const form = document.querySelector("#deleteAccountForm");
 const loginAction = document.querySelector("#loginAction");
@@ -9,7 +14,7 @@ const status = document.querySelector("#deleteStatus");
 
 async function loadAccount() {
   try {
-    const response = await fetch("/api/auth/me", { credentials: "same-origin", headers: { Accept: "application/json" } });
+    const response = await fetch(apiUrl("/api/auth/me"), { credentials: "include", headers: { Accept: "application/json" } });
     const data = await response.json();
     accountState.hidden = true;
     if (!data.user) {
@@ -34,9 +39,9 @@ form.addEventListener("submit", async (event) => {
   button.disabled = true;
   button.textContent = "삭제 요청 중…";
   try {
-    const response = await fetch("/api/account/delete", {
+    const response = await fetch(apiUrl("/api/account/delete"), {
       method: "POST",
-      credentials: "same-origin",
+      credentials: "include",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({ confirmation: confirmation.value.trim() }),
     });

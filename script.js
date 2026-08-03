@@ -1,3 +1,21 @@
+/* ── API 기준 origin ────────────────────────────────────────────────────────
+   웹에서는 빈 문자열이다. `window.Capacitor`는 브라우저에 존재하지 않으므로
+   `apiUrl()`이 인자를 그대로 돌려주고 **동작이 한 바이트도 바뀌지 않는다.**
+
+   네이티브 셸에서만 절대 URL이 된다. 번들 구성은 WebView origin이
+   `https://localhost`라서 상대 경로가 Capacitor 로컬 서버로 들어가 워커에 닿지
+   않는다(`docs/capacitor-spike.md` §1-①). 실기기 2회차에서 그 가로채기를 직접
+   관측했다 — `/api/*`가 상대·절대 가릴 것 없이 번들 `index.html`로 돌아왔다.
+
+   구성 A(`server.url`)에서는 이 값이 `location.origin`과 같아 동일 출처 그대로다.
+   즉 이 상수는 A를 바꾸지 않고 번들 구성에만 작용한다.
+
+   호스트를 여기 박아 두는 이유: 셸은 프로덕션을 가리키는 앱으로만 배포된다.
+   스테이징을 가리키는 셸이 생기면 그때 빌드 타임 주입으로 바꾼다 — 지금 그
+   기계장치를 만들면 쓰이지 않는 분기만 는다. */
+const API_ORIGIN = globalThis.Capacitor?.isNativePlatform?.() ? "https://onmyway.olivenrich.com" : "";
+const apiUrl = (path) => `${API_ORIGIN}${path}`;
+
 const goalForm = document.querySelector(".goal-form");
 const goalInput = document.querySelector("#goalInput");
 const designGoal = document.querySelector("#designGoal");
@@ -408,7 +426,7 @@ function loadPricingPolicy() {
     let lastError = null;
     for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
-        const response = await fetch("/plan-policy.mjs", { cache: "no-store", credentials: "same-origin" });
+        const response = await fetch("/plan-policy.mjs", { cache: "no-store", credentials: "include" });
         const contentType = response.headers.get("content-type") || "";
         if (response.status !== 200 || !contentType.toLowerCase().includes("javascript")) {
           throw new Error(`Pricing policy request failed with ${response.status}`);
@@ -569,9 +587,9 @@ async function saveAccountStateToServer({ keepalive = false, timeoutMs = 0 } = {
   const controller = timeoutMs > 0 ? new AbortController() : null;
   const timeoutId = controller ? window.setTimeout(() => controller.abort(), timeoutMs) : 0;
   try {
-    const response = await fetch("/api/account/state", {
+    const response = await fetch(apiUrl("/api/account/state"), {
       method: "PUT",
-      credentials: "same-origin",
+      credentials: "include",
       keepalive,
       signal: controller?.signal,
       headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -904,7 +922,7 @@ function readTrialAccess() {
   }
 }
 
-const FUNNEL_ENDPOINT = "/api/funnel";
+const FUNNEL_ENDPOINT = apiUrl("/api/funnel");
 const sentFunnelEvents = new Set();
 const repeatableFunnelEvents = new Set(["pricing_plan_selected", "pro_cta_clicked", "ai_credit_insufficient", "ai_credit_charged", "usage_details_opened"]);
 
@@ -1614,9 +1632,9 @@ let authProviderRequest = null;
 let activeAuthProvider = null;
 
 async function accountRequest(url, options = {}) {
-  const response = await fetch(url, {
+  const response = await fetch(apiUrl(url), {
     headers: { "Content-Type": "application/json", Accept: "application/json" },
-    credentials: "same-origin",
+    credentials: "include",
     ...options,
   });
   const data = await response.json().catch(() => ({}));
@@ -1857,7 +1875,7 @@ async function startOAuth(provider) {
     }
     updateManualPlanAuthProvider(provider);
     const redirect = encodeURIComponent(authRedirectTarget());
-    location.assign(`/api/auth/${provider}/start?redirect=${redirect}`);
+    location.assign(apiUrl(`/api/auth/${provider}/start?redirect=${redirect}`));
   } catch (error) {
     setAuthProviderBusy(null);
     setAuthProviderMessage(error.message || "로그인을 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.");
@@ -4089,10 +4107,10 @@ async function requestCompanionReply(message, { eventType = "chat", history = nu
     const bundle = getPlanBundle();
     const companionState = getCompanionState();
     const profile = planHasFeature("companionPersonalization") ? (readPersonalityProfile() || {}) : {};
-    const response = await fetch("/api/ai/companion-chat", {
+    const response = await fetch(apiUrl("/api/ai/companion-chat"), {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json", "X-Request-ID": requestId },
-      credentials: "same-origin",
+      credentials: "include",
       body: JSON.stringify({
         message,
         eventType,
@@ -7007,7 +7025,7 @@ async function requestAiPlanRevision(payload, action = "revise_plan") {
     const response = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json", "X-Request-ID": requestId },
-      credentials: "same-origin",
+      credentials: "include",
       body: JSON.stringify(payload),
       signal: controller.signal,
     });
@@ -9729,10 +9747,10 @@ async function requestDiaryBookText(book) {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), 60_000);
   try {
-    const response = await fetch("/api/ai/diary-book", {
+    const response = await fetch(apiUrl("/api/ai/diary-book"), {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json", "X-Request-ID": requestId },
-      credentials: "same-origin",
+      credentials: "include",
       body: JSON.stringify({ monthKey: book.monthKey, goal: book.goal, summary: book.summary }),
       signal: controller.signal,
     });
