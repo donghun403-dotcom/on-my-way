@@ -122,6 +122,11 @@ jobs:
         working-directory: mobile
         run: node scripts/patch-download.mjs
 
+      # cap add가 되살리는 기본 로봇 아이콘을 커밋된 브랜드 산출물로 갈아끼운다.
+      - name: Apply the launcher icons
+        working-directory: mobile
+        run: node scripts/patch-launcher-icons.mjs
+
       # cap add가 이미 copy+update를 실행하지만 그건 add의 부수효과지 계약이 아니다.
       # 에셋이 네이티브 프로젝트에 들어갔다는 것을 명시적으로 보장한다.
       - name: Sync the web assets into the Android project
