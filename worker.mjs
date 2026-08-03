@@ -64,7 +64,12 @@ const CONTENT_SECURITY_POLICY = [
   "style-src 'self' 'unsafe-inline' https://fastly.jsdelivr.net",
   "font-src 'self' data: https://fastly.jsdelivr.net",
   "img-src 'self' data: https:",
-  "connect-src 'self' https://*.tosspayments.com",
+  /* blob: 은 네이티브 셸의 기록 내보내기가 요구한다. Android WebView 는 blob 다운로드를
+     DownloadListener 없이 흘리므로 셸이 페이지 안에서 blob 을 fetch 해 네이티브로 넘기는데
+     (mobile/scripts/patch-download.mjs), 'self' 는 blob 스킴을 덮지 않아 그 fetch 가 막혔다.
+     blob URL 은 그 페이지가 스스로 만든 것만 열 수 있어 외부로 나가는 통로가 아니다.
+     2026-08-03 실기기 2회차에서 이 한 토큰이 없어 .md 내보내기가 실패하는 것을 확인했다. */
+  "connect-src 'self' blob: https://*.tosspayments.com",
   "frame-src https://*.tosspayments.com",
   "upgrade-insecure-requests",
 ].join("; ");
