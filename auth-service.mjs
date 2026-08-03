@@ -1,6 +1,14 @@
 import { ensureAiTrialAbuseMarker, getAiCreditUsage, hasUsedAiTrial, withAiCreditUserLock } from "./ai-credits-service.mjs";
 import { PAYMENT_FAILURE_GRACE_MS, PLAN_CONFIG, resolveEffectivePlan, resolveTrialAdmission, resolveTrialEndsAt } from "./plan-policy.mjs";
 import { createBillingLedger, fingerprint } from "./billing-ledger.mjs";
+import {
+  createEntitlementStore,
+  googlePlayConfig,
+  parseRtdnEnvelope,
+  processGoogleRtdn,
+  publicEntitlement,
+  verifyGooglePurchase,
+} from "./entitlement-service.mjs";
 
 // On My Way 회원/인증 서비스 코어.
 // Cloudflare Worker(worker.mjs)와 로컬 서버(serve-local.cjs)가 같은 로직을 공유한다.
@@ -523,6 +531,23 @@ export function billingStatus(env) {
 
 function billingLedger(env) {
   return createBillingLedger(env.BILLING_DB);
+}
+
+function entitlementStore(env) {
+  return createEntitlementStore(env.BILLING_DB);
+}
+
+/* 길이가 달라도 끝까지 비교해 소요 시간이 내용에 따라 달라지지 않게 한다.
+   RTDN push 토큰처럼 URL로 오는 공유 비밀 비교에 쓴다. */
+function timingSafeEqualText(candidate, expected) {
+  const a = String(candidate);
+  const b = String(expected);
+  const length = Math.max(a.length, b.length);
+  let mismatch = a.length === b.length ? 0 : 1;
+  for (let index = 0; index < length; index++) {
+    mismatch |= (a.charCodeAt(index) || 0) ^ (b.charCodeAt(index) || 0);
+  }
+  return mismatch === 0;
 }
 
 function addBillingMonth(value) {
@@ -1206,6 +1231,68 @@ export async function handleAccountApi(ctx) {
       updatedAt: Date.now(),
     });
     return { status: 200, json: { ok: true } };
+  }
+
+  /* ---------- 스토어 결제 (Google Play) ----------
+     토스와 진실의 소유자가 반대다(docs/entitlement-schema-draft.md §0) — 결제를
+     스토어가 시작·갱신하고 우리는 통보를 검증해 사본을 맞춘다. 두 라우트 모두
+     GOOGLE_* 구성이 없으면 503으로 닫혀 있어, 콘솔 승인 전의 배포에서는 아무
+     동작도 하지 않는다. user.plan·크레딧 지급과는 아직 연결하지 않는다(초안 §6). */
+
+  if (path === "/api/billing/google/rtdn" && method === "POST") {
+    /* Pub/Sub push 인증: 엔드포인트 URL에 심은 공유 토큰을 상수 시간으로 비교한다.
+       [확인 필요] 콘솔 연결 라운드에서 OIDC 푸시 인증으로 올리는 것을 검토한다. */
+    const pushToken = String(ctx.env.GOOGLE_RTDN_PUSH_TOKEN || "");
+    if (!pushToken) return { status: 503, json: { error: "스토어 알림 수신이 아직 구성되지 않았습니다." } };
+    if (!timingSafeEqualText(String(ctx.url.searchParams.get("token") || ""), pushToken)) {
+      return { status: 401, json: { error: "인증되지 않은 알림입니다." } };
+    }
+    let envelope;
+    try {
+      envelope = parseRtdnEnvelope(await ctx.readJson());
+    } catch {
+      return { status: 400, json: { error: "알림 형식이 올바르지 않습니다." } };
+    }
+    const expectedPackage = String(ctx.env.GOOGLE_PLAY_PACKAGE_NAME || "");
+    if (expectedPackage && envelope.packageName && envelope.packageName !== expectedPackage) {
+      return { status: 400, json: { error: "다른 앱의 알림입니다." } };
+    }
+    /* 어떤 결과든 200 — Pub/Sub는 200이 아니면 같은 알림을 계속 재전송한다.
+       중복·미지원 유형·verify 전 도착(deferred)은 전부 정상 경로다.
+       저장 실패(BILLING_DB 미바인딩 등)만 5xx로 돌려 재전송을 유도한다 —
+       기록하지 못한 알림을 200으로 삼키면 그 통보는 영영 사라진다. */
+    try {
+      const result = await processGoogleRtdn(entitlementStore(ctx.env), envelope, Date.now());
+      return { status: 200, json: { ok: true, outcome: result.outcome } };
+    } catch (error) {
+      return { status: Number(error.status) || 500, json: { error: "알림을 저장하지 못했습니다." } };
+    }
+  }
+
+  if (path === "/api/billing/google/verify" && method === "POST") {
+    const user = await currentSessionUser(ctx);
+    if (!user) return { status: 401, json: { error: "로그인 후 이용할 수 있어요." } };
+    const config = googlePlayConfig(ctx.env);
+    if (!config.configured) return { status: 503, json: { error: "스토어 결제 검증이 아직 구성되지 않았습니다." } };
+    const body = await ctx.readJson();
+    const purchaseToken = String(body.purchaseToken || "").trim();
+    if (!purchaseToken || purchaseToken.length > 4096) {
+      return { status: 400, json: { error: "purchaseToken이 필요합니다." } };
+    }
+    try {
+      const result = await verifyGooglePurchase({
+        config,
+        store: entitlementStore(ctx.env),
+        fetcher: ctx.fetcher || fetch,
+        userId: user.id,
+        purchaseToken,
+        now: Date.now(),
+      });
+      return { status: 200, json: { ok: true, entitlement: publicEntitlement(result.entitlement), access: result.access } };
+    } catch (error) {
+      const status = Number(error.status) || 502;
+      return { status, json: { error: error.publicMessage || "구매 검증에 실패했습니다.", code: error.code || "VERIFY_FAILED" } };
+    }
   }
 
   if (path === "/api/billing/subscribe" && method === "POST") {

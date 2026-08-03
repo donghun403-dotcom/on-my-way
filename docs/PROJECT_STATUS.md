@@ -6,6 +6,39 @@
 - 판단 기준: 현재 소스와 작업 트리 → 테스트/CI → Git 커밋·PR → 배포 근거 → 기존 문서
 - 인증 안정화 변경은 전용 `fix/omw-auth-stabilization` 브랜치와 PR #9에서만 수행하며, 혼합 worktree와 외부 복구 백업은 수정하지 않는다.
 
+## Play Billing 서버 기반 — 스토어 상태의 사본이 생겼다 (2026-08-04)
+
+초안(docs/entitlement-schema-draft.md)의 §2 스키마를 `migrations/0002`로, 수신·검증
+경로를 `entitlement-service.mjs`로 구현했다. 토스와 진실의 소유자가 반대라는 §0의
+표가 코드 구조를 그대로 결정했다 — 멱등성의 대상이 "우리가 보내는 요청"에서
+"스토어가 보내는 통보"(Pub/Sub messageId UNIQUE)로 바뀌었다.
+
+| 조각 | 내용 |
+| --- | --- |
+| `0002_store_entitlements.sql` | entitlements / store_notifications / entitlement_events / entitlement_refunds. 초안 §2 그대로 |
+| RTDN 수신 (`/api/billing/google/rtdn`) | 봉투 파싱 → 멱등 기록 → 상태 전이(§3 매핑) → 이력·환불 기록. verify보다 먼저 온 알림은 행을 만들지 않고 미처리로 남긴다(재처리 인덱스) |
+| 검증 (`/api/billing/google/verify`) | 서비스 계정 JWT(RS256, webcrypto) → subscriptionsv2 조회 → 계정 바인딩(같은 토큰을 다른 계정이 내면 409) → acknowledge(3일 자동 환불 방지) |
+| 게이트 | `GOOGLE_PLAY_PACKAGE_NAME`·`GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`·`GOOGLE_RTDN_PUSH_TOKEN` 없으면 두 라우트 다 503 — **콘솔 승인 전의 운영 배포에서는 아무 동작도 하지 않는다** |
+| 테스트 | 17건 — 매핑 표, 중복 전달, deferred, 전이 이력(source), revoke→환불 기록, JWT 서명 검증, 계정 바인딩 409, 라우트 게이트 |
+
+**의도적으로 하지 않은 것**: user.plan·크레딧 지급 연결(초안 §6 경계 — #40과 같은
+형태의 결함이 나는 자리), 지급 키·환불 정책 결정(§5 — 얼마를 잃을 것인가의 선택이라
+실결제 라운드에서 명시적으로), RTDN 재처리 배치(행이 생긴 뒤 미처리 알림을 이어받는
+경로 — 클라이언트 구매 흐름과 함께).
+
+## 스토어 그래픽 자산 — 등록 화면에 넣을 것이 다 있다 (2026-08-04)
+
+PR #81. `scripts/store-assets.mjs`가 브랜드 원본에서 생성: 아이콘 512(심볼 타일을
+자신의 그라데이션으로 풀블리드 연장 — Play가 다시 마스킹하므로 원본 그대로는 이중
+라운딩), 피처 1024×500(og 이미지 중앙 크롭, 로고 결합 규칙 미정이라 텍스트 없음),
+스크린샷 1080×1920 4장(로컬 서버 + e2e 방식 시드의 실제 UI — 오늘 33% 진행, 달력
+완료 이력, 올리 대화, 하루 페이지). 산출물은 `brand/store/`(git 밖)와
+`~/Downloads/on-my-way-store-assets/`.
+
+시드에서 배운 것 둘: 체크의 영속 소스는 completionLedger라 체크만 시드하면 저장
+코덱이 조작으로 잡아 던지고, getPlanBundle은 상태의 scheduleKey 해시가 계획과 일치할
+때만 체크를 이어받는다.
+
 ## 릴리스 AAB 체계 — 스토어에 올릴 파일이 손에 있다 (2026-08-04)
 
 PR #79. 셸 측정 루프가 닫힌 구성 C를 그대로 제품 이름으로 굽는 체계다.
