@@ -6,6 +6,28 @@
 - 판단 기준: 현재 소스와 작업 트리 → 테스트/CI → Git 커밋·PR → 배포 근거 → 기존 문서
 - 인증 안정화 변경은 전용 `fix/omw-auth-stabilization` 브랜치와 PR #9에서만 수행하며, 혼합 worktree와 외부 복구 백업은 수정하지 않는다.
 
+## Capacitor 셸 4회차 — 구성 C가 닫혔다. 셸 측정 루프는 여기서 끝난다 (2026-08-03)
+
+기기 SM-G977N, 앱은 3회차와 같은 빌드. 재빌드 없이 서버만 두 번 배포됐다 —
+PR #76(절대 URL + 복귀 허용목록), PR #77(바운스 페이지).
+
+**1차 시도에서 새 사실이 하나 나왔다.** 서버가 셸 복귀 URL(`https://localhost/…`)로
+302를 보내면 Capacitor 로컬 서버가 `ERR_CONNECTION_REFUSED`로 거부한다. 직접 이동과
+JS `location.replace`는 통과한다 — 대조 셋으로 갈랐다. 그래서 "쿠키는 딥링크가 필요
+없다"(C-7)는 유지되지만 **내비게이션은 302로 못 돌아온다.** 서버가 셸 복귀일 때만
+바운스 페이지(자기 origin의 한 줄 HTML이 JS로 번들에 넘김)를 내리게 했다(PR #77).
+`safeRedirectPath`가 검증한 URL만 쓰므로 열린 리다이렉트 방어는 그대로다.
+
+**2차 시도에서 완주됐다.** 문서가 `https://localhost/app.html?auth=success`로 로드됐고
+(performance navigation 항목이 증거 — 앱이 쿼리를 지워 `location.href`에는 없다),
+세션은 `kakao/expired`, 전 과정 최상위 액티비티가 앱이었다.
+
+**구성 C 닫힘** — `server.url` 없는 번들 앱에서 API(C-4)·로그인(C-6)·쿠키(C-7)·
+재시작 유지(C-8)·복귀(4회차)·다운로드(C-D)가 전부 선다. 구성 A의 심사 위험을 감수할
+이유가 없어졌다. 남은 것은 전부 별건이다: 다운로드 파일 이름(blob UUID), 셸 퍼널
+CORS(`sendBeacon`은 CapacitorHttp가 못 가로챈다), 인쇄 10번(ADMIN_PASSWORD 필요).
+**다음 단계는 셸이 아니라 릴리스 체계다** — 프로덕션 appId·서명 키스토어·AAB.
+
 ## Capacitor 셸 3회차 — 스파이크가 가설 A를 기각한 근거 셋이 전부 해소됐다 (2026-08-03)
 
 기기 **SM-G977N (Android 12)**, 빌드 **run 30802536167**. 구성 C —
