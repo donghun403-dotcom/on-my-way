@@ -6,6 +6,107 @@
 - 판단 기준: 현재 소스와 작업 트리 → 테스트/CI → Git 커밋·PR → 배포 근거 → 기존 문서
 - 인증 안정화 변경은 전용 `fix/omw-auth-stabilization` 브랜치와 PR #9에서만 수행하며, 혼합 worktree와 외부 복구 백업은 수정하지 않는다.
 
+## Capacitor 셸 실기기 1회차 — 페이월을 켤 수 없다는 것이 확정됐다 (2026-08-02)
+
+`docs/capacitor-shell-checklist.md`의 기록지를 채웠다. 소스만 읽고 쓴 스파이크의 §5에
+"실기기 없이는 확인 불가능"으로 남아 있던 항목들을 실제로 쟀다.
+
+기기 **SM-G977N (Android 12)**, 빌드 **run 30548479600**, 구성 A·B를 한 대에 동시 설치.
+케이블이 데이터를 물지 않아(`adb devices`에 아무것도 안 잡힘) **무선 디버깅**으로 붙었고,
+DevTools 화면 대신 `adb forward` + CDP `Runtime.evaluate`로 같은 콘솔을 쳤다.
+
+### ① `.md` 내보내기가 A·B 모두 실패한다 — 이게 이번 회차에서 가장 무겁다
+
+`exportRecordsFile()`은 **예외 없이 끝나고 토스트도 뜨는데 파일이 생기지 않는다.**
+앱이 성공했다고 말하는 그 형태다.
+
+| 근거 | 결과 |
+| --- | --- |
+| `find /sdcard -iname '*.md'` | 없음 |
+| `dumpsys DownloadManager` | 기록 자체가 없음 — 다운로드가 시작조차 안 됐다 |
+| `logcat` | download·blob 관련 줄 0 |
+
+체크리스트가 `[미검증]`으로 남겨 둔 가설이 확인됐다 — Android WebView는 `blob:` +
+`<a download>`를 네이티브 `DownloadListener` 없이 처리하지 않고, Capacitor 기본
+`BridgeActivity`는 그것을 붙여 주지 않는다.
+
+**따라서 네이티브 다운로드 처리를 붙이기 전에는 `HARD_PAYWALL_ENABLED`를 켤 수 없다.**
+켜면 잠긴 유저가 자기 기록을 가져갈 방법이 앱에 없어지고(열람·이동권), 그 위에 앱이
+"내보냈어요"라고 거짓말까지 한다. 플래그를 끈 채 두는 근거가 하나 더 늘었다.
+
+### ② 구성 B의 "수정 0곳" 전제는 깨졌고, 대신 절대 URL 길이 열렸다
+
+`/api/*`는 **상대 경로든 절대 URL이든** 번들 `index.html`로 돌아온다(200 + `text/html`).
+위장한 origin 전체를 Capacitor 로컬 서버가 소유하며, `CapacitorHttp`가 켜져 있어도
+같은 origin은 구해 주지 않는다. 로그인 시작(`/api/auth/kakao/start`)도 앱 안에 흡수되어
+provider 화면에 **도달조차 못 한다** — 게다가 URL만 그 경로로 남아 상대 경로 에셋이
+`/api/auth/kakao/assets/…`로 샌다.
+
+대신 **다른 호스트로 나가는 요청은 네이티브로 빠지고 `Origin`을 붙이지 않는다.**
+`…workers.dev/api/health`가 기기에서 200 + JSON이었고, 판별자(Origin 없음 200 / 있음 403)는
+2026-08-02 데스크톱 curl에서 그대로 유효했다. 즉 위장 origin을 버리고 `script.js`가 API를
+절대 URL로 부르게 하면 네이티브 경로로 나가면서 서버의 동일 출처 검사도 통과한다.
+**서버 변경은 불필요하다** — 스파이크 §1의 CSRF 방어 완화 거래는 다시 꺼내지 않아도 된다.
+
+### ③ 인증은 세 provider 모두 시스템 브라우저로 이탈한다
+
+카카오·네이버·구글 전부 `location.assign`이 **삼성 인터넷**을 띄운다(`SBrowser…Activity`,
+넘어간 URL은 각각 kauth·`nid.naver.com`·`accounts.google.com`). 카카오는 완주까지 해 봤고
+**로그인 성공 후에도 브라우저에 머문다** — 앱 WebView는 `authState: anonymous`,
+`/api/auth/me`는 200 `{"user":null}`, `document.cookie`는 빈 문자열이다.
+
+구글이 브라우저로 나가는 것 자체는 정상이다(구글이 WebView 내 OAuth를 막는다). 문제는
+**돌아올 길이 없다는 것**이다 — 이 셸에는 딥링크 인텐트 필터가 없다. 다음 변형은
+`allowNavigation`에 provider 호스트를 넣어 WebView 안에 붙잡아 두는 것이다.
+
+### ④ 인쇄는 조용히 죽는다 — 잡을 신호가 없다
+
+A·B 모두 `window.print()`가 **1ms 안에 반환하고 예외를 던지지 않는다.** 인쇄 창도 안 뜨고,
+`beforeprint`도 오지 않고, `matchMedia("print").matches`는 계속 `false`이며, printspooler
+액티비티도 print logcat도 없다. **`docs/native-print-bridge.md` §5의 후보 E는 닫힌다** —
+인쇄 종료를 "신호 기반"으로 잡자는 안이었는데 잡을 신호가 없다.
+
+### 남은 미검증은 전부 인증에 매달려 있다
+
+8번의 세션 유지 칸은 "유지되는가"가 아니라 "없던 것이 여전히 없다"를 본 것이고
+(`localStorage`는 A 4키·B 2키 그대로 살아남았다), 10번의 제품 경로는 Pro 계정이 없어서가
+아니라 **로그인이 완주되지 않아** `canCreateDiaryBook()`이 열리지 않아 막혔다.
+그래서 다음 회차 순서는 ① 네이티브 다운로드 → ② `allowNavigation` 변형 → ③ 절대 URL이다.
+
+**리드타임 추정은 아직 하지 않는다.** 인증 경로가 서지 않은 상태의 숫자는 근거가 없다.
+
+### 후속 — 네이티브 다운로드 처리를 붙였다 (같은 날)
+
+`mobile/scripts/patch-download.mjs`. `cap add android`가 만든 `MainActivity`를 갈아끼워
+WebView에 `DownloadListener`를 심는다. `blob:`은 DownloadManager가 모르는 스킴이라
+페이지 안에서 읽어 data URL로 되돌린 뒤 `MediaStore.Downloads`에 쓴다.
+
+**제품 코드는 한 줄도 바꾸지 않았다.** 결함이 "WebView가 blob 다운로드를 흘린다"이므로
+고칠 자리가 네이티브다. `script.js`를 고치는 쪽은 구성 A가 실서버를 열기 때문에
+프로덕션 배포를 먼저 해야 잴 수 있고, 브라우저에서는 이미 되는 경로에 네이티브 분기를
+남긴다.
+
+세 가지를 계약으로 고정했다(`mobile-download-patch.test.mjs`, 7건).
+
+| 고정한 것 | 왜 |
+| --- | --- |
+| 빈 템플릿이 아니면 **덮어쓰지 않고 실패**한다 | Capacitor가 템플릿에 코드를 넣기 시작했는데 조용히 지우면 원인 모를 버그가 된다 |
+| 저장 전에 **현재 페이지 출처를 확인**한다 | `JavascriptInterface`는 WebView의 모든 페이지에 노출된다. 구성 A는 로그인 중 provider 도메인으로 이동한다 |
+| blob은 **`CapacitorWebFetch`를 먼저** 집는다 | 구성 B는 전역 `fetch`가 네이티브로 빼돌려져 `blob:`을 못 읽는다 |
+
+테스트가 실제로 잡는지 출처 검사를 일부러 지워 확인했다(`not ok 2`).
+
+**아직 관측이 아니다.** 이 패치는 CI에서만 돌고 산출물이 APK 안으로 사라지므로,
+다음 빌드를 기기에 넣어 9번을 다시 재기 전까지는 가설이다. 그때 함께 볼 것:
+`blob:`에는 `Content-Disposition`이 없어 `<a download>`가 정한 이름이 살아남지 못할 수
+있다 — 파일이 생기는지가 먼저라 이름 보존은 다음 단으로 미뤘다.
+
+### 곁가지 — provider 버튼이 잠긴 채 남는다 (셸과 무관)
+
+구글로 앱을 떠났다 돌아오니 인증 시트의 세 버튼이 전부 `disabled=true`였고 새로고침해야
+풀렸다. 그 시점에도 서버는 셋을 `configured:true, visible:true`로 내려주고 있었으므로
+클라이언트의 pending 상태다. 웹에서도 재현되는지는 확인하지 않았다.
+
 ## 사문 CSS 전수 청소 (2026-08-01)
 
 브랜치 `chore/dead-css-sweep`. `styles.css`의 셀렉터 클래스 849개 중 **144개가 저장소
