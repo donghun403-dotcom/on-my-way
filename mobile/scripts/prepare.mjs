@@ -133,6 +133,26 @@ const CONFIGS = {
        거절 위험이 가장 크다. C가 서면 그 위험 없이 같은 결과를 얻는다. */
     server: {
       androidScheme: "https",
+      /* ── 이 목록에 서버 호스트가 들어가는 것이 A와 다른 점이다 ──────────────
+         구성 C는 페이지가 `https://localhost`라서 `/api/auth/…/start`로의 최상위
+         이동이 **처음부터 cross-origin**이다. 넣지 않으면 그 첫 걸음이 시스템
+         브라우저로 나간다 — 실제로 그렇게 관측됐다(3회차 1차, 삼성 인터넷).
+
+         **그런데 이건 측정용 변형이지 출시 형태가 아니다.** 서버 호스트를 넣으면
+         콜백 뒤 WebView가 실서버 페이지에 남는다. 그 순간부터 사실상 구성 A와
+         같아지므로 번들의 의미가 없어진다.
+
+         그래도 넣는 이유는 **이 회차가 답해야 할 질문이 쿠키 하나**이기 때문이다.
+         세션을 네이티브 잼에 앉혀 놓고 번들 페이지(`https://localhost`)로 돌아와
+         `/api/auth/me`를 물으면, 잼이 cross-site로 쿠키를 실어 주는지가 곧바로
+         갈린다. 출시 형태(딥링크 복귀)는 그 답이 나온 뒤에 정한다 — 답이
+         "안 실린다"면 만들 필요도 없다. */
+      allowNavigation: [
+        "onmyway.olivenrich.com",
+        "*.kakao.com",
+        "*.naver.com",
+        "accounts.google.com",
+      ],
     },
     plugins: {
       CapacitorHttp: { enabled: true },
