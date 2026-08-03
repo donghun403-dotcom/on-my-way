@@ -1754,3 +1754,56 @@ test("셸 복귀 URL은 번들 origin만 통과하고 우회 형태는 전부 �
     assert.equal(await startedRedirect(hostile), "/app.html", `막지 못했다: ${hostile}`);
   }
 });
+
+/* 셸 복귀는 302가 아니라 바운스 페이지다. [관측] 2026-08-03 실기기: 서버가
+   https://localhost/… 로 302하면 Capacitor 로컬 서버가 ERR_CONNECTION_REFUSED로
+   거부한다. 같은 URL을 페이지 안에서 JS로 이동하면 뜬다. 그래서 서버 origin에서
+   한 장을 내려주고 그것이 location.replace로 넘긴다. 세션 쿠키는 이 응답의
+   Set-Cookie로 잼에 앉는다 — 3회차 C-7이 그 쿠키가 cross-site로 실리는 것을 확인했다. */
+test("셸 복귀 콜백은 302 대신 바운스 페이지를 내리고 세션 쿠키를 싣는다", async () => {
+  const env = testEnv({ GOOGLE_CLIENT_ID: "google-client", GOOGLE_CLIENT_SECRET: "google-secret" });
+  const store = memoryStore();
+  await handleAccountApi(context({
+    path: `/api/auth/google/start?redirect=${encodeURIComponent("https://localhost/app.html")}`,
+    env,
+    store,
+  }));
+  const [state, transaction] = [...store.oauth.entries()][0];
+  assert.equal(transaction.redirect, "https://localhost/app.html");
+
+  const fetcher = async (url) => {
+    if (String(url) === "https://oauth2.googleapis.com/token") return Response.json({ access_token: "shell-token" });
+    return Response.json({ sub: "shell-subject", name: "셸 사용자", email: "shell@example.com" });
+  };
+  const result = await handleAccountApi(context({
+    path: `/api/auth/callback/google?code=test-code&state=${encodeURIComponent(state)}`,
+    env,
+    store,
+    cookie: `omw_oauth_state=${state}`,
+    fetcher,
+  }));
+
+  // 302가 아니다 — 그 302를 Capacitor가 거부하는 것이 이 분기의 존재 이유다.
+  assert.equal(result.redirect, undefined);
+  assert.equal(result.status, 200);
+  // 이동은 페이지 안 JS가 한다. 대상은 safeRedirectPath를 지난 값 그대로여야 한다.
+  assert.match(result.html, /location\.replace\("https:\/\/localhost\/app\.html\?auth=success"\)/);
+  // 세션은 이 응답에서 잼에 앉는다. 바운스로 바뀌면서 쿠키가 빠지면 로그인 전체가 헛돈다.
+  assert.equal(store.sessions.size, 1);
+  assert.match(result.cookies[0], /omw_session=/);
+  assert.match(result.cookies[0], /HttpOnly/);
+
+  // 웹 경로는 그대로 302다 — 바운스는 셸 복귀에만 붙는다.
+  const webStore = memoryStore();
+  await handleAccountApi(context({ path: "/api/auth/google/start?redirect=%2Fapp.html", env, store: webStore }));
+  const [webState] = [...webStore.oauth.entries()][0];
+  const webResult = await handleAccountApi(context({
+    path: `/api/auth/callback/google?code=test-code&state=${encodeURIComponent(webState)}`,
+    env,
+    store: webStore,
+    cookie: `omw_oauth_state=${webState}`,
+    fetcher,
+  }));
+  assert.equal(webResult.status, 302);
+  assert.equal(webResult.redirect, "/app.html?auth=success");
+});

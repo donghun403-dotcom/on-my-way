@@ -249,6 +249,36 @@ function cookie(name, value, { maxAgeSeconds, path = "/", httpOnly = true, secur
    추가한다 — 지금 넣으면 검증되지 않은 분기만 생긴다. */
 const NATIVE_SHELL_ORIGIN = "https://localhost";
 
+function isShellReturn(target) {
+  return String(target || "").startsWith(`${NATIVE_SHELL_ORIGIN}/`);
+}
+
+/* 셸 복귀는 302로 보내지 않는다.
+
+   **[관측] 2026-08-03 실기기**: 서버가 `https://localhost/…`로 302하면 WebView가
+   `net::ERR_CONNECTION_REFUSED`로 죽는다. Capacitor 로컬 서버는 **외부 origin에서
+   넘어온 리다이렉트를 받아 주지 않는다.** 같은 URL이라도 페이지 안에서 JS로 이동하면
+   정상적으로 뜬다 — 세 가지를 대조해 그 차이만 남겼다(302 거부 / 직접 이동 통과 /
+   JS 이동 통과).
+
+   그래서 서버 origin에서 한 장을 내려주고 그것이 넘긴다. 딥링크(커스텀 스킴 + 인텐트
+   필터 + 일회용 코드)까지 가지 않는 이유는 이 한 장으로 충분하기 때문이다. 세션 쿠키는
+   이 응답의 `Set-Cookie`로 이미 네이티브 잼에 앉고, 3회차 C-7이 그 쿠키가 cross-site
+   요청에도 실린다는 것을 확인했다 — 토큰을 다시 실어 나를 이유가 없다.
+
+   `target`은 `safeRedirectPath`를 이미 지난 값이다. 그 함수가 origin과 경로를 둘 다
+   허용목록으로 막으므로 여기서 임의의 주소로 튀지 않는다. */
+function shellReturnPage(target) {
+  return `<!doctype html>
+<html lang="ko"><head><meta charset="utf-8" /><title>로그인 완료</title></head>
+<body style="margin:0;display:grid;place-items:center;min-height:100vh;font:16px/1.7 system-ui,sans-serif;color:#3a4763">
+<p>로그인이 끝났어요. 앱으로 돌아가는 중…</p>
+<noscript><a href="${target.replace(/&/g, "&amp;").replace(/"/g, "&quot;")}">여기를 눌러 앱으로 돌아가세요</a></noscript>
+<script>location.replace(${JSON.stringify(target)});</script>
+</body></html>
+`;
+}
+
 function safeRedirectPath(value) {
   const raw = String(value || "/app.html");
   /* 셸 origin으로 시작하는 절대 URL만 그 origin을 유지한다. 상수와 정확히 비교하고
@@ -957,11 +987,12 @@ export async function handleAccountApi(ctx) {
       const redirectUri = `${url.origin}/api/auth/callback/${provider}`;
       const profile = await exchangeOAuthCode(ctx.env, provider, code, redirectUri, transaction, firstPartyProfile, ctx.fetcher || fetch);
       const user = await upsertUserFromProfile(store(ctx), ctx.env, provider, profile);
-      return {
-        status: 302,
-        redirect: `${redirect}${redirect.includes("?") ? "&" : "?"}auth=success`,
-        cookies: [await issueSession(ctx, user), clearStateCookie],
-      };
+      const destination = `${redirect}${redirect.includes("?") ? "&" : "?"}auth=success`;
+      const cookies = [await issueSession(ctx, user), clearStateCookie];
+      /* 셸 복귀만 바운스 페이지로 간다 — 302는 Capacitor 로컬 서버가 거부한다(위 주석).
+         웹 경로는 지금까지처럼 302다. */
+      if (isShellReturn(redirect)) return { status: 200, html: shellReturnPage(destination), cookies };
+      return { status: 302, redirect: destination, cookies };
     } catch (error) {
       if (error?.code === "ACCOUNT_DELETION_PENDING") {
         return { status: 302, redirect: authErrorRedirect("deletion_pending", provider), cookies: [clearStateCookie] };
