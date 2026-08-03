@@ -234,13 +234,34 @@ function cookie(name, value, { maxAgeSeconds, path = "/", httpOnly = true, secur
   return parts.join("; ");
 }
 
+/* 네이티브 셸의 번들 origin. Android에서 `androidScheme: "https"`에 hostname을 주지
+   않으면 Capacitor의 기본값이 `https://localhost`다.
+
+   왜 이 하나가 필요한가: 셸은 번들 페이지에서 로그인을 시작하는데, 경로만 넘기면 서버가
+   자기 origin으로 돌려보내 앱이 **실서버 페이지에 주저앉는다**(실기기 3회차 관측).
+   그러면 번들 앱인 의미가 없어진다.
+
+   일회용 코드 교환이나 커스텀 스킴이 필요하지 않은 이유는 3회차 C-7이다 — 세션 쿠키는
+   이미 네이티브 잼에 들어와 있고 cross-site 요청에도 실린다. 부족한 것은 **돌아올 곳**
+   하나뿐이다.
+
+   ponytail: iOS는 `capacitor://localhost`라 여기 값이 하나 더 는다. iOS 셸을 만들 때
+   추가한다 — 지금 넣으면 검증되지 않은 분기만 생긴다. */
+const NATIVE_SHELL_ORIGIN = "https://localhost";
+
 function safeRedirectPath(value) {
-  const candidate = String(value || "/app.html");
+  const raw = String(value || "/app.html");
+  /* 셸 origin으로 시작하는 절대 URL만 그 origin을 유지한다. 상수와 정확히 비교하고
+     바로 뒤에 `/`를 요구하므로 `https://localhost.evil.com/…`은 걸리지 않는다.
+     경로 검사는 아래에서 그대로 한 번 더 지난다 — 즉 열린 리다이렉트가 되지 않는다. */
+  const isShellReturn = raw.startsWith(`${NATIVE_SHELL_ORIGIN}/`);
+  const candidate = isShellReturn ? raw.slice(NATIVE_SHELL_ORIGIN.length) : raw;
+  const origin = isShellReturn ? NATIVE_SHELL_ORIGIN : "";
   if (!candidate.startsWith("/") || candidate.startsWith("//")) return "/app.html";
   try {
     const parsed = new URL(candidate, "https://app.invalid");
     if (!["/", "/app.html", "/admin.html", "/delete-account"].includes(parsed.pathname)) return "/app.html";
-    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    return `${origin}${parsed.pathname}${parsed.search}${parsed.hash}`;
   } catch {
     return "/app.html";
   }

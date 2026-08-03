@@ -1946,7 +1946,7 @@ function openMyPageSheet() {
   sendFunnelEvent("usage_details_opened");
 }
 
-function authRedirectTarget() {
+function authRedirectPath() {
   const params = new URLSearchParams(location.search);
   if (params.get("redirect") === "admin") return "/admin.html";
   if (params.get("return") === "/delete-account") return "/delete-account";
@@ -1954,6 +1954,21 @@ function authRedirectTarget() {
   // 온보딩에서 바로 연 로그인도 돌아온 뒤 계획 저장을 이어가야 한다.
   if (readManualPlanAuthIntent()) return "/?resumeGoal=1";
   return location.pathname || "/app.html";
+}
+
+function authRedirectTarget() {
+  const path = authRedirectPath();
+  /* 번들 셸에서 시작한 로그인은 번들로 돌아와야 한다. 경로만 넘기면 서버가 자기
+     origin으로 돌려보내고, 앱이 실서버 페이지에 주저앉는다(실기기 3회차 관측).
+
+     여기서 절대 URL을 넘기는 것으로 충분한 이유는 3회차 C-7이다 — 세션 쿠키가 이미
+     네이티브 잼에 있고 cross-site 요청에도 실린다. 돌아올 곳만 알려 주면 된다.
+
+     조건이 두 개인 이유: 웹은 `API_ORIGIN`이 빈 문자열이라 첫 조건에서 걸러지고,
+     구성 A(`server.url`)는 페이지 origin이 곧 서버라 두 번째에서 걸러진다.
+     **번들 셸에서만 참이 된다.** */
+  if (API_ORIGIN && location.origin !== API_ORIGIN) return `${location.origin}${path}`;
+  return path;
 }
 
 let tossPaymentsSdkPromise = null;
