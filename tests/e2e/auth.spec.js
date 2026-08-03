@@ -233,6 +233,42 @@ test("로그인 중 연속 클릭은 OAuth 요청을 한 번만 시작한다", a
   diagnostics.expectClean();
 });
 
+/* 웹은 OAuth 시작이 전체 페이지 이동이라 문서가 파괴되면서 잠금도 함께 사라진다.
+   Capacitor 셸은 그 URL을 시스템 브라우저로 넘기고 WebView 문서를 그대로 살려두므로 잠금만 남는다.
+   시작 요청에 204를 돌려주면 브라우저가 이동을 접고 현재 문서에 그대로 머물러 같은 상태가 된다.
+   그 끊김 자체는 ERR_ABORTED로 잡히므로 이 URL만 진단에서 열어둔다(제품 실패가 아니라 셸 흉내다). */
+test("외부 브라우저로 넘어간 뒤 앱으로 돌아오면 provider 잠금이 풀리고 다시 시도할 수 있다", async ({ page }) => {
+  const diagnostics = monitorPage(page, { allowedRequestFailureUrls: ["/api/auth/google/start"] });
+  await mockAccountApi(page);
+  let starts = 0;
+  await page.route("**/api/auth/google/start**", (route) => {
+    starts += 1;
+    return route.fulfill({ status: 204, body: "" });
+  });
+
+  await page.goto("/app.html?auth=login");
+  await waitForBootstrap(page);
+  await expect(page.locator("#authSheet")).toBeVisible();
+  await page.getByRole("button", { name: providerNames.google }).click();
+  await expect.poll(() => starts).toBe(1);
+
+  // 떠나 있는 동안은 잠긴 채로 둔다 — 연속 클릭이 OAuth를 두 번 시작하면 안 된다.
+  for (const provider of androidProviders) {
+    await expect(page.locator(`[data-auth-provider="${provider}"]`)).toBeDisabled();
+  }
+
+  // 앱 복귀. 문서가 살아있으므로 셸에서는 visibilitychange만 들어온다.
+  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  for (const provider of androidProviders) {
+    await expect(page.locator(`[data-auth-provider="${provider}"]`)).toBeEnabled();
+  }
+
+  // disabled만 풀고 activeAuthProvider가 남으면 startOAuth가 첫 줄에서 돌아나가 재시도가 죽는다.
+  await page.getByRole("button", { name: providerNames.google }).click();
+  await expect.poll(() => starts).toBe(2);
+  diagnostics.expectClean();
+});
+
 test("노출된 Provider 설정이 없으면 가짜 세션 없이 명확한 안내를 표시한다", async ({ page }) => {
   const diagnostics = monitorPage(page);
   await mockAccountApi(page, { user: null, configured: false });

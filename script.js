@@ -2292,6 +2292,19 @@ window.addEventListener("pageshow", (event) => {
   restorePendingFullPlanAuthChooser({ fromPageShow: true });
 });
 
+/* startOAuth는 provider 버튼을 모두 잠근 뒤 location.assign으로 문서를 떠난다고 가정한다.
+   웹에서는 문서가 실제로 파괴되므로 잠금도 같이 사라진다(app.html은 no-store라 bfcache 대상도 아니다).
+   그런데 Capacitor 셸은 그 URL을 시스템 브라우저로 넘기고 WebView 문서는 그대로 살려둔다.
+   그래서 앱으로 돌아오면 잠금만 남아 셋 다 눌리지 않고, activeAuthProvider도 남아 재시도까지 막힌다.
+   돌아온 신호에서 잠금을 거둔다. 셸 복귀는 visibilitychange, bfcache 복원은 pageshow로 들어온다. */
+function releaseAuthProviderBusyOnReturn() {
+  if (activeAuthProvider) setAuthProviderBusy(null);
+}
+window.addEventListener("pageshow", releaseAuthProviderBusyOnReturn);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) releaseAuthProviderBusyOnReturn();
+});
+
 function formatWon(value) {
   return `₩${Number(value || 0).toLocaleString("ko-KR")}`;
 }

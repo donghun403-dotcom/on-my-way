@@ -366,7 +366,10 @@ function isCompletedRumNavigationLifecycle({
     navigationCommitted === true;
 }
 
-function monitorPage(page, { allowedConsoleMessages = [], allowedResponseUrls = [] } = {}) {
+/* allowedRequestFailureUrls는 테스트가 일부러 끊은 요청에만 쓴다. 예: 셸이 OAuth 시작 URL을
+   가로채 문서가 살아남는 상황은 navigation을 끊어야만 재현되는데, 그 끊김이 곧 ERR_ABORTED다.
+   제품이 실제로 실패시킨 요청을 덮는 데 쓰면 안 된다. */
+function monitorPage(page, { allowedConsoleMessages = [], allowedResponseUrls = [], allowedRequestFailureUrls = [] } = {}) {
   const issues = [];
   const browserName = page.context().browser()?.browserType().name() || "";
   const monitorStartedAt = Date.now();
@@ -504,6 +507,7 @@ function monitorPage(page, { allowedConsoleMessages = [], allowedResponseUrls = 
       pendingRumNavigationAbort.resourceType === "ping" &&
       pendingRumNavigationAbort.errorText === "net::ERR_ABORTED") return;
     if (isExpectedFirefoxLogoAbort || isCanceledStaticAsset || isCanceledFunnelEvent || isCanceledStartupRequest) return;
+    if (allowedRequestFailureUrls.some((pattern) => request.url().includes(pattern))) return;
     issues.push(`requestfailed: ${request.method()} ${request.url()} ${errorText}`);
   });
   page.on("response", (response) => {
