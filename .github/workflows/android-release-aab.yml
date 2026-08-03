@@ -94,6 +94,12 @@ jobs:
         working-directory: mobile
         run: node scripts/patch-download.mjs
 
+      # cap add가 되살리는 기본 로봇 아이콘을 커밋된 브랜드 산출물로 갈아끼운다.
+      # 원본(brand/)은 git 밖이라 CI가 재생성하지 못한다 — mobile/launcher-res/가 소스다.
+      - name: Apply the launcher icons
+        working-directory: mobile
+        run: node scripts/patch-launcher-icons.mjs
+
       - name: Inject the version and signing config
         working-directory: mobile
         env:
