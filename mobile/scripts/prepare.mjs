@@ -172,6 +172,32 @@ const CONFIGS = {
       CapacitorCookies: { enabled: true },
     },
   },
+  /* ── 출시 구성 — 검증이 끝난 구성 C 그대로, 이름만 제품이다 ──────────────────
+     4회차(2026-08-03)에서 C의 전 조각이 실기기에서 섰다: API 도달(C-4), 앱 내
+     로그인 완주(C-6), cross-site 세션 쿠키(C-7), 재시작 유지(C-8), 바운스
+     복귀(4회차), .md 내보내기(C-D). 여기서 C와 다른 값을 넣으면 그 검증이
+     무효가 되므로 server·plugins는 C와 자구까지 같아야 한다.
+
+     appId는 Play에 첫 업로드하는 순간 영구히 굳는다. 바꿀 수 있는 마지막
+     시점이 지금이다. */
+  release: {
+    appId: "com.olivenrich.onmyway",
+    appName: "On My Way",
+    webDir: "www",
+    server: {
+      androidScheme: "https",
+      allowNavigation: [
+        "onmyway.olivenrich.com",
+        "*.kakao.com",
+        "*.naver.com",
+        "accounts.google.com",
+      ],
+    },
+    plugins: {
+      CapacitorHttp: { enabled: true },
+      CapacitorCookies: { enabled: true },
+    },
+  },
 };
 
 /* 번들 구성(B·C)이 넣을 것. 명시 목록인 이유: .assetsignore의 제외 규칙을 흉내 내면
