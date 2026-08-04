@@ -2,6 +2,37 @@
 
 **조사만이다. 코드를 고치지 않았다.**
 
+## 실측 (2026-08-04) — `[미검증]`이 닫혔다. 분석이 맞았다
+
+기기 SM-G977N, 구성 C 셸(`com.olivenrich.onmyway.verifyc`), WebView Chrome 150.
+**Pro 계정 없이 쟀다** — "다이어리 북을 만들 수 있는가"와 "이 엔진에서 `window.print()`가
+동작하는가"는 다른 질문이고, 후자는 `canCreateDiaryBook()` 게이트 밖에서 직접 잴 수 있다.
+이 구분을 못 봐서 그동안 미검증으로 남아 있었다.
+
+호출이 대화상자로 막힐 수 있어 `setTimeout`으로 예약해 던지고 결과만 나중에 읽었다.
+**같은 기기의 Chrome에서 같은 페이지에 같은 프로브를 던진 것이 대조군이다** — 엔진
+하나만 다르다.
+
+| 관측값 | 셸 WebView | Chrome (같은 기기) |
+| --- | --- | --- |
+| `typeof window.print` | `function` (`[native code]`) | `function` |
+| `beforeprint` 발생 | **아니오** | **예** |
+| `afterprint` 발생 | **아니오** | **예** |
+| 호출이 막힌 시간 | **2 ms** | **252 ms** |
+| 예외 | 없음 | 없음 |
+| `matchMedia("print").matches` | `false` (계속) | — |
+
+**판정: Android WebView의 `window.print()`는 조용한 no-op이다.** 함수는 있고, 부르면
+2ms만에 아무 일 없이 돌아오며, 예외도 이벤트도 없다. Chrome은 같은 페이지에서 두 이벤트를
+모두 쏘고 252ms 동안 실제 인쇄 파이프라인을 돈다.
+
+**대조가 배제한 것**: 우리 페이지·인쇄 CSS·`printDiaryBook()`의 문제가 아니다. 같은
+문서가 Chrome에서는 정상 인쇄된다. 엔진이 그 기능을 구현하지 않았을 뿐이다.
+
+따라서 §3의 **후보 A(Capacitor 인쇄 플러그인)** 가 추측이 아니라 실측 위에 선다 —
+인쇄 CSS 101줄을 재사용하는 이점도 그대로다. 스토어 등록정보에서는 그때까지 이 기능을
+광고하지 않는다(`play-store-submission.md` 체크리스트 11).
+
 ## 0. 무엇이 문제인가
 
 **[코드]** `script.js:9790-9814` `printDiaryBook()`:
