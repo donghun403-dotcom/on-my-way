@@ -705,13 +705,14 @@ test("365 days x 5 completed ACTIONs survive v5 storage, revision, uncheck and u
   expect(result.recheckedActive).toBe(true);
   expect(result.completedAtPreserved).toBe(true);
   expect(result.exactFields).toBe(true);
+  /* 서버로 올라가는 키 목록을 통째로 고정한다 — 새 키가 몰래 늘면 여기서 걸린다.
+     omwPersonalityProfile은 2026-08-04에 성향 기능과 함께 빠졌다. */
   expect(result.envelopeKeys).toEqual([
     "omwCompanionEvents",
     "omwCompanionState",
     "omwExecutionPlan",
     "omwExecutionState",
     "omwExecutionTheme",
-    "omwPersonalityProfile",
   ]);
   expect(result.persistedBytes).toBeLessThan(250_000);
   expect(result.finalBytes).toBeLessThan(250_000);

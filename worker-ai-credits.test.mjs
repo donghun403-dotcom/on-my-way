@@ -304,11 +304,14 @@ test("올리 개인화 문맥은 실제 Pro·체험 사용자에게만 공급자
   const proContext = await authenticatedWorker({ plan: "pro", userId: "personalized-pro-user" });
   const freeContext = await authenticatedWorker({ plan: "expired", userId: "personalization-spoof-user" });
   const calls = [];
+  /* 성향 프로필(생년월일·MBTI)을 지운 뒤 개인화에 남는 것은 계획 방식 하나다.
+     그 값은 수동 온보딩의 준비도 답에서 나온다 — 민감정보가 아니다. 다만 "누구에게
+     전달되는가"의 경계는 그대로라 이 테스트는 살아 있어야 한다. */
   const input = {
     message: "내 방식에 맞춰 알려 주세요",
     context: {
       goal: "매일 글쓰기",
-      personalization: { mbti: "INTJ", planningStyle: "저녁 집중형", preferenceSummary: "작은 체크리스트 선호" },
+      personalization: { planningStyle: "저녁 집중형" },
     },
   };
 
@@ -327,8 +330,8 @@ test("올리 개인화 문맥은 실제 Pro·체험 사용자에게만 공급자
     assert.equal(free.response.status, 200);
   });
 
-  assert.match(calls[0].requestBody.input, /INTJ|저녁 집중형|작은 체크리스트 선호/);
-  assert.doesNotMatch(calls[1].requestBody.input, /INTJ|저녁 집중형|작은 체크리스트 선호/);
+  assert.match(calls[0].requestBody.input, /저녁 집중형/);
+  assert.doesNotMatch(calls[1].requestBody.input, /저녁 집중형/);
 });
 
 test("성공 응답은 chargedCredits를 반환하고 같은 X-Request-ID를 다시 차감하지 않는다", { concurrency: false }, async () => {

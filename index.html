@@ -321,8 +321,8 @@
                       <span>다음 단계</span><strong id="aiPreviewTitle">이번 주에는 루틴을 고정합니다</strong>
                     </article>
                     <div class="analysis-grid compact-analysis result-insight-grid">
-                      <article><span>성향 요약</span><p id="manseProfile">계획을 만들면 여기에 요약이 채워져요.</p></article>
-                      <article><span>추천 방식</span><p id="mbtiProfile">목표 기간과 현재 상태에 맞는 실행 방식을 보여줍니다.</p></article>
+                      <article><span>완료 기준</span><p id="previewOutcome">계획을 만들면 여기에 요약이 채워져요.</p></article>
+                      <article><span>추천 방식</span><p id="previewApproach">목표 기간과 현재 상태에 맞는 실행 방식을 보여줍니다.</p></article>
                     </div>
                   </div>
                 </details>
@@ -552,9 +552,12 @@
               <article class="pricing-comparison-row" role="listitem"><h4>기능</h4><dl><div><dt>체험</dt><dd>Pro와 동일</dd></div><div><dt>Pro</dt><dd>전체</dd></div></dl></article>
               <article class="pricing-comparison-row" role="listitem"><h4>체험 종료 후 AI 기능</h4><dl><div><dt>체험</dt><dd>종료</dd></div><div><dt>Pro</dt><dd>계속</dd></div></dl></article>
               <article class="pricing-comparison-row" role="listitem"><h4>원본 내보내기 (.md 텍스트)</h4><dl><div><dt>체험</dt><dd>종료 후에도 무료</dd></div><div><dt>Pro</dt><dd>무료</dd></div></dl></article>
-              <!-- 북과 인쇄·PDF는 PRO 전용이다. 체험 칸에 "제공"이나 "무료"를 적으면 안 된다. -->
+              <!-- 북은 PRO 전용이다. 체험 칸에 "제공"이나 "무료"를 적으면 안 된다.
+                   인쇄·PDF 행은 2026-08-04에 지웠다 — Android WebView가 window.print()를
+                   구현하지 않아 앱에서 조용히 실패한다(docs/native-print-bridge.md 실측).
+                   되지 않는 것을 유료 혜택으로 적으면 표시광고법 문제가 된다. -->
               <article class="pricing-comparison-row" role="listitem"><h4>올리의 북 만들기</h4><dl><div><dt>체험</dt><dd>Pro 전용</dd></div><div><dt>Pro</dt><dd>에너지 <b data-ai-credit-cost="diary_book">—</b></dd></div></dl></article>
-              <article class="pricing-comparison-row" role="listitem"><h4>인쇄·PDF 저장</h4><dl><div><dt>체험</dt><dd>Pro 전용</dd></div><div><dt>Pro</dt><dd>제공</dd></div></dl></article>
+              <article class="pricing-comparison-row" role="listitem"><h4>만든 북 다시 보기</h4><dl><div><dt>체험</dt><dd>Pro 전용</dd></div><div><dt>Pro</dt><dd>구독 중 계속</dd></div></dl></article>
             </div>
           </section>
 
@@ -582,7 +585,7 @@
           <section class="pricing-notices" aria-label="체험 및 결제 안내">
             <article>
               <span class="pricing-notice-icon" aria-hidden="true">◇</span>
-              <div><h3>무료 체험 안내</h3><p>체험은 계정당 한 번 제공돼요. 시작 후 <b data-policy-plan="pro" data-policy-field="trial-duration">—</b> 동안 체험 크레딧 <b data-policy-plan="pro" data-policy-field="trial-credits">—</b>을 사용할 수 있고, 종료 후에는 Pro를 결제해야 AI 기능을 이어서 쓸 수 있어요. 체험 중에도 올리의 북 만들기와 인쇄·PDF 저장은 Pro 전용이에요. 기록 열람과 원본 내보내기(.md 텍스트), 탈퇴는 그대로 무료예요.</p></div>
+              <div><h3>무료 체험 안내</h3><p>체험은 계정당 한 번 제공돼요. 시작 후 <b data-policy-plan="pro" data-policy-field="trial-duration">—</b> 동안 체험 크레딧 <b data-policy-plan="pro" data-policy-field="trial-credits">—</b>을 사용할 수 있고, 종료 후에는 Pro를 결제해야 AI 기능을 이어서 쓸 수 있어요. 체험 중에도 올리의 북 만들기와 열람은 Pro 전용이에요. 기록 열람과 원본 내보내기(.md 텍스트), 탈퇴는 그대로 무료예요.</p></div>
             </article>
             <article id="pricingPaymentNotice">
               <span class="pricing-notice-icon" aria-hidden="true">▣</span>
@@ -596,7 +599,7 @@
               <details><summary>AI 크레딧은 무엇인가요?</summary><p>계획 다듬기나 올리와의 대화처럼 AI가 수행하는 작업에 사용하는 단위예요. 계획은 직접 만들기 때문에 크레딧이 들지 않고, 매일의 축하·위로도 무료예요.</p></details>
               <details><summary>사용하지 않은 크레딧은 이월되나요?</summary><p>월간 크레딧과 체험 크레딧은 다음 기간으로 이월되지 않아요.</p></details>
               <details><summary>무료 체험이 끝나면 자동 결제되나요?</summary><p>체험을 시작할 때 결제 수단을 받지 않으므로 자동 결제되지 않아요. 대신 체험이 끝나면 AI 기능이 잠기고, 계속 쓰려면 Pro를 직접 결제해야 해요. 기록 열람·내보내기와 탈퇴는 결제 없이도 계속할 수 있어요.</p></details>
-              <details><summary>내보내기와 올리의 북은 어떻게 다른가요?</summary><p>원본 내보내기는 날짜·감정·일기 원문·대화가 담긴 텍스트 파일(.md)이에요. 플랜과 무관하게 언제든 무료이고, 체험이 끝난 뒤에도 계속 받을 수 있어요. 올리의 북은 표지와 올리의 머리말·편지를 붙여 조판한 한 권이고 Pro 전용이에요. 인쇄와 PDF 저장도 Pro에서 제공해요.</p></details>
+              <details><summary>내보내기와 올리의 북은 어떻게 다른가요?</summary><p>원본 내보내기는 날짜·감정·일기 원문·대화가 담긴 텍스트 파일(.md)이에요. 플랜과 무관하게 언제든 무료이고, 체험이 끝난 뒤에도 계속 받을 수 있어요. 올리의 북은 표지와 올리의 머리말·편지를 붙여 조판한 한 권이고 Pro 전용이에요. 만든 북은 구독하는 동안 앱 안에서 언제든 다시 볼 수 있어요.</p></details>
               <details><summary>AI가 계획을 자동으로 바꾸나요?</summary><p>아니요. AI는 변경안을 제안하고, 사용자가 확인하고 승인한 뒤에만 계획에 반영해요.</p></details>
               <details><summary>일일 한도와 월간 한도가 모두 있나요?</summary><p>네. 짧은 시간에 크레딧이 모두 소진되는 것을 막는 일일 한도와, 플랜별 월간 한도가 함께 적용돼요.</p></details>
             </div>

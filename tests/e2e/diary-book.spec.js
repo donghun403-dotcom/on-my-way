@@ -74,8 +74,10 @@ const BOOK_REPLY = {
   chargedCredits: 10,
 };
 
-/* window.print는 헤드리스에서 아무 일도 하지 않으므로 호출됐는지만 세어 둔다.
-   실제 조판 결과는 #diaryBookPrint의 DOM으로 검사한다. */
+/* 인쇄 경로는 2026-08-04에 지웠다(Android WebView가 window.print()를 구현하지 않는다 —
+   docs/native-print-bridge.md 실측). 만든 책은 화면 뷰어(#sampleBookDialog)로 연다.
+   그래도 window.print를 세어 두는 이유: 어떤 경로로도 인쇄가 되살아나지 않는 것을
+   확인하기 위해서다. 값이 0이 아니면 인쇄 호출이 다시 생긴 것이다. */
 async function stubPrint(page) {
   await page.addInitScript(() => {
     window.__printCalls = 0;
@@ -172,21 +174,17 @@ test("체험 계정에는 생성 폼 대신 잠금 안내와 샘플이 뜬다", 
   expect(await page.evaluate(() => window.__printCalls)).toBe(0);
 });
 
-/* 인쇄·PDF도 PRO 전용이다. 무료 경로가 생기면 "무료는 데이터, 유료는 작품" 경계가 무너진다. */
-test("PRO가 아니면 인쇄 창이 열리지 않는다", async ({ page }) => {
+/* 만든 책 열람도 PRO 전용이다. 무료 경로가 생기면 "무료는 데이터, 유료는 작품" 경계가 무너진다. */
+test("PRO가 아니면 만든 책 뷰어가 열리지 않는다", async ({ page }) => {
   await prepareBook(page, { usage: createUsageResponse({ plan: "trial", trialEligible: false }) });
   await openBookCard(page);
 
-  const printed = await page.evaluate(() => {
-    document.body.classList.remove("is-printing-book");
-    window.__omwTest.printDiaryBook("2026-06");
-    return { calls: window.__printCalls, printing: document.body.classList.contains("is-printing-book") };
-  });
-  expect(printed.calls).toBe(0);
-  expect(printed.printing).toBe(false);
+  await page.evaluate(() => window.__omwTest.openMyDiaryBook({ monthKey: "2026-06", title: "열리면 안 되는 책", days: [] }));
+  await expect(page.locator("#sampleBookDialog")).toBeHidden();
+  expect(await page.evaluate(() => window.__printCalls)).toBe(0);
 });
 
-test("한 권을 만들면 표지·머리말·통계·본문·편지가 조판되고 인쇄가 열린다", async ({ page }) => {
+test("한 권을 만들면 표지·머리말·통계·본문·편지가 조판되고 뷰어가 열린다", async ({ page }) => {
   const calls = await prepareBook(page);
   await openBookCard(page);
   await page.locator("#diaryBookCreate").click();
@@ -199,7 +197,9 @@ test("한 권을 만들면 표지·머리말·통계·본문·편지가 조판�
   expect(calls[0].summary.chatTurnCount).toBe(4);
   expect(calls[0].goal).toBeTruthy();
 
-  const book = page.locator("#diaryBookPrint");
+  // 만들면 뷰어가 바로 열리고, 그 안이 조판된 책이다.
+  await expect(page.locator("#sampleBookDialog")).toBeVisible();
+  const book = page.locator("#sampleBookPages");
   await expect(book.locator(".book-cover .book-cover-title")).toHaveText("작게 시작한 달");
   await expect(book.locator(".book-cover .book-cover-month")).toHaveText("2026년 6월");
   await expect(book.locator(".book-foreword .book-body-text")).toContainText("둥실");
@@ -214,25 +214,30 @@ test("한 권을 만들면 표지·머리말·통계·본문·편지가 조판�
   const covers = await book.locator("img").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("src")));
   expect(covers).toEqual(["assets/ollie-celebrate.png", "assets/ollie-action.png", "assets/ollie-comfort.png"]);
 
-  expect(await page.evaluate(() => window.__printCalls)).toBe(1);
+  // 인쇄는 어느 경로로도 되살아나지 않는다.
+  expect(await page.evaluate(() => window.__printCalls)).toBe(0);
 });
 
-test("조판은 화면에서 숨어 있다가 인쇄 미디어에서만 드러난다", async ({ page }) => {
+/* 뷰어 하나를 샘플과 내 책이 함께 쓴다. "샘플" 배지와 Pro 유도 푸터는 샘플일 때만
+   보여야 한다 — 내 기록으로 만든 책에 "가상의 예시"라고 적히면 거짓이다(표시광고법). */
+test("내 책 뷰어에는 샘플 배지와 Pro 유도가 붙지 않는다", async ({ page }) => {
   await prepareBook(page);
   await openBookCard(page);
   await page.locator("#diaryBookCreate").click();
-  await expect(page.locator("#diaryBookStatus")).toContainText("한 권이 완성됐어요");
+  await expect(page.locator("#sampleBookDialog")).toBeVisible();
 
-  // 화면에서는 앱만 보인다.
-  await expect(page.locator("#diaryBookPrint")).toBeHidden();
-  await expect(page.locator("#view-memory")).toBeVisible();
+  await expect(page.locator("#sampleBookBadge")).toBeHidden();
+  await expect(page.locator("#sampleBookFoot")).toBeHidden();
+  await expect(page.locator("#sampleBookTitle")).toHaveText("작게 시작한 달");
+  await expect(page.locator("#sampleBookNote")).toContainText("2026년 6월");
+  await expect(page.locator("#sampleBookDialog")).not.toContainText("가상의 한 달");
 
-  await page.emulateMedia({ media: "print" });
-  await page.evaluate(() => document.body.classList.add("is-printing-book"));
-  await expect(page.locator("#diaryBookPrint")).toBeVisible();
-  await expect(page.locator("#view-memory")).toBeHidden();
-  await expect(page.locator(".execution-tabbar")).toBeHidden();
-  await page.emulateMedia({ media: null });
+  // 닫았다가 "책 다시 보기"로 같은 책을 다시 연다.
+  await page.locator("#sampleBookClose").click();
+  await expect(page.locator("#sampleBookDialog")).toBeHidden();
+  await page.locator("#diaryBookOpenAgain").click();
+  await expect(page.locator("#sampleBookDialog")).toBeVisible();
+  await expect(page.locator("#sampleBookPages .book-cover-title")).toHaveText("작게 시작한 달");
 });
 
 test("만들기에 실패하면 에너지가 확정 차감되지 않는다고 알린다", async ({ page }) => {
@@ -277,8 +282,11 @@ test("책을 만든 뒤 원본 정리는 확인을 거치고 그 달만 지운�
   await prepareBook(page);
   await openBookCard(page);
   await page.locator("#diaryBookCreate").click();
+  // 만들면 책이 먼저 열린다. 원본 정리는 그 책을 보고 닫은 뒤의 일이다.
+  await expect(page.locator("#sampleBookDialog")).toBeVisible();
+  await page.locator("#sampleBookClose").click();
   await expect(page.locator("#diaryBookDone")).toBeVisible();
-  await expect(page.locator("#diaryBookDoneText")).toContainText("PDF로 저장");
+  await expect(page.locator("#diaryBookDoneText")).toContainText("다시 볼 수 있어요");
 
   await expect(page.locator("#diaryBookTidy")).toBeHidden();
   await page.locator("#diaryBookTidyStart").click();
@@ -321,5 +329,5 @@ test("대화만 남은 달도 한 권이 된다", async ({ page }) => {
   await expect(page.locator("#diaryBookContents")).toContainText("2마디");
   await page.locator("#diaryBookCreate").click();
   await expect(page.locator("#diaryBookStatus")).toContainText("한 권이 완성됐어요");
-  await expect(page.locator("#diaryBookPrint .book-day")).toHaveCount(1);
+  await expect(page.locator("#sampleBookPages .book-day")).toHaveCount(1);
 });

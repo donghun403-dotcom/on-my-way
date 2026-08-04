@@ -64,8 +64,11 @@ const addTaskButton = document.querySelector("#addTaskButton");
 const refillTemplateButton = document.querySelector("#refillTemplateButton");
 const minimalStartButton = document.querySelector("#minimalStartButton");
 const wizardLiveTasks = document.querySelector("#wizardLiveTasks");
-const manseProfile = document.querySelector("#manseProfile");
-const mbtiProfile = document.querySelector("#mbtiProfile");
+/* 온보딩 미리보기의 두 칸. 이름이 manse/mbti였던 것은 만세력·MBTI 해석을 보여주던
+   시절의 흔적이고, 내용은 오래전부터 유저가 적은 완료 기준과 계획 방식이었다.
+   성향 기능을 지우면서(2026-08-04) 이름과 라벨을 내용에 맞췄다. */
+const previewOutcome = document.querySelector("#previewOutcome");
+const previewApproach = document.querySelector("#previewApproach");
 const planningStyle = document.querySelector("#planningStyle");
 const aiPreviewButton = document.querySelector("#aiPreviewButton");
 const aiPreviewStatus = document.querySelector("#aiPreviewStatus");
@@ -120,6 +123,11 @@ const paywallSampleOpen = document.querySelector("#sampleBookOpen");
 const sampleBookDialog = document.querySelector("#sampleBookDialog");
 const sampleBookPages = document.querySelector("#sampleBookPages");
 const sampleBookClose = document.querySelector("#sampleBookClose");
+/* 이 화면은 샘플과 내가 만든 책을 함께 쓴다(openBookViewer). 아래 넷은 모드에 따라 바뀐다. */
+const sampleBookBadge = document.querySelector("#sampleBookBadge");
+const sampleBookTitle = document.querySelector("#sampleBookTitle");
+const sampleBookNote = document.querySelector("#sampleBookNote");
+const sampleBookFoot = document.querySelector("#sampleBookFoot");
 const paywallBrowseRecords = document.querySelector("#paywallBrowseRecords");
 const paywallExportRecords = document.querySelector("#paywallExportRecords");
 const paywallReturnBar = document.querySelector("#paywallReturnBar");
@@ -322,7 +330,6 @@ const CHAT_LOG_KEY = "omwChatLog";
 const CHAT_CONSENT_KEY = "omwChatConsent";
 const ACCOUNT_SCOPED_STORAGE_KEYS = [
   TRIAL_ACCESS_KEY,
-  "omwPersonalityProfile",
   "omwExecutionPlan",
   "omwExecutionState",
   "omwCompanionState",
@@ -343,7 +350,6 @@ const ACCOUNT_SCOPED_STORAGE_KEYS = [
   "omwTrialLetter",
 ];
 const SERVER_SYNC_STORAGE_KEYS = [
-  "omwPersonalityProfile",
   "omwExecutionPlan",
   "omwExecutionState",
   "omwCompanionState",
@@ -514,13 +520,13 @@ function restoreAccountSnapshot(snapshot) {
   });
 }
 
-/* 폐지 항목을 여기서 한 번 더 거른다(stripRetiredProfileFields). 시작할 때 로컬을 훑지만,
-   그 사이에 다른 탭이나 오래된 스냅샷 복원이 값을 되살릴 수 있다. 서버로 올라가는
-   길목은 여기 하나뿐이라 여기서 막으면 서버 레코드는 다시 더러워지지 않는다. */
+/* 폐지한 성향 프로필은 여기서 따로 거르지 않는다 — 키를 SERVER_SYNC_STORAGE_KEYS에서
+   뺐으므로 올라가지도 내려오지도 않는다. 값 하나를 걷어내던 시절에는 목록에 남은 키를
+   통과시키느라 길목 필터가 필요했지만, 키째 없어지면 목록이 곧 필터다. */
 function captureServerSyncState() {
   return Object.fromEntries(
     SERVER_SYNC_STORAGE_KEYS
-      .map((key) => [key, stripRetiredProfileFields(localStorage.getItem(key))])
+      .map((key) => [key, localStorage.getItem(key)])
       .filter(([, value]) => value !== null),
   );
 }
@@ -555,8 +561,9 @@ function backupSyncConflict(userId, state) {
 function applyServerSyncState(userId, state) {
   SERVER_SYNC_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
   Object.entries(state || {}).forEach(([key, value]) => {
-    // 서버에 아직 폐지 항목이 남은 레코드가 있을 수 있다. 내려올 때 걸러야 로컬이 다시 더러워지지 않는다.
-    if (SERVER_SYNC_STORAGE_KEYS.includes(key) && typeof value === "string") localStorage.setItem(key, stripRetiredProfileFields(value));
+    /* 목록에 없는 키는 쓰지 않는다. 서버에 아직 남아 있는 폐지 키(omwPersonalityProfile)가
+       이 검사에 걸려 로컬로 되돌아오지 못한다. */
+    if (SERVER_SYNC_STORAGE_KEYS.includes(key) && typeof value === "string") localStorage.setItem(key, value);
   });
   const scope = `user:${userId}`;
   localStorage.setItem(accountSnapshotKey(scope), JSON.stringify(captureAccountStorage()));
@@ -1207,7 +1214,6 @@ function buildActivatedExecutionPlan(draftPlan, draftInput, scheduleStartPrefere
     routineReadiness: draftInput?.routineReadiness || DEFAULT_ROUTINE_READINESS,
     routineTime: draftInput?.routineTime || "아침",
     currentRoutine: "",
-    mbti: draftInput?.mbti || "",
     firstAction: plan.firstAction || firstActionItem?.title || "첫 행동 시작하기",
     coachMessage: plan.coachMessage || "검토한 첫 일정부터 시작해요.",
     material: draftInput?.material || {},
@@ -1424,75 +1430,36 @@ resultDetailsSummary?.addEventListener("click", (event) => {
 resultDetailsDisclosure?.addEventListener("toggle", () => syncResultDetailsDisclosure());
 syncResultDetailsDisclosure();
 
-// ===== 성향 프로필: 앱 안에서 언제든 입력·수정 =====
-const PERSONALITY_PROFILE_KEY = "omwPersonalityProfile";
-const personalitySheet = document.querySelector("#personalitySheet");
-const closePersonalitySheetButton = document.querySelector("#closePersonalitySheet");
-const savePersonalityButton = document.querySelector("#savePersonalityButton");
-const profileBirthDateInput = document.querySelector("#profileBirthDate");
-const profileBirthTimeInput = document.querySelector("#profileBirthTime");
-const profileMbtiInput = document.querySelector("#profileMbti");
-const drawerPersonalityButton = document.querySelector("#drawerPersonality");
-const memoryPatternPanel = document.querySelector("#memoryPatternPanel");
-const memoryPatternLock = document.querySelector("#memoryPatternLock");
+/* ===== 폐지한 성향 프로필 =====
 
-function readPersonalityProfile() {
+   생년월일·출생시각·MBTI를 받아 만세력(사주)과 MBTI 해석으로 계획 문구를 만들던 기능이다.
+   2026-08-04에 기능째 지웠다. 남은 것은 **이미 저장된 값을 지우는 정리 경로**뿐이다.
+
+   왜 지웠나: 민감정보에 가까운 값(생년월일·출생시각)을 받으면서 그 대가로 얻는 것이
+   계획 문구 몇 줄이었다. 데이터 안전 양식은 항목마다 목적을 요구하고, 최소수집 원칙에서
+   불리하며, 만세력은 스토어 정책상 "운세" 표기 요구를 부를 수 있었다.
+
+   왜 정리 경로가 이만큼 필요한가 — 같은 값이 세 곳에 복사돼 있다: 라이브 localStorage,
+   계정 스냅샷(captureAccountStorage), 서버 동기화 레코드. 한 곳만 지우면 다음 로그인의
+   스냅샷 복원이나 서버 상태 적용이 되살린다. 로그인이 게스트 계획을 덮었던 사고
+   (CONTRIBUTING ④-4)와 같은 형태다. 그래서 부팅할 때 로컬 두 곳을 훑고, 키를 동기화
+   목록에서 뺐으므로 서버 레코드는 다음 동기화에 덮인다.
+
+   출생지 하나를 지울 때 만든 정리 경로(RETIRED_PROFILE_FIELDS)를 키 전체를 지우는
+   쪽으로 바꿨다 — 필드를 걷어내는 것이 아니라 키를 없앤다. */
+const RETIRED_PERSONALITY_KEY = "omwPersonalityProfile";
+
+function purgeRetiredPersonalityProfile() {
   try {
-    return JSON.parse(localStorage.getItem(PERSONALITY_PROFILE_KEY) || "null");
-  } catch (error) {
-    return null;
-  }
-}
-
-/* 폐지한 프로필 항목.
-
-   출생지를 지운 이유: 만세력은 생년월일·시각만 받고(calculateSimpleManse) 다른 사용처가
-   하나도 없었다. 저장한 뒤 다음에 시트를 열 때 입력칸에 되돌려 넣는 것이 전부였다.
-   목적 없는 개인정보 수집은 최소수집 원칙에 어긋나고, 구글 데이터 안전 양식은 항목마다
-   목적을 요구하는데 적을 목적이 없다(docs/play-store-submission.md §1.2 ①).
-
-   왜 항목 하나 지우는 데 이만큼이 필요한가 — 같은 값이 세 곳에 복사돼 있다:
-   라이브 localStorage, 계정 스냅샷(captureAccountStorage), 서버 동기화 레코드.
-   한 곳만 지우면 다음 로그인의 스냅샷 복원이나 서버 상태 적용이 되살린다. 로그인이
-   게스트 계획을 덮었던 사고(CONTRIBUTING ④-4)와 같은 형태다. 그래서 시작할 때 로컬 두
-   곳을 훑고, 동기화 경계 양쪽(captureServerSyncState·applyServerSyncState)에서 한 번 더
-   거른다. 서버 레코드는 정리된 값이 다음 동기화에 올라가면서 덮인다.
-
-   가입자가 아직 없어 이 정리 경로가 실제로 할 일은 개발·테스트 기기의 값뿐이다.
-   그래서 지금이 가장 싸다. */
-const RETIRED_PROFILE_FIELDS = ["birthPlace"];
-
-/* 프로필 JSON 문자열에서 폐지 항목만 걷어낸다. 파싱할 수 없거나 지울 것이 없으면
-   원문을 그대로 돌려준다 — 손상 복구는 이 함수의 일이 아니고, 여기서 모양을 바꾸면
-   storage-recovery 계약이 흔들린다. */
-function stripRetiredProfileFields(raw) {
-  if (typeof raw !== "string" || !raw) return raw;
-  let parsed;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return raw;
-  }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return raw;
-  if (!RETIRED_PROFILE_FIELDS.some((field) => field in parsed)) return raw;
-  for (const field of RETIRED_PROFILE_FIELDS) delete parsed[field];
-  return JSON.stringify(parsed);
-}
-
-/* 계정 스냅샷은 키 모양이 셋이다(onmyway:user:…:state / onmyway:anonymous:…:state /
-   레거시 접두사). 접두사를 나열하는 대신 "프로필 키를 문자열로 담고 있는 객체"라는
-   내용으로 찾는다 — 나중에 스냅샷 키 모양이 하나 더 생겨도 이 정리는 따라간다. */
-function purgeRetiredProfileFields() {
-  try {
-    const live = localStorage.getItem(PERSONALITY_PROFILE_KEY);
-    const cleanedLive = stripRetiredProfileFields(live);
-    if (cleanedLive !== live) localStorage.setItem(PERSONALITY_PROFILE_KEY, cleanedLive);
-
+    localStorage.removeItem(RETIRED_PERSONALITY_KEY);
+    /* 계정 스냅샷은 키 모양이 셋이다(onmyway:user:…:state / onmyway:anonymous:…:state /
+       레거시 접두사). 접두사를 나열하는 대신 "그 키를 담고 있는 객체"라는 내용으로 찾는다 —
+       나중에 스냅샷 키 모양이 하나 더 생겨도 이 정리는 따라간다. */
     for (let index = 0; index < localStorage.length; index += 1) {
       const key = localStorage.key(index);
-      if (!key || key === PERSONALITY_PROFILE_KEY) continue;
+      if (!key) continue;
       const raw = localStorage.getItem(key);
-      if (typeof raw !== "string" || !raw.includes(PERSONALITY_PROFILE_KEY)) continue;
+      if (typeof raw !== "string" || !raw.includes(RETIRED_PERSONALITY_KEY)) continue;
       let snapshot;
       try {
         snapshot = JSON.parse(raw);
@@ -1500,67 +1467,16 @@ function purgeRetiredProfileFields() {
         continue;
       }
       if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) continue;
-      const cleaned = stripRetiredProfileFields(snapshot[PERSONALITY_PROFILE_KEY]);
-      if (cleaned === snapshot[PERSONALITY_PROFILE_KEY]) continue;
-      snapshot[PERSONALITY_PROFILE_KEY] = cleaned;
+      if (!(RETIRED_PERSONALITY_KEY in snapshot)) continue;
+      delete snapshot[RETIRED_PERSONALITY_KEY];
       localStorage.setItem(key, JSON.stringify(snapshot));
     }
   } catch (error) {
-    console.warn("Unable to purge retired profile fields", error);
+    console.warn("Unable to purge retired personality profile", error);
   }
 }
 
-purgeRetiredProfileFields();
-
-function openPersonalitySheet() {
-  if (!personalitySheet) return;
-  if (!planHasFeature("companionPersonalization")) {
-    showToast("올리 개인화는 Pro 또는 무료 체험 중에 이용할 수 있어요.");
-    openEnergyCharge();
-    return;
-  }
-  const profile = readPersonalityProfile() || {};
-  const plan = readExecutionPlan();
-  if (profileBirthDateInput) profileBirthDateInput.value = profile.birthDate || "";
-  if (profileBirthTimeInput) profileBirthTimeInput.value = profile.birthTime || "";
-  if (profileMbtiInput) profileMbtiInput.value = profile.mbti || plan.mbti || "";
-  setDrawerOpen(false);
-  setSheetOpen(personalitySheet, accountSheetOverlay, true);
-}
-
-function savePersonalityProfileFromSheet() {
-  if (!planHasFeature("companionPersonalization")) {
-    showToast("올리 개인화는 Pro 또는 무료 체험 중에 이용할 수 있어요.");
-    return;
-  }
-  const profile = {
-    birthDate: profileBirthDateInput?.value || "",
-    birthTime: profileBirthTimeInput?.value || "",
-    mbti: profileMbtiInput?.value || "",
-    updatedAt: new Date().toISOString(),
-  };
-  try {
-    localStorage.setItem(PERSONALITY_PROFILE_KEY, JSON.stringify(profile));
-    // 기존 계획은 유지하면서 이후 AI 조정·코칭에 쓰이는 성향 값만 갱신한다
-    const plan = readExecutionPlan();
-    if (plan.goal) {
-      const manse = calculateSimpleManse(profile.birthDate || "1995-01-01", profile.birthTime || "12:00");
-      plan.mbti = profile.mbti;
-      plan.mbtiSummary = profile.mbti ? analyzeMbti(profile.mbti) : "성향 정보 없이 목표와 실행 스타일을 기준으로 계획합니다.";
-      plan.manseSummary = profile.birthDate ? manse.summary : "";
-      plan.style = decidePlanningStyle(manse, profile.mbti || "");
-      writeExecutionPlan(plan);
-    }
-  } catch (error) {
-    console.warn("Unable to save personality profile", error);
-  }
-  setSheetOpen(personalitySheet, accountSheetOverlay, false);
-  showToast("성향을 저장했어요 · 다음 계획 조정부터 반영돼요");
-}
-
-drawerPersonalityButton?.addEventListener("click", openPersonalitySheet);
-closePersonalitySheetButton?.addEventListener("click", () => setSheetOpen(personalitySheet, accountSheetOverlay, false));
-savePersonalityButton?.addEventListener("click", savePersonalityProfileFromSheet);
+purgeRetiredPersonalityProfile();
 
 // ===== 회원 · 인증 =====
 const authUiState = { user: null, loaded: false, error: null };
@@ -2311,7 +2227,7 @@ planChoiceOverlay?.addEventListener("click", () => {
   setSheetOpen(planChoiceSheet, planChoiceOverlay, false);
 });
 accountSheetOverlay?.addEventListener("click", () => {
-  const openSheetElement = [authSheet, myPageSheet, personalitySheet].find((sheet) => sheet && sheet.hidden === false);
+  const openSheetElement = [authSheet, myPageSheet].find((sheet) => sheet && sheet.hidden === false);
   if (openSheetElement === authSheet) closeAuthSheet();
   else if (openSheetElement) setSheetOpen(openSheetElement, accountSheetOverlay, false);
 });
@@ -2669,7 +2585,7 @@ function aiCreditCost(action) {
 
 /* features 플래그 판정. **PRO 전용 기능에는 쓰면 안 된다** —
    getPlanConfig("trial")이 PLAN_CONFIG.pro를 돌려주므로 체험 계정이 전부 통과한다.
-   여기 오는 플래그(detailedInsights·companionPersonalization)는 "체험이 PRO와 같아도 되는 것"이라
+   여기 오는 플래그(detailedInsights)는 "체험이 PRO와 같아도 되는 것"이라
    그 통과가 의도된 동작이다. PRO 전용은 canCreateDiaryBook()처럼 서버 판정을 읽어라. */
 function planHasFeature(feature) {
   const plan = aiUsageState?.plan || authUiState.user?.plan || "expired";
@@ -2681,12 +2597,6 @@ function renderPlanFeatureAccess() {
   if (memoryPatternPanel) memoryPatternPanel.classList.toggle("is-plan-locked", !detailedInsights);
   if (memoryPatternLock) memoryPatternLock.hidden = detailedInsights;
   if (patternList) patternList.hidden = !detailedInsights;
-  const personalization = planHasFeature("companionPersonalization");
-  if (drawerPersonalityButton) {
-    drawerPersonalityButton.classList.toggle("is-plan-locked", !personalization);
-    drawerPersonalityButton.setAttribute("aria-disabled", personalization ? "false" : "true");
-    drawerPersonalityButton.title = personalization ? "성향 설정" : "Pro 또는 무료 체험 중에 이용할 수 있어요";
-  }
 }
 
 async function ensureAiActionAvailable(action) {
@@ -2819,6 +2729,10 @@ const journeyNextText = document.querySelector("#journeyNextText");
 const journeyNextBar = document.querySelector("#journeyNextBar");
 const memoryList = document.querySelector("#memoryList");
 const patternList = document.querySelector("#patternList");
+/* 상세 분석(detailedInsights) 잠금 표시. 성향 프로필과 함께 선언돼 있었지만 다른 기능이라
+   그 블록이 사라질 때 여기로 옮겼다. */
+const memoryPatternPanel = document.querySelector("#memoryPatternPanel");
+const memoryPatternLock = document.querySelector("#memoryPatternLock");
 const memoryForm = document.querySelector("#memoryForm");
 const memoryComposeHeading = document.querySelector("#memoryComposeHeading");
 const memoryCompletion = document.querySelector("#memoryCompletion");
@@ -2860,13 +2774,12 @@ const diaryBookCostLabel = document.querySelector("#diaryBookCost");
 const diaryBookStatus = document.querySelector("#diaryBookStatus");
 const diaryBookDone = document.querySelector("#diaryBookDone");
 const diaryBookDoneText = document.querySelector("#diaryBookDoneText");
-const diaryBookPrintAgain = document.querySelector("#diaryBookPrintAgain");
+const diaryBookOpenAgain = document.querySelector("#diaryBookOpenAgain");
 const diaryBookTidyStart = document.querySelector("#diaryBookTidyStart");
 const diaryBookTidy = document.querySelector("#diaryBookTidy");
 const diaryBookTidyDetail = document.querySelector("#diaryBookTidyDetail");
 const diaryBookTidyCancel = document.querySelector("#diaryBookTidyCancel");
 const diaryBookTidyCommit = document.querySelector("#diaryBookTidyCommit");
-const diaryBookPrint = document.querySelector("#diaryBookPrint");
 const diaryBookLocked = document.querySelector("#diaryBookLocked");
 const diaryBookLockedReason = document.querySelector("#diaryBookLockedReason");
 const diaryBookSampleOpen = document.querySelector("#diaryBookSampleOpen");
@@ -3799,86 +3712,6 @@ const resumedPendingGoal = restorePendingGoalDraft();
 if (pricingAppReturn) pricingAppReturn.hidden = new URLSearchParams(location.search).get("from") !== "ollie";
 showPageView(resumedPendingGoal ? "#designFlow" : window.location.hash || "#top", resumedPendingGoal || Boolean(window.location.hash));
 
-const stems = [
-  { ko: "갑", element: "목", trait: "시작과 성장 욕구가 강한 확장형" },
-  { ko: "을", element: "목", trait: "유연하게 쌓아가는 적응형" },
-  { ko: "병", element: "화", trait: "몰입과 표현력이 강한 추진형" },
-  { ko: "정", element: "화", trait: "섬세한 동기와 리듬이 중요한 집중형" },
-  { ko: "무", element: "토", trait: "기반을 다지며 꾸준히 가는 안정형" },
-  { ko: "기", element: "토", trait: "작은 단위로 관리할 때 강한 관리형" },
-  { ko: "경", element: "금", trait: "기준과 결과가 분명할 때 강한 실행형" },
-  { ko: "신", element: "금", trait: "정교한 피드백과 개선에 강한 분석형" },
-  { ko: "임", element: "수", trait: "큰 흐름과 자율성이 필요한 탐색형" },
-  { ko: "계", element: "수", trait: "차분한 관찰과 누적에 강한 기록형" },
-];
-
-const branches = ["자", "축", "인", "묘", "진", "사", "오", "미", "신", "유", "술", "해"];
-
-function positiveModulo(value, divisor) {
-  return ((value % divisor) + divisor) % divisor;
-}
-
-function getJulianDay(date) {
-  const year = date.getUTCFullYear();
-  const month = date.getUTCMonth() + 1;
-  const day = date.getUTCDate();
-  const a = Math.floor((14 - month) / 12);
-  const y = year + 4800 - a;
-  const m = month + 12 * a - 3;
-  return day + Math.floor((153 * m + 2) / 5) + 365 * y + Math.floor(y / 4) - Math.floor(y / 100) + Math.floor(y / 400) - 32045;
-}
-
-function calculateSimpleManse(birthDate, birthTime) {
-  const date = new Date(`${birthDate}T${birthTime || "12:00"}:00+09:00`);
-  const year = date.getFullYear();
-  const month = date.getMonth() + 1;
-  const hour = date.getHours();
-  const julianDay = getJulianDay(new Date(Date.UTC(year, date.getMonth(), date.getDate())));
-
-  const yearStem = stems[positiveModulo(year - 4, 10)];
-  const yearBranch = branches[positiveModulo(year - 4, 12)];
-  const monthStem = stems[positiveModulo((year - 4) * 12 + month + 1, 10)];
-  const monthBranch = branches[positiveModulo(month + 1, 12)];
-  const dayStem = stems[positiveModulo(julianDay + 9, 10)];
-  const dayBranch = branches[positiveModulo(julianDay + 1, 12)];
-  const hourBranchIndex = positiveModulo(Math.floor((hour + 1) / 2), 12);
-  const hourStem = stems[positiveModulo(dayStem.ko.charCodeAt(0) + hourBranchIndex, 10)];
-  const hourBranch = branches[hourBranchIndex];
-
-  return {
-    pillars: {
-      year: `${yearStem.ko}${yearBranch}`,
-      month: `${monthStem.ko}${monthBranch}`,
-      day: `${dayStem.ko}${dayBranch}`,
-      hour: `${hourStem.ko}${hourBranch}`,
-    },
-    dayMaster: dayStem,
-    summary: `${dayStem.ko}${dayBranch} 일주 기반으로 ${dayStem.element} 기운이 중심입니다. ${dayStem.trait} 성향으로 보고, 계획은 성취 기준과 하루 리듬을 함께 잡는 방식이 좋습니다.`,
-  };
-}
-
-function analyzeMbti(mbti) {
-  const upper = mbti.toUpperCase();
-  const energy = upper.includes("E") ? "외부 자극과 공유가 동기 유지에 도움" : "혼자 집중할 수 있는 조용한 루틴이 중요";
-  const structure = upper.includes("J") ? "마감과 체크리스트가 분명할수록 강함" : "선택지가 있는 유연한 계획이 유지에 유리";
-  const feedback = upper.includes("T") ? "수치와 결과 중심 피드백 선호" : "응원과 의미 중심 피드백 선호";
-  const rhythm = upper.includes("S") ? "구체적인 하루 행동으로 쪼갤 때 안정적" : "큰 방향과 이유가 선명해야 오래 지속";
-  return `${upper}: ${energy}, ${structure}, ${feedback}, ${rhythm}.`;
-}
-
-function decidePlanningStyle(manse, mbti) {
-  const isJudging = mbti.includes("J");
-  const isIntrovert = mbti.includes("I");
-  const isFeeling = mbti.includes("F");
-  const element = manse.dayMaster.element;
-
-  if ((element === "토" || element === "금") && isJudging) return "루틴 점검형";
-  if ((element === "화" || element === "목") && !isIntrovert) return "몰입 추진형";
-  if (isFeeling) return "응원 성장형";
-  if (element === "수" || mbti.includes("P")) return "유연 조정형";
-  return "균형 실행형";
-}
-
 function getGoalKind(goal) {
   const text = goal.toLowerCase();
   if (text.includes("토익") || text.includes("시험") || text.includes("자격증")) return "exam";
@@ -4121,7 +3954,6 @@ async function requestCompanionReply(message, { eventType = "chat", history = nu
   try {
     const bundle = getPlanBundle();
     const companionState = getCompanionState();
-    const profile = planHasFeature("companionPersonalization") ? (readPersonalityProfile() || {}) : {};
     const response = await fetch(apiUrl("/api/ai/companion-chat"), {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json", "X-Request-ID": requestId },
@@ -4138,11 +3970,9 @@ async function requestCompanionReply(message, { eventType = "chat", history = nu
           energy: companionState.energy || "",
           todayFocus: bundle.plan?.firstAction || "",
           ...collectCompanionContext(bundle),
-          personalization: {
-            mbti: profile.mbti || bundle.plan?.mbti || "",
-            planningStyle: bundle.plan?.style || "",
-            preferenceSummary: bundle.plan?.mbtiSummary || bundle.plan?.manseSummary || "",
-          },
+          /* 성향 프로필(생년월일·MBTI)이 사라져 개인화에 남는 것은 계획 스타일뿐이다.
+             그 값은 수동 온보딩의 준비도 답에서 나온다(getManualPlanStyle). */
+          personalization: { planningStyle: bundle.plan?.style || "" },
         },
       }),
       signal: controller.signal,
@@ -4308,8 +4138,8 @@ function renderAiPreview(preview) {
       .trim();
     planningStyle.textContent = compactStyle.slice(0, 18) || "맞춤 실행형";
   }
-  if (manseProfile) manseProfile.textContent = preview.personalitySummary;
-  if (mbtiProfile) mbtiProfile.textContent = `${preview.planningStyle}으로 시작하고, 첫 행동은 "${preview.firstAction}"으로 잡습니다.`;
+  if (previewOutcome) previewOutcome.textContent = preview.personalitySummary;
+  if (previewApproach) previewApproach.textContent = `${preview.planningStyle}으로 시작하고, 첫 행동은 "${preview.firstAction}"으로 잡습니다.`;
   if (aiPreviewTitle) aiPreviewTitle.textContent = preview.weekTitle;
   if (aiPreviewList) {
     const items = (preview.weekPlan || []).map((item) => {
@@ -5079,8 +4909,8 @@ window.__omwTest = Object.freeze({
      파일 다운로드만 확인하면 "빈 파일이 내려왔다"를 잡지 못한다. */
   buildRecordsMarkdown,
   exportRecordsFile,
-  /* 인쇄·PDF는 PRO 전용이다. 헤드리스에서 인쇄 창을 띄울 수 없으므로 게이트 자체를 검사한다. */
-  printDiaryBook,
+  /* 만든 책 열람은 PRO 전용이다. 게이트 자체를 검사한다. */
+  openMyDiaryBook,
   /* 대화 로그 보관 상한(90일·500턴)은 날짜에 의존해 e2e로 90일을 흉내 내기 어렵다.
      순수 함수를 그대로 노출해 경계를 직접 검사한다. */
   pruneChatLog(log) {
@@ -9682,15 +9512,42 @@ function sampleDiaryBook() {
 }
 
 let sampleBookReturnFocus = null;
+let bookViewerMode = "";
 
-function openSampleBook(trigger) {
-  const book = sampleDiaryBook();
+/* 북 뷰어. 샘플과 **내가 만든 책**이 같은 화면을 쓴다.
+   DOM id·클래스가 `sampleBook*`인 것은 이 화면이 샘플 전용으로 태어났기 때문이다.
+   인쇄가 사라지면서(2026-08-04) 만든 책을 보는 유일한 경로가 됐고, 그래서 배지·설명·
+   푸터만 모드에 따라 바뀐다. 조판은 어느 쪽이든 buildDiaryBookPages 하나가 한다.
+
+   "샘플"임을 밝히는 배지와 푸터의 Pro 유도는 **샘플일 때만** 보여야 한다 —
+   내 기록으로 만든 책에 "가상의 예시"라고 적히면 거짓이 되고, 이미 Pro인 사람에게
+   Pro 시작하기를 권하는 것도 어긋난다. */
+function openBookViewer(book, { trigger = null, sample = false } = {}) {
   if (!book || !sampleBookDialog || !sampleBookPages) return;
-  // 한 번만 조판한다. 다시 열 때마다 그리면 긴 문서를 매번 만드는 셈이다.
-  if (!sampleBookPages.childElementCount) sampleBookPages.replaceChildren(buildDiaryBookPages(book));
+  const mode = sample ? "sample" : "mine";
+  // 같은 모드로 다시 열면 조판을 재사용한다. 긴 문서를 매번 만들지 않는다.
+  if (bookViewerMode !== mode || !sampleBookPages.childElementCount) {
+    sampleBookPages.replaceChildren(buildDiaryBookPages(book));
+    bookViewerMode = mode;
+  }
+  if (sampleBookBadge) sampleBookBadge.hidden = !sample;
+  if (sampleBookFoot) sampleBookFoot.hidden = !sample;
+  if (sampleBookTitle) {
+    sampleBookTitle.textContent = sample ? "올리 다이어리 북 샘플" : book.title || "올리 다이어리 북";
+  }
+  if (sampleBookNote) {
+    sampleBookNote.textContent = sample
+      ? "가상의 한 달 기록으로 만든 예시예요. 내 기록으로 만든 책이 아니에요."
+      : `${formatDiaryBookMonth(book.monthKey)}의 기록으로 만든 한 권이에요.`;
+  }
+  if (sampleBookClose) sampleBookClose.setAttribute("aria-label", sample ? "샘플 닫기" : "책 닫기");
   sampleBookReturnFocus = trigger instanceof HTMLElement ? trigger : null;
   sampleBookDialog.hidden = false;
   sampleBookDialog.focus({ preventScroll: true });
+}
+
+function openSampleBook(trigger) {
+  openBookViewer(sampleDiaryBook(), { trigger, sample: true });
 }
 
 function closeSampleBook() {
@@ -9901,97 +9758,15 @@ function buildDiaryBookPages(book) {
   return pages;
 }
 
-function renderDiaryBookPrint(book) {
-  if (!diaryBookPrint) return;
-  diaryBookPrint.replaceChildren(buildDiaryBookPages(book));
-  diaryBookPrint.hidden = false;
-}
-
-/* 인쇄 대화상자를 연다. 파일명은 브라우저가 document.title에서 가져가므로 잠깐 바꿔 둔다.
-   afterprint를 쏘지 않는 브라우저가 있어 되돌리기를 한 번 더 걸어 둔다.
-
-   인쇄·PDF는 PRO 전용이다. 무료 경로는 .md 내보내기 하나뿐이므로 body.is-printing-book
-   진입 자체를 PRO가 아니면 막는다 — 이 클래스가 붙는 순간 조판된 책이 PDF로 나간다.
-
-   ── 왜 되돌리기 경로가 여럿인가 ──────────────────────────────────────────────
-
-   Android WebView와 iOS WKWebView는 window.print()를 구현하지 않으면서 **예외도 던지지
-   않는다.** 그러면 아래 catch가 발동하지 않고, 인쇄가 시작된 적이 없으니 afterprint도
-   오지 않는다. 남는 것은 60초 타임아웃 하나뿐이다.
-
-   정확히 무엇이 60초 동안 잘못돼 있는지 짚어 둔다 — 화면이 인쇄 모드로 바뀌지는 않는다.
-   `.diary-book-print { display: none }`은 화면 스타일시트에 있고 is-printing-book 규칙은
-   전부 @media print 안이라(styles.css:18827-18829) 눈에 보이는 변화가 없다. 잘못되는 것은
-   **document.title**이다. 60초 동안 앱 제목이 "올리 다이어리 북 …"으로 남고, 그 사이에
-   유저가 다른 것을 인쇄하거나 페이지를 저장하면 파일명이 그 값으로 나간다.
-
-   그래서 되돌리기를 세 신호에 건다. 셋 다 실기기 관측이 필요 없는 것들이다:
-
-     ① afterprint       — 정상 경로. 인쇄가 끝났다
-     ② 유저가 앱으로 돌아옴 — visibilitychange(visible) 또는 첫 입력. 인쇄 대화상자가 앞에
-                            있었다면 그 대화상자는 이미 닫혔다는 뜻이고, 열린 적이 없다면
-                            즉시 되돌리는 것이 맞다
-     ③ 60초             — 마지막 보루. 그대로 둔다
-
-   ②의 타임아웃을 줄이는 것으로 대신하지 않은 이유: 인쇄가 비동기인 브라우저에서 조판이
-   끝나기 전에 되돌리면 출력이 깨진다. "유저가 앱을 보고 있다"는 신호는 그 위험이 없다.
-
-   beforeprint나 matchMedia("print")로 "인쇄가 시작됐는지"를 판정하는 쪽은 넣지 않았다.
-   WebView에서 그 둘이 반응하는지가 미검증이라(docs/native-print-bridge.md §6),
-   반응하지 않으면 판정이 시간 추정으로 떨어져 정상 인쇄를 오탐한다. */
-let diaryBookPrintRestore = null;
-
-function printDiaryBook(monthKey) {
+/* 만든 책을 연다. PRO 판정은 생성 경로가 이미 했지만 여기서도 본다 —
+   "다시 보기"는 생성과 다른 시점이고, 그 사이에 플랜이 만료됐을 수 있다. */
+function openMyDiaryBook(book, trigger = null) {
+  if (!book) return;
   if (!canCreateDiaryBook()) {
-    showToast("인쇄와 PDF 저장은 Pro 전용이에요. 기록은 무료로 텍스트(.md)로 내보낼 수 있어요.");
+    showToast("만든 책 열람은 Pro 전용이에요. 기록은 무료로 텍스트(.md)로 내보낼 수 있어요.");
     return;
   }
-  /* 연속으로 누르면 이전 호출의 리스너·타이머가 남는다. 앞의 것을 먼저 정리해야
-     previousTitle이 "올리 다이어리 북 …"으로 굳어지지 않는다. */
-  diaryBookPrintRestore?.();
-
-  const previousTitle = document.title;
-  document.title = `올리 다이어리 북 ${formatDiaryBookMonth(monthKey)}`;
-  document.body.classList.add("is-printing-book");
-
-  let restored = false;
-  let timeoutId = 0;
-  const restore = () => {
-    if (restored) return;
-    restored = true;
-    diaryBookPrintRestore = null;
-    window.clearTimeout(timeoutId);
-    document.body.classList.remove("is-printing-book");
-    document.title = previousTitle;
-    window.removeEventListener("afterprint", restore);
-    document.removeEventListener("visibilitychange", restoreWhenVisible);
-    window.removeEventListener("pointerdown", restore);
-    window.removeEventListener("keydown", restore);
-  };
-  const restoreWhenVisible = () => {
-    if (document.visibilityState === "visible") restore();
-  };
-  diaryBookPrintRestore = restore;
-
-  window.addEventListener("afterprint", restore);
-  document.addEventListener("visibilitychange", restoreWhenVisible);
-  timeoutId = window.setTimeout(restore, 60_000);
-
-  try {
-    window.print();
-  } catch (error) {
-    console.warn("Unable to open print dialog", error);
-    restore();
-    return;
-  }
-
-  /* print()가 동기적으로 돌아온 뒤에 입력 리스너를 단다. 데스크톱 브라우저는 print()가
-     대화상자가 닫힐 때까지 블로킹하므로 이 시점이면 이미 afterprint가 지나갔고 restored가
-     참이다 — 그때는 addEventListener 자체를 하지 않는다. 호출 전에 달면 대화상자를 여는
-     그 클릭·키 입력이 곧바로 되돌려 버린다. */
-  if (restored) return;
-  window.addEventListener("pointerdown", restore, { once: true });
-  window.addEventListener("keydown", restore, { once: true });
+  openBookViewer(book, { trigger });
 }
 
 async function ensureDiaryBookAvailable() {
@@ -10035,7 +9810,6 @@ async function createDiaryBook(monthKey) {
     }
     const text = await requestDiaryBookText(book);
     lastDiaryBook = { ...book, ...text };
-    renderDiaryBookPrint(lastDiaryBook);
     trackCompanionEvent("diary_book_created", {
       monthKey,
       days: book.days.length,
@@ -10045,7 +9819,7 @@ async function createDiaryBook(monthKey) {
     /* 조사를 숫자 뒤에 붙이지 않는다 — 을/를이 숫자를 읽는 소리에 따라 갈려서
        ("10을", "2를") 값이 바뀌면 어긋난다. 조사를 앞으로 옮기면 어떤 값에도 맞는다. */
     setDiaryBookStatus(`한 권이 완성됐어요. 에너지를 ${text.chargedCredits} 썼어요.`, "done");
-    printDiaryBook(monthKey);
+    openMyDiaryBook(lastDiaryBook);
     renderDiaryBookCard();
   } catch (error) {
     // 실패한 요청은 서버가 스스로 원복한다. 유저에게도 그 사실을 밝힌다.
@@ -10080,7 +9854,7 @@ function renderDiaryBookDone() {
   diaryBookDone.hidden = !ready;
   if (!ready) return;
   if (diaryBookDoneText) {
-    diaryBookDoneText.textContent = `${formatDiaryBookMonth(monthKey)} 「${lastDiaryBook.title}」이 준비됐어요. 인쇄 창에서 "PDF로 저장"을 고르면 기기에 남아요.`;
+    diaryBookDoneText.textContent = `${formatDiaryBookMonth(monthKey)} 「${lastDiaryBook.title}」이 준비됐어요. 구독하는 동안 언제든 다시 볼 수 있어요.`;
   }
   const armed = diaryBookTidyArmed === monthKey;
   if (diaryBookTidyStart) diaryBookTidyStart.hidden = armed;
@@ -10136,10 +9910,8 @@ diaryBookCreate?.addEventListener("click", async () => {
   await createDiaryBook(monthKey);
 });
 
-diaryBookPrintAgain?.addEventListener("click", () => {
-  if (!lastDiaryBook) return;
-  renderDiaryBookPrint(lastDiaryBook);
-  printDiaryBook(lastDiaryBook.monthKey);
+diaryBookOpenAgain?.addEventListener("click", () => {
+  openMyDiaryBook(lastDiaryBook, diaryBookOpenAgain);
 });
 
 diaryBookTidyStart?.addEventListener("click", () => {

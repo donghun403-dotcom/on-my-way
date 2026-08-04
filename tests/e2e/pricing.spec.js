@@ -48,12 +48,16 @@ test("비로그인 가격표는 확정 정책과 체험 조건을 표시하고 �
   await expect(creditCosts).toHaveText(advertised.map((action) => `${AI_CREDIT_COSTS[action]}크레딧`));
   await expect(pricing.getByText("매일 축하·위로")).toBeVisible();
 
-  /* 북과 인쇄·PDF는 PRO 전용이다. 비교표의 체험 칸에 "제공"이나 "무료"가 남아 있으면
+  /* 북 만들기와 열람은 PRO 전용이다. 비교표의 체험 칸에 "제공"이나 "무료"가 남아 있으면
      표시광고법 문제가 되므로 두 줄을 문자열로 고정한다. */
   const bookRow = pricing.locator(".pricing-comparison-row", { hasText: "올리의 북 만들기" });
   await expect(bookRow).toContainText("Pro 전용");
   await expect(bookRow).toContainText(`에너지 ${AI_CREDIT_COSTS.diary_book}`);
-  await expect(pricing.locator(".pricing-comparison-row", { hasText: "인쇄·PDF 저장" })).toContainText("Pro 전용");
+  await expect(pricing.locator(".pricing-comparison-row", { hasText: "만든 북 다시 보기" })).toContainText("Pro 전용");
+  /* 인쇄·PDF는 2026-08-04에 기능째 지웠다(Android WebView가 window.print()를 구현하지
+     않는다 — docs/native-print-bridge.md 실측). 되지 않는 것을 유료 혜택으로 적으면
+     표시광고법 문제라, 가격 화면에 그 약속이 되살아나지 않는지 함께 검사한다. */
+  expect(await pricing.innerText()).not.toMatch(/인쇄|PDF/);
   // 무료 쪽은 .md 텍스트 하나뿐이다.
   await expect(pricing.locator(".pricing-comparison-row", { hasText: "원본 내보내기" })).toContainText("종료 후에도 무료");
   // 폐지한 약속이 남아 있으면 여기서 걸린다.

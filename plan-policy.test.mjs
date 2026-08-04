@@ -39,7 +39,6 @@ test("플랜은 trial_pending·expired·pro 셋이고 값은 한 곳에서만 �
       fullReschedule: false,
       recoveryPlan: false,
       detailedInsights: false,
-      companionPersonalization: false,
     },
   });
   assert.deepEqual(PLAN_CONFIG.pro, {
@@ -56,7 +55,6 @@ test("플랜은 trial_pending·expired·pro 셋이고 값은 한 곳에서만 �
       fullReschedule: true,
       recoveryPlan: true,
       detailedInsights: true,
-      companionPersonalization: true,
     },
   });
   assert.equal(DEFAULT_TIME_ZONE, "Asia/Seoul");
@@ -319,39 +317,50 @@ test("차단이 꺼져 있는 동안 만료 계정에 열어 두는 한도는 �
   assert.ok(Object.isFrozen(PAYWALL_OFF_EXPIRED_GRANT));
 });
 
-/* 출생지 수집 폐지. 만세력은 생년월일·시각만 받고(calculateSimpleManse) 다른 사용처가
-   하나도 없었다 — 저장하고 다음에 시트를 열 때 입력칸에 되돌려 넣는 것이 전부였다.
-   목적 없는 개인정보 수집은 최소수집 원칙에 어긋나고, 구글 데이터 안전 양식은 항목마다
-   목적을 요구하는데 적을 목적이 없다(docs/play-store-submission.md §1.2 ①).
+/* 성향 프로필 폐지(2026-08-04). 생년월일·출생시각·MBTI를 받아 만세력(사주)과 MBTI
+   해석으로 계획 문구를 만들던 기능을 통째로 지웠다. 출생지 하나를 지웠던 2026-07-30의
+   연장이 아니라, 그때 "다른 사용처가 없다"고 적었던 그 사용처(만세력)까지 없앤 것이다.
 
-   여기서 검사하는 것은 **되살아나는 경로**다. 프로퍼티 접근(.birthPlace)과 객체 리터럴
-   키(birthPlace:)와 입력 요소 id와 화면 문구 넷. script.js의 RETIRED_PROFILE_FIELDS에
-   있는 문자열 "birthPlace"는 이 넷 중 어디에도 걸리지 않는다 — 그 목록은 값을 지우는
+   왜: 민감정보에 가까운 값을 받으면서 얻는 것이 계획 문구 몇 줄이었다. 데이터 안전
+   양식은 항목마다 목적을 요구하고, 만세력은 스토어 정책상 "운세" 표기 요구를 부를 수
+   있었다(docs/play-store-submission.md §3).
+
+   여기서 검사하는 것은 **되살아나는 경로**다. 프로퍼티 접근·객체 리터럴 키·입력 요소
+   id·계산 함수 이름. script.js의 RETIRED_PERSONALITY_KEY에 있는 문자열
+   "omwPersonalityProfile"은 아래 어느 패턴에도 걸리지 않는다 — 그 상수는 값을 지우는
    쪽이지 읽는 쪽이 아니기 때문이다. 그래서 정리 코드를 예외 파일로 빼지 않아도 된다.
    구현 파일을 REMOVAL_GUARD_FILES에 넣는 순간 이 스캔은 아무것도 지키지 못한다. */
-test("출생지 수집의 잔재가 소스에 하나도 없다", () => {
+test("출생지·생년월일·만세력 수집의 잔재가 소스에 하나도 없다", () => {
   assert.deepEqual(findSourceOffenders([
     ["profile.birthPlace 접근", /\.birthPlace\b/],
     ["birthPlace 객체 키", /\bbirthPlace\s*:/],
     ["profileBirthPlace 입력", /\bprofileBirthPlace\b/],
+    ["birthDate/birthTime 접근", /\.birth(?:Date|Time)\b/],
+    ["birthDate/birthTime 객체 키", /\bbirth(?:Date|Time)\s*:/],
+    ["profileBirthDate/Time 입력", /\bprofileBirth(?:Date|Time)\b/],
+    ["만세력 계산", /\bcalculateSimpleManse\b/],
+    ["MBTI 해석", /\banalyzeMbti\b/],
+    ["만세력 기반 스타일 결정", /\bdecidePlanningStyle\b/],
+    ["mbti 객체 키", /\bmbti\s*:/],
+    ["성향 시트", /\bpersonalitySheet\b/],
   ]), []);
 });
 
 /* 위 스캔은 "이름이 없다"만 본다. 이미 저장된 값이 지워지는지는 다른 질문이라
    tests/e2e/storage-recovery.spec.js가 실제 브라우저에서 잰다. 둘 다 있어야 한다 —
-   이름만 지우면 기기와 서버에 남은 값은 그대로다. */
-test("폐지 항목 정리 경로가 세 자리에 모두 걸려 있다", () => {
+   이름만 지우면 기기와 서버에 남은 값은 그대로다.
+
+   값 하나를 걷어내던 시절에는 동기화 길목 양쪽에 필터가 필요했다. 키째 없어진 지금은
+   **동기화 목록이 곧 필터다** — 목록에 없으면 올라가지도 내려오지도 않는다. 그래서
+   검사 대상이 "길목 필터 둘"에서 "목록에 없다 + 부팅 때 지운다"로 바뀐다. */
+test("폐지한 성향 키의 정리 경로가 걸려 있고 동기화 목록에도 없다", () => {
   const client = readFileSync(new URL("./script.js", import.meta.url), "utf8");
-  assert.match(client, /const RETIRED_PROFILE_FIELDS = \["birthPlace"\]/);
-  assert.match(client, /^purgeRetiredProfileFields\(\);$/m, "시작할 때 로컬을 훑는다");
-  assert.match(
-    client,
-    /SERVER_SYNC_STORAGE_KEYS\s*\n?\s*\.map\(\(key\) => \[key, stripRetiredProfileFields\(localStorage\.getItem\(key\)\)\]\)/,
-    "서버로 올라가는 길목에서 거른다",
-  );
-  assert.match(
-    client,
-    /localStorage\.setItem\(key, stripRetiredProfileFields\(value\)\)/,
-    "서버에서 내려오는 길목에서 거른다",
-  );
+  assert.match(client, /const RETIRED_PERSONALITY_KEY = "omwPersonalityProfile"/);
+  assert.match(client, /^purgeRetiredPersonalityProfile\(\);$/m, "시작할 때 로컬과 스냅샷을 훑는다");
+  const syncList = client.match(/const SERVER_SYNC_STORAGE_KEYS = \[[^\]]*\]/s)?.[0] || "";
+  assert.ok(syncList, "동기화 목록을 찾지 못했다");
+  assert.ok(!syncList.includes("omwPersonalityProfile"), "서버 동기화 목록에 폐지 키가 남아 있다");
+  const scopedList = client.match(/const ACCOUNT_SCOPED_STORAGE_KEYS = \[[^\]]*\]/s)?.[0] || "";
+  assert.ok(scopedList, "계정 스코프 목록을 찾지 못했다");
+  assert.ok(!scopedList.includes("omwPersonalityProfile"), "계정 스코프 목록에 폐지 키가 남아 있다");
 });
