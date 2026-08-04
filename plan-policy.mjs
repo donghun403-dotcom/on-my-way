@@ -39,7 +39,6 @@ export const PLAN_CONFIG = deepFreeze({
       fullReschedule: false,
       recoveryPlan: false,
       detailedInsights: false,
-      companionPersonalization: false,
     },
   },
   expired: {
@@ -56,7 +55,6 @@ export const PLAN_CONFIG = deepFreeze({
       fullReschedule: false,
       recoveryPlan: false,
       detailedInsights: false,
-      companionPersonalization: false,
     },
   },
   pro: {
@@ -79,7 +77,6 @@ export const PLAN_CONFIG = deepFreeze({
       fullReschedule: true,
       recoveryPlan: true,
       detailedInsights: true,
-      companionPersonalization: true,
     },
   },
 });

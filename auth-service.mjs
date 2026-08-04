@@ -25,8 +25,11 @@ const LEGAL_PAYMENT_RETENTION_MS = 5 * 365 * 24 * 60 * 60 * 1000;
 const PAYMENT_RETRY_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const MAX_PAYMENT_RETRIES = 3;
 const MAX_APP_STATE_BYTES = 250_000;
+/* 서버가 받아 주는 동기화 키. 클라이언트의 SERVER_SYNC_STORAGE_KEYS와 짝이다.
+   omwPersonalityProfile은 2026-08-04에 성향 기능과 함께 뺐다 — 여기 남겨 두면 폐지한
+   키가 계속 서버에 저장될 수 있다. 이미 저장된 값은 클라이언트가 그 키를 더 이상
+   올리지 않으므로 다음 동기화에 덮여 사라진다. */
 const SYNCED_APP_STATE_KEYS = new Set([
-  "omwPersonalityProfile",
   "omwExecutionPlan",
   "omwExecutionState",
   "omwCompanionState",

@@ -182,11 +182,12 @@ export async function createCompanionReply(input, { apiKey, model = "gpt-5.4-min
     streakDays: Math.max(0, Math.min(3650, Math.round(Number(input?.context?.streakDays)) || 0)),
     mood: cleanText(input?.context?.mood, 20),
   };
+  /* 성향 프로필(생년월일·출생시각·MBTI)을 2026-08-04에 기능째 지웠다. 개인화에 남는 것은
+     계획 방식 하나이고, 그 값은 수동 온보딩의 준비도 답에서 나온다 — 민감정보가 아니다.
+     mbti·preferenceSummary는 클라이언트가 더 이상 보내지 않으므로 받지도 않는다. */
   if (allowPersonalization) {
     context.personalization = {
-      mbti: cleanText(input?.context?.personalization?.mbti, 8),
       planningStyle: cleanText(input?.context?.personalization?.planningStyle, 80),
-      preferenceSummary: cleanText(input?.context?.personalization?.preferenceSummary, 300),
     };
   }
 

@@ -105,10 +105,6 @@ const GATES = {
     read: (plan) => PERSONALIZED_COMPANION_PLANS.includes(plan),
     expect: { pro: true, trial: true, trial_pending: false, expired: false },
   },
-  "features.companionPersonalization": {
-    read: (plan) => Boolean(getPlanConfig(plan)?.features?.companionPersonalization),
-    expect: { pro: true, trial: true, trial_pending: false, expired: false },
-  },
   /* 기록 열람·내보내기는 AI를 쓰지 않는다. 어떤 플랜에서도 막지 않는다
      (개인정보 자기결정권 — 내 기록을 못 꺼내는 상태를 만들지 않는다). */
   "features.basicRecords (기록 열람)": {
@@ -135,17 +131,9 @@ test("게이트가 선언한 대로 동작한다", () => {
   }
 });
 
-/* 개인화 목록과 features 플래그는 같은 것을 두 곳에서 말한다. 갈라지면 한쪽만 고친
-   변경이 조용히 통과한다 — worker는 목록을 보고 원장은 플래그를 본다. */
-test("개인화 목록과 features 플래그가 갈라지지 않는다", () => {
-  for (const plan of EFFECTIVE_PLANS) {
-    assert.equal(
-      PERSONALIZED_COMPANION_PLANS.includes(plan),
-      Boolean(getPlanConfig(plan)?.features?.companionPersonalization),
-      `${plan}: worker가 보는 목록과 원장이 보는 플래그가 다르다`,
-    );
-  }
-});
+/* 같은 것을 두 곳에서 말하던 features.companionPersonalization은 2026-08-04에 지웠다 —
+   성향 프로필(생년월일·MBTI) 기능이 사라지면서 그 플래그를 읽는 곳이 없어졌다.
+   올리 개인화 판정은 PERSONALIZED_COMPANION_PLANS 하나로 남는다(worker.mjs). */
 
 /* ---------- resolveEffectivePlan이 각 값에 실제로 도달하는가 ---------- */
 
