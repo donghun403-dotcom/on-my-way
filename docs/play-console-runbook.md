@@ -196,10 +196,10 @@
 
 파일 위치: `C:\Users\dongh\Downloads\on-my-way-store-assets\`
 
-**자세한 설명**은 `docs/play-store-submission.md` §4의 문안을 쓰되 **인쇄·PDF 줄은
-뺀다** — Android WebView는 `window.print()`를 구현하지 않아 그 기능이 조용히
-실패한다(`docs/native-print-bridge.md`). 작동하지 않는 기능을 유료 혜택으로 광고하면
-표시광고법 문제가 된다. 최종 문안은 §7에 붙였다.
+**자세한 설명은 §7의 문안을 그대로 복사해 쓴다.** `play-store-submission.md` §4의
+초안과 다른 곳은 인쇄·PDF뿐이다 — 그 기능은 **2026-08-04에 코드에서 통째로
+삭제했고**(Android WebView가 `window.print()`를 구현하지 않는 것을 기기에서 실측),
+만든 북은 앱 안 화면 뷰어로 본다. 그래서 §7은 "다이어리 북 만들기와 다시 보기"다.
 
 ---
 
@@ -370,7 +370,8 @@ Pro 구독: 월 3,900원 (부가세 포함)
 ```
 
 초안(`play-store-submission.md` §4)과 다른 곳은 한 줄뿐이다 — Pro 혜택의
-"다이어리 북 인쇄와 PDF 저장"을 **"다이어리 북 만들기"** 로 바꿨다.
+"다이어리 북 인쇄와 PDF 저장"을 **"다이어리 북 만들기와 다시 보기"** 로 바꿨다.
+인쇄 기능 자체가 삭제됐고 열람은 앱 안 뷰어가 대신한다(PR #86).
 
 ---
 
