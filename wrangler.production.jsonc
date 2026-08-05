@@ -34,6 +34,14 @@
       "id": "04d136e6bcef4de7bb8a515856dd48f6"
     }
   ],
+  "d1_databases": [
+    {
+      "binding": "BILLING_DB",
+      "database_name": "on-my-way-billing-production",
+      "database_id": "e32e3083-3956-43c5-8348-f94b1af9d211",
+      "migrations_dir": "migrations"
+    }
+  ],
   "ratelimits": [
     {
       "name": "AI_RATE_LIMITER",

@@ -295,8 +295,21 @@
 콘솔에서 나온 값들을 서버에 꽂는 단계다. **서비스 계정 JSON은 내가 열지 않는다** —
 `wrangler secret put`이 표준입력으로 받으므로 값이 내 눈에 들어오지 않는다.
 
-1. **D1 데이터베이스** — 운영에 `BILLING_DB` 바인딩이 아직 없다. 만들고 바인딩한 뒤
-   `migrations/0001`·`0002`를 적용한다.
+1. **D1 데이터베이스** — **2026-08-05 생성 완료.** `on-my-way-billing-production`
+   (`e32e3083-3956-43c5-8348-f94b1af9d211`, APAC)을 만들고 `wrangler.production.jsonc`에
+   `BILLING_DB`로 바인딩했다. 바인딩 주입 경로가 셋이라(preview는 워크플로의 jq,
+   staging은 `staging-config.mjs`, production만 정적 설정) 프로덕션만 비어 있었다.
+
+   **마이그레이션은 [사용자]가 실행한다** — 운영 DB 쓰기는 권한 분류기가 막는다.
+
+```bash
+npx wrangler d1 migrations apply BILLING_DB --remote -c wrangler.production.jsonc
+```
+
+   staging·preview DB는 지금 건드리지 않는다. `PAYMENTS_ENABLED`가 네 환경 모두
+   false라 아무것도 요구하지 않고, 두 경로의 생성기가 이미 `migrations_dir`를 넣고
+   있어 결제를 켜는 시점에 같은 명령이 그대로 돈다.
+
 2. **시크릿 3개**
 
 ```bash
