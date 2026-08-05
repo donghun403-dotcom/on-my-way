@@ -302,6 +302,9 @@ export function parseRtdnEnvelope(body) {
     packageName: String(notification?.packageName || ""),
     eventTimeMillis: Number(notification?.eventTimeMillis || 0) || null,
     subscriptionNotification: notification?.subscriptionNotification || null,
+    /* 환불·차지백은 별도 봉투로 온다. 이걸 읽지 않으면 환불받은 유저가 Pro를 계속
+       쓴다 — 실제로 테스트 결제에서 UNKNOWN_ENVELOPE로 버려지는 것을 확인했다. */
+    voidedPurchaseNotification: notification?.voidedPurchaseNotification || null,
     testNotification: notification?.testNotification || null,
     raw: notification,
   };
@@ -317,17 +320,22 @@ export function parseRtdnEnvelope(body) {
    호출부(라우트)는 어느 경우든 200을 돌려준다 — Pub/Sub는 200이 아니면 재전송한다. */
 export async function processGoogleRtdn(store, envelope, now = Date.now()) {
   const sub = envelope.subscriptionNotification;
+  const voided = envelope.voidedPurchaseNotification;
   const typeName = sub
     ? GOOGLE_RTDN_TYPES[Number(sub.notificationType)] || `UNKNOWN_${Number(sub.notificationType) || 0}`
+    : voided ? "VOIDED_PURCHASE"
     : envelope.testNotification ? "TEST_NOTIFICATION" : "UNKNOWN_ENVELOPE";
-  const purchaseToken = sub ? String(sub.purchaseToken || "") : "";
+  const purchaseToken = String((sub || voided)?.purchaseToken || "");
+  /* 구글 refundType: 1 = 전액, 2 = 부분(수량 기반, 일회성 상품에만 온다).
+     스키마의 refund_type CHECK가 'full'·'partial'·'revoke'라 그대로 맞는다. */
+  const refundType = voided ? (Number(voided.refundType) === 2 ? "partial" : "full") : null;
 
   const inserted = await store.insertNotification({
     notificationId: randomId("snt_"),
     store: "google",
     storeNotificationId: envelope.messageId,
     notificationType: typeName,
-    subtype: null,
+    subtype: refundType,
     storeSubscriptionId: purchaseToken || null,
     payloadJson: JSON.stringify(envelope.raw ?? {}),
     receivedAt: now,
@@ -341,11 +349,12 @@ export async function processGoogleRtdn(store, envelope, now = Date.now()) {
     await markProcessed();
     return { outcome: "test" };
   }
-  if (!sub || !purchaseToken) {
-    await markProcessed("subscriptionNotification 없음");
+  if (!purchaseToken) {
+    await markProcessed("구독·환불 알림이 아닙니다");
     return { outcome: "ignored" };
   }
-  const nextState = mapGoogleNotificationToState(sub.notificationType);
+  /* 환불·차지백은 유형 코드가 없다. 봉투가 곧 뜻이므로 바로 회수로 읽는다. */
+  const nextState = voided ? "revoked" : mapGoogleNotificationToState(sub.notificationType);
   if (!nextState) {
     await markProcessed();
     return { outcome: "ignored", notificationType: typeName };
@@ -386,7 +395,10 @@ export async function processGoogleRtdn(store, envelope, now = Date.now()) {
       user_id: row.user_id,
       store: "google",
       store_transaction_id: purchaseToken,
-      refund_type: "revoke",
+      /* 같은 구매에 voided와 SUBSCRIPTION_REVOKED가 둘 다 올 수 있다(실제로 그랬다).
+         refund_type이 달라 UNIQUE(store, 거래, 유형)에 걸리지 않고 둘 다 남는다 —
+         회계에서 "환불됐다"와 "권한을 회수했다"는 세는 단위가 다르다. */
+      refund_type: refundType ?? "revoke",
       refunded_amount_micros: null,
       refunded_currency: null,
       reason_code: null,

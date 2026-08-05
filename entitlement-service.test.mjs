@@ -25,15 +25,15 @@ import { handleAccountApi, parseCookies } from "./auth-service.mjs";
 
 const NOW = Date.parse("2026-08-04T03:00:00.000Z");
 
-function rtdnEnvelope({ messageId = "msg-1", notificationType = 4, purchaseToken = "token-a", packageName = "com.olivenrich.onmyway", test = false } = {}) {
+function rtdnEnvelope({ messageId = "msg-1", notificationType = 4, purchaseToken = "token-a", packageName = "com.olivenrich.onmyway", test = false, voided = null } = {}) {
+  const base = { version: "1.0", packageName, eventTimeMillis: String(NOW) };
   const notification = test
-    ? { version: "1.0", packageName, eventTimeMillis: String(NOW), testNotification: { version: "1.0" } }
-    : {
-        version: "1.0",
-        packageName,
-        eventTimeMillis: String(NOW),
-        subscriptionNotification: { version: "1.0", notificationType, purchaseToken, subscriptionId: "pro_monthly" },
-      };
+    ? { ...base, testNotification: { version: "1.0" } }
+    : voided
+      /* 환불·차지백 봉투. subscriptionNotification이 아예 없고 유형 코드도 없다 —
+         productType 1 = 구독, refundType 1 = 전액 / 2 = 부분. */
+      ? { ...base, voidedPurchaseNotification: { purchaseToken, orderId: "GPA.0000-0000-0000-00000", productType: 1, ...voided } }
+      : { ...base, subscriptionNotification: { version: "1.0", notificationType, purchaseToken, subscriptionId: "pro_monthly" } };
   return {
     message: {
       data: Buffer.from(JSON.stringify(notification), "utf8").toString("base64url"),
@@ -166,6 +166,70 @@ test("REVOKED는 환불 이력을 남기고, 같은 회수의 중복 기록은 �
   assert.equal(refund.user_id, "usr_a", "환불 이력은 계정으로 조회 가능해야 한다(초안 §5.2)");
   const listed = await store.listRefundsByUser("usr_a");
   assert.equal(listed.length, 1);
+});
+
+/* 환불·차지백은 subscriptionNotification이 아니라 voidedPurchaseNotification으로 온다.
+   그 봉투를 읽지 않던 동안 이 알림은 UNKNOWN_ENVELOPE로 버려졌고, 환불받은 유저의
+   권한은 그대로 살아 있었다. 돈을 돌려주고 상품도 계속 주는 상태다. */
+test("환불 통보가 권한을 회수한다", async () => {
+  const db = createMemoryEntitlementDb();
+  const store = createEntitlementStore(db);
+  await seedEntitlement(store);
+
+  const result = await processGoogleRtdn(store, parseRtdnEnvelope(rtdnEnvelope({ messageId: "v-1", voided: { refundType: 1 } })), NOW);
+  assert.equal(result.outcome, "applied");
+  assert.equal(result.notificationType, "VOIDED_PURCHASE");
+
+  const row = await store.getEntitlement("google", "token-a");
+  assert.equal(row.state, "revoked");
+  assert.equal(hasEntitlementAccess({ state: row.state, expiresAt: row.expires_at }, NOW), false, "환불했는데 권한이 남아 있다");
+
+  const refund = [...db.refunds.values()][0];
+  assert.equal(refund.refund_type, "full");
+  assert.equal(refund.entitlement_revoked, 1);
+  assert.equal(refund.user_id, "usr_a", "환불 이력은 계정으로 조회 가능해야 한다(초안 §5.2)");
+
+  assert.deepEqual(
+    db.events.map((event) => [event.previous_state, event.new_state, event.event_type]),
+    [["active", "revoked", "VOIDED_PURCHASE"]],
+  );
+});
+
+/* 같은 구매에 대해 두 봉투가 다 온다 — 실제 테스트 결제에서 2초 간격으로 관측했다.
+   refund_type이 달라 UNIQUE에 걸리지 않고 둘 다 남아야 한다. 회계에서 "환불됐다"와
+   "권한을 회수했다"는 세는 단위가 다르기 때문이다. */
+test("환불 통보와 REVOKED가 겹쳐 와도 각각 남는다", async () => {
+  const db = createMemoryEntitlementDb();
+  const store = createEntitlementStore(db);
+  await seedEntitlement(store);
+
+  await processGoogleRtdn(store, parseRtdnEnvelope(rtdnEnvelope({ messageId: "v-2", voided: { refundType: 1 } })), NOW);
+  await processGoogleRtdn(store, parseRtdnEnvelope(rtdnEnvelope({ messageId: "v-3", notificationType: 12 })), NOW + 2000);
+
+  assert.deepEqual([...db.refunds.values()].map((row) => row.refund_type).sort(), ["full", "revoke"]);
+  assert.equal((await store.getEntitlement("google", "token-a")).state, "revoked");
+});
+
+test("부분 환불은 부분으로 기록한다", async () => {
+  const db = createMemoryEntitlementDb();
+  const store = createEntitlementStore(db);
+  await seedEntitlement(store);
+  await processGoogleRtdn(store, parseRtdnEnvelope(rtdnEnvelope({ messageId: "v-4", voided: { refundType: 2 } })), NOW);
+  assert.equal([...db.refunds.values()][0].refund_type, "partial");
+  /* 원문에 남은 유형은 나중에 회계가 읽는다 — notification_type만으로는 구분이 안 된다. */
+  assert.equal([...db.notifications.values()][0].subtype, "partial");
+});
+
+/* verify보다 먼저 도착하면 주인을 모른다. 구독 알림과 같은 규칙으로 미처리에 남겨
+   재처리 대상이 되어야 한다 — 여기서 조용히 버리면 환불이 영영 반영되지 않는다. */
+test("환불 통보가 verify보다 먼저 와도 버리지 않는다", async () => {
+  const db = createMemoryEntitlementDb();
+  const store = createEntitlementStore(db);
+  const result = await processGoogleRtdn(store, parseRtdnEnvelope(rtdnEnvelope({ messageId: "v-5", voided: { refundType: 1 } })), NOW);
+  assert.equal(result.outcome, "deferred");
+  const stored = [...db.notifications.values()][0];
+  assert.equal(stored.notification_type, "VOIDED_PURCHASE");
+  assert.equal(stored.processed_at, null, "미처리로 남아야 재처리가 집어간다");
 });
 
 test("테스트 알림과 미지원 유형은 기록만 남기고 상태를 건드리지 않는다", async () => {
