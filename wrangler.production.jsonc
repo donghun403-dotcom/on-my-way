@@ -34,6 +34,16 @@
       "id": "04d136e6bcef4de7bb8a515856dd48f6"
     }
   ],
+  // preview는 워크플로의 jq, staging은 staging-config.mjs가 이 바인딩을 주입한다.
+  // production만 정적이라 여기 적는다 — 세 경로의 모양을 맞춰 둔다.
+  "d1_databases": [
+    {
+      "binding": "BILLING_DB",
+      "database_name": "on-my-way-billing-production",
+      "database_id": "e32e3083-3956-43c5-8348-f94b1af9d211",
+      "migrations_dir": "migrations"
+    }
+  ],
   "ratelimits": [
     {
       "name": "AI_RATE_LIMITER",
