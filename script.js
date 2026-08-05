@@ -970,6 +970,102 @@ async function startTrialAccess() {
   }
 }
 
+/* ===== 스토어 구매 (안드로이드 셸 전용) =====
+   네이티브 다리(OmwBillingBridge)가 구글 결제창을 열고, 결과를 window.__omwBilling으로
+   되돌린다. 웹에서는 그 다리가 없으므로 이 블록 전체가 잠자고 결제 버튼은 원래대로
+   가격 페이지 링크로 동작한다 — 분기는 다리의 존재 하나뿐이다.
+
+   purchaseToken을 받은 뒤 우리가 하는 일은 서버에 넘기는 것뿐이다. 권한 판정도, 구매
+   승인도 서버가 한다. 클라이언트가 "샀으니 열어 준다"고 판단하면 그 판단은 위조할 수
+   있다 — 화면은 서버가 다시 계산한 결과(loadAiUsage)만 읽는다. */
+
+/* 콘솔에서 만든 값과 반드시 같아야 한다. 상품 ID는 만든 뒤 바꿀 수 없다. */
+const STORE_PRODUCT_ID = "pro_monthly";
+const STORE_BASE_PLAN_ID = "monthly";
+
+const nativeBilling = globalThis.OmwBilling || null;
+let billingWaiter = null;
+let storeRestoreAttempted = false;
+
+/* 다리는 결과를 반환값이 아니라 이 전역 호출로 되돌린다 — 구글 결제 결과는
+   PurchasesUpdatedListener로 비동기로 오기 때문에 @JavascriptInterface 메서드가 값을
+   들고 돌아올 방법이 없다. */
+globalThis.__omwBilling = (payload) => {
+  const waiter = billingWaiter;
+  billingWaiter = null;
+  if (!waiter) return;
+  clearTimeout(waiter.timer);
+  waiter.resolve(payload && typeof payload === "object" ? payload : { event: "error", code: "BAD_PAYLOAD" });
+};
+
+function callNativeBilling(invoke) {
+  if (!nativeBilling) return Promise.resolve({ event: "error", code: "NO_BRIDGE" });
+  /* 앞선 요청이 끝나지 않았으면 새로 걸지 않는다. 결제창이 두 번 열리면 유저가 두 번
+     결제할 수 있고, 그건 우리가 환불로 갚아야 하는 종류의 실수다. */
+  if (billingWaiter) return Promise.resolve({ event: "error", code: "BUSY" });
+  return new Promise((resolve) => {
+    /* 다리가 아무것도 되돌리지 않는 경우(프로세스가 죽거나 출처 검사에 걸림)에도
+       화면이 영원히 기다리지 않게 한다. */
+    const timer = setTimeout(() => {
+      billingWaiter = null;
+      resolve({ event: "error", code: "TIMEOUT" });
+    }, 180000);
+    billingWaiter = { resolve, timer };
+    try {
+      invoke();
+    } catch (error) {
+      clearTimeout(timer);
+      billingWaiter = null;
+      resolve({ event: "error", code: "BRIDGE_THREW", message: String(error?.message || error) });
+    }
+  });
+}
+
+/* 구매든 복원이든 서버 검증을 거쳐야 권한이 된다. 성공한 토큰이 하나라도 있으면 true. */
+async function verifyStorePurchases(purchases) {
+  let verified = false;
+  for (const purchase of purchases || []) {
+    const purchaseToken = String(purchase?.purchaseToken || "");
+    if (!purchaseToken) continue;
+    try {
+      await accountRequest("/api/billing/google/verify", {
+        method: "POST",
+        body: JSON.stringify({ purchaseToken }),
+      });
+      verified = true;
+    } catch (error) {
+      /* 다른 계정이 이미 그 구매를 쓰고 있으면 서버가 409로 막는다. 그건 우리 버그가
+         아니라 유저가 알아야 할 사실이라 그대로 보여 준다. */
+      showToast(error?.message || "구매를 확인하지 못했어요.");
+    }
+  }
+  if (verified) await loadAiUsage({ force: true });
+  return verified;
+}
+
+async function startStorePurchase() {
+  const result = await callNativeBilling(() => nativeBilling.purchase(STORE_PRODUCT_ID, STORE_BASE_PLAN_ID));
+  if (result.event === "cancelled") return false;
+  if (result.event !== "purchased") {
+    showToast(result.code === "PRODUCT_NOT_FOUND" ? "지금은 구독을 시작할 수 없어요. 잠시 후 다시 시도해 주세요." : "결제를 시작하지 못했어요.");
+    return false;
+  }
+  const verified = await verifyStorePurchases(result.purchases);
+  if (verified) showToast("Pro가 시작됐어요. 올리와 계속 이어가요.");
+  return verified;
+}
+
+/* 기기를 바꾸거나 앱을 지웠다 깐 유저는 이미 구독 중인데 잠금 화면을 본다. 구글이
+   진실을 쥐고 있으므로 물어보면 된다 — 버튼을 만들지 않고 잠금이 뜨는 순간 한 번
+   조용히 확인한다. 이미 권한이 있으면 잠금이 저절로 풀린다. */
+async function restoreStorePurchases() {
+  if (!nativeBilling || storeRestoreAttempted) return;
+  storeRestoreAttempted = true;
+  const result = await callNativeBilling(() => nativeBilling.restore());
+  if (result.event !== "restored" || !result.purchases?.length) return;
+  await verifyStorePurchases(result.purchases);
+}
+
 /* ===== 하드 페이월 =====
    체험이 끝나고 결제하지 않으면 앱 이용을 차단한다. 차단할지 말지는 서버가 정한다 —
    usage.paywallEnabled(배포 설정)와 usage.plan(상태 머신)이 판정이고, 화면은 그 결과만 읽는다.
@@ -1011,6 +1107,10 @@ function renderPaywallLock() {
     if (paywallReturnBar) paywallReturnBar.hidden = true;
     return;
   }
+
+  /* 잠긴 유저가 이미 스토어에서 구독 중일 수 있다(기기 교체·재설치). 세션당 한 번만
+     조용히 확인하고, 권한이 확인되면 loadAiUsage가 이 함수를 다시 불러 잠금이 풀린다. */
+  restoreStorePurchases();
 
   const showing = !paywallBrowsingRecords;
   // 사용량을 다시 읽을 때마다 이 함수가 돈다. 이미 떠 있는 화면에 다시 포커스를 주면
@@ -9888,6 +9988,21 @@ paywallReturnToLock?.addEventListener("click", openPaywallLock);
 
 /* 샘플 북. 두 진입점(잠금 화면 · 기록 탭의 북 카드)이 같은 화면을 연다. AI를 부르지 않는다. */
 paywallSampleOpen?.addEventListener("click", () => openSampleBook(paywallSampleOpen));
+
+/* 셸에서는 이 버튼이 구글 결제창을 연다. 웹에서는 다리가 없어 preventDefault를 하지
+   않고, 링크가 원래대로 가격 페이지로 간다 — 웹 동작은 한 줄도 바뀌지 않는다.
+
+   구글 정책상 앱 안의 디지털 상품은 Play 결제를 거쳐야 한다. 셸에서 외부 결제
+   페이지로 보내면 그 자체가 정책 위반이라, 여기서 갈라야 한다. */
+trialPaywallAction?.addEventListener("click", (event) => {
+  if (!nativeBilling) return;
+  event.preventDefault();
+  if (trialPaywallAction.dataset.busy === "1") return;
+  trialPaywallAction.dataset.busy = "1";
+  startStorePurchase().finally(() => {
+    delete trialPaywallAction.dataset.busy;
+  });
+});
 diaryBookSampleOpen?.addEventListener("click", () => openSampleBook(diaryBookSampleOpen));
 sampleBookClose?.addEventListener("click", closeSampleBook);
 sampleBookDialog?.addEventListener("click", (event) => {
