@@ -385,10 +385,38 @@ test("스토어 상품 ID가 콘솔에 등록한 값과 같다", () => {
    웹에서 결제 버튼이 아무 일도 하지 않는 죽은 버튼이 된다. */
 test("네이티브 다리가 없으면 결제 버튼이 웹 링크 그대로다", () => {
   const client = readFileSync(new URL("./script.js", import.meta.url), "utf8");
-  const handler = client.match(/trialPaywallAction\?\.addEventListener\("click",[\s\S]{0,400}?\n\}\);/)?.[0] || "";
+  const handler = client.match(/document\.addEventListener\("click",[\s\S]{0,600}?\n\}\);/)?.[0] || "";
   assert.ok(handler, "결제 버튼 핸들러를 찾지 못했다");
   const guardAt = handler.indexOf("if (!nativeBilling) return;");
   const preventAt = handler.indexOf("preventDefault()");
   assert.ok(guardAt >= 0, "다리 존재 가드가 없다");
   assert.ok(guardAt < preventAt, "preventDefault가 가드보다 먼저다 — 웹에서 링크가 죽는다");
+});
+
+/* 결제로 이어져야 할 버튼은 한 자리가 아니다 — 잠금 화면, 다이어리 북 잠금, 샘플 북에
+   각각 있다. 처음에 잠금 화면 하나만 배선했다가 나머지 둘이 빠진 것을 기기에서 발견했다.
+   표시가 빠진 버튼은 셸에서 웹 결제 페이지로 나가는데, 앱 안의 디지털 상품을 Play 밖에서
+   파는 것은 구글 정책 위반이다.
+
+   반대로 넓게 잡아도 안 된다. 같은 주소로 가는 "플랜 비교" 같은 링크는 보러 가는 것이고,
+   그걸 눌렀는데 결제창이 뜨면 버튼이 죽은 것보다 나쁘다. */
+test("결제로 이어지는 버튼에만 표시가 붙어 있다", () => {
+  const html = readFileSync(new URL("./app.html", import.meta.url), "utf8");
+  const client = readFileSync(new URL("./script.js", import.meta.url), "utf8");
+
+  assert.equal(client.match(/const PRO_CTA_SELECTOR = "([^"]+)"/)?.[1], "[data-pro-purchase]");
+
+  const ctas = html.match(/<a [^>]*>[^<]*Pro 시작하기<\/a>/g) || [];
+  assert.ok(ctas.length >= 3, `Pro 시작하기 링크를 찾지 못했다 (${ctas.length}개)`);
+  assert.deepEqual(
+    ctas.filter((anchor) => !anchor.includes("data-pro-purchase")),
+    [],
+    "결제 버튼에 data-pro-purchase가 빠졌다",
+  );
+
+  const browse = html.match(/<a [^>]*>[^<]*플랜 비교[^<]*<\/a>/g) || [];
+  assert.ok(browse.length > 0, "안내 링크를 찾지 못했다 — 검사가 무의미해졌다");
+  for (const link of browse) {
+    assert.ok(!link.includes("data-pro-purchase"), `안내 링크에 결제 표시가 붙었다: ${link}`);
+  }
 });

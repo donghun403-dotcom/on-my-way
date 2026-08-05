@@ -9989,18 +9989,32 @@ paywallReturnToLock?.addEventListener("click", openPaywallLock);
 /* 샘플 북. 두 진입점(잠금 화면 · 기록 탭의 북 카드)이 같은 화면을 연다. AI를 부르지 않는다. */
 paywallSampleOpen?.addEventListener("click", () => openSampleBook(paywallSampleOpen));
 
-/* 셸에서는 이 버튼이 구글 결제창을 연다. 웹에서는 다리가 없어 preventDefault를 하지
-   않고, 링크가 원래대로 가격 페이지로 간다 — 웹 동작은 한 줄도 바뀌지 않는다.
+/* 셸에서는 **웹 가격 페이지로 가는 모든 링크**가 구글 결제창을 연다. 웹에서는 다리가
+   없어 preventDefault를 하지 않고 링크가 원래대로 동작한다 — 웹은 한 줄도 안 바뀐다.
 
-   구글 정책상 앱 안의 디지털 상품은 Play 결제를 거쳐야 한다. 셸에서 외부 결제
-   페이지로 보내면 그 자체가 정책 위반이라, 여기서 갈라야 한다. */
-trialPaywallAction?.addEventListener("click", (event) => {
+   특정 id가 아니라 표시로 잡는 이유: "Pro 시작하기"는 한 자리가 아니다. 잠금 화면,
+   다이어리 북 잠금, 샘플 북에 각각 있고 앞으로 더 생긴다. id로 잡으면 새로 추가된
+   버튼이 조용히 빠지고, 셸에서 그 버튼만 웹 결제 페이지로 나간다 —
+   **구글 정책상 앱 안의 디지털 상품은 Play 결제를 거쳐야 하므로 그건 정책 위반이다.**
+   실제로 처음에 잠금 화면 하나만 배선했다가 나머지 둘이 빠진 것을 기기에서 발견했다.
+
+   그렇다고 `href`로 잡으면 이번엔 너무 넓다. 같은 주소로 가는 링크 중에는 "플랜 비교",
+   "제공량이 궁금하다면" 처럼 **보러 가는** 것이 있고, 그걸 눌렀는데 결제창이 뜨는 건
+   버튼이 죽은 것보다 나쁘다. 그래서 목적지가 아니라 **의도**를 표시한다.
+
+   위임으로 다는 이유는 잠금 화면이 열릴 때 생기는 링크까지 같은 규칙을 받게 하기
+   위해서다. */
+const PRO_CTA_SELECTOR = "[data-pro-purchase]";
+
+document.addEventListener("click", (event) => {
   if (!nativeBilling) return;
+  const cta = event.target.closest?.(PRO_CTA_SELECTOR);
+  if (!cta) return;
   event.preventDefault();
-  if (trialPaywallAction.dataset.busy === "1") return;
-  trialPaywallAction.dataset.busy = "1";
+  if (cta.dataset.busy === "1") return;
+  cta.dataset.busy = "1";
   startStorePurchase().finally(() => {
-    delete trialPaywallAction.dataset.busy;
+    delete cta.dataset.busy;
   });
 });
 diaryBookSampleOpen?.addEventListener("click", () => openSampleBook(diaryBookSampleOpen));
