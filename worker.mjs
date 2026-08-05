@@ -19,6 +19,7 @@ import { PLAN_REVISION_MAX_OUTPUT_TOKENS } from "./ai-plan-output-policy.mjs";
 import { startAiTrial } from "./ai-credits-service.mjs";
 // 에너지 원장은 유저별 Durable Object가 권위다. KV read-modify-write로는 서로 다른
 // 아이솔레이트의 동시 요청을 직렬화할 수 없어 이중 차감을 막지 못한다.
+import { googlePlayConfig } from "./entitlement-service.mjs";
 import { EnergyLedgerObject } from "./energy-ledger-object.mjs";
 import { createEnergyLedgerClient, describeTrial, resolveUserPlan } from "./energy-ledger-client.mjs";
 import {
@@ -623,6 +624,11 @@ async function handleFetch(request, env) {
           accountStorage: Boolean(env.USERS_KV),
           ai: guestAi.ready,
           payments: billing.enabled,
+          /* 스토어 결제 검증이 설 수 있는가. 변수와 시크릿이 둘 다 있어도 시크릿 안의
+             JSON이 깨져 있으면 false가 된다 — 실제로 그래서 결제가 조용히 503으로
+             막혔고, 기기에서 결제를 끝내 보기 전까지 아무도 몰랐다. 여기서 물어볼 수
+             있으면 배포 직후에 안다. 참/거짓만 낸다. */
+          storeBilling: googlePlayConfig(env).configured,
         },
         /* 배포 검증이 읽는 자리. 있고 없고만 낸다 — 값·ID·시크릿은 싣지 않는다.
            세 배포 경로(preview 워크플로 / staging-config.mjs / deploy-production.cjs)가

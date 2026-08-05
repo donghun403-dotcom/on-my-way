@@ -70,9 +70,69 @@ test("상태 점검 API는 비밀값 없이 운영 의존성 준비 여부를 �
   });
   assert.equal(response.status, 200);
   const body = await response.json();
-  assert.deepEqual(body.services, { accountStorage: true, ai: true, payments: false });
+  assert.deepEqual(body.services, { accountStorage: true, ai: true, payments: false, storeBilling: false });
   assert.equal(JSON.stringify(body).includes("secret"), false);
   assert.equal(fixture.limiterCalls(), 0);
+});
+
+/* 변수와 시크릿이 둘 다 "있는데" 결제가 503으로 막힌 적이 있다. 시크릿 안의 JSON이
+   깨져 있었고, 배포된 워커의 바인딩 목록으로는 그걸 알 수 없었다 — 기기에서 결제를
+   끝까지 해 보기 전까지 아무도 몰랐다. 그래서 상태 점검이 "있다"가 아니라 "설 수
+   있다"를 답한다. 비밀값은 참/거짓 밖으로 나가지 않는다. */
+test("상태 점검은 스토어 결제 검증이 설 수 있는지까지 답한다", async () => {
+  const serviceAccount = {
+    client_email: "play@example.iam.gserviceaccount.com",
+    private_key: "-----BEGIN PRIVATE KEY-----\nAAAA\n-----END PRIVATE KEY-----\n",
+  };
+  const cases = [
+    { name: "설정 없음", env: {}, expected: false },
+    { name: "패키지명만", env: { GOOGLE_PLAY_PACKAGE_NAME: "com.olivenrich.onmyway" }, expected: false },
+    {
+      /* 윈도우에서 파일을 파이프로 넣으면 앞에 BOM이 붙는다. trim()이 U+FEFF를 공백으로
+         지우므로 이건 통과한다 — 처음에 여기를 범인으로 의심했다가 이 검사에 걸렸다. */
+      name: "BOM이 붙은 온전한 JSON",
+      env: {
+        GOOGLE_PLAY_PACKAGE_NAME: "com.olivenrich.onmyway",
+        GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: `﻿${JSON.stringify(serviceAccount)}`,
+      },
+      expected: true,
+    },
+    {
+      /* 콘솔에 붙여 넣다 잘린 경우. 바인딩 목록에는 "시크릿 있음"으로 나온다. */
+      name: "잘려 들어간 JSON",
+      env: {
+        GOOGLE_PLAY_PACKAGE_NAME: "com.olivenrich.onmyway",
+        GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: JSON.stringify(serviceAccount).slice(0, 60),
+      },
+      expected: false,
+    },
+    {
+      name: "키 없는 서비스 계정",
+      env: {
+        GOOGLE_PLAY_PACKAGE_NAME: "com.olivenrich.onmyway",
+        GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: JSON.stringify({ client_email: serviceAccount.client_email }),
+      },
+      expected: false,
+    },
+    {
+      name: "온전한 설정",
+      env: {
+        GOOGLE_PLAY_PACKAGE_NAME: "com.olivenrich.onmyway",
+        GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: JSON.stringify(serviceAccount),
+      },
+      expected: true,
+    },
+  ];
+
+  for (const testCase of cases) {
+    const fixture = guestAiHealthFixture({ APP_ENV: "production", ...testCase.env });
+    const response = await worker.fetch(new Request("https://onmyway.olivenrich.com/api/health"), { ...fixture.env });
+    const body = await response.json();
+    assert.equal(body.services.storeBilling, testCase.expected, testCase.name);
+    /* 비밀값이 응답으로 새지 않는지 매번 본다 — 이 자리가 늘어날수록 새기 쉬워진다. */
+    assert.equal(JSON.stringify(body).includes("PRIVATE KEY"), false, `${testCase.name}: 키가 응답에 실렸다`);
+    assert.equal(JSON.stringify(body).includes("gserviceaccount"), false, `${testCase.name}: 계정 주소가 응답에 실렸다`);
+  }
 });
 
 test("health AI readiness matches the dependencies required by the in-app AI routes", async () => {
@@ -92,7 +152,7 @@ test("health AI readiness matches the dependencies required by the in-app AI rou
     const body = await response.json();
     assert.equal(body.services.ai, false, entry.name);
     assert.equal(fixture.limiterCalls(), 0, entry.name);
-    assert.deepEqual(Object.keys(body.services).sort(), ["accountStorage", "ai", "payments"]);
+    assert.deepEqual(Object.keys(body.services).sort(), ["accountStorage", "ai", "payments", "storeBilling"]);
   }
 
   const ready = guestAiHealthFixture();
