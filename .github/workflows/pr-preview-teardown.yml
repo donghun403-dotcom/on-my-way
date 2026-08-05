@@ -1,0 +1,64 @@
+name: PR preview teardown
+
+# ── 왜 이 잡이 따로 있는가 ────────────────────────────────────────────────────
+#
+#   pr-preview.yml은 [opened, synchronize, reopened]에만 반응한다. PR이 닫혀도
+#   프리뷰 워커가 남고, 아무도 지우지 않았다. 2026-08-05에 그 대가를 치렀다 —
+#   1~89번 88개가 쌓여 계정의 Durable Object 네임스페이스 100개 한도를 다 썼고,
+#   그 뒤로 모든 PR의 프리뷰 배포가 실패했다(워커 자체는 정상 배포되고 마지막
+#   API 호출에서 10067로 죽어서, 원인이 코드처럼 보였다).
+#
+#   pr-preview.yml에 closed를 더하지 않고 파일을 나눈 이유: 그러면 기존 잡 넷에
+#   전부 `if: action != 'closed'` 가드를 달아야 한다. 지우는 일 하나 때문에
+#   배포·검증 잡의 실행 조건을 건드리는 것이 변경 범위가 더 크다.
+#
+#   워커 이름은 pr-preview.yml의 배포 단계와 같은 규칙이다: on-my-way-pr-<번호>.
+#   둘이 어긋나면 지우지 못하므로, 규칙을 바꿀 때는 두 파일을 함께 고친다.
+
+on:
+  pull_request:
+    types: [closed]
+
+concurrency:
+  group: pr-preview-teardown-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  delete:
+    name: delete the preview worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # 배포된 적 없는 PR(문서만 고친 PR, 배포가 실패한 PR)은 워커가 없다.
+      # 그것은 정상이므로 통과시키고, 그 밖의 실패는 그대로 드러낸다 —
+      # 조용히 삼키면 이 잡이 고장 난 것을 알아채지 못하고 같은 일이 반복된다.
+      - name: Delete the preview worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WORKER: on-my-way-pr-${{ github.event.pull_request.number }}
+        run: |
+          set -o pipefail
+          echo "삭제 대상: $WORKER"
+          if npx wrangler@4.112.0 delete "$WORKER" --force 2>&1 | tee delete.log; then
+            echo "삭제했습니다: $WORKER"
+            exit 0
+          fi
+          if grep -qiE "not found|does not exist|script_not_found|10007" delete.log; then
+            echo "워커가 없습니다 — 프리뷰가 배포된 적 없는 PR입니다. 정상 종료합니다."
+            exit 0
+          fi
+          echo "삭제에 실패했습니다. 프리뷰 워커가 계정에 남습니다."
+          exit 1
