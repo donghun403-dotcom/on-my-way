@@ -364,3 +364,31 @@ test("폐지한 성향 키의 정리 경로가 걸려 있고 동기화 목록에
   assert.ok(scopedList, "계정 스코프 목록을 찾지 못했다");
   assert.ok(!scopedList.includes("omwPersonalityProfile"), "계정 스코프 목록에 폐지 키가 남아 있다");
 });
+
+/* 스토어 상품 ID는 Play Console에서 **만든 뒤 바꿀 수 없다.** 코드와 콘솔이 어긋나면
+   구매가 조용히 실패한다 — 결제창이 뜨지도 않고 PRODUCT_NOT_FOUND로 끝나서, 기기에서
+   눌러 봐야 안다. 그래서 값을 런북(콘솔에 실제로 넣은 기록)과 대조해 묶어 둔다. */
+test("스토어 상품 ID가 콘솔에 등록한 값과 같다", () => {
+  const client = readFileSync(new URL("./script.js", import.meta.url), "utf8");
+  const runbook = readFileSync(new URL("./docs/play-console-runbook.md", import.meta.url), "utf8");
+
+  const productId = client.match(/const STORE_PRODUCT_ID = "([^"]+)"/)?.[1];
+  const basePlanId = client.match(/const STORE_BASE_PLAN_ID = "([^"]+)"/)?.[1];
+  assert.equal(productId, "pro_monthly");
+  assert.equal(basePlanId, "monthly");
+  assert.ok(runbook.includes(`\`${productId}\``), "런북에 없는 상품 ID를 쓰고 있다");
+  assert.ok(runbook.includes(`\`${basePlanId}\``), "런북에 없는 기본 요금제 ID를 쓰고 있다");
+});
+
+/* 웹은 이 변경으로 한 줄도 달라지지 않아야 한다. 분기는 네이티브 다리의 존재 하나뿐이고,
+   다리가 없으면 preventDefault를 하지 않아 링크가 원래대로 동작한다. 이 가드가 빠지면
+   웹에서 결제 버튼이 아무 일도 하지 않는 죽은 버튼이 된다. */
+test("네이티브 다리가 없으면 결제 버튼이 웹 링크 그대로다", () => {
+  const client = readFileSync(new URL("./script.js", import.meta.url), "utf8");
+  const handler = client.match(/trialPaywallAction\?\.addEventListener\("click",[\s\S]{0,400}?\n\}\);/)?.[0] || "";
+  assert.ok(handler, "결제 버튼 핸들러를 찾지 못했다");
+  const guardAt = handler.indexOf("if (!nativeBilling) return;");
+  const preventAt = handler.indexOf("preventDefault()");
+  assert.ok(guardAt >= 0, "다리 존재 가드가 없다");
+  assert.ok(guardAt < preventAt, "preventDefault가 가드보다 먼저다 — 웹에서 링크가 죽는다");
+});
