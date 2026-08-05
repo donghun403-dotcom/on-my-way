@@ -26,7 +26,8 @@
     "ALLOW_DEV_LOGIN": "false",
     "ALLOW_DEMO_BILLING": "false",
     "PAYMENTS_ENABLED": "false",
-    "HARD_PAYWALL_ENABLED": "false"
+    "HARD_PAYWALL_ENABLED": "false",
+    "GOOGLE_PLAY_PACKAGE_NAME": "com.olivenrich.onmyway"
   },
   "kv_namespaces": [
     {
