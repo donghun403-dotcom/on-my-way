@@ -420,3 +420,31 @@ test("결제로 이어지는 버튼에만 표시가 붙어 있다", () => {
     assert.ok(!link.includes("data-pro-purchase"), `안내 링크에 결제 표시가 붙었다: ${link}`);
   }
 });
+
+/* 실제 기기에서 드로어의 "Pro 시작하기"가 눌리지 않았다. 버튼이 죽은 게 아니라 disabled
+   였다 — getProCtaState가 paymentsEnabled 하나로 모든 Pro CTA의 잠금을 정하는데, 그 값은
+   /api/health의 payments(= 웹 카드 결제 연동 여부)에서 왔고 셸에서는 영원히 false다.
+   앵커 세 개에만 표시를 붙인 것으로는 드로어·마이페이지·가격 페이지 버튼이 그대로 잠긴다. */
+test("네이티브 다리가 있으면 결제 가능으로 친다", () => {
+  const client = readFileSync(new URL("./script.js", import.meta.url), "utf8");
+  const loader = client.match(/async function loadPaymentAvailability\(\)[\s\S]*?\n\}/)?.[0] || "";
+  assert.ok(loader, "loadPaymentAvailability를 찾지 못했다");
+  /* 성공·실패 두 경로 모두 — 서버를 못 읽어도 다리가 있으면 결제는 된다. */
+  const assignments = loader.match(/paymentsEnabled = [^;]+;/g) || [];
+  assert.ok(assignments.length >= 2, "결제 가능 판정 자리가 줄었다 — 검사가 헐거워졌다");
+  for (const line of assignments) {
+    assert.ok(line.includes("nativeBilling"), `셸을 보지 않는 판정이 있다: ${line}`);
+  }
+});
+
+/* 셸에서 토스(웹 카드) 결제창이 열리면 앱 안의 디지털 상품을 Play 밖에서 파는 것이라
+   정책 위반이다. 결제 입구는 startSubscription 하나뿐이므로 갈림길도 하나면 된다. */
+test("셸에서는 웹 결제 흐름에 닿기 전에 스토어로 갈라진다", () => {
+  const client = readFileSync(new URL("./script.js", import.meta.url), "utf8");
+  const start = client.match(/async function performStartSubscription\(\)[\s\S]*?\n\}/)?.[0] || "";
+  assert.ok(start, "performStartSubscription을 찾지 못했다");
+  const storeAt = start.indexOf("startStorePurchase()");
+  const tossAt = start.search(/loadTossPaymentsSdk|TossPayments/);
+  assert.ok(storeAt >= 0, "셸 분기가 없다 — 앱에서 카드 결제가 열린다");
+  assert.ok(tossAt < 0 || storeAt < tossAt, "웹 결제 흐름이 스토어 분기보다 앞이다");
+});

@@ -2055,6 +2055,14 @@ async function performStartSubscription() {
     openAuthSheet();
     return;
   }
+  /* 셸에서는 여기서 갈라진다. 아래 토스 흐름은 앱 안에서 카드 결제를 여는 것이고,
+     디지털 상품에 대해서는 구글 정책 위반이다. 결제를 시작하는 입구가 여기 하나뿐이라
+     (드로어·마이페이지·가격 페이지 CTA가 모두 startSubscription을 거친다) 갈림길도
+     하나면 된다 — 버튼마다 배선하면 새로 생긴 버튼이 조용히 토스로 샌다. */
+  if (nativeBilling) {
+    await startStorePurchase();
+    return;
+  }
   try {
     const config = await accountRequest("/api/billing/config");
     if (config.configured) {
@@ -2657,12 +2665,16 @@ function renderPricingExperience() {
   renderPricingUsage();
 }
 
+/* 셸에서는 구글 플레이가 결제 수단이다. /api/health의 payments는 웹 카드 결제(토스)
+   연동 여부라 셸에서는 항상 false이고, 그 값 하나로 CTA의 disabled를 정하면 다리가
+   있어도 모든 Pro 버튼이 죽는다 — 기기에서 "안 눌린다"로 나타난 게 이것이다.
+   서버가 못 떠도 다리가 있으면 결제는 된다(구매 판정은 어차피 서버 검증이 한다). */
 async function loadPaymentAvailability() {
   try {
     const health = await accountRequest("/api/health");
-    paymentsEnabled = Boolean(health.services?.payments);
+    paymentsEnabled = Boolean(nativeBilling) || Boolean(health.services?.payments);
   } catch {
-    paymentsEnabled = false;
+    paymentsEnabled = Boolean(nativeBilling);
   }
   renderPricingExperience();
   return paymentsEnabled;
@@ -10013,7 +10025,10 @@ document.addEventListener("click", (event) => {
   event.preventDefault();
   if (cta.dataset.busy === "1") return;
   cta.dataset.busy = "1";
-  startStorePurchase().finally(() => {
+  /* 구매를 직접 부르지 않고 드로어·마이페이지 버튼과 같은 입구로 보낸다. 여기서
+     startStorePurchase를 부르면 이 앵커들만 "이미 Pro인지", "체험을 시작할 수 있는지"를
+     모른 채 결제창을 연다. */
+  handleProPricingCta().finally(() => {
     delete cta.dataset.busy;
   });
 });
