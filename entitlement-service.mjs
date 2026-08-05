@@ -466,6 +466,7 @@ export async function getGoogleAccessToken(config, fetcher = fetch, now = Date.n
     body: `grant_type=${encodeURIComponent("urn:ietf:params:oauth:grant-type:jwt-bearer")}&assertion=${assertion}`,
   });
   if (!response.ok) {
+    await logGoogleFailure("token", response);
     const error = new Error("구글 토큰 발급에 실패했습니다");
     error.code = "GOOGLE_TOKEN_FAILED";
     error.status = 502;
@@ -479,6 +480,21 @@ export async function getGoogleAccessToken(config, fetcher = fetch, now = Date.n
     throw error;
   }
   return json.access_token;
+}
+
+/* 구글이 거절하면 그 이유는 구글의 응답에만 있다. 그걸 버리면 우리에게 남는 건 502뿐이고,
+   502는 "서비스 계정에 권한이 없다"와 "API가 꺼져 있다"와 "서명이 틀렸다"를 구분해 주지
+   않는다 — 실제로 그 구분이 안 돼서 실기기 결제를 여러 번 반복했다.
+   싣는 것은 구글이 우리에게 한 말과 상태코드뿐이다. 액세스 토큰도 purchaseToken도
+   요청 URL도 넣지 않는다(URL에 purchaseToken이 들어 있다). */
+async function logGoogleFailure(label, response) {
+  let detail = "(본문 없음)";
+  try {
+    detail = (await response.text()).slice(0, 400);
+  } catch {
+    /* 본문을 못 읽어도 상태코드만으로 대부분 좁혀진다. */
+  }
+  console.warn(`[billing] google ${label} ${response.status}: ${detail}`);
 }
 
 function verifyError(status, code, message) {
@@ -508,6 +524,7 @@ export async function verifyGooglePurchase({ config, store, fetcher = fetch, use
     throw verifyError(404, "INVALID_PURCHASE_TOKEN", "구매를 찾을 수 없습니다. 스토어 결제가 완료됐는지 확인해 주세요.");
   }
   if (!response.ok) {
+    await logGoogleFailure("subscriptionsv2", response);
     throw verifyError(502, "GOOGLE_API_FAILED", "구매 검증 중 스토어 응답이 올바르지 않습니다.");
   }
   const purchase = await response.json();

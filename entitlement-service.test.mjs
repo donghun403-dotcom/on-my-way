@@ -334,6 +334,37 @@ test("스토어가 모르는 purchaseToken은 404로 구분해 알려준다", as
   );
 });
 
+/* 502만 남으면 "서비스 계정에 권한이 없다"와 "API가 꺼져 있다"와 "서명이 틀렸다"를
+   구분할 수 없다. 실제로 그 구분이 안 돼서 실기기 결제를 여러 번 반복했다. 이유는
+   구글의 응답에만 있으므로 그것만 남기고, 비밀은 한 조각도 같이 나가지 않아야 한다. */
+test("구글이 거절하면 그 이유를 남긴다 — 토큰과 purchaseToken은 빼고", async () => {
+  const { config, store } = await verifyFixture();
+  const denial = JSON.stringify({
+    error: { code: 403, status: "PERMISSION_DENIED", message: "The current user has insufficient permissions." },
+  });
+  const fetcher = async (url) => String(url).includes("subscriptionsv2")
+    ? new Response(denial, { status: 403 })
+    : new Response(JSON.stringify({ access_token: "super-secret-access-token" }), { status: 200 });
+
+  const warnings = [];
+  const originalWarn = console.warn;
+  console.warn = (...args) => warnings.push(args.join(" "));
+  try {
+    await assert.rejects(
+      () => verifyGooglePurchase({ config, store, fetcher, userId: "usr_a", purchaseToken: "pt-secret-1234", now: NOW }),
+      (error) => error.status === 502 && error.code === "GOOGLE_API_FAILED",
+    );
+  } finally {
+    console.warn = originalWarn;
+  }
+
+  const logged = warnings.join("\n");
+  assert.match(logged, /403/, "상태코드가 없으면 좁힐 수 없다");
+  assert.match(logged, /PERMISSION_DENIED/, "구글이 말한 이유가 빠졌다");
+  assert.ok(!logged.includes("super-secret-access-token"), "액세스 토큰이 로그로 샜다");
+  assert.ok(!logged.includes("pt-secret-1234"), "purchaseToken이 로그로 샜다");
+});
+
 test("verify 후 도착한 RTDN이 같은 행에 전이를 적용한다 — 두 경로가 한 사본을 공유한다", async () => {
   const { config, store, db, fetcher } = await verifyFixture();
   await verifyGooglePurchase({ config, store, fetcher, userId: "usr_buyer", purchaseToken: "vt-4", now: NOW });
