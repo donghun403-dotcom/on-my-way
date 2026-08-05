@@ -993,9 +993,26 @@ let storeRestoreAttempted = false;
 globalThis.__omwBilling = (payload) => {
   const waiter = billingWaiter;
   billingWaiter = null;
-  if (!waiter) return;
-  clearTimeout(waiter.timer);
-  waiter.resolve(payload && typeof payload === "object" ? payload : { event: "error", code: "BAD_PAYLOAD" });
+  const result = payload && typeof payload === "object" ? payload : { event: "error", code: "BAD_PAYLOAD" };
+  if (waiter) {
+    clearTimeout(waiter.timer);
+    waiter.resolve(result);
+    return;
+  }
+  /* 기다리던 쪽이 없어도 토큰은 버리지 않는다. 결제창을 띄운 뒤 앱을 벗어나 있으면
+     아래 타임아웃이 먼저 끝나고, 그 뒤에 도착한 결과를 버리면 유저는 돈을 내고 권한이
+     없다 — 실제로 첫 테스트 결제가 이렇게 사라졌다(구글은 결제와 알림까지 마쳤는데
+     entitlements가 비어 있었다). 화면이 기다리든 말든 검증은 서버로 보낸다. */
+  if (result.purchases?.length) {
+    /* 앱을 열 때마다 하는 조용한 복원도 이 길로 온다. 이미 Pro인 사람에게 매번
+       "Pro가 시작됐어요"라고 말하지 않도록 실제로 바뀐 경우만 알린다. */
+    const planBefore = aiUsageState?.plan;
+    verifyStorePurchases(result.purchases).then((verified) => {
+      if (verified && planBefore !== "pro" && aiUsageState?.plan === "pro") {
+        showToast("Pro가 시작됐어요. 올리와 계속 이어가요.");
+      }
+    });
+  }
 };
 
 function callNativeBilling(invoke) {
@@ -1006,6 +1023,8 @@ function callNativeBilling(invoke) {
   return new Promise((resolve) => {
     /* 다리가 아무것도 되돌리지 않는 경우(프로세스가 죽거나 출처 검사에 걸림)에도
        화면이 영원히 기다리지 않게 한다. */
+    /* 이 시간이 지나도 결제가 실패한 것은 아니다 — 화면이 기다리기를 그만둘 뿐이고,
+       뒤늦게 오는 결과는 위 __omwBilling이 받아 서버로 보낸다. */
     const timer = setTimeout(() => {
       billingWaiter = null;
       resolve({ event: "error", code: "TIMEOUT" });
@@ -1047,7 +1066,13 @@ async function startStorePurchase() {
   const result = await callNativeBilling(() => nativeBilling.purchase(STORE_PRODUCT_ID, STORE_BASE_PLAN_ID));
   if (result.event === "cancelled") return false;
   if (result.event !== "purchased") {
-    showToast(result.code === "PRODUCT_NOT_FOUND" ? "지금은 구독을 시작할 수 없어요. 잠시 후 다시 시도해 주세요." : "결제를 시작하지 못했어요.");
+    /* 타임아웃은 실패가 아니라 "아직 모른다"다. 결제를 마쳤는데 실패했다고 말하면
+       유저는 한 번 더 결제하려 든다. */
+    showToast(
+      result.code === "TIMEOUT" ? "결제 확인이 늦어지고 있어요. 잠시 뒤 자동으로 반영돼요."
+        : result.code === "PRODUCT_NOT_FOUND" ? "지금은 구독을 시작할 수 없어요. 잠시 후 다시 시도해 주세요."
+        : "결제를 시작하지 못했어요.",
+    );
     return false;
   }
   const verified = await verifyStorePurchases(result.purchases);
@@ -1055,15 +1080,21 @@ async function startStorePurchase() {
   return verified;
 }
 
-/* 기기를 바꾸거나 앱을 지웠다 깐 유저는 이미 구독 중인데 잠금 화면을 본다. 구글이
-   진실을 쥐고 있으므로 물어보면 된다 — 버튼을 만들지 않고 잠금이 뜨는 순간 한 번
-   조용히 확인한다. 이미 권한이 있으면 잠금이 저절로 풀린다. */
-async function restoreStorePurchases() {
+/* 이미 구독 중인데 권한이 없어 보이는 경우가 여럿이다 — 기기를 바꿨거나, 앱을 지웠다
+   깔았거나, 결제 결과 콜백이 오다 말았거나. 구글이 진실을 쥐고 있으므로 버튼을 만들지
+   말고 우리가 물어본다. 세션당 한 번, 앱을 열 때와 잠금이 뜰 때. */
+function restoreStorePurchases() {
   if (!nativeBilling || storeRestoreAttempted) return;
   storeRestoreAttempted = true;
-  const result = await callNativeBilling(() => nativeBilling.restore());
-  if (result.event !== "restored" || !result.purchases?.length) return;
-  await verifyStorePurchases(result.purchases);
+  /* 결과를 기다리지 않는다. 대기 자리는 하나뿐이라 조용한 확인이 그걸 쥐고 있으면
+     그 사이 유저가 누른 구매가 BUSY로 막힌다 — 다리가 답하지 않는 경우(출처 검사에
+     걸리거나 클라이언트가 안 붙었을 때) 3분 동안 결제 버튼이 죽는다.
+     복원 결과는 위 __omwBilling의 대기자 없는 경로가 받아서 검증한다. */
+  try {
+    nativeBilling.restore();
+  } catch (error) {
+    /* 다리가 죽었으면 이번 세션에 할 수 있는 일이 없다. 잠금은 서버 판정대로 둔다. */
+  }
 }
 
 /* ===== 하드 페이월 =====
@@ -2285,6 +2316,10 @@ async function initAccountExperience() {
     loadPricingPolicy(),
     loadPaymentAvailability(),
     authUiState.user ? loadAiUsage({ force: true }) : Promise.resolve(null),
+    /* 잠금이 뜰 때만 물어보면 부족하다. 체험이 남은 유저가 결제했는데 결과가 유실되면
+       잠금이 뜰 일이 없어 영영 확인하지 않는다. 구글이 진실을 쥐고 있으니 열 때마다
+       한 번 물어본다 — 결과 콜백은 앱이 죽거나 화면이 다시 그려지면 오지 않는다. */
+    authUiState.user ? restoreStorePurchases() : Promise.resolve(null),
   ]);
   if (!isActivePage()) return false;
 
