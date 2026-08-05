@@ -71,6 +71,25 @@ rm -rf mobile/android
 않고 실패한다.** 이 패치는 CI에서만 돌고 산출물이 APK 안으로 사라져서, 조용히 빠지면
 기기에서 파일이 안 생기는 것으로만 드러난다. 1회차에 우리를 속인 실패 형태 그대로다.
 
+## 결제 권한은 라이브러리가 데려온다
+
+`scripts/patch-billing.mjs`가 릴리스 빌드의 `app/build.gradle`에 Play Billing Library를
+넣는다(릴리스 워크플로에서만 돈다 — 사이드로드한 디버그 APK로는 구매를 시험할 수 없어
+검증 셸에 넣을 이유가 없다).
+
+**왜 필요한가**: Play Console은 `com.android.vending.BILLING` 권한을 선언한 빌드를 본 적이
+있어야 구독 상품 생성을 열어 준다. 2026-08-05에 상품을 만들려다 확인했다 —
+「Create subscription」 대신 「Upload a new APK」가 떴고, vc3 AAB의 매니페스트에는 권한이
+`INTERNET` 하나뿐이었다. 그래서 **라이브러리 → 새 번들 업로드 → 상품 생성** 순서다.
+
+권한을 매니페스트에 직접 적지 않는다. 라이브러리 매니페스트가 선언한 것을 AGP가
+병합한다 — 쓰지도 않는 권한을 손으로 박는 것보다 정직하고, 라이브러리를 빼면 권한도
+같이 사라진다.
+
+버전은 `BILLING_LIBRARY_VERSION` 상수 한 곳에만 있다. 구글이 오래된 Billing Library를
+쓰는 앱의 업데이트를 거부하므로(대략 2년 주기) 올릴 일이 생기면 그 상수와
+`mobile-billing-patch.test.mjs`만 고친다.
+
 ## 왜 `mobile/android/`를 커밋하지 않는가
 
 `cap add android`가 만드는 것은 Gradle 보일러플레이트 수십 파일이다. 커밋하면
