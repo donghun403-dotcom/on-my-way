@@ -429,6 +429,54 @@ test("구글이 거절하면 그 이유를 남긴다 — 토큰과 purchaseToken
   assert.ok(!logged.includes("pt-secret-1234"), "purchaseToken이 로그로 샜다");
 });
 
+/* verify보다 먼저 온 알림은 주인을 몰라 미처리로 남는다. 그걸 푸는 순간은 오직
+   verify이고, verify가 끝나면 더 이상 "재처리 대상"이 아니다. 닫지 않으면
+   idx_store_notifications_unprocessed에 영원히 쌓인다. */
+test("verify가 미뤄 둔 알림을 닫는다", async () => {
+  const { config, db, store, fetcher } = await verifyFixture();
+  const deferred = await processGoogleRtdn(store, parseRtdnEnvelope(rtdnEnvelope({ messageId: "d-1", notificationType: 4, purchaseToken: "vt-9" })), NOW);
+  assert.equal(deferred.outcome, "deferred");
+  assert.equal([...db.notifications.values()][0].processed_at, null);
+
+  await verifyGooglePurchase({ config, store, fetcher, userId: "usr_late", purchaseToken: "vt-9", now: NOW + 1000 });
+
+  assert.equal([...db.notifications.values()][0].processed_at, NOW + 1000, "verify가 닫지 않았다");
+});
+
+/* 이 검사가 이 변경의 핵심이다. 미뤄 둔 알림을 "재처리"한다며 상태를 다시 적용하면
+   시계가 거꾸로 간다 — verify가 쓴 값은 subscriptionsv2를 그 순간 조회한 결과라
+   언제나 더 최신이다. 실제로 PURCHASED·REVOKED·EXPIRED가 5분 안에 함께 쌓인 적이
+   있고, 그 셋을 되돌려 적용하면 환불된 구독이 active로 되살아난다. */
+test("미뤄 둔 알림이 verify가 세운 상태를 되돌리지 않는다", async () => {
+  const { config, db, store, fetcher } = await verifyFixture({
+    purchase: subscriptionsV2Fixture({ subscriptionState: "SUBSCRIPTION_STATE_EXPIRED" }),
+  });
+  /* 구매 통보가 먼저 도착해 미처리로 남는다 — 이걸 되돌려 적용하면 active가 된다. */
+  await processGoogleRtdn(store, parseRtdnEnvelope(rtdnEnvelope({ messageId: "d-2", notificationType: 4, purchaseToken: "vt-10" })), NOW);
+
+  await verifyGooglePurchase({ config, store, fetcher, userId: "usr_late", purchaseToken: "vt-10", now: NOW + 1000 });
+
+  const row = await store.getEntitlement("google", "vt-10");
+  assert.equal(row.state, "expired", "미뤄 둔 PURCHASED가 되살아났다");
+  assert.equal(hasEntitlementAccess({ state: row.state, expiresAt: row.expires_at }, NOW + 1000), false);
+  /* 원문은 남아 있어야 한다 — 닫는 것이지 지우는 것이 아니다. */
+  const stored = [...db.notifications.values()][0];
+  assert.equal(stored.notification_type, "SUBSCRIPTION_PURCHASED");
+  assert.ok(stored.payload_json.includes("subscriptionNotification"));
+});
+
+test("다른 구독의 미처리 알림은 건드리지 않는다", async () => {
+  const { config, db, store, fetcher } = await verifyFixture();
+  await processGoogleRtdn(store, parseRtdnEnvelope(rtdnEnvelope({ messageId: "d-3", notificationType: 4, purchaseToken: "vt-11" })), NOW);
+  await processGoogleRtdn(store, parseRtdnEnvelope(rtdnEnvelope({ messageId: "d-4", notificationType: 4, purchaseToken: "other-token" })), NOW);
+
+  await verifyGooglePurchase({ config, store, fetcher, userId: "usr_late", purchaseToken: "vt-11", now: NOW + 1000 });
+
+  const byToken = Object.fromEntries([...db.notifications.values()].map((row) => [row.store_subscription_id, row.processed_at]));
+  assert.equal(byToken["vt-11"], NOW + 1000);
+  assert.equal(byToken["other-token"], null, "관계없는 구독의 알림까지 닫혔다");
+});
+
 test("verify 후 도착한 RTDN이 같은 행에 전이를 적용한다 — 두 경로가 한 사본을 공유한다", async () => {
   const { config, store, db, fetcher } = await verifyFixture();
   await verifyGooglePurchase({ config, store, fetcher, userId: "usr_buyer", purchaseToken: "vt-4", now: NOW });
