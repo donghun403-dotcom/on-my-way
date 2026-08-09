@@ -162,6 +162,16 @@ function memoryAdapter(db) {
       row.processed_at = values.processedAt;
       row.process_error = values.processError ?? null;
     },
+    async resolveDeferredNotifications(store, storeSubscriptionId, processedAt) {
+      let resolved = 0;
+      for (const row of db.notifications.values()) {
+        if (row.store !== store || row.store_subscription_id !== storeSubscriptionId) continue;
+        if (row.processed_at !== null && row.processed_at !== undefined) continue;
+        row.processed_at = processedAt;
+        resolved += 1;
+      }
+      return { resolved };
+    },
     async getEntitlement(store, storeSubscriptionId) {
       return db.entitlements.get(entitlementKey(store, storeSubscriptionId)) || null;
     },
@@ -211,6 +221,15 @@ function d1Adapter(db) {
         "UPDATE store_notifications SET processed_at = ?1, process_error = ?2 WHERE store = ?3 AND store_notification_id = ?4",
         values.processedAt, values.processError ?? null, values.store, values.storeNotificationId,
       );
+    },
+    async resolveDeferredNotifications(store, storeSubscriptionId, processedAt) {
+      /* 부분 인덱스 idx_store_notifications_unprocessed가 이 WHERE를 받는다. */
+      const result = await run(
+        `UPDATE store_notifications SET processed_at = ?1
+          WHERE store = ?2 AND store_subscription_id = ?3 AND processed_at IS NULL`,
+        processedAt, store, storeSubscriptionId,
+      );
+      return { resolved: Number(result?.meta?.changes ?? result?.changes ?? 0) };
     },
     async getEntitlement(store, storeSubscriptionId) {
       return first("SELECT * FROM entitlements WHERE store = ?1 AND store_subscription_id = ?2", store, storeSubscriptionId);
@@ -610,6 +629,20 @@ export async function verifyGooglePurchase({ config, store, fetcher = fetch, use
     metadata_json: JSON.stringify({ latestOrderId: purchase.latestOrderId || null }),
     created_at: now,
   });
+
+  /* 이 구독의 주인을 몰라 미뤄 뒀던 알림들을 닫는다. 미처리로 남을 수 있는 이유는
+     하나뿐이고(RTDN이 verify보다 먼저 도착), 그 하나를 푸는 순간도 여기뿐이다.
+     그래서 배치도 cron도 필요 없다.
+
+     닫기만 하고 **다시 적용하지 않는다.** 방금 우리가 쓴 state는 subscriptionsv2를
+     지금 조회한 결과라 미뤄 둔 알림보다 언제나 최신이다. 되돌려 적용하면 잘해야
+     같은 값이고, 순서가 어긋나면 만료·환불된 구독이 active로 되살아난다 —
+     실제로 PURCHASED·REVOKED·EXPIRED 셋이 5분 안에 함께 쌓인 적이 있다.
+     원문은 payload_json에 남아 있고, received_at과 processed_at의 간격이
+     "미뤄졌다가 verify로 닫혔다"는 사실을 그대로 보여 준다. */
+  if (typeof store.resolveDeferredNotifications === "function") {
+    await store.resolveDeferredNotifications("google", purchaseToken, now);
+  }
 
   let acknowledged = Boolean(existing?.acknowledged_at);
   if (!acknowledged && purchase.acknowledgementState === "ACKNOWLEDGEMENT_STATE_PENDING") {
