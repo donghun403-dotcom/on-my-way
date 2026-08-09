@@ -164,7 +164,47 @@ Provider별:
 
 - `TOSS_CLIENT_KEY`, `TOSS_SECRET_KEY`
 - `OPENAI_API_KEY`
-- `ADMIN_PASSWORD` 또는 KV에 저장된 관리자 비밀번호
+- `ADMIN_PASSWORD` — **부트스트랩 전용.** 아래 §11.1 참조
+
+### 11.1 관리자 비밀번호 — 두 저장소의 우선순위
+
+관리자 비밀번호는 두 곳에 있을 수 있고 **KV가 언제나 이긴다**(`verifyAdminPassword`).
+
+| 저장소 | 값 | 언제 쓰이나 |
+| ------ | -- | ----------- |
+| KV `setting:admin_password` | salt + HMAC 해시 (pepper = `SESSION_SECRET`) | 이 레코드가 있으면 **항상 이것만** 본다 |
+| secret `ADMIN_PASSWORD` | 평문 | KV 레코드가 **없을 때만** |
+
+그래서 `/api/admin/password`로 비밀번호를 한 번 바꾸고 나면 `ADMIN_PASSWORD`는
+영원히 참조되지 않는다. 남겨 둘 이유가 없으므로 **지운다** — 필요해지면 아래 절차에서
+10초 만에 다시 넣는다.
+
+```bash
+npx wrangler@4.112.0 secret delete ADMIN_PASSWORD --config wrangler.production.jsonc
+```
+
+확인 프롬프트가 뜨므로 **대화형 터미널**에서 실행해야 한다. 비대화형 셸에서는
+"아니오"로 자동 응답돼 조용히 아무 일도 일어나지 않는다.
+
+### 11.2 관리자 로그인을 잃어버렸을 때
+
+비밀번호를 잊으면 `ADMIN_PASSWORD`를 다시 넣어도 소용없다 — KV 레코드가 이기기
+때문이다. **KV 레코드를 먼저 지워야** 폴백이 살아난다. Cloudflare 계정 접근이
+유일한 복구 수단이고, 그것이 의도된 설계다.
+
+```bash
+# 1) KV 레코드를 지워 폴백을 깨운다
+npx wrangler@4.112.0 kv key delete --namespace-id <USERS_KV id> --remote "setting:admin_password"
+# 2) 임시 비밀번호를 넣는다
+npx wrangler@4.112.0 secret put ADMIN_PASSWORD --config wrangler.production.jsonc
+# 3) /admin.html 로그인 → /api/admin/password 로 정상 비밀번호 설정
+# 4) 임시 비밀번호를 다시 지운다 (§11.1)
+```
+
+`ADMIN_EMAILS`(쉼표 구분)를 넣으면 그 이메일로 소셜 로그인하는 계정이 로그인마다
+`role: "admin"`이 되어 두 번째 문이 생긴다. **의도적으로 비워 두었다** — 그 구글·카카오
+계정이 뚫리면 관리자까지 함께 넘어가고, 지금은 그 편의보다 표면을 좁히는 쪽을 택했다.
+목록에서 빼면 다음 로그인에 자동 강등되므로 회수는 쉽다.
 
 ## 12. CSP와 CORS
 
