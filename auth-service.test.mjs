@@ -39,6 +39,18 @@ function memoryStore(seed = []) {
     async getUser(id) { return users.get(id) || null; },
     async putUser(user) { users.set(user.id, user); },
     async listUsers() { return [...users.values()]; },
+    /* KV가 키 이름 순으로 주는 것을 흉내 낸다 — 가입 순이 아니다. */
+    async listUsersPage({ cursor, limit = 50 } = {}) {
+      const ids = [...users.keys()].sort();
+      const from = cursor ? ids.indexOf(cursor) : 0;
+      const start = from < 0 ? ids.length : from;
+      const slice = ids.slice(start, start + limit);
+      return {
+        users: slice.map((id) => users.get(id)),
+        cursor: start + limit < ids.length ? ids[start + limit] : null,
+        total: ids.length,
+      };
+    },
     async deleteUser(id) { users.delete(id); },
     async getAppState(userId) { return appStates.get(userId) || null; },
     async putAppState(userId, record) { appStates.set(userId, record); },
@@ -342,6 +354,59 @@ test("허용 목록 이메일만 관리자가 된다", async () => {
   const users = await handleAccountApi(context({ path: "/api/admin/users", env, store, cookie: sessionCookie }));
   assert.equal(users.status, 200);
   assert.equal(users.json.users.length, 1);
+});
+
+/* 관리 화면이 전 회원을 한 번에 읽으면 요청 하나에 붙는 왕복이 회원 수에 비례해
+   늘어난다(회원당 KV 읽기 1 + 사용량 DO 호출 1). 회원이 늘었을 때 서비스보다
+   관리 화면이 먼저 죽는 구조였다. 한 페이지로 묶어 상한을 회원 수와 끊는다. */
+function seedMembers(count) {
+  return Array.from({ length: count }, (_, index) => ({
+    /* 자리수를 맞춰야 사전순이 예측 가능하다 — KV가 주는 순서를 흉내 낸 것이다. */
+    id: `usr_${String(index).padStart(3, "0")}`,
+    name: `회원${index}`,
+    provider: "google",
+    plan: "expired",
+    role: "member",
+    status: "active",
+    createdAt: index,
+  }));
+}
+
+test("회원 목록은 한 페이지씩 주고 다음 커서를 알려준다", async () => {
+  const store = memoryStore(seedMembers(120));
+  const env = testEnv({ ADMIN_PASSWORD: "strong-admin-password" });
+  const cookie = await adminSession(env, store);
+
+  const first = await handleAccountApi(context({ path: "/api/admin/users", env, store, cookie }));
+  assert.equal(first.status, 200);
+  assert.equal(first.json.users.length, 50, "페이지 크기를 넘겨 읽었다");
+  /* 화면의 "N명"은 전체 인원이다. 지금 그린 수가 아니다. */
+  assert.equal(first.json.total, 120);
+  assert.equal(first.json.cursor, "usr_050");
+
+  const second = await handleAccountApi(context({
+    path: `/api/admin/users?cursor=${encodeURIComponent(first.json.cursor)}`, env, store, cookie,
+  }));
+  assert.equal(second.json.users[0].id, "usr_050", "커서가 가리킨 자리에서 이어지지 않았다");
+  assert.equal(second.json.users.length, 50);
+
+  const last = await handleAccountApi(context({ path: "/api/admin/users?cursor=usr_100", env, store, cookie }));
+  assert.equal(last.json.users.length, 20);
+  assert.equal(last.json.cursor, null, "마지막 페이지인데 커서가 남았다");
+});
+
+/* limit을 그대로 믿으면 페이지네이션을 넣은 이유가 사라진다 — 관리자 화면에서
+   ?limit=100000 하나로 전 회원을 읽어 버릴 수 있다. */
+test("limit은 페이지 크기를 넘길 수 없다", async () => {
+  const store = memoryStore(seedMembers(120));
+  const env = testEnv({ ADMIN_PASSWORD: "strong-admin-password" });
+  const cookie = await adminSession(env, store);
+
+  const huge = await handleAccountApi(context({ path: "/api/admin/users?limit=100000", env, store, cookie }));
+  assert.equal(huge.json.users.length, 50);
+
+  const small = await handleAccountApi(context({ path: "/api/admin/users?limit=3", env, store, cookie }));
+  assert.equal(small.json.users.length, 3, "더 작게 요청한 것은 그대로 받아야 한다");
 });
 
 test("서버 비밀번호 인증은 관리자 세션을 발급한다", async () => {
