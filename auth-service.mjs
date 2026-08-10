@@ -1,3 +1,4 @@
+import { adminActorSource, createAdminAuditStore } from "./admin-audit.mjs";
 import { ensureAiTrialAbuseMarker, getAiCreditUsage, hasUsedAiTrial, withAiCreditUserLock } from "./ai-credits-service.mjs";
 import { PAYMENT_FAILURE_GRACE_MS, PLAN_CONFIG, resolveEffectivePlan, resolveTrialAdmission, resolveTrialEndsAt } from "./plan-policy.mjs";
 import { createBillingLedger, fingerprint } from "./billing-ledger.mjs";
@@ -538,6 +539,28 @@ function billingLedger(env) {
 
 function entitlementStore(env) {
   return createEntitlementStore(env.BILLING_DB);
+}
+
+/* 관리자 조작을 이력으로 남긴다. 실패해도 조작 자체는 성공으로 둔다 — 기록이 없는
+   것보다 회원의 잘못된 plan을 못 고치는 쪽이 나쁘다. 대신 오류를 로그에 남기고,
+   프로덕션 로그가 켜져 있으므로 나중에 조회할 수 있다. */
+async function recordAdminAction(ctx, admin, entry) {
+  const audit = createAdminAuditStore(ctx.env?.BILLING_DB);
+  if (!audit) return;
+  try {
+    await audit.insertAction({
+      action_id: `adm_${randomId(24)}`,
+      actor_id: String(admin?.id || ""),
+      actor_source: adminActorSource(admin?.id),
+      target_user_id: null,
+      previous_value: null,
+      new_value: null,
+      created_at: Date.now(),
+      ...entry,
+    });
+  } catch (error) {
+    console.error("Admin action audit failed", { action: entry.action, code: error?.code, message: error?.message });
+  }
 }
 
 /* 길이가 달라도 끝까지 비교해 소요 시간이 내용에 따라 달라지지 않게 한다.
@@ -1233,6 +1256,8 @@ export async function handleAccountApi(ctx) {
       hash: await deriveAdminPasswordHash(ctx, newPassword, salt),
       updatedAt: Date.now(),
     });
+    /* 값은 남기지 않는다 — 바뀌었다는 사실과 시각만으로 감사에 충분하다. */
+    await recordAdminAction(ctx, admin, { action: "admin_password_change" });
     return { status: 200, json: { ok: true } };
   }
 
@@ -1457,6 +1482,10 @@ export async function handleAccountApi(ctx) {
     const body = await ctx.readJson();
     const target = await store(ctx).getUser(String(body.id || ""));
     if (!target) return { status: 404, json: { error: "회원을 찾을 수 없어요." } };
+    /* 바뀌기 전 값을 여기서 붙잡는다. 아래에서 target을 제자리 수정하므로
+       putUser 뒤에는 이전 값을 알 수 없다. */
+    const previousPlan = target.plan;
+    const previousRole = target.role;
 
     if (body.plan === "pro" && target.plan !== "pro") {
       target.plan = "pro";
@@ -1486,6 +1515,26 @@ export async function handleAccountApi(ctx) {
     }
 
     await store(ctx).putUser(target);
+
+    /* 저장이 끝난 뒤에만 남긴다. 위의 해지 분기는 502·503으로 되돌아갈 수 있고,
+       그때는 아무것도 바뀌지 않았으므로 이력도 없어야 한다.
+       바뀐 항목마다 한 줄이다 — "누가 관리자가 됐나"를 plan 변경과 섞지 않는다. */
+    if (target.plan !== previousPlan) {
+      await recordAdminAction(ctx, admin, {
+        action: "user_plan_change",
+        target_user_id: target.id,
+        previous_value: previousPlan,
+        new_value: target.plan,
+      });
+    }
+    if (target.role !== previousRole) {
+      await recordAdminAction(ctx, admin, {
+        action: "user_role_change",
+        target_user_id: target.id,
+        previous_value: previousRole,
+        new_value: target.role,
+      });
+    }
     return { status: 200, json: { user: publicUser(target) } };
   }
 

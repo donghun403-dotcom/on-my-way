@@ -14,6 +14,7 @@ import {
 } from "./auth-service.mjs";
 import { commitAiCredits, getAiCreditUsage, reserveAiCredits, startAiTrial } from "./ai-credits-service.mjs";
 import { createBillingLedger, createMemoryBillingDb } from "./billing-ledger.mjs";
+import { createAdminAuditStore, createMemoryAdminAuditDb } from "./admin-audit.mjs";
 import { PAYMENT_FAILURE_GRACE_MS, PLAN_CONFIG, canStartTrial, resolveEffectivePlan, resolveTrialAdmission, resolveTrialEndsAt } from "./plan-policy.mjs";
 import { describeTrial } from "./energy-ledger-client.mjs";
 import worker from "./worker.mjs";
@@ -388,6 +389,126 @@ test("관리자는 임시 비밀번호를 안전하게 교체할 수 있다", as
     path: "/api/admin/login", method: "POST", env, store, body: { password: "MyNewAdminPass1!" },
   }));
   assert.equal(newLogin.status, 200);
+});
+
+/* 관리자 조작 이력 — migrations/0003_admin_actions.sql
+   결제로 생긴 변화는 entitlement_events에 남는데 관리자가 직접 바꾼 것은 아무 데도
+   남지 않았다. "이 계정은 왜 Pro지?"에 답할 수 없었다.
+   BILLING_DB는 세 모듈이 함께 쓰므로 메모리 페이크도 겹쳐서 만든다. */
+function auditEnv(overrides = {}) {
+  return testEnv({ BILLING_DB: { ...createMemoryBillingDb(), ...createMemoryAdminAuditDb() }, ...overrides });
+}
+
+async function adminSession(env, store) {
+  const login = await handleAccountApi(context({
+    path: "/api/admin/login", method: "POST", env, store, body: { password: "strong-admin-password" },
+  }));
+  return login.cookies[0].split(";")[0];
+}
+
+test("관리자가 회원 plan을 바꾸면 이력이 남는다", async () => {
+  const store = memoryStore([{ id: "usr_target", plan: "expired", role: "member", status: "active", createdAt: 1 }]);
+  const env = auditEnv({ ADMIN_PASSWORD: "strong-admin-password" });
+  const cookie = await adminSession(env, store);
+
+  const updated = await handleAccountApi(context({
+    path: "/api/admin/users/update", method: "POST", env, store, cookie, body: { id: "usr_target", plan: "pro" },
+  }));
+  assert.equal(updated.status, 200);
+
+  const actions = await createAdminAuditStore(env.BILLING_DB).listActions();
+  assert.equal(actions.length, 1);
+  assert.deepEqual(
+    [actions[0].action, actions[0].target_user_id, actions[0].previous_value, actions[0].new_value],
+    ["user_plan_change", "usr_target", "expired", "pro"],
+  );
+  /* 비밀번호 세션은 KV 레코드가 없는 합성 관리자다. 그 둘을 구분해 둬야
+     "서버 비밀번호를 아는 사람"과 "특정 계정"을 나눠 볼 수 있다. */
+  assert.equal(actions[0].actor_source, "password");
+  assert.equal(actions[0].actor_id, "admin:password");
+});
+
+test("plan과 role을 함께 바꾸면 각각 한 줄로 남는다", async () => {
+  const store = memoryStore([{ id: "usr_two", plan: "expired", role: "member", status: "active", createdAt: 1 }]);
+  const env = auditEnv({ ADMIN_PASSWORD: "strong-admin-password" });
+  const cookie = await adminSession(env, store);
+
+  await handleAccountApi(context({
+    path: "/api/admin/users/update", method: "POST", env, store, cookie,
+    body: { id: "usr_two", plan: "pro", role: "admin" },
+  }));
+
+  const actions = await createAdminAuditStore(env.BILLING_DB).listActions();
+  assert.deepEqual(actions.map((row) => row.action).sort(), ["user_plan_change", "user_role_change"]);
+});
+
+/* 바뀐 게 없으면 이력도 없어야 한다. 아니면 "조회했다"와 "바꿨다"가 섞여
+   이력이 소음이 된다. */
+test("바뀐 것이 없으면 이력을 남기지 않는다", async () => {
+  const store = memoryStore([{ id: "usr_same", plan: "pro", role: "member", status: "active", createdAt: 1 }]);
+  const env = auditEnv({ ADMIN_PASSWORD: "strong-admin-password" });
+  const cookie = await adminSession(env, store);
+
+  await handleAccountApi(context({
+    path: "/api/admin/users/update", method: "POST", env, store, cookie, body: { id: "usr_same", plan: "pro" },
+  }));
+
+  assert.equal((await createAdminAuditStore(env.BILLING_DB).listActions()).length, 0);
+});
+
+/* 해지 분기는 결제사 확인에 실패하면 502로 되돌아가고 아무것도 바꾸지 않는다.
+   그때 이력이 남으면 "해지했다"는 거짓 기록이 된다. */
+test("해지가 실패해 되돌아가면 이력을 남기지 않는다", async () => {
+  const store = memoryStore([{ id: "usr_keep", plan: "pro", role: "member", status: "active", billingKey: "bk_1", createdAt: 1 }]);
+  const env = auditEnv({
+    ADMIN_PASSWORD: "strong-admin-password",
+    TOSS_CLIENT_KEY: TEST_TOSS_CLIENT_KEY,
+    TOSS_SECRET_KEY: TEST_TOSS_SECRET_KEY,
+  });
+  const cookie = await adminSession(env, store);
+
+  const failed = await handleAccountApi(context({
+    path: "/api/admin/users/update", method: "POST", env, store, cookie,
+    body: { id: "usr_keep", plan: "expired" },
+    fetcher: async () => { throw new Error("결제사 연결 실패"); },
+  }));
+  assert.equal(failed.status, 502);
+  assert.equal((await createAdminAuditStore(env.BILLING_DB).listActions()).length, 0);
+  assert.equal((await store.getUser("usr_keep")).plan, "pro", "되돌아갔는데 plan이 바뀌었다");
+});
+
+test("비밀번호 변경은 사실만 남기고 값은 남기지 않는다", async () => {
+  const store = memoryStore();
+  const env = auditEnv({ ADMIN_PASSWORD: "strong-admin-password" });
+  const cookie = await adminSession(env, store);
+
+  const changed = await handleAccountApi(context({
+    path: "/api/admin/password", method: "POST", env, store, cookie,
+    body: { currentPassword: "strong-admin-password", newPassword: "MyNewAdminPass1!" },
+  }));
+  assert.equal(changed.status, 200);
+
+  const actions = await createAdminAuditStore(env.BILLING_DB).listActions();
+  assert.equal(actions.length, 1);
+  assert.equal(actions[0].action, "admin_password_change");
+  assert.equal(actions[0].target_user_id, null);
+  const dumped = JSON.stringify(actions);
+  assert.ok(!dumped.includes("MyNewAdminPass1!"), "새 비밀번호가 이력에 실렸다");
+  assert.ok(!dumped.includes("strong-admin-password"), "이전 비밀번호가 이력에 실렸다");
+});
+
+/* BILLING_DB가 없는 배포에서도 관리자 작업 자체는 되어야 한다.
+   기록이 없는 것보다 잘못된 plan을 못 고치는 쪽이 나쁘다. */
+test("감사 저장소가 없어도 관리자 작업은 성공한다", async () => {
+  const store = memoryStore([{ id: "usr_nodb", plan: "expired", role: "member", status: "active", createdAt: 1 }]);
+  const env = testEnv({ ADMIN_PASSWORD: "strong-admin-password", BILLING_DB: undefined });
+  const cookie = await adminSession(env, store);
+
+  const updated = await handleAccountApi(context({
+    path: "/api/admin/users/update", method: "POST", env, store, cookie, body: { id: "usr_nodb", plan: "pro" },
+  }));
+  assert.equal(updated.status, 200);
+  assert.equal((await store.getUser("usr_nodb")).plan, "pro");
 });
 
 test("Provider identity는 이메일이 아니라 서버 내부 사용자 ID에 연결된다", async () => {
