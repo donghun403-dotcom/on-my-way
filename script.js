@@ -4562,6 +4562,7 @@ const adminDashboard = document.querySelector("#adminDashboard");
 const memberTableBody = document.querySelector("#memberTableBody");
 const memberCount = document.querySelector("#memberCount");
 const refreshMembers = document.querySelector("#refreshMembers");
+const loadMoreMembers = document.querySelector("#loadMoreMembers");
 const riskFilter = document.querySelector("#riskFilter");
 const goalFilter = document.querySelector("#goalFilter");
 const planFilter = document.querySelector("#planFilter");
@@ -4579,17 +4580,30 @@ function formatAdminDate(value) {
   return value ? new Date(Number(value)).toLocaleString("ko-KR", { dateStyle: "short", timeStyle: "short" }) : "-";
 }
 
-async function loadAdminMembers() {
+/* 다음 페이지를 가리키는 KV 커서. null이면 마지막 페이지다. */
+let adminMembersCursor = null;
+
+async function loadAdminMembers({ append = false } = {}) {
   if (!memberTableBody) return;
-  memberTableBody.innerHTML = '<tr class="admin-empty-row"><td colspan="7">회원 정보를 불러오는 중입니다.</td></tr>';
+  if (!append) {
+    adminMembersCursor = null;
+    memberTableBody.innerHTML = '<tr class="admin-empty-row"><td colspan="7">회원 정보를 불러오는 중입니다.</td></tr>';
+  }
+  if (loadMoreMembers) loadMoreMembers.disabled = true;
   try {
-    const { users } = await accountRequest("/api/admin/users");
-    if (memberCount) memberCount.textContent = `${users.length}명`;
-    if (!users.length) {
+    /* 서버가 한 페이지씩 준다. 전 회원을 한 번에 읽으면 요청 하나에 붙는 왕복이
+       회원 수에 비례해 늘어난다. */
+    const query = append && adminMembersCursor ? `?cursor=${encodeURIComponent(adminMembersCursor)}` : "";
+    const { users, cursor, total } = await accountRequest(`/api/admin/users${query}`);
+    adminMembersCursor = cursor || null;
+    /* total은 키 목록으로 센 전체 인원이다 — 지금 화면에 그린 수가 아니다. */
+    if (memberCount) memberCount.textContent = `${Number.isFinite(total) ? total : users.length}명`;
+    if (!users.length && !append) {
       memberTableBody.innerHTML = '<tr class="admin-empty-row"><td colspan="7">아직 가입한 회원이 없습니다.</td></tr>';
+      if (loadMoreMembers) loadMoreMembers.hidden = true;
       return;
     }
-    memberTableBody.innerHTML = users
+    const rows = users
       .map((user) => {
         const usage = user.aiUsage;
         const effectivePlan = usage?.plan || user.plan || "expired";
@@ -4612,8 +4626,17 @@ async function loadAdminMembers() {
         </tr>`;
       })
       .join("");
+    if (append) memberTableBody.insertAdjacentHTML("beforeend", rows);
+    else memberTableBody.innerHTML = rows;
+    if (loadMoreMembers) loadMoreMembers.hidden = !adminMembersCursor;
   } catch (error) {
-    memberTableBody.innerHTML = `<tr class="admin-empty-row"><td colspan="7">${escapeAccountText(error.message)}</td></tr>`;
+    const message = `<tr class="admin-empty-row"><td colspan="7">${escapeAccountText(error.message)}</td></tr>`;
+    /* 이어 붙이던 중 실패하면 이미 그린 회원을 지우지 않는다 — 목록이 통째로
+       사라지는 것보다 끝에 오류 한 줄이 붙는 쪽이 낫다. */
+    if (append) memberTableBody.insertAdjacentHTML("beforeend", message);
+    else memberTableBody.innerHTML = message;
+  } finally {
+    if (loadMoreMembers) loadMoreMembers.disabled = false;
   }
 }
 
@@ -4627,7 +4650,8 @@ async function initializeAdminGate() {
   await loadAdminMembers();
 }
 
-refreshMembers?.addEventListener("click", loadAdminMembers);
+refreshMembers?.addEventListener("click", () => loadAdminMembers());
+loadMoreMembers?.addEventListener("click", () => loadAdminMembers({ append: true }));
 memberTableBody?.addEventListener("click", async (event) => {
   const button = event.target.closest("button[data-member-action]");
   const row = button?.closest("tr[data-member-id]");

@@ -21,6 +21,9 @@ const SESSION_DAYS = 30;
 const SESSION_ISSUER = "on-my-way";
 const SESSION_AUDIENCE = "on-my-way-app";
 const OAUTH_TRANSACTION_TTL_MS = 10 * 60 * 1000;
+/* 관리 화면 한 페이지의 회원 수. 요청 하나에 붙는 왕복이 이 값에 묶인다 —
+   KV 읽기 1 + 회원당 KV 읽기 1 + 회원당 사용량(DO) 1. 회원이 몇이든 상한이 같다. */
+const ADMIN_PAGE_SIZE = 50;
 const ACCOUNT_DELETION_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
 const LEGAL_PAYMENT_RETENTION_MS = 5 * 365 * 24 * 60 * 60 * 1000;
 const PAYMENT_RETRY_INTERVAL_MS = 24 * 60 * 60 * 1000;
@@ -1467,13 +1470,16 @@ export async function handleAccountApi(ctx) {
   if (path === "/api/admin/users" && method === "GET") {
     const user = await currentSessionUser(ctx);
     if (user?.role !== "admin") return { status: 403, json: { error: "관리자만 볼 수 있어요." } };
-    const users = await store(ctx).listUsers();
-    users.sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0));
-    const publicUsers = await Promise.all(users.map(async (member) => ({
+    /* 한 페이지씩 읽는다. 전 회원을 한 번에 읽으면 요청 하나에 붙는 왕복이 회원 수에
+       비례해 늘어, 회원이 늘었을 때 서비스보다 관리 화면이 먼저 죽는다. */
+    const requested = Number(ctx.url.searchParams.get("limit") || 0);
+    const limit = Math.min(Math.max(requested || ADMIN_PAGE_SIZE, 1), ADMIN_PAGE_SIZE);
+    const page = await store(ctx).listUsersPage({ cursor: ctx.url.searchParams.get("cursor") || undefined, limit });
+    const publicUsers = await Promise.all(page.users.map(async (member) => ({
       ...publicUser(member),
       aiUsage: await getAiCreditUsage({ store: store(ctx), userId: member.id }).catch(() => null),
     })));
-    return { status: 200, json: { users: publicUsers } };
+    return { status: 200, json: { users: publicUsers, cursor: page.cursor ?? null, total: page.total } };
   }
 
   if (path === "/api/admin/users/update" && method === "POST") {
@@ -1649,6 +1655,16 @@ export function createKvStore(kv) {
       async listUsers() {
         return [...memoryUsers.values()];
       },
+      async listUsersPage({ cursor, limit = ADMIN_PAGE_SIZE } = {}) {
+        /* KV가 키 이름 순으로 주는 것을 흉내 낸다 — 화면이 보게 될 순서와 같아야
+           테스트가 실제 동작을 검증한다. */
+        const ids = [...memoryUsers.keys()].sort();
+        const start = cursor ? ids.indexOf(cursor) : 0;
+        const from = start < 0 ? ids.length : start;
+        const slice = ids.slice(from, from + limit);
+        const next = from + limit < ids.length ? ids[from + limit] : null;
+        return { users: slice.map((id) => memoryUsers.get(id)).filter(Boolean), cursor: next, total: ids.length };
+      },
       async deleteUser(id) {
         memoryUsers.delete(id);
       },
@@ -1715,6 +1731,9 @@ export function createKvStore(kv) {
         await kv.put(`user:${user.id}`, JSON.stringify(user));
       }
     },
+    /* 전 회원을 값까지 읽는다. 크론(구독 갱신·삭제 실행)처럼 모두를 훑어야 하는
+       경로만 쓴다 — 요청 하나에 회원 수만큼 KV 읽기가 붙으므로 관리 화면은
+       listUsersPage를 쓴다. */
     async listUsers() {
       const users = [];
       let cursor;
@@ -1727,6 +1746,30 @@ export function createKvStore(kv) {
         cursor = page.list_complete ? undefined : page.cursor;
       } while (cursor);
       return users;
+    },
+    /* 관리 화면용. 값 읽기를 한 페이지로 묶어 요청당 왕복 수를 회원 수와 무관하게
+       만든다.
+
+       순서는 KV가 주는 키 이름 순이다 — 가입 순이 아니다. 사용자 ID가 usr_<HMAC>라
+       키에 시간 정보가 없고, 가입순으로 정렬하려면 전 회원의 값을 읽어야 해서
+       페이지네이션을 하는 이유가 사라진다. 화면은 가입일 열을 그대로 보여 준다.
+
+       total은 키 이름만 세므로(값을 읽지 않는다) 회원이 늘어도 싸다. */
+    async listUsersPage({ cursor, limit = ADMIN_PAGE_SIZE } = {}) {
+      const page = await kv.list({ prefix: "user:", limit, cursor: cursor || undefined });
+      const users = [];
+      for (const key of page.keys) {
+        const user = await kv.get(key.name, "json");
+        if (user) users.push(user);
+      }
+      let total = 0;
+      let countCursor;
+      do {
+        const names = await kv.list({ prefix: "user:", cursor: countCursor });
+        total += names.keys.length;
+        countCursor = names.list_complete ? undefined : names.cursor;
+      } while (countCursor);
+      return { users, cursor: page.list_complete ? null : page.cursor, total };
     },
     async deleteUser(id) {
       await kv.delete(`user:${id}`);
