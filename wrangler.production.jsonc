@@ -3,6 +3,10 @@
   "name": "on-my-way",
   "main": "./worker.mjs",
   "compatibility_date": "2026-07-11",
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
   "workers_dev": true,
   "preview_urls": false,
   "routes": [

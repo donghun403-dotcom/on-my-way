@@ -74,6 +74,20 @@ test("Every AI-enabled Worker config defines the canonical rate limiter contract
   assert.notEqual(values.get("wrangler.staging.jsonc"), values.get("wrangler.production.jsonc"));
 });
 
+/* 프로덕션 로그는 실시간 스트림(wrangler tail)으로만 볼 수 있었다. 세션이 1시간이면
+   끊기고 저장되지 않아서, "어제 결제가 왜 실패했나"를 물으면 답할 방법이 없었다.
+   실제로 그래서 원인을 좁히려고 실기기 결제를 네 번 반복했다.
+
+   이 설정은 조용히 사라져도 아무도 모르는 종류다 — 없어진 걸 알아차리는 순간은
+   로그가 필요한 순간이고, 그때는 이미 늦다. 그래서 여기서 붙잡아 둔다. */
+test("프로덕션은 로그를 저장한다", async () => {
+  const value = await config("wrangler.production.jsonc");
+  assert.equal(value.observability?.enabled, true, "프로덕션 로그 보관이 꺼져 있다");
+  /* 지금 트래픽에서 표본을 줄일 이유가 없다. 결제처럼 드물게 일어나는 요청이
+     빠지면 그 로그가 있어야 할 때 비어 있다. */
+  assert.equal(value.observability?.head_sampling_rate, 1, "로그 표본이 100%가 아니다");
+});
+
 test("Durable Object config classes are exported by the Worker entry", async () => {
   // 바인딩된 클래스 이름이 Worker export와 정확히 맞아야 배포가 깨지지 않는다.
   const worker = await readFile(new URL("worker.mjs", import.meta.url), "utf8");
