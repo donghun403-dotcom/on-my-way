@@ -987,6 +987,19 @@ const nativeBilling = globalThis.OmwBilling || null;
 let billingWaiter = null;
 let storeRestoreAttempted = false;
 
+/* 웹에서는 구독할 방법이 없다(/api/health의 payments가 false). 그래서 사려는 사람을
+   Play 앱으로 넘긴다. 가르는 기준은 플랫폼이 아니라 "여기서 살 수 있는가"다 — 다리가
+   있으면 그 자리에서 결제되므로 인계할 이유가 없다. nativeBilling이 const라 이 함수는
+   반드시 그 선언 아래에 있어야 한다. */
+const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.olivenrich.onmyway";
+const STORE_HANDOFF_DISMISSED_KEY = "omw.storeHandoffDismissed";
+
+function storeHandoffMode() {
+  if (nativeBilling) return "native";
+  /* iOS 앱이 없으므로 아이폰·데스크톱에는 Play를 권하지 않는다 — 없는 것을 권하면 막다른 길이다. */
+  return /Android/i.test(navigator.userAgent) ? "android" : "unsupported";
+}
+
 /* 다리는 결과를 반환값이 아니라 이 전역 호출로 되돌린다 — 구글 결제 결과는
    PurchasesUpdatedListener로 비동기로 오기 때문에 @JavascriptInterface 메서드가 값을
    들고 돌아올 방법이 없다. */
@@ -1768,13 +1781,20 @@ function formatTrialRemaining(value) {
 
 function getProCtaState(plan, trialEligible) {
   if (plan === "pro") return { label: "현재 이용 중", disabled: true };
+  const handoff = storeHandoffMode();
+  /* 웹에서 결제가 꺼져 있을 때 비활성 버튼을 두면 사려는 사람이 그 자리에서 멈춘다.
+     안드로이드면 살 수 있는 곳으로 보내고, 아닌 곳에서는 없는 길을 권하지 않는다. */
+  const store = handoff === "android"
+    ? { label: "Google Play에서 구독하기", disabled: false, href: PLAY_STORE_URL }
+    : { label: "안드로이드 앱에서 구독", disabled: true };
   if (plan === "trial") {
-    return paymentsEnabled
-      ? { label: "지금 Pro로 전환하기", disabled: false }
-      : { label: "Pro 결제 준비 중", disabled: true };
+    if (paymentsEnabled) return { label: "지금 Pro로 전환하기", disabled: false };
+    return handoff === "native" ? { label: "Pro 결제 준비 중", disabled: true } : store;
   }
+  /* 아직 체험을 안 한 사람에게는 체험을 권하는 것이 먼저다. 인계는 그다음 이야기다. */
   if (trialEligible) return { label: "무료 체험 시작", disabled: false };
-  return { label: "Pro 시작하기", disabled: !paymentsEnabled };
+  if (paymentsEnabled) return { label: "Pro 시작하기", disabled: false };
+  return handoff === "native" ? { label: "Pro 시작하기", disabled: true } : store;
 }
 
 function renderMyPageSheet() {
@@ -2692,11 +2712,28 @@ function renderPricingExperience() {
     const trialDisabled = usesTrialPlan || !trialEligible;
     setPricingCta(pricingFreeCta, trialLabel, { disabled: trialDisabled, href: "#designFlow" });
     setPricingCta(pricingBottomCta, trialLabel, { disabled: trialDisabled, href: "#designFlow" });
-    setPricingCta(pricingProCta, cta.label, { disabled: cta.disabled });
-    setPricingCta(pricingBottomProCta, cta.label, { disabled: cta.disabled });
+    setPricingCta(pricingProCta, cta.label, { disabled: cta.disabled, href: cta.href });
+    setPricingCta(pricingBottomProCta, cta.label, { disabled: cta.disabled, href: cta.href });
   }
-  if (pricingPaymentState) pricingPaymentState.textContent = paymentsEnabled ? "결제 연결 상태를 확인한 뒤 Pro를 시작할 수 있어요." : "현재 운영 결제는 비활성화되어 있어요. 실제 결제는 발생하지 않습니다.";
-  if (pricingProCtaStatus) pricingProCtaStatus.textContent = paymentsEnabled ? "운영 결제 승인 상태" : "Pro 결제는 출시 준비 중이며 자동 결제되지 않아요.";
+  /* 앱은 2026-09-02에 출시됐다. 웹에서 "출시 준비 중"이라고 말하는 것은 사려는 사람에게
+     하는 거짓말이므로, 결제가 꺼진 이유를 사실대로 적는다. */
+  const pricingHandoff = storeHandoffMode();
+  if (pricingPaymentState) {
+    pricingPaymentState.textContent = paymentsEnabled
+      ? "결제 연결 상태를 확인한 뒤 Pro를 시작할 수 있어요."
+      : pricingHandoff === "android"
+        ? "구독은 Google Play 앱에서 할 수 있어요. 같은 계정으로 로그인하면 기록과 남은 체험이 그대로 이어져요."
+        : pricingHandoff === "unsupported"
+          ? "지금은 안드로이드 앱에서만 구독할 수 있어요. 기록 열람과 내보내기는 계속 무료예요."
+          : "현재 운영 결제는 비활성화되어 있어요. 실제 결제는 발생하지 않습니다.";
+  }
+  if (pricingProCtaStatus) {
+    pricingProCtaStatus.textContent = paymentsEnabled
+      ? "운영 결제 승인 상태"
+      : pricingHandoff === "native"
+        ? "Pro 결제는 현재 준비 중이며 자동 결제되지 않아요."
+        : "구독과 결제는 Google Play가 처리해요.";
+  }
   renderPricingUsage();
 }
 
@@ -2816,6 +2853,11 @@ async function handleProPricingCta() {
       if (!confirmed) return;
       sendFunnelEvent("pro_cta_clicked");
       await startSubscription();
+    } else if (storeHandoffMode() === "android") {
+      sendFunnelEvent("pro_cta_clicked");
+      window.location.assign(PLAY_STORE_URL);
+    } else if (storeHandoffMode() === "unsupported") {
+      showToast("지금은 안드로이드 앱에서만 구독할 수 있어요. 무료 체험은 계속 이용할 수 있어요.");
     } else {
       showToast("무료 체험은 계속 이용할 수 있어요. Pro 결제는 현재 준비 중이에요.");
     }
@@ -2830,7 +2872,17 @@ async function handleProPricingCta() {
     await startSubscription();
     return;
   }
-  showToast("Pro 결제는 현재 출시 준비 중이에요. 실제 결제는 발생하지 않습니다.");
+  const handoff = storeHandoffMode();
+  if (handoff === "android") {
+    sendFunnelEvent("pro_cta_clicked");
+    window.location.assign(PLAY_STORE_URL);
+    return;
+  }
+  if (handoff === "unsupported") {
+    showToast("지금은 안드로이드 앱에서만 구독할 수 있어요. 기록 열람과 내보내기는 계속 무료예요.");
+    return;
+  }
+  showToast("Pro 결제는 현재 준비 중이에요. 실제 결제는 발생하지 않습니다.");
 }
 
 pricingProCta?.addEventListener("click", handleProPricingCta);
