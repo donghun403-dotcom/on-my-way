@@ -63,6 +63,17 @@ test.describe("안드로이드 웹", () => {
     await cta.click();
     await expect.poll(() => navigated[0]).toBe(PLAY_URL);
   });
+
+  /* 잠금 화면의 앵커는 웹에서 index.html#pricing으로 간다. 거기서 또 막히면
+     잠금 → 가격 → 막다른 길이 되므로 목적지까지 한 번에 보낸다. */
+  test("잠금 화면 버튼이 Play로 바로 간다", async ({ page }) => {
+    await prepare(page);
+    await page.goto("/app.html");
+    await waitForAppReady(page);
+    const action = page.locator("#trialPaywallAction");
+    await expect(action).toHaveAttribute("href", PLAY_URL);
+    await expect(action).toHaveText("Google Play에서 계속하기");
+  });
 });
 
 test.describe("아이폰 웹", () => {
@@ -81,5 +92,27 @@ test.describe("아이폰 웹", () => {
     await prepare(page);
     await page.goto("/index.html#pricing");
     await expect(page.locator("body")).not.toContainText("출시 준비 중");
+  });
+
+  test("잠금 화면이 안드로이드 전용임을 밝히고 링크를 주지 않는다", async ({ page }) => {
+    await prepare(page);
+    await page.goto("/app.html");
+    await waitForAppReady(page);
+    const action = page.locator("#trialPaywallAction");
+    await expect(action).toHaveText("지금은 안드로이드 앱에서만 구독할 수 있어요");
+    await expect(action).not.toHaveAttribute("href", /.*/);
+  });
+});
+
+/* 앱 안에서는 이 인계가 아무것도 하지 않아야 한다 — 이미 그 자리에서 살 수 있고,
+   앵커는 위임 리스너가 결제창으로 연결한다. */
+test.describe("앱 안", () => {
+  test.use({ userAgent: ANDROID_UA });
+
+  test("다리가 있으면 앵커를 건드리지 않는다", async ({ page }) => {
+    await prepare(page, { bridge: true });
+    await page.goto("/app.html");
+    await waitForAppReady(page);
+    await expect(page.locator("#trialPaywallAction")).toHaveText("Pro 시작하기");
   });
 });

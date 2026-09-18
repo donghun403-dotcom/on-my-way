@@ -10143,6 +10143,28 @@ document.addEventListener("click", (event) => {
     delete cta.dataset.busy;
   });
 });
+
+/* 위 리스너는 다리가 있을 때만 가로챈다. 그래서 웹에서는 이 앵커들이 원래대로
+   index.html#pricing으로 가는데, 웹에는 결제가 없으므로 잠금 → 가격 → 막다른 길이 된다.
+   웹에서는 목적지까지 한 번에 보낸다. 앱 안에서는 손대지 않는다 — 위 리스너의 몫이다. */
+function applyProCtaHandoff() {
+  const mode = storeHandoffMode();
+  if (mode === "native") return;
+  document.querySelectorAll(PRO_CTA_SELECTOR).forEach((cta) => {
+    if (mode === "android") {
+      cta.href = PLAY_STORE_URL;
+      cta.textContent = "Google Play에서 계속하기";
+      cta.removeAttribute("aria-disabled");
+      return;
+    }
+    /* iOS 앱이 없다. 누를 곳을 주는 대신 왜 못 사는지 그 자리에서 말한다. */
+    cta.removeAttribute("href");
+    cta.textContent = "지금은 안드로이드 앱에서만 구독할 수 있어요";
+    cta.setAttribute("aria-disabled", "true");
+  });
+}
+
+applyProCtaHandoff();
 diaryBookSampleOpen?.addEventListener("click", () => openSampleBook(diaryBookSampleOpen));
 sampleBookClose?.addEventListener("click", closeSampleBook);
 sampleBookDialog?.addEventListener("click", (event) => {
