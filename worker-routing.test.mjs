@@ -299,3 +299,85 @@ test("정상 plan-policy 모듈 응답은 HTML fallback 검사 없이 전달한�
   assert.match(response.headers.get("content-type") || "", /javascript/);
   assert.match(await response.text(), /^export const/);
 });
+
+/* 앱 WebView의 출처. 앱이 보내는 퍼널 비콘에는 이 Origin이 붙는다. */
+const NATIVE_APP_ORIGIN = "https://localhost";
+
+function funnelFixture() {
+  const puts = [];
+  return {
+    env: {
+      APP_ENV: "test",
+      SESSION_SECRET: "fixture-session-secret-that-is-long-enough",
+      USERS_KV: {
+        async get() { return null; },
+        async put(key, value) { puts.push({ key, value }); },
+      },
+    },
+    puts,
+  };
+}
+
+test("앱 출처의 퍼널 사전 요청에 CORS 허용을 답한다", async () => {
+  const fixture = funnelFixture();
+  const response = await worker.fetch(
+    new Request("https://onmyway.example/api/funnel", {
+      method: "OPTIONS",
+      headers: {
+        origin: NATIVE_APP_ORIGIN,
+        "access-control-request-method": "POST",
+        "access-control-request-headers": "content-type",
+      },
+    }),
+    fixture.env,
+  );
+  assert.equal(response.status, 204);
+  assert.equal(response.headers.get("access-control-allow-origin"), NATIVE_APP_ORIGIN);
+  /* 비콘은 credentials를 포함해 나가므로 이 헤더가 없으면 사전 요청이 실패한다. */
+  assert.equal(response.headers.get("access-control-allow-credentials"), "true");
+  assert.match(response.headers.get("access-control-allow-headers") || "", /content-type/i);
+  assert.match(response.headers.get("access-control-allow-methods") || "", /POST/);
+});
+
+test("앱 출처의 퍼널 이벤트를 기록한다", async () => {
+  const fixture = funnelFixture();
+  const response = await worker.fetch(
+    new Request("https://onmyway.example/api/funnel", {
+      method: "POST",
+      headers: { origin: NATIVE_APP_ORIGIN, "content-type": "application/json" },
+      body: JSON.stringify({ step: "trial_start" }),
+    }),
+    fixture.env,
+  );
+  assert.equal(response.status, 204);
+  assert.equal(fixture.puts.length, 1);
+  assert.match(fixture.puts[0].key, /^funnel:\d{4}-\d{2}-\d{2}$/);
+  assert.equal(JSON.parse(fixture.puts[0].value).trial_start, 1);
+});
+
+test("앱 출처라도 퍼널 밖의 API는 계속 막는다", async () => {
+  const fixture = funnelFixture();
+  const response = await worker.fetch(
+    new Request("https://onmyway.example/api/account/session", {
+      method: "POST",
+      headers: { origin: NATIVE_APP_ORIGIN },
+    }),
+    fixture.env,
+  );
+  assert.equal(response.status, 403);
+  assert.equal(fixture.puts.length, 0);
+});
+
+test("낯선 출처의 퍼널 요청은 계속 막는다", async () => {
+  const fixture = funnelFixture();
+  const response = await worker.fetch(
+    new Request("https://onmyway.example/api/funnel", {
+      method: "POST",
+      headers: { origin: "https://evil.example", "content-type": "application/json" },
+      body: JSON.stringify({ step: "trial_start" }),
+    }),
+    fixture.env,
+  );
+  assert.equal(response.status, 403);
+  assert.equal(fixture.puts.length, 0);
+});
