@@ -77,9 +77,18 @@ test("다리가 있으면 Pro 버튼이 눌린다", async ({ page }) => {
   await expect(page.locator("#drawerUpgrade")).not.toBeDisabled();
 });
 
-test("다리가 없으면 웹 그대로 잠겨 있다", async ({ page }) => {
+test("다리가 없으면 웹에서 결제창이 열리지 않는다", async ({ page }) => {
   await prepare(page, { bridge: false });
-  await expect(page.locator("#drawerUpgrade")).toBeDisabled();
+  const upgrade = page.locator("#drawerUpgrade");
+  /* 안드로이드 웹에서는 잠그는 대신 살 수 있는 곳(Play)으로 보낸다 — 비활성 버튼을 두면
+     사려는 사람이 그 자리에서 멈추기 때문이다. 그 경로는 store-handoff.spec.js가 지킨다.
+     어느 쪽이든 다리가 없으면 앱 안 결제창은 열리지 않는다. */
+  if (await page.evaluate(() => /Android/i.test(navigator.userAgent))) {
+    await expect(upgrade).toHaveText("⭐ Google Play에서 구독하기");
+    await expect(upgrade).not.toBeDisabled();
+    return;
+  }
+  await expect(upgrade).toBeDisabled();
 });
 
 test("구매 버튼이 스토어를 부르고 토큰을 서버로 보낸다", async ({ page }) => {

@@ -12,6 +12,41 @@ const {
   waitForAppReady,
 } = require("./helpers");
 
+/* 웹 결제가 꺼져 있을 때 Pro 버튼이 무엇이 되는지는 기기에 달렸다 — 안드로이드면 살 수
+   있는 곳(Play)으로 보내고, iOS 앱이 없는 그 외에서는 살 곳이 없으니 비활성이다.
+   어느 쪽이든 **웹 결제는 일어나지 않는다.** 이 파일이 지키는 것은 그 사실이다.
+   프로필마다 UA가 달라(mobile-chromium은 Pixel 5다) 기대값도 UA에서 끌어낸다. */
+function isAndroidUa(page) {
+  return page.evaluate(() => /Android/i.test(navigator.userAgent));
+}
+
+async function expectWebProCtaLocked(page, proCta) {
+  if (await isAndroidUa(page)) {
+    await expect(proCta).toHaveText("Google Play에서 구독하기");
+    await expect(proCta).not.toBeDisabled();
+    return;
+  }
+  await expect(proCta).toHaveText("안드로이드 앱에서 구독");
+  await expect(proCta).toBeDisabled();
+  await expect(proCta).toHaveAttribute("aria-disabled", "true");
+}
+
+/* 안드로이드에서 누르면 Play로 나가 버려 뒤따르는 검증을 할 수 없다. 그 경로는
+   store-handoff.spec.js가 따로 지킨다. */
+async function clickProCtaWhereInert(page, proCta) {
+  if (await isAndroidUa(page)) return;
+  await proCta.evaluate((button) => button.click());
+}
+
+async function expectWebPaymentStateCopy(page) {
+  const state = page.locator("#pricingPaymentState");
+  await expect(state).toContainText(
+    (await isAndroidUa(page)) ? "Google Play 앱에서 할 수 있어요" : "안드로이드 앱에서만 구독할 수 있어요",
+  );
+  /* 앱은 이미 출시됐다. 사려는 사람에게 준비 중이라고 말하면 그 자리에서 돌려보낸다. */
+  await expect(page.locator("body")).not.toContainText("출시 준비 중");
+}
+
 // 화면에 보이는 금액 표기. 정책과 어긋나면 여기서 잡힌다.
 const VISIBLE_PRICE = /₩\s*\d{1,3},\d{3}|\d{1,3},\d{3}\s*원/g;
 
@@ -68,7 +103,7 @@ test("비로그인 가격표는 확정 정책과 체험 조건을 표시하고 �
   expect(pricingCopy).not.toMatch(/300\s*(?:에너지|크레딧)|올리 에너지|AI 무제한|무제한 AI|추가 에너지|주간 최적화|목표 전체 재설계|새 목표 계획 생성|오늘의 한 걸음 생성/);
   // 가격표에 보이는 금액은 전부 정책 값이어야 한다. 다른 숫자가 남아 있으면 여기서 걸린다.
   expect(pricingCopy.match(VISIBLE_PRICE) || []).toEqual([formatPriceSymbol(proPrice)]);
-  await expect(page.locator("#pricingPaymentState")).toContainText("운영 결제는 비활성화");
+  await expectWebPaymentStateCopy(page);
   await expect(page.locator("#pricingProCta")).toHaveText("무료 체험 시작하기");
   await expectNoHorizontalOverflow(page);
 
@@ -122,13 +157,11 @@ test("체험이 끝난 사용자는 서버 사용량 progress와 결제 비활�
   await expect(monthlyProgress).toHaveAttribute("aria-valuetext", /5크레딧 중 3크레딧 사용, 2크레딧 남음/);
 
   const proCta = page.locator("#pricingProCta");
-  await expect(proCta).toHaveText("Pro 시작하기");
-  await expect(proCta).toBeDisabled();
-  await expect(proCta).toHaveAttribute("aria-disabled", "true");
-  await proCta.evaluate((button) => button.click());
+  await expectWebProCtaLocked(page, proCta);
+  await clickProCtaWhereInert(page, proCta);
   expect(paymentRequests).toEqual([]);
   expect(tossSdkRequests).toEqual([]);
-  await expect(page.locator("#pricingPaymentState")).toContainText("실제 결제는 발생하지 않습니다");
+  await expectWebPaymentStateCopy(page);
   diagnostics.expectClean();
 });
 
@@ -300,9 +333,8 @@ test("무료 체험 중 결제가 비활성이면 체험은 유지하고 Pro 결
   await expect(page.locator("#pricingUsagePlan")).toHaveText("무료 체험 중");
   await expect(page.locator("#pricingTrialUsage")).toBeVisible();
   await expect(page.locator("#pricingTrialUsage")).toContainText(/남은 시간\s+\d+(?:시간|분)/);
-  await expect(proCta).toHaveText("Pro 결제 준비 중");
-  await expect(proCta).toBeDisabled();
-  await proCta.evaluate((button) => button.click());
+  await expectWebProCtaLocked(page, proCta);
+  await clickProCtaWhereInert(page, proCta);
   expect(accountRequests).toEqual([]);
   diagnostics.expectClean();
 });
