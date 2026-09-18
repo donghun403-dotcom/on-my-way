@@ -39,6 +39,13 @@
     <link rel="preload" href="assets/ollie-action.png" as="image" />
   </head>
   <body class="execution-page" data-app-ready="false" data-auth-ready="false" data-auth-state="pending" data-pricing-ready="false" data-pricing-state="pending">
+    <!-- 웹 체험자에게만 뜨는 설치 안내. 앱 안에서도, 안드로이드가 아닌 곳에서도
+         script.js가 숨긴다. 체험이 끝나면 사라지고 잠금 화면이 이어받는다. -->
+    <aside class="store-handoff" id="storeHandoffBanner" hidden>
+      <p>구독은 앱에서 해요. 같은 계정으로 로그인하면 기록과 남은 체험이 그대로 이어져요.</p>
+      <a id="storeHandoffLink" href="https://play.google.com/store/apps/details?id=com.olivenrich.onmyway">Google Play에서 받기</a>
+      <button type="button" id="storeHandoffDismiss" aria-label="설치 안내 닫기">✕</button>
+    </aside>
     <header class="execution-header">
       <a href="app.html" aria-label="내 계획으로 돌아가기">
         <img class="brand-logo" src="assets/logo-horizontal-ollie.png" alt="On My Way" />
@@ -77,7 +84,9 @@
       </div>
       <nav class="drawer-nav" aria-label="계정 이동">
         <button type="button" id="drawerMyPage" data-requires-auth hidden>👤 마이페이지</button>
-        <button type="button" id="drawerUpgrade" hidden>⭐ Pro 결제 준비 중</button>
+        <!-- 실제 라벨은 getProCtaState가 채운다. 기본값에 "준비 중"을 두면 앱이 이미
+             출시된 지금 잠깐이라도 거짓말이 보인다. -->
+        <button type="button" id="drawerUpgrade" hidden>⭐ Pro</button>
         <a href="app.html?tab=today">🏠 내 계획으로 돌아가기</a>
         <a href="index.html#appTour">👀 앱 구경하기</a>
         <a href="index.html#designFlow">🛠 목표 설계 수정</a>

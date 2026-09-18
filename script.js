@@ -2533,6 +2533,8 @@ function applyAiUsage(usage) {
   renderAccountUi();
   // 차단 여부는 서버 판정(usage.plan + usage.paywallEnabled)에서만 온다.
   renderPaywallLock();
+  /* 플랜이 trial → expired로 바뀌는 순간 배너는 사라지고 잠금이 이어받는다. */
+  renderStoreHandoffBanner();
 }
 
 async function loadAiUsage({ force = false } = {}) {
@@ -10165,6 +10167,33 @@ function applyProCtaHandoff() {
 }
 
 applyProCtaHandoff();
+
+/* 체험은 길어야 이틀이다. 안내를 놓치면 만회할 창이 없어 토스트가 아니라 남아 있는
+   배너로 둔다. 닫힘은 localStorage에 남긴다 — "이 기기에 깔라"는 요청이라 기기별로
+   기억하는 것이 맞다. 계정에 저장하면 이미 깐 기기에서 닫은 것이 새 기기까지 따라간다. */
+function renderStoreHandoffBanner() {
+  const banner = document.querySelector("#storeHandoffBanner");
+  if (!banner) return;
+  let dismissed = false;
+  try {
+    dismissed = localStorage.getItem(STORE_HANDOFF_DISMISSED_KEY) === "1";
+  } catch (error) {
+    /* 저장소를 못 읽어도 안내는 떠야 한다 */
+  }
+  const plan = aiUsageState?.plan || authUiState.user?.plan;
+  banner.hidden = dismissed || storeHandoffMode() !== "android" || plan !== "trial";
+}
+
+document.querySelector("#storeHandoffDismiss")?.addEventListener("click", () => {
+  try {
+    localStorage.setItem(STORE_HANDOFF_DISMISSED_KEY, "1");
+  } catch (error) {
+    /* 저장에 실패해도 이번 화면에서는 닫힌다 */
+  }
+  renderStoreHandoffBanner();
+});
+
+renderStoreHandoffBanner();
 diaryBookSampleOpen?.addEventListener("click", () => openSampleBook(diaryBookSampleOpen));
 sampleBookClose?.addEventListener("click", closeSampleBook);
 sampleBookDialog?.addEventListener("click", (event) => {

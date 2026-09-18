@@ -15886,3 +15886,38 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   font-weight: var(--weight-emphasis);
 }
 
+
+/* 웹 체험자에게만 보이는 설치 안내. 체험이 길어야 이틀이라 토스트로는 놓치기 쉬워
+   배너로 두되, 거슬리면 치울 수 있게 한다. */
+.store-handoff {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-brand-soft);
+  color: var(--ink-on-brand);
+  font-size: 14px;
+}
+
+.store-handoff p {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+.store-handoff a {
+  color: var(--ink-brand);
+  font-weight: var(--weight-emphasis);
+  white-space: nowrap;
+}
+
+.store-handoff button {
+  flex: none;
+  padding: var(--space-1);
+  border: 0;
+  background: none;
+  color: var(--ink-muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}

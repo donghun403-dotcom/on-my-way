@@ -74,6 +74,37 @@ test.describe("안드로이드 웹", () => {
     await expect(action).toHaveAttribute("href", PLAY_URL);
     await expect(action).toHaveText("Google Play에서 계속하기");
   });
+
+  /* 체험이 길어야 이틀이라 안내를 놓치면 만회할 창이 없다. 그래서 토스트가 아니라
+     남아 있는 배너로 둔다. */
+  test("체험 중에는 설치 배너가 보인다", async ({ page }) => {
+    await prepare(page, { plan: "trial" });
+    await page.goto("/app.html");
+    await waitForAppReady(page);
+    const banner = page.locator("#storeHandoffBanner");
+    await expect(banner).toBeVisible();
+    /* 기록이 이어진다는 말이 없으면 "처음부터 다시"로 읽혀 넘어가지 않는다. */
+    await expect(banner).toContainText("그대로 이어져요");
+    await expect(banner.locator("a")).toHaveAttribute("href", PLAY_URL);
+  });
+
+  test("닫으면 다시 열어도 뜨지 않는다", async ({ page }) => {
+    await prepare(page, { plan: "trial" });
+    await page.goto("/app.html");
+    await waitForAppReady(page);
+    await page.locator("#storeHandoffDismiss").click();
+    await expect(page.locator("#storeHandoffBanner")).toBeHidden();
+    await page.reload();
+    await waitForAppReady(page);
+    await expect(page.locator("#storeHandoffBanner")).toBeHidden();
+  });
+
+  test("체험이 끝나면 배너는 사라지고 잠금이 맡는다", async ({ page }) => {
+    await prepare(page, { plan: "expired" });
+    await page.goto("/app.html");
+    await waitForAppReady(page);
+    await expect(page.locator("#storeHandoffBanner")).toBeHidden();
+  });
 });
 
 test.describe("아이폰 웹", () => {
@@ -102,6 +133,13 @@ test.describe("아이폰 웹", () => {
     await expect(action).toHaveText("지금은 안드로이드 앱에서만 구독할 수 있어요");
     await expect(action).not.toHaveAttribute("href", /.*/);
   });
+
+  test("배너를 띄우지 않는다", async ({ page }) => {
+    await prepare(page, { plan: "trial" });
+    await page.goto("/app.html");
+    await waitForAppReady(page);
+    await expect(page.locator("#storeHandoffBanner")).toBeHidden();
+  });
 });
 
 /* 앱 안에서는 이 인계가 아무것도 하지 않아야 한다 — 이미 그 자리에서 살 수 있고,
@@ -114,5 +152,12 @@ test.describe("앱 안", () => {
     await page.goto("/app.html");
     await waitForAppReady(page);
     await expect(page.locator("#trialPaywallAction")).toHaveText("Pro 시작하기");
+  });
+
+  test("앱 안에서는 배너를 띄우지 않는다", async ({ page }) => {
+    await prepare(page, { plan: "trial", bridge: true });
+    await page.goto("/app.html");
+    await waitForAppReady(page);
+    await expect(page.locator("#storeHandoffBanner")).toBeHidden();
   });
 });
