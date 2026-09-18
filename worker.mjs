@@ -108,6 +108,21 @@ const FUNNEL_STEPS = new Set([
   "usage_details_opened",
 ]);
 
+/* Capacitor 셸의 WebView 출처. androidScheme이 https라 앱 안의 페이지는 이 출처로 뜬다. */
+const NATIVE_APP_ORIGIN = "https://localhost";
+
+/* 비콘은 credentials를 포함한 요청이라 Allow-Credentials 없이는 사전 요청이 실패한다.
+   Allow-Origin에 *를 쓸 수 없는 것도 같은 이유다. */
+function nativeFunnelCorsHeaders() {
+  return {
+    "Access-Control-Allow-Origin": NATIVE_APP_ORIGIN,
+    "Access-Control-Allow-Credentials": "true",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "content-type",
+    "Access-Control-Max-Age": "86400",
+  };
+}
+
 function funnelDateKey(now = Date.now()) {
   // 한국 시간 기준 일자 버킷
   return new Date(now + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -596,8 +611,20 @@ async function handleFetch(request, env) {
       const origin = request.headers.get("origin");
       const isAppleCallback = url.pathname === "/api/auth/callback/apple" && request.method === "POST";
       const trustedApplePost = isAppleCallback && origin === "https://appleid.apple.com";
-      if (origin && origin !== url.origin && !trustedApplePost) return json({ error: "허용되지 않은 요청 출처입니다." }, 403);
-      if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: { Allow: "GET, POST, PUT, OPTIONS" } });
+      /* 앱 안의 퍼널 비콘만 예외로 연다. 로그인·결제는 CapacitorHttp가 네이티브 HTTP로
+         보내 Origin이 붙지 않지만, sendBeacon은 가로채지 못해 WebView 출처가 그대로
+         붙고 이 검사에 걸린다. 퍼널은 익명 집계라 CSRF로 뺏길 것이 없으므로 이 경로만
+         허용한다 — 인증 라우트를 지키는 검사는 그대로 둔다. */
+      const nativeFunnel = origin === NATIVE_APP_ORIGIN && url.pathname === "/api/funnel";
+      if (origin && origin !== url.origin && !trustedApplePost && !nativeFunnel) {
+        return json({ error: "허용되지 않은 요청 출처입니다." }, 403);
+      }
+      if (request.method === "OPTIONS") {
+        return new Response(null, {
+          status: 204,
+          headers: { Allow: "GET, POST, PUT, OPTIONS", ...(nativeFunnel ? nativeFunnelCorsHeaders() : {}) },
+        });
+      }
     }
 
     const cookies = parseCookies(request.headers.get("cookie"));
