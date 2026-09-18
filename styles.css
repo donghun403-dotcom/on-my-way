@@ -15921,3 +15921,11 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   line-height: 1;
   cursor: pointer;
 }
+
+/* 좁은 화면에서는 문구가 서너 줄로 접히면서 링크가 눌린다. 이틀짜리 창에서 가장 중요한
+   버튼이므로 줄을 바꿔 온전한 크기로 보여 준다. */
+@media (max-width: 480px) {
+  .store-handoff { flex-wrap: wrap; }
+  .store-handoff p { flex: 1 1 100%; }
+  .store-handoff a { margin-inline-start: auto; }
+}
