@@ -433,6 +433,58 @@ Pro 구독: 월 3,900원 (부가세 포함)
 
 ---
 
+## 8. 앞으로 지켜야 할 Play 요건 (백로그)
+
+2026-08-26 Android Developers Blog가 예고한 두 요건이다. **둘 다 지금은 미달이고,
+시한까지는 여유가 있다.** 출시 후 첫 작업 후보다.
+
+| 요건 | 시행 | 우리 상태 |
+| --- | --- | --- |
+| 메모리·DEX 코드 최적화 | **2027-02** | DEX 최적화 0% — 미달 |
+| Zero-Tap 로그인 | **2027-04** | 미구현 |
+
+미달 시 제재는 "노출 저하 및 게시 기능 제한"이다.
+
+### 8.1 DEX 최적화 25% — R8을 켜야 한다
+
+요건은 R8 등으로 **최적화·축소·난독화 25% 이상 커버리지**. 지금은
+`minifyEnabled false`라 0%다. Play Console 업로드마다 뜨던 "deobfuscation file이
+없다"는 경고가 이것이었다 — 지금까지는 잔소리였지만 2027-02부터는 제재 사유다.
+
+**고칠 파일은 `mobile/android/app/build.gradle`이 아니다.** `mobile/android/`는
+git에 없고 CI가 `cap add android`로 매번 새로 만든다. 로컬 gradle을 고쳐도
+릴리스에는 반영되지 않는다. 실제 소스는 **`mobile/scripts/patch-release-signing.mjs`**
+이고, 이 스크립트는 `"minifyEnabled false"`를 `REQUIRED_ANCHORS`로 **검증까지**
+하므로 그 목록도 함께 고쳐야 한다. `mobile-release-signing.test.mjs`가 이 동작을
+잡고 있으니 테스트도 같이 간다.
+
+우리 네이티브 코드는 `MainActivity.java` 5줄이 전부다 — R8이 실제로 건드릴 대상은
+Capacitor 프레임워크와 Play Billing 라이브러리라 우리 코드가 깨질 여지는 작다.
+**다만 Capacitor는 리플렉션으로 플러그인을 찾는다.** keep 규칙 없이 켜면
+`OmwBilling` 브리지가 조용히 죽어 결제가 통째로 멎을 수 있다. 켠 뒤에는
+반드시 실기기에서 결제까지 다시 태워 확인한다(§5.2b).
+
+덤: R8을 켜면 매핑 파일이 생기므로 크래시 리포트가 읽을 수 있게 된다.
+
+### 8.2 Zero-Tap 로그인 — Restore Credentials API
+
+기기를 바꿔도 **첫 실행에 자동 로그인**되어야 한다는 요건. 로그인을 지원하는
+모든 앱이 대상이고(선택 로그인도 포함), 게임만 한시 면제다.
+
+우리는 애플·구글·카카오·네이버 4개 소셜 로그인을 쓴다. Capacitor에 이 API를
+감싼 플러그인이 없어 직접 브리지를 만들어야 할 가능성이 크다 — 둘 중
+작업량은 이쪽이 훨씬 크다. 설계부터 필요하다.
+
+### 8.3 메모리 임계값 — 데이터를 보고 판단한다
+
+동적 메모리(anonymous RSS + swap)와 비트맵 메모리에도 임계값이 생긴다.
+WebView 앱의 실제 사용량은 추측할 것이 아니라 **출시 후 Android vitals의
+새 메모리 지표를 보고** 판단한다. 초과하면 vitals 개요에 경고가 뜬다.
+
+원문: `https://android-developers.googleblog.com/2026/08/app-quality-memory-optimization-secure-onboarding.html`
+
+---
+
 ## 순서 요약 (개인 계정 기준)
 
 **원칙: 14일 시계를 먼저 돌리고, 나머지는 그 안에서 병렬로 한다.**
