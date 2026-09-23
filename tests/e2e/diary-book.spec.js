@@ -266,13 +266,18 @@ test("만료 임박 안내에서 그 달의 책 만들기로 바로 이어진다
     storage: {
       ...CHAT_CONSENT_STORAGE,
       omwExecutionState: { dailyMemories: [memoryFor(`${BOOK_MONTH}-03`)] },
-      omwChatLog: { version: 1, days: { [expiringKey]: TURNS, [`${BOOK_MONTH}-03`]: TURNS } },
+      /* 다른 달의 대화는 오늘 기준 상대 날짜로 둔다. 고정 날짜(2026-06-03)를 쓰면 실제 시간이
+         흐르며 보관 창(90일)에 먼저 들어가 "가장 먼저 사라질 날"을 가로챈다 — 2026-08-20부터
+         그랬고, -80일이 같은 6월에 있던 9/19까지는 우연히 통과했다. */
+      omwChatLog: { version: 1, days: { [expiringKey]: TURNS, [shiftKey(-3)]: TURNS } },
     },
   });
   await openBookCard(page);
 
   const retention = page.locator("#dayPageRetention");
   await expect(retention).toContainText("사라지기 전에 다이어리 북 한 권으로 간직할 수 있어요");
+  // 클릭 전에는 그 달이 아니어야 클릭이 옮긴 것임을 증명한다.
+  await expect(page.locator("#diaryBookMonth")).not.toHaveValue(expiringMonth);
   await retention.locator("[data-day-page-book]").click();
   await expect(page.locator("#diaryBookMonth")).toHaveValue(expiringMonth);
 });
