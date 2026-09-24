@@ -46,6 +46,19 @@ async function prepare(page, { plan = "expired", bridge = false, trialEligible =
 test.describe("안드로이드 웹", () => {
   test.use({ userAgent: ANDROID_UA });
 
+  test("첫 화면에서 가입 없이 앱 설치로 이동할 수 있다", async ({ page }) => {
+    await prepareApp(page);
+    await page.route("**play.google.com/**", (route) => route.fulfill({
+      status: 200, contentType: "text/html", body: "<html><body>store</body></html>",
+    }));
+    await page.goto("/index.html");
+    await page.locator("#heroStoreCta").click();
+    const destination = new URL(page.url());
+    expect(destination.origin).toBe("https://play.google.com");
+    expect(destination.searchParams.get("id")).toBe("com.olivenrich.onmyway");
+    expect(destination.searchParams.get("referrer")).toContain("utm_source=website");
+  });
+
   /* #pricingProCta는 앵커가 아니라 버튼이라 href가 아니라 클릭으로 움직인다.
      그래서 속성이 아니라 "어디로 가려 했는가"를 본다 — 실제 스토어로 나가지 않도록
      가로채 둔다. */
@@ -146,6 +159,12 @@ test.describe("아이폰 웹", () => {
    앵커는 위임 리스너가 결제창으로 연결한다. */
 test.describe("앱 안", () => {
   test.use({ userAgent: ANDROID_UA });
+
+  test("앱 안의 홈페이지에는 설치 링크가 없다", async ({ page }) => {
+    await prepare(page, { bridge: true });
+    await page.goto("/index.html");
+    await expect(page.locator("#heroStoreCta")).toBeHidden();
+  });
 
   test("다리가 있으면 앵커를 건드리지 않는다", async ({ page }) => {
     await prepare(page, { bridge: true });

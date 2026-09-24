@@ -10168,6 +10168,9 @@ function applyProCtaHandoff() {
 
 applyProCtaHandoff();
 
+const heroStoreCta = document.querySelector("#heroStoreCta");
+if (heroStoreCta) heroStoreCta.hidden = storeHandoffMode() === "native";
+
 /* 체험은 길어야 이틀이다. 안내를 놓치면 만회할 창이 없어 토스트가 아니라 남아 있는
    배너로 둔다. 닫힘은 localStorage에 남긴다 — "이 기기에 깔라"는 요청이라 기기별로
    기억하는 것이 맞다. 계정에 저장하면 이미 깐 기기에서 닫은 것이 새 기기까지 따라간다. */
