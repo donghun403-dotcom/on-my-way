@@ -23,7 +23,7 @@ test("개인정보 처리방침은 브라우저 저장과 주요 보관 기간�
   assert.match(html, /3년/);
   assert.match(html, /6개월/);
   assert.match(html, /OpenAI/);
-  assert.match(html, /토스페이먼츠/);
+  assert.match(html, /Google Play/);
 });
 
 test("계정 탈퇴 페이지는 인증된 삭제 API와 명시적 확인 문구를 사용한다", async () => {
