@@ -12699,6 +12699,15 @@ button.is-plan-locked[aria-disabled="true"] { opacity: .68; }
   box-shadow: var(--shadow-lg);
 }
 
+.hero-store-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
 /* Compact page-to-footer rhythm after removing the landing floating CTA/tab bar. */
 .home-page main {
   min-height: 0;
