@@ -1467,6 +1467,38 @@ export async function handleAccountApi(ctx) {
     return { status: 200, json: { user: publicUser(user) } };
   }
 
+  /* 관리 화면 상단 지표. 서버가 실제로 가진 것만 센다 — 회원 레코드와 KV 퍼널 카운터.
+     ponytail: 전 회원을 읽으므로 요청당 KV 읽기가 회원 수에 비례한다. 수천 명을 넘기면
+     크론이 하루 한 번 집계해 settings에 넣고 여기서는 그것만 읽는다. */
+  if (path === "/api/admin/stats" && method === "GET") {
+    const admin = await currentSessionUser(ctx);
+    if (admin?.role !== "admin") return { status: 403, json: { error: "관리자만 볼 수 있어요." } };
+    const now = Date.now();
+    const DAY = 24 * 60 * 60 * 1000;
+    const users = await store(ctx).listUsers();
+    const plans = { pro: 0, trial: 0, trial_pending: 0, expired: 0 };
+    const providers = {};
+    let joined7 = 0, joined30 = 0, active7 = 0, trialEver = 0;
+    for (const user of users) {
+      const plan = resolveEffectivePlan(user, now);
+      plans[plan] = (plans[plan] || 0) + 1;
+      providers[user.provider || "unknown"] = (providers[user.provider || "unknown"] || 0) + 1;
+      if (now - Number(user.createdAt || 0) < 7 * DAY) joined7 += 1;
+      if (now - Number(user.createdAt || 0) < 30 * DAY) joined30 += 1;
+      if (now - Number(user.lastLoginAt || 0) < 7 * DAY) active7 += 1;
+      if (user.trialStartedAt) trialEver += 1;
+    }
+    // 퍼널 카운터는 KST 일자 키(funnel:YYYY-MM-DD)로 90일 보관된다. 최근 30일을 합친다.
+    const funnel = {};
+    const kv = ctx.env?.USERS_KV;
+    if (kv) {
+      const days = Array.from({ length: 30 }, (_, i) => new Date(now + 9 * 3600 * 1000 - i * DAY).toISOString().slice(0, 10));
+      const buckets = await Promise.all(days.map((day) => kv.get(`funnel:${day}`, "json").catch(() => null)));
+      for (const counts of buckets) for (const [step, n] of Object.entries(counts || {})) funnel[step] = (funnel[step] || 0) + Number(n || 0);
+    }
+    return { status: 200, json: { total: users.length, plans, providers, joined7, joined30, active7, trialEver, funnel, generatedAt: now } };
+  }
+
   if (path === "/api/admin/users" && method === "GET") {
     const user = await currentSessionUser(ctx);
     if (user?.role !== "admin") return { status: 403, json: { error: "관리자만 볼 수 있어요." } };

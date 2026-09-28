@@ -395,6 +395,34 @@ test("회원 목록은 한 페이지씩 주고 다음 커서를 알려준다", a
   assert.equal(last.json.cursor, null, "마지막 페이지인데 커서가 남았다");
 });
 
+/* 관리 화면 상단 수치는 샘플이 아니라 회원 레코드와 퍼널 카운터에서 나와야 한다. */
+test("관리자 지표는 실제 회원과 퍼널 카운터를 센다", async () => {
+  const now = Date.now();
+  const DAY = 24 * 60 * 60 * 1000;
+  const store = memoryStore([
+    { id: "usr_a", provider: "google", plan: "pro", role: "member", status: "active", createdAt: now - DAY, lastLoginAt: now },
+    { id: "usr_b", provider: "kakao", plan: "expired", role: "member", status: "active", createdAt: now - 40 * DAY, lastLoginAt: now - 20 * DAY, trialStartedAt: now - 39 * DAY, trialExpiresAt: now - 38 * DAY },
+  ]);
+  const kvDay = new Date(now + 9 * 3600 * 1000).toISOString().slice(0, 10);
+  const kv = { async get(key) { return key === `funnel:${kvDay}` ? { trial_started: 3 } : null; } };
+  const env = testEnv({ ADMIN_PASSWORD: "strong-admin-password", USERS_KV: kv });
+  const cookie = await adminSession(env, store);
+
+  const stats = await handleAccountApi(context({ path: "/api/admin/stats", env, store, cookie }));
+  assert.equal(stats.status, 200);
+  assert.equal(stats.json.total, 2);
+  assert.equal(stats.json.plans.pro, 1);
+  assert.equal(stats.json.plans.expired, 1);
+  assert.equal(stats.json.joined7, 1);
+  assert.equal(stats.json.active7, 1);
+  assert.equal(stats.json.trialEver, 1);
+  assert.deepEqual(stats.json.providers, { google: 1, kakao: 1 });
+  assert.equal(stats.json.funnel.trial_started, 3);
+
+  const denied = await handleAccountApi(context({ path: "/api/admin/stats", env, store }));
+  assert.equal(denied.status, 403);
+});
+
 /* limit을 그대로 믿으면 페이지네이션을 넣은 이유가 사라진다 — 관리자 화면에서
    ?limit=100000 하나로 전 회원을 읽어 버릴 수 있다. */
 test("limit은 페이지 크기를 넘길 수 없다", async () => {

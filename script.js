@@ -4617,14 +4617,6 @@ const memberTableBody = document.querySelector("#memberTableBody");
 const memberCount = document.querySelector("#memberCount");
 const refreshMembers = document.querySelector("#refreshMembers");
 const loadMoreMembers = document.querySelector("#loadMoreMembers");
-const riskFilter = document.querySelector("#riskFilter");
-const goalFilter = document.querySelector("#goalFilter");
-const planFilter = document.querySelector("#planFilter");
-const adminUserSearch = document.querySelector("#adminUserSearch");
-const resetAdminFilters = document.querySelector("#resetAdminFilters");
-const adminVisibleCount = document.querySelector("#adminVisibleCount");
-const adminRows = document.querySelectorAll(".admin-table tbody tr[data-risk]");
-const adminEmptyRow = document.querySelector("#users .admin-empty-row");
 
 function escapeAccountText(value) {
   return String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
@@ -4694,6 +4686,52 @@ async function loadAdminMembers({ append = false } = {}) {
   }
 }
 
+const ADMIN_FUNNEL_LABELS = [
+  ["step1_enter", "온보딩 1단계 진입"],
+  ["step2_enter", "온보딩 2단계 진입"],
+  ["step3_enter", "온보딩 3단계 진입"],
+  ["step4_enter", "온보딩 4단계 진입"],
+  ["plan_complete", "계획 완성"],
+  ["signup_gate_shown", "가입 안내 노출"],
+  ["trial_start", "체험 시작 버튼"],
+  ["trial_started", "체험 시작됨"],
+  ["pricing_viewed", "요금 안내 확인"],
+  ["pricing_plan_selected", "요금제 선택"],
+  ["pro_cta_clicked", "Pro 버튼 클릭"],
+  ["trial_credit_exhausted", "체험 크레딧 소진"],
+  ["trial_completed", "체험 종료"],
+  ["ai_credit_charged", "AI 크레딧 차감"],
+  ["ai_credit_insufficient", "AI 크레딧 부족"],
+  ["usage_details_opened", "사용량 상세 열람"],
+];
+
+async function loadAdminStats() {
+  const stamp = document.querySelector("#adminStatsStamp");
+  try {
+    const stats = await accountRequest("/api/admin/stats");
+    document.querySelectorAll("[data-stat]").forEach((element) => {
+      const key = element.dataset.stat;
+      if (key === "providers") {
+        element.textContent = Object.entries(stats.providers).map(([provider, count]) => `${AUTH_PROVIDER_LABELS[provider] || provider} ${count}`).join(" · ") || "—";
+        return;
+      }
+      const value = key.split(".").reduce((node, part) => node?.[part], stats);
+      element.textContent = Number(value || 0).toLocaleString("ko-KR");
+    });
+    const max = Math.max(1, ...Object.values(stats.funnel));
+    const list = document.querySelector("#adminFunnelList");
+    if (list) {
+      list.innerHTML = ADMIN_FUNNEL_LABELS.map(([step, label]) => {
+        const count = Number(stats.funnel[step] || 0);
+        return `<div><span>${label}</span><b><i style="width:${(count / max) * 100}%"></i></b><strong>${count.toLocaleString("ko-KR")}</strong></div>`;
+      }).join("");
+    }
+    if (stamp) stamp.innerHTML = `<i></i>실제 데이터 · ${formatAdminDate(stats.generatedAt)} 기준`;
+  } catch (error) {
+    if (stamp) stamp.textContent = `지표를 불러오지 못했습니다: ${error.message}`;
+  }
+}
+
 async function initializeAdminGate() {
   if (!adminDashboard) return;
   if (authUiState.user?.role !== "admin") {
@@ -4701,7 +4739,7 @@ async function initializeAdminGate() {
     return;
   }
   adminDashboard.classList.remove("locked");
-  await loadAdminMembers();
+  await Promise.all([loadAdminStats(), loadAdminMembers()]);
 }
 
 refreshMembers?.addEventListener("click", () => loadAdminMembers());
@@ -4764,50 +4802,11 @@ adminPasswordChangeForm?.addEventListener("submit", async (event) => {
   }
 });
 
-function applyAdminTableFilters() {
-  if (!adminRows.length) return;
-
-  const risk = riskFilter?.value || "all";
-  const goal = goalFilter?.value || "all";
-  const plan = planFilter?.value || "all";
-  const query = adminUserSearch?.value.trim().toLowerCase() || "";
-  let visibleCount = 0;
-
-  adminRows.forEach((row) => {
-    const matchesRisk = risk === "all" || row.dataset.risk === risk;
-    const matchesGoal = goal === "all" || row.dataset.goal === goal;
-    const matchesPlan = plan === "all" || row.dataset.plan === plan;
-    const matchesQuery = !query || String(row.dataset.user || "").toLowerCase().includes(query);
-    const visible = matchesRisk && matchesGoal && matchesPlan && matchesQuery;
-    row.hidden = !visible;
-    if (visible) visibleCount += 1;
-  });
-
-  if (adminEmptyRow) {
-    adminEmptyRow.hidden = visibleCount !== 0;
-  }
-  if (adminVisibleCount) adminVisibleCount.textContent = `${visibleCount}명`;
-}
-
-[riskFilter, goalFilter, planFilter].forEach((filter) => {
-  filter?.addEventListener("change", applyAdminTableFilters);
-});
-adminUserSearch?.addEventListener("input", applyAdminTableFilters);
-resetAdminFilters?.addEventListener("click", () => {
-  if (riskFilter) riskFilter.value = "all";
-  if (goalFilter) goalFilter.value = "all";
-  if (planFilter) planFilter.value = "all";
-  if (adminUserSearch) adminUserSearch.value = "";
-  applyAdminTableFilters();
-});
-
 document.querySelectorAll(".admin-sidebar nav a").forEach((link) => {
   link.addEventListener("click", () => {
     document.querySelectorAll(".admin-sidebar nav a").forEach((item) => item.classList.toggle("active", item === link));
   });
 });
-
-applyAdminTableFilters();
 
 const appStateVersion = 5;
 const accountStateByteLimit = 250_000;
