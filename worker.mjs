@@ -70,7 +70,9 @@ const CONTENT_SECURITY_POLICY = [
      (mobile/scripts/patch-download.mjs), 'self' 는 blob 스킴을 덮지 않아 그 fetch 가 막혔다.
      blob URL 은 그 페이지가 스스로 만든 것만 열 수 있어 외부로 나가는 통로가 아니다.
      2026-08-03 실기기 2회차에서 이 한 토큰이 없어 .md 내보내기가 실패하는 것을 확인했다. */
-  "connect-src 'self' blob: https://*.tosspayments.com",
+  /* cloudflareinsights.com 은 Web Analytics 비콘의 수집 엔드포인트다. script-src 는 이미 비콘 스크립트를
+     허용하고 있었지만 connect-src 가 막혀 있으면 POST 가 떨어져 집계가 0 이 된다 (2026-10-13). */
+  "connect-src 'self' blob: https://*.tosspayments.com https://cloudflareinsights.com",
   "frame-src https://*.tosspayments.com",
   "upgrade-insecure-requests",
 ].join("; ");
@@ -87,6 +89,23 @@ function secureResponse(response) {
     secured.headers.set("Cache-Control", "no-cache, no-store, must-revalidate");
   }
   return secured;
+}
+
+/* Cloudflare Web Analytics 비콘. 대시보드의 자동 주입(RUM)은 Worker 가 서빙하는 HTML 에는
+   들어가지 않는 것을 2026-10-13 운영 HTML 로 확인했다(onmyway·bloom 모두). 그래서 운영 환경에서만
+   워커가 </head> 앞에 대시보드가 준 스니펫을 넣는다. 토큰은 HTML 에 실리는 공개값이다.
+   프리뷰·로컬·테스트에는 넣지 않는다 — e2e 가 외부 스크립트 로드에 흔들리지 않게. */
+const WEB_ANALYTICS_SNIPPET =
+  "<script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{\"token\": \"e9d439f999b44a99ba87fa2f488d3cd2\"}'></script>";
+
+async function withWebAnalytics(response, env) {
+  if (env?.APP_ENV !== "production") return response;
+  if (!(response.headers.get("Content-Type") || "").toLowerCase().includes("text/html")) return response;
+  const html = await response.text();
+  if (!html.includes("</head>")) return new Response(html, response);
+  const injected = new Response(html.replace("</head>", `${WEB_ANALYTICS_SNIPPET}</head>`), response);
+  injected.headers.delete("Content-Length"); // 본문 길이가 바뀌었다. 런타임이 다시 계산한다.
+  return injected;
 }
 
 const FUNNEL_STEPS = new Set([
@@ -820,7 +839,7 @@ export { EnergyLedgerObject };
 
 export default {
   async fetch(request, env) {
-    return secureResponse(await handleFetch(request, env));
+    return withWebAnalytics(secureResponse(await handleFetch(request, env)), env);
   },
   async scheduled(_controller, env, ctx) {
     if (!env.USERS_KV) return;
