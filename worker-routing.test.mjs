@@ -381,3 +381,51 @@ test("낯선 출처의 퍼널 요청은 계속 막는다", async () => {
   assert.equal(response.status, 403);
   assert.equal(fixture.puts.length, 0);
 });
+
+/* ---------- Cloudflare Web Analytics 비콘 ----------
+   2026-10-13 확인: 대시보드의 자동 주입(RUM)은 Worker가 서빙하는 HTML에는 들어가지 않는다
+   (onmyway·bloom 운영 HTML 모두 비콘 없음). 그래서 워커가 운영 환경에서만 </head> 앞에
+   대시보드가 준 스니펫을 넣는다. 토큰은 HTML에 실리는 공개값이다.
+   프리뷰·로컬·테스트에는 넣지 않는다 — e2e가 외부 스크립트 로드에 흔들리지 않게. */
+const BEACON = /<script type='module' src='https:\/\/static\.cloudflareinsights\.com\/beacon\.min\.js' data-cf-beacon='\{"token": "[0-9a-f]{32}"\}'><\/script><\/head>/;
+
+function htmlAssets(body = "<!doctype html><html><head><title>t</title></head><body>b</body></html>") {
+  return {
+    ASSETS: {
+      async fetch(request) {
+        const type = new URL(request.url).pathname.endsWith(".css") ? "text/css" : "text/html; charset=utf-8";
+        return new Response(body, { headers: { "Content-Type": type, "Content-Length": String(body.length) } });
+      },
+    },
+  };
+}
+
+test("운영 환경에서만 HTML 응답의 </head> 앞에 Web Analytics 비콘을 주입한다", async () => {
+  const prod = await worker.fetch(new Request("https://onmyway.olivenrich.com/"), { APP_ENV: "production", ...htmlAssets() });
+  const prodHtml = await prod.text();
+  assert.match(prodHtml, BEACON);
+  assert.equal((prodHtml.match(/beacon\.min\.js/g) || []).length, 1, "한 번만 주입");
+  assert.equal(prod.headers.get("content-length"), null, "본문이 바뀌었으므로 옛 Content-Length를 남기지 않는다");
+
+  for (const APP_ENV of ["preview", "local", "test", undefined]) {
+    const res = await worker.fetch(new Request("https://preview.example/app.html"), { APP_ENV, ...htmlAssets() });
+    assert.doesNotMatch(await res.text(), /cloudflareinsights/, `APP_ENV=${APP_ENV}에는 주입하지 않는다`);
+  }
+});
+
+test("비콘 주입은 HTML에만 하고, </head>가 없는 HTML은 그대로 둔다", async () => {
+  const css = await worker.fetch(new Request("https://onmyway.olivenrich.com/styles.css"), { APP_ENV: "production", ...htmlAssets("body{}") });
+  assert.equal(await css.text(), "body{}");
+  const noHead = await worker.fetch(new Request("https://onmyway.olivenrich.com/"), { APP_ENV: "production", ...htmlAssets("<p>fragment</p>") });
+  assert.equal(await noHead.text(), "<p>fragment</p>");
+});
+
+test("CSP connect-src가 비콘의 수집 엔드포인트(cloudflareinsights.com)를 허용한다", async () => {
+  const res = await worker.fetch(new Request("https://onmyway.olivenrich.com/"), { APP_ENV: "production", ...htmlAssets() });
+  const csp = new Map(res.headers.get("content-security-policy").split(";").map((part) => {
+    const [directive, ...sources] = part.trim().split(/\s+/);
+    return [directive, sources];
+  }));
+  assert.ok(csp.get("connect-src").includes("https://cloudflareinsights.com"), "connect-src에 없으면 비콘 POST가 CSP에 막혀 집계가 0이다");
+  assert.equal(csp.get("script-src").includes("https://cloudflareinsights.com"), false, "script-src는 넓히지 않는다");
+});
