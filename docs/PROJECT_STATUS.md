@@ -2,9 +2,19 @@
 
 ## 기준
 
-- 기준일: 2026-09-24 (KST, 유입 검토 추가; 과거 구현·배포 기록의 날짜는 유지)
+- 기준일: 2026-11-23 (KST, Play 구독의 Pro 권한·크레딧 연결; 과거 구현·배포 기록의 날짜는 유지)
 - 판단 기준: 현재 소스와 작업 트리 → 테스트/CI → Git 커밋·PR → 배포 근거 → 기존 문서
 - 인증 안정화 변경은 전용 `fix/omw-auth-stabilization` 브랜치와 PR #9에서만 수행하며, 혼합 worktree와 외부 복구 백업은 수정하지 않는다.
+
+## Play 구독을 Pro 권한·크레딧에 연결 (2026-11-23)
+
+- 발견: `/api/billing/google/verify`는 `entitlements` 행만 쓰고 회원 레코드를 건드리지 않아, Play에서 결제해도 `resolveEffectivePlan`이 계속 `expired`로 판정했다(초안 §6 미연결). 실결제 0건이라 피해 사례는 없다. 원장도 달력 월 1회만 지급해서, 달 중간 구독자는 다음 달 1일까지 Pro 크레딧을 받지 못했다(관리자 무상 Pro도 같았다).
+- 플랜: `applyStoreEntitlement`(`auth-service.mjs`)가 verify와 RTDN 때 권한을 회원 레코드에 비춘다 — `plan: "pro"`, `billingStore: "google"`, `subscriptionStatus`=스토어 상태, `currentPeriodEnd`=구글 만료 시각. RTDN은 subscriptionsv2를 다시 조회해 새 만료 시각을 받고, 조회가 실패하면 통보 상태로 반영한다. 권한이 없으면(on_hold·paused·expired·revoked) 지금 Pro를 준 바로 그 구독(`billingEntitlementId`)일 때만 `expired`로 내린다 — 늦게 온 지난 구매의 통보나 관리자 무상 Pro는 내리지 않는다. `resolveEffectivePlan`은 바꾸지 않았다.
+- 크레딧(사용자 결정: 월 1회 Pro 보충): `energy-ledger.mjs`의 `applyLazyGrant`가, 그 달 지급이 Pro가 아니었으면 plan `pro`를 처음 보는 접근에 정기 잔량을 Pro 250으로 바꿔 채운다. 새 필드 `lastGrantPlan`(RESET_DISPOSITION `rebuilt`)으로 계정당 달력 월 1회만 채운다 — 같은 달 환불 → 재구매나 결제 복구로는 다시 채워지지 않는다. 이 필드가 없던 기존 레코드는 배포 후 Pro 첫 접근에 한 번 다시 채워진다(현재 해당자는 관리자 무상 Pro뿐).
+- `/api/billing/cancel`은 Play 구독자에게 409와 Google Play 해지 안내를 돌려주고 상태를 바꾸지 않는다. 그대로 두면 우리 기록만 '해지'로 바뀌고 구글 청구는 계속됐을 것이다. 앱은 서버 메시지를 토스트로 보여 주므로 새 빌드 없이 적용된다.
+- 검증: 재현 테스트(verify 성공 후 `/api/auth/me`가 `expired`)가 실패 → 통과. 갱신 통보 재조회, 만료 통보 하향, 다른 구독 통보 무시, 해지 409, 원장 보충 3건을 추가했다. `node --test *.test.mjs` 515개 통과. E2E와 실결제(라이선스 테스터)는 실행하지 않았다.
+- [확인 필요] grace 중 구글이 `expiryTime`을 유예 종료까지 늘려 주는지 라이선스 테스터 결제로 확인해야 한다. 늘려 주지 않으면 유예 중에 Pro가 먼저 끝난다. 운영에 `GOOGLE_RTDN_PUSH_TOKEN`과 Pub/Sub 푸시가 연결됐는지도 확인해야 한다 — 없으면 갱신은 앱 실행 시 구매 복원(verify)으로만 반영된다.
+- 남은 것: 앱 마이페이지 '구독 해지' 버튼을 Play 구독 관리 링크로 바꾸기(새 빌드 필요), Play 구독자의 계정 탈퇴 시 구글 구독 해지 안내. 커밋·배포는 하지 않았다.
 
 ## Google Play 등록정보 개선 실행 (2026-09-24)
 

@@ -5,6 +5,8 @@ import { createBillingLedger, fingerprint } from "./billing-ledger.mjs";
 import {
   createEntitlementStore,
   googlePlayConfig,
+  hasEntitlementAccess,
+  normalizeEntitlement,
   parseRtdnEnvelope,
   processGoogleRtdn,
   publicEntitlement,
@@ -712,6 +714,71 @@ export function applySuccessfulPayment(user, payment, now) {
   user.pendingRenewalOrderId = null;
 }
 
+/* 스토어 구독의 권한을 회원 레코드에 비춘다. 플랜 판정은 resolveEffectivePlan 하나가 하고
+   그 함수는 회원 레코드만 보므로, 스토어 사본(entitlements)이 바뀔 때마다 여기서 옮긴다.
+   크레딧은 따로 건드리지 않는다 — 원장이 plan "pro"를 처음 보는 접근에 그 달 Pro 지급액을
+   채운다(energy-ledger.mjs의 proUpgrade).
+
+   권한이 있으면 Pro로 두고 currentPeriodEnd를 구글 만료 시각으로 맞춘다. 갱신은 verify나
+   RTDN 재조회가 새 만료 시각으로 다시 부른다. 통보가 끊겨도 마지막으로 확인한 만료 시각에
+   Pro가 끝난다 — 확인하지 못한 기간까지 열어 두지 않는다. 만료 시각이 없으면 기간을 모르는
+   것이므로 열지 않는다(currentPeriodEnd 0은 "끝 없음"이라 그대로 넣으면 영구 Pro가 된다).
+   [확인 필요] grace 중 구글이 expiryTime을 유예 종료로 늘려 주는지는 라이선스 테스터 결제로
+   확인한다. 늘려 주지 않으면 유예 중에 Pro가 먼저 끝난다.
+
+   권한이 없으면 만료로 내린다. 단 지금 Pro를 준 바로 그 구독(billingEntitlementId)일 때만이다 —
+   늦게 온 지난 구매의 만료 통보나 관리자 무상 Pro를 스토어 통보가 내리면 안 된다.
+   반환값은 레코드를 바꿨는지다. */
+export function applyStoreEntitlement(user, entitlement, now = Date.now()) {
+  if (!user || !entitlement) return false;
+  const expiresAt = Number(entitlement.expiresAt || 0);
+  if (hasEntitlementAccess(entitlement, now) && expiresAt > 0) {
+    if (user.plan === "trial") {
+      user.trialEndedAt = now;
+      user.trialUsedAt = user.trialUsedAt || now;
+    }
+    user.plan = "pro";
+    user.proSince = user.proSince || now;
+    user.billingStore = entitlement.store;
+    user.billingEntitlementId = entitlement.entitlementId;
+    user.subscriptionStatus = entitlement.state;
+    user.currentPeriodEnd = expiresAt;
+    return true;
+  }
+  if (!user.billingEntitlementId || user.billingEntitlementId !== entitlement.entitlementId) return false;
+  user.plan = "expired";
+  user.subscriptionStatus = entitlement.state;
+  return true;
+}
+
+/* RTDN은 무엇이 바뀌었는지만 알려 준다 — 갱신돼도 새 만료 시각은 담겨 있지 않다. 그래서
+   구글 권고대로 구독을 다시 조회해 사본을 최신으로 만든 뒤 회원에게 비춘다. 조회가 실패하면
+   통보가 적용한 상태(만료 시각은 직전 값)로 비춘다. 주인을 모르는 구독(verify 전)은 verify가
+   이어받는다. */
+async function syncStoreSubscriber(ctx, entitlements, purchaseToken) {
+  const row = await entitlements.getEntitlement("google", purchaseToken);
+  if (!row?.user_id) return;
+  let entitlement = null;
+  const config = googlePlayConfig(ctx.env);
+  if (config.configured) {
+    try {
+      ({ entitlement } = await verifyGooglePurchase({
+        config,
+        store: entitlements,
+        fetcher: ctx.fetcher || fetch,
+        userId: row.user_id,
+        purchaseToken,
+        now: Date.now(),
+      }));
+    } catch (error) {
+      console.warn("Google subscription refetch failed; applying notification state", { code: error?.code || "UNKNOWN" });
+    }
+  }
+  entitlement ||= normalizeEntitlement(await entitlements.getEntitlement("google", purchaseToken));
+  const user = await store(ctx).getUser(row.user_id);
+  if (applyStoreEntitlement(user, entitlement, Date.now())) await store(ctx).putUser(user);
+}
+
 export async function reconcileExternallyApprovedPayment({ ledger, userStore, orderId, payment, now = Date.now() }) {
   if (!ledger || !userStore) throw new TypeError("ledger and userStore are required");
   const order = await ledger.getPaymentOrder(orderId);
@@ -1268,7 +1335,8 @@ export async function handleAccountApi(ctx) {
      토스와 진실의 소유자가 반대다(docs/entitlement-schema-draft.md §0) — 결제를
      스토어가 시작·갱신하고 우리는 통보를 검증해 사본을 맞춘다. 두 라우트 모두
      GOOGLE_* 구성이 없으면 503으로 닫혀 있어, 콘솔 승인 전의 배포에서는 아무
-     동작도 하지 않는다. user.plan·크레딧 지급과는 아직 연결하지 않는다(초안 §6). */
+     동작도 하지 않는다. 확인된 권한은 applyStoreEntitlement가 user.plan에 비추고,
+     크레딧은 원장이 plan을 보고 채운다(초안 §6의 연결). */
 
   if (path === "/api/billing/google/rtdn" && method === "POST") {
     /* Pub/Sub push 인증: 엔드포인트 URL에 심은 공유 토큰을 상수 시간으로 비교한다.
@@ -1291,9 +1359,15 @@ export async function handleAccountApi(ctx) {
     /* 어떤 결과든 200 — Pub/Sub는 200이 아니면 같은 알림을 계속 재전송한다.
        중복·미지원 유형·verify 전 도착(deferred)은 전부 정상 경로다.
        저장 실패(BILLING_DB 미바인딩 등)만 5xx로 돌려 재전송을 유도한다 —
-       기록하지 못한 알림을 200으로 삼키면 그 통보는 영영 사라진다. */
+       기록하지 못한 알림을 200으로 삼키면 그 통보는 영영 사라진다.
+       회원 반영 실패도 5xx다 — 재전송은 duplicate로 오지만 반영은 duplicate에서도 다시 한다. */
     try {
-      const result = await processGoogleRtdn(entitlementStore(ctx.env), envelope, Date.now());
+      const entitlements = entitlementStore(ctx.env);
+      const result = await processGoogleRtdn(entitlements, envelope, Date.now());
+      const purchaseToken = String((envelope.subscriptionNotification || envelope.voidedPurchaseNotification)?.purchaseToken || "");
+      if (purchaseToken && (result.outcome === "applied" || result.outcome === "duplicate")) {
+        await syncStoreSubscriber(ctx, entitlements, purchaseToken);
+      }
       return { status: 200, json: { ok: true, outcome: result.outcome } };
     } catch (error) {
       return { status: Number(error.status) || 500, json: { error: "알림을 저장하지 못했습니다." } };
@@ -1319,6 +1393,7 @@ export async function handleAccountApi(ctx) {
         purchaseToken,
         now: Date.now(),
       });
+      if (applyStoreEntitlement(user, result.entitlement, Date.now())) await store(ctx).putUser(user);
       return { status: 200, json: { ok: true, entitlement: publicEntitlement(result.entitlement), access: result.access } };
     } catch (error) {
       const status = Number(error.status) || 502;
@@ -1447,6 +1522,11 @@ export async function handleAccountApi(ctx) {
   if (path === "/api/billing/cancel" && method === "POST") {
     const user = await currentSessionUser(ctx);
     if (!user) return { status: 401, json: { error: "로그인 후 이용할 수 있어요." } };
+    /* 이 라우트는 토스 빌링키를 지우고 우리 기록만 바꾼다. Play 구독은 구글이 청구하므로
+       여기서 '해지'로 적으면 화면은 해지됐다고 말하고 청구는 계속된다. 상태는 건드리지 않는다. */
+    if (user.billingStore === "google") {
+      return { status: 409, json: { error: "Google Play 구독은 Play 스토어의 결제 및 정기 결제 메뉴에서 해지할 수 있어요." } };
+    }
     if (user.billingKey && !billingConfig(ctx.env).configured) {
       return { status: 503, json: { error: "결제사 해지 설정을 확인할 수 없어 구독 상태를 유지했습니다." } };
     }

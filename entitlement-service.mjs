@@ -101,7 +101,7 @@ function randomId(prefix) {
   return `${prefix}${Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("")}`;
 }
 
-function normalizeEntitlement(row) {
+export function normalizeEntitlement(row) {
   if (!row) return null;
   return {
     entitlementId: row.entitlement_id,

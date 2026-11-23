@@ -56,6 +56,7 @@ function seededState() {
     reserved: 5,
     purchasedBalance: 7,
     lastGrantMonthKey: "2020-01",
+    lastGrantPlan: "trial",
     trialGrantKey: "trial-round-1",
     daily: { key: "2020-01-01", spent: 9, reserved: 2 },
     dailyCheer: { key: TODAY_KEY, celebrate: NOW - 1_000, comfort: 0 },
@@ -93,6 +94,7 @@ const EXPECTATIONS = {
   reserved: ({ after }) => assert.equal(after.reserved, 0),
   purchasedBalance: ({ after }) => assert.equal(after.purchasedBalance, 7, "돈을 낸 재화가 사라졌다"),
   lastGrantMonthKey: ({ after }) => assert.equal(after.lastGrantMonthKey, THIS_MONTH_KEY),
+  lastGrantPlan: ({ after }) => assert.equal(after.lastGrantPlan, "pro", "재지급한 플랜이 기록되지 않았다"),
   trialGrantKey: ({ after }) => assert.equal(
     after.trialGrantKey,
     "trial-round-1",

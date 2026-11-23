@@ -165,6 +165,10 @@ export function emptyLedgerState(now = Date.now(), timeZone = DEFAULT_TIME_ZONE)
     purchasedBalance: 0,
     // 이번 달 정기 지급 여부. lazy-grant 판정에 쓴다.
     lastGrantMonthKey: "",
+    /* 그 달 지급을 받은 플랜. 같은 달 안에서 Pro 보충(applyLazyGrant의 proUpgrade)을 한 번만
+       하게 하는 근거다. 이 필드가 없던 레코드는 ""로 읽혀, 이미 Pro인 계정도 배포 후 첫
+       접근에 한 번 Pro 지급액으로 다시 채워진다 — 실결제 0건 시점이라 관리자 무상 Pro뿐이다. */
+    lastGrantPlan: "",
     /* 마지막으로 지급한 체험 회차 키(회원 레코드의 trialStartedAt). 같은 회차로 다시
        오면 grantTrialCredits가 아무 일도 하지 않는다 — 체험 크레딧 재충전을 막는 근거다. */
     trialGrantKey: "",
@@ -239,6 +243,7 @@ export function normalizeLedgerState(value, now = Date.now(), timeZone = DEFAULT
     reserved: nonNegativeInteger(value.reserved),
     purchasedBalance: Math.min(nonNegativeInteger(value.purchasedBalance), nonNegativeInteger(value.balance)),
     lastGrantMonthKey: String(value.lastGrantMonthKey || ""),
+    lastGrantPlan: String(value.lastGrantPlan || ""),
     trialGrantKey: String(value.trialGrantKey || ""),
     daily: {
       key: String(daily.key || ""),
@@ -346,11 +351,20 @@ function rollDailyCheer(state, period) {
 // 그 달 grant 기록이 없으면 지급한다. 유저별 크론이 필요 없는 이유가 이것이다 —
 // 그 달 첫 요청이 들어오는 순간 지급이 일어난다. 요청이 없는 달은 지급도 없고,
 // 이월하지 않으므로(creditsRollover=false) 지난 달 잔액은 지급 시점에 정리한다.
+//
+// 예외 하나: 그 달 지급이 이미 있어도 Pro 지급이 아니었다면 Pro가 된 첫 접근에 한 번 더
+// 지급한다(proUpgrade). 달 중간에 구독한 회원이 체험·만료 지급분으로 다음 달 1일을 기다리지
+// 않게 하려는 것이다. lastGrantPlan이 "pro"가 되면 그 달에는 다시 오지 않으므로 Pro 지급은
+// 계정당 달력 월 1회다 — 환불 → 재구매나 결제 실패 → 복구로 플랜이 흔들려도 다시 채워지지
+// 않는다(#40과 같은 모양의 리필을 막는다).
 async function applyLazyGrant(storage, state, { plan, period, now, paywallEnabled }) {
-  if (state.lastGrantMonthKey === period.monthKey) return null;
+  const sameMonth = state.lastGrantMonthKey === period.monthKey;
+  const proUpgrade = sameMonth && plan === "pro" && state.lastGrantPlan !== "pro";
+  if (sameMonth && !proUpgrade) return null;
   const amount = monthlyGrantAmount(plan, { paywallEnabled });
   const previousMonth = state.lastGrantMonthKey;
   // 이월 없음(creditsRollover=false): 새 달 지급 시 지난 달 정기 잔액은 소멸한다.
+  // Pro 보충도 같은 자리를 다시 쓰므로 그 달 정기 잔액을 거두고 Pro 지급액으로 바꾼다.
   // 단 구매분은 유효기간이 따로 있으므로 남긴다 — 정기 지급으로 들어온 몫만 회수한다.
   const expiring = Math.max(0, state.balance - state.purchasedBalance);
   if (expiring > 0) {
@@ -358,7 +372,7 @@ async function applyLazyGrant(storage, state, { plan, period, now, paywallEnable
     await appendTransaction(storage, {
       type: TXN_TYPES.REFUND,
       amount: -expiring,
-      reason: "monthly_expire",
+      reason: proUpgrade ? "pro_upgrade_replace" : "monthly_expire",
       at: now,
       balanceAfter: state.balance,
       meta: { month: previousMonth },
@@ -366,10 +380,11 @@ async function applyLazyGrant(storage, state, { plan, period, now, paywallEnable
   }
   state.balance += amount;
   state.lastGrantMonthKey = period.monthKey;
+  state.lastGrantPlan = plan;
   const txn = await appendTransaction(storage, {
     type: TXN_TYPES.GRANT,
     amount,
-    reason: "monthly_grant",
+    reason: proUpgrade ? "pro_upgrade_grant" : "monthly_grant",
     at: now,
     balanceAfter: state.balance,
     meta: { plan, month: period.monthKey },
@@ -868,6 +883,8 @@ export const RESET_DISPOSITION = Object.freeze({
   purchasedBalance: "preserved",
   // 비운 뒤 applyLazyGrant가 당월 키로 다시 세운다. 이것이 "다시 지급"의 방아쇠다.
   lastGrantMonthKey: "rebuilt",
+  // 위와 한 쌍이다. 재지급하는 applyLazyGrant가 리셋 플랜으로 다시 적는다.
+  lastGrantPlan: "rebuilt",
   // 체험 회차 멱등 키. 지우면 reset → trialGrant 순서로 체험 재지급이 가능해진다(①).
   trialGrantKey: "preserved",
   // 오늘 키로 다시 세우고 사용량을 0으로 둔다. 속도 제한이라 전환 시 풀어 주는 것이 맞다.
