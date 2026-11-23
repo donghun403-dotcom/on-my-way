@@ -526,3 +526,46 @@ test("체험 지급은 구매한 잔량을 건드리지 않는다", async () => 
   assert.equal(granted.purchasedBalance, 100, "구매분이 사라졌다");
   assert.equal(granted.balance, 100 + PLAN_CONFIG.pro.trial.credits);
 });
+
+/* 달 중간에 구독하면 그 달 정기 지급 자리는 이미 체험·만료 지급이 쓰고 있다. 월 키만 보면
+   새 구독자는 다음 달 1일까지 체험 잔량으로 버틴다 — 돈을 내고 크레딧을 못 받는다. */
+const MARCH_20 = Date.UTC(2026, 2, 20, 3, 0, 0);
+const APRIL_2 = Date.UTC(2026, 3, 2, 3, 0, 0);
+const PRO_CREDITS = PLAN_CONFIG.pro.monthlyCredits;
+
+test("달 중간에 Pro가 되면 그 달 정기 잔량을 Pro 지급액으로 바꿔 채운다", async () => {
+  const storage = memoryStorage();
+  await grantTrialCredits(storage, { plan: "trial", trialKey: "trial-mid-month", now: MARCH });
+
+  const pro = await getEnergyUsage(storage, { plan: "pro", now: MARCH_20 });
+  assert.equal(pro.balance, PRO_CREDITS, "체험 잔량에 더하지 않고 Pro 지급액으로 바꾼다");
+});
+
+/* Pro 보충은 계정당 달력 월 1회다. 환불 → 재구매, 결제 실패 → 복구로 플랜이 흔들릴 때마다
+   다시 채우면 체험 무한 리필(#40)과 같은 모양이 된다. */
+test("같은 달에 Pro를 벗어났다 돌아와도 다시 채우지 않는다", async () => {
+  const storage = memoryStorage();
+  await grantTrialCredits(storage, { plan: "trial", trialKey: "trial-refund", now: MARCH });
+  await getEnergyUsage(storage, { plan: "pro", now: MARCH_20 });
+  await reserveEnergy(storage, { plan: "pro", action: "companion_chat", requestId: "req-before-refund", now: MARCH_20 });
+  await commitEnergy(storage, { plan: "pro", requestId: "req-before-refund", now: MARCH_20 });
+  const afterSpend = await getEnergyUsage(storage, { plan: "pro", now: MARCH_20 });
+  assert.ok(afterSpend.balance < PRO_CREDITS);
+
+  await getEnergyUsage(storage, { plan: "expired", now: MARCH_20 + 1_000, paywallEnabled: true });
+  const back = await getEnergyUsage(storage, { plan: "pro", now: MARCH_20 + 2_000 });
+  assert.equal(back.balance, afterSpend.balance);
+
+  const txns = await listTransactions(storage);
+  assert.equal(txns.filter((txn) => txn.type === TXN_TYPES.GRANT && txn.meta?.plan === "pro").length, 1);
+});
+
+test("다음 달에는 평소처럼 1일 정기 지급 한 번만 받는다", async () => {
+  const storage = memoryStorage();
+  await grantTrialCredits(storage, { plan: "trial", trialKey: "trial-next-month", now: MARCH });
+  await getEnergyUsage(storage, { plan: "pro", now: MARCH_20 });
+
+  await getEnergyUsage(storage, { plan: "pro", now: APRIL_2 });
+  const again = await getEnergyUsage(storage, { plan: "pro", now: APRIL_2 + 1_000 });
+  assert.equal(again.balance, PRO_CREDITS);
+});

@@ -21,7 +21,7 @@ import {
   publicEntitlement,
   verifyGooglePurchase,
 } from "./entitlement-service.mjs";
-import { handleAccountApi, parseCookies } from "./auth-service.mjs";
+import { applyStoreEntitlement, createSessionToken, handleAccountApi, parseCookies } from "./auth-service.mjs";
 
 const NOW = Date.parse("2026-08-04T03:00:00.000Z");
 
@@ -536,4 +536,110 @@ test("verify 라우트는 로그인 없이는 401이다", async () => {
     body: { purchaseToken: "t" },
   }));
   assert.equal(result.status, 401);
+});
+
+/* 세션이 있는 회원 한 명과 구글 응답을 묶은 라우트 픽스처. 라우트는 Date.now()를 쓰므로
+   만료 시각도 실제 현재 시각 기준으로 만든다 — NOW(2026-08-04)를 쓰면 이미 지난 구독이 된다. */
+const DAY = 24 * 60 * 60 * 1000;
+async function payingMemberFixture() {
+  const now = Date.now();
+  const { pem } = await serviceAccountFixture();
+  const secret = "s".repeat(40);
+  const user = {
+    id: "usr_payer", provider: "google", name: "구독자", status: "active", createdAt: now - 10 * DAY,
+    plan: "expired", trialStartedAt: now - 10 * DAY, trialUsedAt: now - 10 * DAY, trialExpiresAt: now - 3 * DAY,
+  };
+  const users = new Map([[user.id, user]]);
+  const sessions = new Map([["sid-payer", { id: "sid-payer", userId: user.id, expiresAt: now + DAY }]]);
+  const store = {
+    getUser: async (id) => users.get(id) || null,
+    putUser: async (next) => { users.set(next.id, next); },
+    getSession: async (id) => sessions.get(id) || null,
+  };
+  const token = await createSessionToken({ sid: "sid-payer", sub: user.id, exp: now + DAY }, secret);
+  /* googleFetcher는 호출 때마다 이 객체를 직렬화한다. 테스트가 고쳐 쓰면 구글의 다음 답이 바뀐다. */
+  const [line] = subscriptionsV2Fixture().lineItems;
+  const purchase = subscriptionsV2Fixture({ lineItems: [{ ...line, expiryTime: new Date(now + 30 * DAY).toISOString() }] });
+  const { fetcher } = googleFetcher({ purchase });
+  const env = {
+    SESSION_SECRET: secret,
+    BILLING_DB: createMemoryEntitlementDb(),
+    GOOGLE_PLAY_PACKAGE_NAME: "com.olivenrich.onmyway",
+    GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: JSON.stringify({ client_email: "svc@p.iam", private_key: pem }),
+    GOOGLE_RTDN_PUSH_TOKEN: "push-secret",
+  };
+  const call = (path, { method = "GET", body = {} } = {}) => handleAccountApi({
+    ...routeContext({ path, method, env, body, cookie: `omw_session=${token}` }),
+    store,
+    fetcher,
+  });
+  const notify = (notificationType, messageId) => call("/api/billing/google/rtdn?token=push-secret", {
+    method: "POST",
+    body: rtdnEnvelope({ notificationType, purchaseToken: "pay-1", messageId }),
+  });
+  const verify = () => call("/api/billing/google/verify", { method: "POST", body: { purchaseToken: "pay-1" } });
+  return { users, user, purchase, call, notify, verify };
+}
+
+/* 결제했으면 Pro다. verify가 entitlements 행만 쓰고 회원 레코드를 건드리지 않으면
+   플랜 판정(resolveEffectivePlan)은 계속 '이용 종료'로 본다 — 돈을 받고 잠그는 셈이다. */
+test("verify 라우트로 확인된 Play 구독은 회원의 플랜을 Pro로 만든다", async () => {
+  const { call, verify, users, purchase } = await payingMemberFixture();
+
+  const verified = await verify();
+  assert.equal(verified.status, 200);
+  assert.equal(verified.json.access, true);
+
+  const me = await call("/api/auth/me");
+  assert.equal(me.json.user.plan, "pro");
+  assert.equal(users.get("usr_payer").currentPeriodEnd, Date.parse(purchase.lineItems[0].expiryTime), "Pro는 구글이 확인해 준 만료 시각까지다");
+});
+
+/* RTDN에는 새 만료 시각이 없다. 재조회하지 않으면 갱신된 구독자도 지난 만료 시각에 잠긴다. */
+test("갱신 통보를 받으면 구글을 다시 조회해 Pro 기간을 늘린다", async () => {
+  const { verify, notify, users, purchase } = await payingMemberFixture();
+  await verify();
+
+  const renewedUntil = Date.now() + 60 * DAY;
+  purchase.lineItems[0].expiryTime = new Date(renewedUntil).toISOString();
+  const renewed = await notify(2, "msg-renewed");
+  assert.equal(renewed.status, 200);
+  assert.equal(users.get("usr_payer").currentPeriodEnd, renewedUntil);
+});
+
+test("만료·환불 통보를 받으면 Pro를 바로 내린다", async () => {
+  const { verify, notify, call, purchase } = await payingMemberFixture();
+  await verify();
+
+  purchase.subscriptionState = "SUBSCRIPTION_STATE_EXPIRED";
+  purchase.lineItems[0].expiryTime = new Date(Date.now() - DAY).toISOString();
+  await notify(13, "msg-expired");
+  assert.equal((await call("/api/auth/me")).json.user.plan, "expired");
+});
+
+/* 통보는 늦게, 여러 번 온다(Pub/Sub 재전송). 지난 구매의 만료 통보가 지금 Pro를 받치고 있는
+   다른 구매를 이기면 결제 중인 회원이 잠긴다. 관리자 무상 Pro도 스토어 통보로 내려가면 안 된다. */
+test("Pro를 준 구독이 아닌 다른 구독의 만료는 플랜을 내리지 않는다", () => {
+  const now = Date.now();
+  const expiredOld = { entitlementId: "ent_old", store: "google", state: "expired", expiresAt: now - DAY };
+
+  const subscriber = { plan: "pro", billingStore: "google", billingEntitlementId: "ent_new", subscriptionStatus: "active", currentPeriodEnd: now + DAY };
+  assert.equal(applyStoreEntitlement(subscriber, expiredOld, now), false);
+  assert.equal(subscriber.plan, "pro");
+
+  const complimentary = { plan: "pro", subscriptionStatus: "complimentary", currentPeriodEnd: 0 };
+  assert.equal(applyStoreEntitlement(complimentary, expiredOld, now), false);
+  assert.equal(complimentary.plan, "pro");
+});
+
+/* 예전 해지 API는 토스 빌링키를 지우고 우리 기록만 '해지'로 바꾼다. Play 구독자에게 그대로
+   통하면 화면은 해지됐다고 말하고 구글은 계속 청구한다. */
+test("Play 구독자의 해지 요청은 Google Play로 안내하고 상태를 바꾸지 않는다", async () => {
+  const { verify, call, users } = await payingMemberFixture();
+  await verify();
+
+  const cancel = await call("/api/billing/cancel", { method: "POST" });
+  assert.equal(cancel.status, 409);
+  assert.match(cancel.json.error, /Google Play/);
+  assert.equal(users.get("usr_payer").subscriptionStatus, "active");
 });
